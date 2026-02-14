@@ -263,9 +263,9 @@ async def _run_critique_stage(
     )
     try:
         critique_output = await critique_agent.run(findings_json)
-    except Exception:
+    except Exception as exc:
         spec008 = ERRORS["SPEC-008"]
-        _log.warning("%s: %s", spec008.code, spec008.message)
+        _log.warning("%s: %s — cause: %s", spec008.code, spec008.message, exc)
         _notify(observer, "on_agent_failure", "critique", spec008.message)
         return findings, (), None
 

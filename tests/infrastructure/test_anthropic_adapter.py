@@ -103,52 +103,78 @@ class TestAnalyze:
         assert a.last_usage == (150, 75)
 
 
+def _mock_thinking_response(
+    text: str = "final answer",
+    input_tokens: int = 200,
+    output_tokens: int = 100,
+):
+    """Build a fake response with thinking + text blocks."""
+    thinking_block = SimpleNamespace(type="thinking", thinking="reasoning...")
+    text_block = SimpleNamespace(type="text", text=text)
+    usage = SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens)
+    return SimpleNamespace(content=[thinking_block, text_block], usage=usage)
+
+
+class _FakeThinkingStream:
+    """Mock stream that returns a final message via get_final_message()."""
+
+    def __init__(self, response, error=None):
+        self._response = response
+        self._error = error
+
+    async def __aenter__(self):
+        if self._error:
+            raise self._error
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    async def get_final_message(self):
+        return self._response
+
+
 class TestAnalyzeWithThinking:
     @pytest.mark.asyncio
     async def test_returns_text_block(self, adapter):
         a, client = adapter
-        events = _make_events("final answer", 200, 100)
-        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        resp = _mock_thinking_response("final answer")
+        client.messages.stream = MagicMock(
+            return_value=_FakeThinkingStream(resp)
+        )
         result = await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert result == "final answer"
 
     @pytest.mark.asyncio
-    async def test_enables_thinking_param(self, adapter):
+    async def test_enables_adaptive_thinking(self, adapter):
         a, client = adapter
-        events = _make_events()
-        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        resp = _mock_thinking_response()
+        client.messages.stream = MagicMock(
+            return_value=_FakeThinkingStream(resp)
+        )
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         call_kwargs = client.messages.stream.call_args.kwargs
-        assert call_kwargs["thinking"] == {
-            "type": "adaptive",
-            "budget_tokens": 2000,
-        }
+        assert call_kwargs["thinking"] == {"type": "adaptive"}
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_empty(self, adapter):
         a, client = adapter
-        # Only message events, no content_block_delta with text
-        events = [
-            SimpleNamespace(
-                type="message_start",
-                message=SimpleNamespace(
-                    usage=SimpleNamespace(input_tokens=50)
-                ),
-            ),
-            SimpleNamespace(
-                type="message_delta",
-                usage=SimpleNamespace(output_tokens=25),
-            ),
-        ]
-        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        thinking_only = SimpleNamespace(type="thinking", thinking="hmm")
+        usage = SimpleNamespace(input_tokens=50, output_tokens=25)
+        resp = SimpleNamespace(content=[thinking_only], usage=usage)
+        client.messages.stream = MagicMock(
+            return_value=_FakeThinkingStream(resp)
+        )
         result = await a.analyze_with_thinking("sys", "user", "model", 2000)
         assert result == ""
 
     @pytest.mark.asyncio
     async def test_updates_last_usage(self, adapter):
         a, client = adapter
-        events = _make_events(input_tokens=300, output_tokens=150)
-        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        resp = _mock_thinking_response(input_tokens=300, output_tokens=150)
+        client.messages.stream = MagicMock(
+            return_value=_FakeThinkingStream(resp)
+        )
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert a.last_usage == (300, 150)
 
@@ -196,8 +222,8 @@ class TestErrorHandling:
 
         a, client = adapter
         client.messages.stream = MagicMock(
-            return_value=_FakeStream(
-                [], error=anthropic.APIConnectionError(request=MagicMock())
+            return_value=_FakeThinkingStream(
+                None, error=anthropic.APIConnectionError(request=MagicMock())
             )
         )
         with pytest.raises(SpectraRetryError) as exc_info:
@@ -213,8 +239,8 @@ class TestErrorHandling:
         response.status_code = 429
         response.headers = {}
         client.messages.stream = MagicMock(
-            return_value=_FakeStream(
-                [],
+            return_value=_FakeThinkingStream(
+                None,
                 error=anthropic.RateLimitError(
                     message="rate limited",
                     response=response,

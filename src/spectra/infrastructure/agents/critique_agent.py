@@ -75,7 +75,7 @@ class CritiqueAgent(BaseAgent):
             gateway=gateway,
             model="claude-opus-4-6",
             system_prompt=_SYSTEM_PROMPT,
-            max_tokens=200_000,
+            max_tokens=16_000,
         )
 
     def validate_input(self, user_prompt: str) -> None:
