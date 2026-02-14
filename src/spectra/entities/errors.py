@@ -1,11 +1,8 @@
-"""Error taxonomy and Result type for fallible operations."""
+"""Error taxonomy for fallible operations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -62,19 +59,3 @@ def strip_code_fence(raw: str) -> str:
         cleaned = cleaned.split("\n", 1)[1]
         cleaned = cleaned.rsplit("```", 1)[0]
     return cleaned
-
-
-@dataclass(frozen=True)
-class Result(Generic[T]):
-    """Outcome of a fallible operation — either value or error, never both."""
-
-    value: T | None = None
-    error: SpectraError | None = None
-
-    @property
-    def is_ok(self) -> bool:
-        return self.error is None
-
-    @property
-    def is_err(self) -> bool:
-        return self.error is not None

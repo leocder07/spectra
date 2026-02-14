@@ -8,12 +8,11 @@ from types import SimpleNamespace
 from rich.console import Console
 
 from spectra.adapters.analysis_presenter import (
-    DIMENSION_LABELS,
     _build_dimensions_table,
-    _build_verdict,
     _score_bar,
     present_scorecard,
 )
+from spectra.adapters.brand import DIMENSION_LABELS, build_verdict
 from spectra.entities.models import DimensionScore, ScoreCard, score_to_grade
 
 
@@ -76,14 +75,14 @@ class TestScoreBar:
 class TestBuildVerdict:
     def test_verdict_with_all_dimensions(self):
         report = _make_report()
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         assert "B+" in verdict
         assert "83" in verdict
         assert "architecture" in verdict.lower()
 
     def test_verdict_no_scorecard(self):
         report = SimpleNamespace(score_card=None)
-        assert _build_verdict(report) == ""
+        assert build_verdict(report) == ""
 
     def test_verdict_no_dimensions(self):
         sc = ScoreCard(
@@ -93,7 +92,7 @@ class TestBuildVerdict:
             total_findings=0,
         )
         report = SimpleNamespace(score_card=sc)
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         assert "B" in verdict
         assert "80" in verdict
 
@@ -109,7 +108,7 @@ class TestBuildVerdict:
             total_findings=1,
         )
         report = SimpleNamespace(score_card=sc)
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         assert "A" in verdict
 
 

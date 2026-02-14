@@ -1,10 +1,10 @@
-"""Tests for error taxonomy and Result type in spectra.entities.errors."""
+"""Tests for error taxonomy in spectra.entities.errors."""
 
 from __future__ import annotations
 
 import pytest
 
-from spectra.entities.errors import ERRORS, Result, SpectraError
+from spectra.entities.errors import ERRORS, SpectraError
 
 
 # ── SpectraError ────────────────────────────────────────────────
@@ -77,33 +77,3 @@ class TestErrorsDict:
     def test_all_have_messages(self):
         for error in ERRORS.values():
             assert len(error.message) > 0
-
-
-# ── Result type ─────────────────────────────────────────────────
-
-
-class TestResult:
-    def test_ok_result(self):
-        result = Result(value="success")
-        assert result.is_ok is True
-        assert result.is_err is False
-        assert result.value == "success"
-        assert result.error is None
-
-    def test_err_result(self):
-        err = ERRORS["SPEC-001"]
-        result = Result(error=err)
-        assert result.is_ok is False
-        assert result.is_err is True
-        assert result.value is None
-        assert result.error is err
-
-    def test_default_is_ok(self):
-        result = Result()
-        assert result.is_ok is True
-        assert result.value is None
-
-    def test_frozen(self):
-        result = Result(value="test")
-        with pytest.raises(AttributeError):
-            result.value = "changed"

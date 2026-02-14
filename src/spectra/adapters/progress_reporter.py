@@ -14,15 +14,8 @@ from rich.progress import (
 from rich.style import Style
 from rich.theme import Theme
 
+from spectra.adapters.brand import AMBER, CYAN, GRAY, GREEN, RED, VIOLET
 from spectra.entities.enums import AgentRole
-
-# Brand colors
-VIOLET = "#7C3AED"
-AMBER = "#F59E0B"
-RED = "#EF4444"
-GREEN = "#22C55E"
-CYAN = "#06B6D4"
-GRAY = "#6B7280"
 
 SPECTRA_THEME = Theme(
     {

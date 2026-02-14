@@ -15,10 +15,10 @@ from spectra.entities.models import (
     ScoreCard,
     score_to_grade,
 )
+from spectra.adapters.brand import build_verdict
 from spectra.infrastructure.report_adapter import (
     ReportAdapter,
     _build_executive_summary,
-    _build_verdict,
     _critical_count,
     _sort_by_severity,
 )
@@ -189,13 +189,13 @@ class TestCriticalCount:
 class TestBuildVerdict:
     def test_includes_grade_and_score(self):
         report = _minimal_report()
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         assert "B+" in verdict
         assert "84" in verdict or "83" in verdict
 
     def test_identifies_strengths_and_gaps(self):
         report = _minimal_report()
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         # With default dims: architecture/quality/documentation/maintainability/performance = 85, security = 80
         # Top is one of the 85-score dims, bottom is security at 80
         assert "strong" in verdict or "gaps" in verdict or "scores" in verdict
@@ -215,7 +215,7 @@ class TestBuildVerdict:
             total_cost_usd=0.0,
             agents_used=(),
         )
-        verdict = _build_verdict(report)
+        verdict = build_verdict(report)
         assert "F" in verdict
 
 

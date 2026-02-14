@@ -8,18 +8,21 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from spectra.adapters.brand import (
+    AMBER,
+    CYAN,
+    DIMENSION_LABELS,
+    GRAY,
+    GREEN,
+    RED,
+    VIOLET,
+    build_verdict,
+)
+
 if TYPE_CHECKING:
     from rich.console import Console
 
     from spectra.entities.enums import Dimension, Grade
-
-# Brand colors
-VIOLET = "#7C3AED"
-AMBER = "#F59E0B"
-RED = "#EF4444"
-GREEN = "#22C55E"
-CYAN = "#06B6D4"
-GRAY = "#6B7280"
 
 GRADE_COLORS: dict[str, str] = {
     "A+": GREEN, "A": GREEN, "A-": GREEN,
@@ -27,15 +30,6 @@ GRADE_COLORS: dict[str, str] = {
     "C+": AMBER, "C": AMBER, "C-": AMBER,
     "D+": RED, "D": RED, "D-": RED,
     "F": RED,
-}
-
-DIMENSION_LABELS: dict[Dimension, str] = {
-    "architecture": "Architecture",
-    "security": "Security",
-    "quality": "Quality",
-    "documentation": "Documentation",
-    "maintainability": "Maintainability",
-    "performance": "Performance",
 }
 
 BAR_WIDTH = 10
@@ -52,26 +46,6 @@ def _grade_text(grade: Grade) -> Text:
     """Color-coded grade text."""
     color = GRADE_COLORS.get(grade, GRAY)
     return Text(grade, style=f"bold {color}")
-
-
-def _build_verdict(report: object) -> str:
-    """Generate a one-line executive verdict for CLI output."""
-    sc = getattr(report, "score_card", None)
-    if sc is None:
-        return ""
-    grade = sc.overall_grade
-    score = sc.overall_score
-    dims = sorted(sc.dimensions, key=lambda d: d.score, reverse=True)
-    if not dims:
-        return f"Your codebase scores {grade} ({score:.0f}/100)"
-    top = DIMENSION_LABELS.get(dims[0].dimension, dims[0].dimension)
-    bottom = DIMENSION_LABELS.get(dims[-1].dimension, dims[-1].dimension)
-    if top == bottom:
-        return f"Your codebase scores {grade} ({score:.0f}/100)"
-    return (
-        f"Your codebase scores {grade} ({score:.0f}/100)"
-        f" \u2014 strong {top.lower()} with {bottom.lower()} gaps"
-    )
 
 
 def _build_header_grid(
@@ -150,7 +124,7 @@ def present_scorecard(report: object, console: Console) -> None:
         console.print(f"[{RED}]✗[/] No scorecard data available")
         return
 
-    verdict = _build_verdict(report)
+    verdict = build_verdict(report)
     if verdict:
         console.print(f"\n[bold {VIOLET}]\u25b8[/] {verdict}\n")
 

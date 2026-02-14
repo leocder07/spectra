@@ -37,14 +37,6 @@ class GitPort(Protocol):
     async def validate_repo_size(self, repo_dir: str) -> None: ...
 
 
-class FilePort(Protocol):
-    """Port for local filesystem operations."""
-
-    def read(self, path: str) -> str: ...
-    def write(self, path: str, content: str) -> None: ...
-    def exists(self, path: str) -> bool: ...
-
-
 class TokenPort(Protocol):
     """Port for token counting and budget checks."""
 
