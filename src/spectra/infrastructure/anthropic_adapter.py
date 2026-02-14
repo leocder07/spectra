@@ -97,7 +97,7 @@ class AnthropicAdapter:
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
                 thinking={
-                    "type": "enabled",
+                    "type": "adaptive",
                     "budget_tokens": max_tokens // 2,
                 },
             ) as stream:

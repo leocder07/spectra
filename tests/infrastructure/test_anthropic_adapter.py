@@ -120,7 +120,7 @@ class TestAnalyzeWithThinking:
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         call_kwargs = client.messages.stream.call_args.kwargs
         assert call_kwargs["thinking"] == {
-            "type": "enabled",
+            "type": "adaptive",
             "budget_tokens": 2000,
         }
 

@@ -101,6 +101,8 @@ async def _run_analysis(
             else:
                 report_renderer.render(report, output_path)
         except Exception as exc:
+            import logging
+            logging.getLogger("spectra").error("Report render failed: %s", exc)
             raise ReportError(ERRORS["SPEC-009"]) from exc
         observer.on_stage_complete("REPORT", "Report generated")
 
