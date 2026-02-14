@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectra Report — {{ report.repo_name }}</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>document.addEventListener('DOMContentLoaded', function() { if (window.mermaid) mermaid.initialize({startOnLoad: true, theme: 'dark'}); });</script>
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: var(--violet-light);
+            margin-bottom: 0.25rem;
+            letter-spacing: 0.05em;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .overall-grade {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .overall-score {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>SPECTRA</h1>
+            <div class="repo-name">{{ report.repo_name }}</div>
+            <div class="tagline">The full spectrum of your codebase</div>
+        </header>
+
+        {% if report.is_degraded %}
+        <div class="degraded-banner">
+            ⚠ Degraded analysis — missing dimensions: {{ report.degraded_dimensions | join(', ') }}
+        </div>
+        {% endif %}
+
+        <!-- Executive Summary -->
+        <section class="executive-summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">{{ summary.verdict }}</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    {% for dim in summary.strengths %}
+                    <div class="summary-item">
+                        <span class="summary-dim">{{ _dim_label(dim.dimension) }}</span>
+                        <span class="summary-score {{ _grade_class(dim.grade) }}">{{ dim.grade }} ({{ dim.score | round(0) | int }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    {% for dim in summary.concerns %}
+                    <div class="summary-item">
+                        <span class="summary-dim">{{ _dim_label(dim.dimension) }}</span>
+                        <span class="summary-score {{ _grade_class(dim.grade) }}">{{ dim.grade }} ({{ dim.score | round(0) | int }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if summary.critical_count > 0 %}
+            <div class="critical-alert">
+                {{ summary.critical_count }} critical issue{{ "s" if summary.critical_count != 1 else "" }} require{{ "s" if summary.critical_count == 1 else "" }} immediate attention
+            </div>
+            {% endif %}
+
+            <div class="quick-stats">
+                {{ summary.total_findings }} findings · {{ summary.agents_count }} agents · {{ summary.duration | round(0) | int }}s analysis
+            </div>
+        </section>
+
+        <!-- ScoreCard -->
+        <section class="scorecard">
+            <div class="overall">
+                <div class="overall-grade {{ _grade_class(report.score_card.overall_grade) }}">
+                    {{ report.score_card.overall_grade }}
+                </div>
+                <div class="overall-score">
+                    {{ report.score_card.overall_score | round(0) | int }} / 100
+                </div>
+            </div>
+
+            <div class="dimensions">
+                {% for dim in report.score_card.dimensions %}
+                <div class="dim-row">
+                    <span class="dim-label">{{ _dim_label(dim.dimension) }}</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill {{ _bar_class(dim.grade) }}"
+                             style="width: {{ dim.score }}%"></div>
+                    </div>
+                    <span class="dim-score">{{ dim.score | round(0) | int }}</span>
+                    <span class="dim-grade {{ _grade_class(dim.grade) }}">{{ dim.grade }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">{{ report.findings | length }}</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ _critical_count(report.findings) }}</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ report.analysis_duration_seconds | round(0) | int }}s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${{ "%.2f" | format(report.total_cost_usd) }}</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ report.agents_used | length }}</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        {% for dimension in dimensions_order %}
+        {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
+        {% if dim_findings %}
+        <section class="findings-section">
+            <h2>{{ _dim_label(dimension) }} ({{ dim_findings | length }})</h2>
+
+            {% for finding in _sort_by_severity(dim_findings) %}
+            <div class="finding severity-{{ finding.severity }}">
+                <div class="finding-header">
+                    <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
+                    <span class="finding-title">{{ finding.title }}</span>
+                    {% if finding.validated_by_critique %}
+                    <span class="validated-badge">✓ Validated</span>
+                    {% endif %}
+                </div>
+                <div class="finding-location">
+                    {{ finding.location.file_path }}{% if finding.location.line_start %}:{{ finding.location.line_start }}{% endif %}{% if finding.location.line_end %}-{{ finding.location.line_end }}{% endif %}
+                </div>
+                <div class="finding-description">{{ finding.description }}</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> {{ finding.recommendation }}
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+        {% endfor %}
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, {{ report.analysis_duration_seconds | round(0) | int }} seconds</p>
+            <p>{{ report.repo_url }}</p>
+            <p class="timestamp">{{ generated_at }}</p>
+        </footer>
+    </div>
+</body>
+</html>
