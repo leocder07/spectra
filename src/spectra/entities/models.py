@@ -135,6 +135,7 @@ class AnalysisReport(BaseModel, frozen=True):
     agents_used: tuple[AgentRole, ...]
     is_degraded: bool = False
     degraded_dimensions: tuple[Dimension, ...] = ()
+    cross_cutting_insights: tuple[str, ...] = ()
 
     def critical_finding_count(self) -> int:
         return sum(1 for f in self.findings if f.is_critical())
@@ -203,3 +204,37 @@ def score_to_grade(score: float) -> Grade:
     if score >= 57:
         return "D-"
     return "F"
+
+
+# ── Cost Estimation ───────────────────────────────────────────
+
+# Per-1K-token pricing (USD)
+_OPUS_INPUT_PER_1K: float = 0.015
+_OPUS_OUTPUT_PER_1K: float = 0.075
+_SONNET_INPUT_PER_1K: float = 0.003
+_SONNET_OUTPUT_PER_1K: float = 0.015
+
+# Without input/output split, use weighted average per 1K tokens.
+# Assumes ~70% input / 30% output ratio.
+_OPUS_AVG_PER_1K: float = 0.7 * _OPUS_INPUT_PER_1K + 0.3 * _OPUS_OUTPUT_PER_1K
+_SONNET_AVG_PER_1K: float = 0.7 * _SONNET_INPUT_PER_1K + 0.3 * _SONNET_OUTPUT_PER_1K
+
+_MODEL_COST: dict[AgentRole, float] = {
+    "meta_prompter": _SONNET_AVG_PER_1K,  # Sonnet 4.5
+    "architecture": _OPUS_AVG_PER_1K,
+    "security": _OPUS_AVG_PER_1K,
+    "quality": _OPUS_AVG_PER_1K,
+    "documentation": _OPUS_AVG_PER_1K,
+    "dependency": _OPUS_AVG_PER_1K,
+    "performance": _OPUS_AVG_PER_1K,
+    "critique": _OPUS_AVG_PER_1K,  # Opus 4.6
+}
+
+
+def estimate_cost(outputs: tuple[AgentOutput, ...]) -> float:
+    """Estimate total USD cost from agent outputs."""
+    total = 0.0
+    for out in outputs:
+        rate = _MODEL_COST.get(out.agent_role, _OPUS_AVG_PER_1K)
+        total += (out.tokens_used / 1000.0) * rate
+    return round(total, 4)

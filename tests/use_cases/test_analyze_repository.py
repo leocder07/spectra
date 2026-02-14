@@ -15,11 +15,15 @@ from spectra.entities.models import (
     FileLocation,
     Finding,
 )
+from spectra.entities.models import estimate_cost
 from spectra.use_cases.analyze_repository import (
     _apply_critique,
     _compute_scorecard,
     _estimate_score,
+    _extract_cross_cutting_insights,
     _extract_plan_files,
+    _extract_token_allocations,
+    _should_run_critique,
     analyze_repository,
 )
 
@@ -398,3 +402,219 @@ class TestPipelineWithGitPort:
             git_port=git_port,
         )
         git_port.read_file.assert_not_called()
+
+
+# ── Cost calculation ──────────────────────────────────────────
+
+
+class TestCostCalculation:
+    def test_estimate_cost_opus_agents(self):
+        outputs = (
+            AgentOutput(agent_role="security", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(agent_role="quality", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),
+        )
+        cost = estimate_cost(outputs)
+        assert cost > 0.0
+
+    def test_estimate_cost_sonnet_cheaper(self):
+        opus_out = (AgentOutput(agent_role="security", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),)
+        sonnet_out = (AgentOutput(agent_role="meta_prompter", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),)
+        assert estimate_cost(sonnet_out) < estimate_cost(opus_out)
+
+    def test_estimate_cost_empty(self):
+        assert estimate_cost(()) == 0.0
+
+    @pytest.mark.asyncio
+    async def test_pipeline_reports_nonzero_cost(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+        report = await analyze_repository(
+            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+        )
+        assert report.total_cost_usd > 0.0
+
+
+# ── Severity adjustments ─────────────────────────────────────
+
+
+class TestSeverityAdjustments:
+    def test_adjusts_severity(self):
+        f1 = _finding("security", "high", line=1)
+        critique = json.dumps({
+            "rejected_findings": [],
+            "severity_adjustments": [
+                {"finding_id": f1.id, "original_severity": "high", "adjusted_severity": "critical"},
+            ],
+        })
+        result = _apply_critique((f1,), critique)
+        assert len(result) == 1
+        assert result[0].severity == "critical"
+        assert result[0].validated_by_critique is True
+
+    def test_adjusts_and_rejects(self):
+        f1 = _finding("security", "high", line=1)
+        f2 = _finding("quality", "medium", line=2)
+        critique = json.dumps({
+            "rejected_findings": [f1.id],
+            "severity_adjustments": [
+                {"finding_id": f2.id, "original_severity": "medium", "adjusted_severity": "low"},
+            ],
+        })
+        result = _apply_critique((f1, f2), critique)
+        assert len(result) == 1
+        assert result[0].severity == "low"
+
+    def test_no_adjustments_returns_as_is(self):
+        f1 = _finding("security", "high", line=1)
+        critique = json.dumps({
+            "rejected_findings": [],
+            "severity_adjustments": [],
+        })
+        result = _apply_critique((f1,), critique)
+        assert result[0].severity == "high"
+
+    def test_ignores_invalid_adjustment(self):
+        f1 = _finding("security", "high", line=1)
+        critique = json.dumps({
+            "rejected_findings": [],
+            "severity_adjustments": [{"bad_key": "value"}],
+        })
+        result = _apply_critique((f1,), critique)
+        assert result[0].severity == "high"
+
+
+# ── Cross-cutting insights ───────────────────────────────────
+
+
+class TestCrossCuttingInsights:
+    def test_extracts_insights(self):
+        raw = json.dumps({
+            "rejected_findings": [],
+            "cross_cutting_insights": [
+                "Security patterns are inconsistent across modules",
+                "Documentation is sparse in infrastructure layer",
+            ],
+        })
+        insights = _extract_cross_cutting_insights(raw)
+        assert len(insights) == 2
+        assert "Security" in insights[0]
+
+    def test_empty_insights(self):
+        raw = json.dumps({"rejected_findings": [], "cross_cutting_insights": []})
+        assert _extract_cross_cutting_insights(raw) == ()
+
+    def test_invalid_json(self):
+        assert _extract_cross_cutting_insights("not json") == ()
+
+    def test_missing_key(self):
+        raw = json.dumps({"rejected_findings": []})
+        assert _extract_cross_cutting_insights(raw) == ()
+
+    @pytest.mark.asyncio
+    async def test_pipeline_stores_insights(self, analysis_request, codebase, meta_prompter, six_specialists, make_agent):
+        critique_response = json.dumps({
+            "validated_findings": [],
+            "rejected_findings": [],
+            "severity_adjustments": [],
+            "cross_cutting_insights": ["Insight one", "Insight two"],
+        })
+        critique = make_agent("critique")
+        critique.run.return_value = AgentOutput(
+            agent_role="critique",
+            findings=(),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response=critique_response,
+        )
+        report = await analyze_repository(
+            analysis_request, codebase, meta_prompter, six_specialists, critique,
+        )
+        assert len(report.cross_cutting_insights) == 2
+        assert "Insight one" in report.cross_cutting_insights
+
+
+# ── Token budget / allocation helpers ─────────────────────────
+
+
+class TestTokenAllocations:
+    def test_extracts_allocations(self):
+        raw = json.dumps({
+            "focus_areas": [],
+            "token_allocation": {"architecture": 100000, "security": 120000},
+        })
+        result = _extract_token_allocations(raw)
+        assert result == {"architecture": 100000, "security": 120000}
+
+    def test_returns_none_on_empty(self):
+        raw = json.dumps({"focus_areas": [], "token_allocation": {}})
+        assert _extract_token_allocations(raw) is None
+
+    def test_returns_none_on_invalid_json(self):
+        assert _extract_token_allocations("bad") is None
+
+    def test_returns_none_on_missing_key(self):
+        raw = json.dumps({"focus_areas": []})
+        assert _extract_token_allocations(raw) is None
+
+
+# ── _should_run_critique ──────────────────────────────────────
+
+
+class TestShouldRunCritique:
+    def test_runs_normally(self, analysis_request, critique_agent):
+        assert _should_run_critique(analysis_request, False, critique_agent, 200000) is True
+
+    def test_skips_in_quick_mode(self, critique_agent):
+        req = AnalysisRequest(repo_url="https://example.com", quick=True)
+        assert _should_run_critique(req, False, critique_agent, 200000) is False
+
+    def test_skips_when_degraded(self, analysis_request, critique_agent):
+        assert _should_run_critique(analysis_request, True, critique_agent, 200000) is False
+
+    def test_skips_when_no_agent(self, analysis_request):
+        assert _should_run_critique(analysis_request, False, None, 200000) is False
+
+    def test_skips_when_budget_exhausted(self, analysis_request, critique_agent):
+        assert _should_run_critique(analysis_request, False, critique_agent, 0) is False
+
+
+# ── Observer wiring ───────────────────────────────────────────
+
+
+class TestObserverWiring:
+    @pytest.mark.asyncio
+    async def test_observer_called_during_pipeline(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+        from unittest.mock import MagicMock
+        observer = MagicMock()
+        await analyze_repository(
+            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            observer=observer,
+        )
+        observer.on_stage_start.assert_called()
+        observer.on_stage_complete.assert_called()
+        observer.on_agent_start.assert_called()
+        observer.on_agent_success.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_observer_none_doesnt_crash(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+        report = await analyze_repository(
+            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            observer=None,
+        )
+        assert report.repo_url == "https://github.com/test/repo"
+
+    @pytest.mark.asyncio
+    async def test_observer_receives_failure_events(self, analysis_request, codebase, meta_prompter, critique_agent, make_agent):
+        from unittest.mock import MagicMock
+        observer = MagicMock()
+        specialists = [
+            make_agent("architecture", error=RuntimeError("fail")),
+            make_agent("security"),
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        await analyze_repository(
+            analysis_request, codebase, meta_prompter, specialists, critique_agent,
+            observer=observer,
+        )
+        observer.on_agent_failure.assert_called_once()
