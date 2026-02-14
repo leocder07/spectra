@@ -57,9 +57,16 @@ class SpectraRetryError(Exception):
 
 
 def strip_code_fence(raw: str) -> str:
-    """Remove markdown code fences from LLM output."""
+    """Extract JSON from LLM output, handling code fences and surrounding text."""
     cleaned = raw.strip()
+    # Case 1: entire output is wrapped in code fences
     if cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[1]
         cleaned = cleaned.rsplit("```", 1)[0]
+        return cleaned.strip()
+    # Case 2: JSON embedded in text — find first { and last }
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        return cleaned[first_brace : last_brace + 1]
     return cleaned

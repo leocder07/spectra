@@ -61,10 +61,22 @@ class BaseAgent(ABC):
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:
+        cleaned = strip_code_fence(raw)
         try:
-            return json.loads(strip_code_fence(raw))
-        except json.JSONDecodeError as exc:
-            raise AgentError(ERRORS["SPEC-005"]) from exc
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+        # Fallback: try to find JSON object in the text
+        for start in range(len(cleaned)):
+            if cleaned[start] == "{":
+                for end in range(len(cleaned) - 1, start, -1):
+                    if cleaned[end] == "}":
+                        try:
+                            return json.loads(cleaned[start : end + 1])
+                        except json.JSONDecodeError:
+                            break
+                break
+        raise AgentError(ERRORS["SPEC-005"])
 
     @abstractmethod
     def validate_output(

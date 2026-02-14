@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from spectra.entities.models import Finding
-from spectra.infrastructure.agents.base_agent import BaseAgent
-from spectra.use_cases.interfaces import LLMGateway
+from typing import TYPE_CHECKING
 
-_SYSTEM_PROMPT = """You are a code analysis planning agent. Given a repository file tree,
+from spectra.infrastructure.agents.base_agent import BaseAgent
+
+if TYPE_CHECKING:
+    from spectra.entities.models import Finding
+    from spectra.use_cases.interfaces import LLMGateway
+
+_SYSTEM_PROMPT = """\
+You are a code analysis planning agent. Given a repository file tree,
 create an analysis plan that tells specialist agents what to focus on.
 
 OUTPUT FORMAT (JSON):
@@ -29,19 +34,48 @@ EXAMPLE OUTPUT:
   "repo_language": "python",
   "repo_framework": "fastapi",
   "focus_areas": [
-    {"agent": "architecture", "files": ["src/api/", "src/models/", "src/services/"], "concerns": ["layering between api and services", "dependency direction"]},
-    {"agent": "security", "files": ["src/api/auth.py", "src/config.py", ".env.example"], "concerns": ["auth middleware", "secrets management"]},
-    {"agent": "quality", "files": ["src/services/", "tests/"], "concerns": ["test coverage", "function complexity"]},
-    {"agent": "documentation", "files": ["README.md", "docs/", "src/api/"], "concerns": ["API docs", "setup guide"]},
-    {"agent": "dependency", "files": ["requirements.txt", "pyproject.toml"], "concerns": ["pinned versions", "dev vs prod deps"]},
-    {"agent": "performance", "files": ["src/api/routes/", "src/services/db.py"], "concerns": ["async handlers", "query patterns"]}
+    {
+      "agent": "architecture",
+      "files": ["src/api/", "src/models/", "src/services/"],
+      "concerns": ["layering between api and services", "dependency direction"]
+    },
+    {
+      "agent": "security",
+      "files": ["src/api/auth.py", "src/config.py", ".env.example"],
+      "concerns": ["auth middleware", "secrets management"]
+    },
+    {
+      "agent": "quality",
+      "files": ["src/services/", "tests/"],
+      "concerns": ["test coverage", "function complexity"]
+    },
+    {
+      "agent": "documentation",
+      "files": ["README.md", "docs/", "src/api/"],
+      "concerns": ["API docs", "setup guide"]
+    },
+    {
+      "agent": "dependency",
+      "files": ["requirements.txt", "pyproject.toml"],
+      "concerns": ["pinned versions", "dev vs prod deps"]
+    },
+    {
+      "agent": "performance",
+      "files": ["src/api/routes/", "src/services/db.py"],
+      "concerns": ["async handlers", "query patterns"]
+    }
   ],
-  "token_allocation": {"architecture": 85000, "security": 85000, "quality": 85000, "documentation": 80000, "dependency": 80000, "performance": 85000}
+  "token_allocation": {
+    "architecture": 85000, "security": 85000,
+    "quality": 85000, "documentation": 80000,
+    "dependency": 80000, "performance": 85000
+  }
 }
 
 GUARDRAILS:
 - Only reference directories and files visible in the provided file tree. Do not invent paths.
-- You will NOT see file contents — infer concerns from file names, directory structure, and conventions only.
+- You will NOT see file contents — infer concerns from file names, directory structure, \
+and conventions only.
 - Do not guess at framework specifics beyond what the file tree reveals.
 
 CONSTRAINTS:
@@ -85,5 +119,7 @@ class MetaPrompter(BaseAgent):
             raise ValueError(msg)
         return ()
 
-    def get_plan(self, raw_output: str) -> dict[str, list[dict[str, str | int | float]]]:
+    def get_plan(
+        self, raw_output: str
+    ) -> dict[str, list[dict[str, str | int | float]]]:
         return self.parse_output(raw_output)

@@ -1,4 +1,4 @@
-"""Tests for AnthropicAdapter — mocked Anthropic API interactions."""
+"""Tests for AnthropicAdapter — mocked streaming Anthropic API."""
 
 from __future__ import annotations
 
@@ -11,31 +11,61 @@ from spectra.entities.errors import SpectraRetryError
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
 
 
-def _mock_response(text: str = "response text", input_tokens: int = 100, output_tokens: int = 50):
-    """Build a fake Anthropic API response object."""
-    block = SimpleNamespace(type="text", text=text)
-    usage = SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens)
-    return SimpleNamespace(content=[block], usage=usage)
+class _FakeStream:
+    """Mock async context manager + async iterator for streaming responses."""
+
+    def __init__(self, events: list, error: Exception | None = None):
+        self._events = events
+        self._error = error
+
+    async def __aenter__(self):
+        if self._error:
+            raise self._error
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._events:
+            raise StopAsyncIteration
+        return self._events.pop(0)
 
 
-def _mock_thinking_response(
-    thinking_text: str = "thinking...",
-    response_text: str = "final answer",
-    input_tokens: int = 200,
-    output_tokens: int = 100,
+def _make_events(
+    text: str = "response text",
+    input_tokens: int = 100,
+    output_tokens: int = 50,
 ):
-    """Build a fake Anthropic response with thinking + text blocks."""
-    thinking_block = SimpleNamespace(type="thinking", thinking=thinking_text)
-    text_block = SimpleNamespace(type="text", text=response_text)
-    usage = SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens)
-    return SimpleNamespace(content=[thinking_block, text_block], usage=usage)
+    """Build fake streaming events for a standard response."""
+    return [
+        SimpleNamespace(
+            type="message_start",
+            message=SimpleNamespace(
+                usage=SimpleNamespace(input_tokens=input_tokens)
+            ),
+        ),
+        SimpleNamespace(
+            type="content_block_delta",
+            delta=SimpleNamespace(text=text),
+        ),
+        SimpleNamespace(
+            type="message_delta",
+            usage=SimpleNamespace(output_tokens=output_tokens),
+        ),
+    ]
 
 
 @pytest.fixture
 def adapter():
     """Create adapter with mocked client."""
-    with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic") as mock_cls:
-        mock_client = AsyncMock()
+    with patch(
+        "spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"
+    ) as mock_cls:
+        mock_client = MagicMock()
         mock_cls.return_value = mock_client
         a = AnthropicAdapter(api_key="test-key")
         a._client = mock_client
@@ -46,16 +76,18 @@ class TestAnalyze:
     @pytest.mark.asyncio
     async def test_returns_response_text(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(return_value=_mock_response("hello world"))
+        events = _make_events("hello world")
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         result = await a.analyze("system", "user", "model-1", 1000)
         assert result == "hello world"
 
     @pytest.mark.asyncio
     async def test_passes_params_to_client(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(return_value=_mock_response())
+        events = _make_events()
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         await a.analyze("sys prompt", "user prompt", "claude-test", 2000)
-        client.messages.create.assert_called_once_with(
+        client.messages.stream.assert_called_once_with(
             model="claude-test",
             max_tokens=2000,
             system="sys prompt",
@@ -65,9 +97,8 @@ class TestAnalyze:
     @pytest.mark.asyncio
     async def test_updates_last_usage(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(
-            return_value=_mock_response(input_tokens=150, output_tokens=75)
-        )
+        events = _make_events(input_tokens=150, output_tokens=75)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         await a.analyze("sys", "user", "model", 1000)
         assert a.last_usage == (150, 75)
 
@@ -76,39 +107,48 @@ class TestAnalyzeWithThinking:
     @pytest.mark.asyncio
     async def test_returns_text_block(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(
-            return_value=_mock_thinking_response(response_text="final answer")
-        )
+        events = _make_events("final answer", 200, 100)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         result = await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert result == "final answer"
 
     @pytest.mark.asyncio
     async def test_enables_thinking_param(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(
-            return_value=_mock_thinking_response()
-        )
+        events = _make_events()
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         await a.analyze_with_thinking("sys", "user", "model", 4000)
-        call_kwargs = client.messages.create.call_args.kwargs
-        assert call_kwargs["thinking"] == {"type": "enabled", "budget_tokens": 2000}
+        call_kwargs = client.messages.stream.call_args.kwargs
+        assert call_kwargs["thinking"] == {
+            "type": "enabled",
+            "budget_tokens": 2000,
+        }
 
     @pytest.mark.asyncio
-    async def test_empty_response_returns_empty_string(self, adapter):
+    async def test_empty_response_returns_empty(self, adapter):
         a, client = adapter
-        # Response with only a thinking block, no text block
-        thinking_only = SimpleNamespace(type="thinking", thinking="hmm")
-        usage = SimpleNamespace(input_tokens=50, output_tokens=25)
-        response = SimpleNamespace(content=[thinking_only], usage=usage)
-        client.messages.create = AsyncMock(return_value=response)
+        # Only message events, no content_block_delta with text
+        events = [
+            SimpleNamespace(
+                type="message_start",
+                message=SimpleNamespace(
+                    usage=SimpleNamespace(input_tokens=50)
+                ),
+            ),
+            SimpleNamespace(
+                type="message_delta",
+                usage=SimpleNamespace(output_tokens=25),
+            ),
+        ]
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         result = await a.analyze_with_thinking("sys", "user", "model", 2000)
         assert result == ""
 
     @pytest.mark.asyncio
     async def test_updates_last_usage(self, adapter):
         a, client = adapter
-        client.messages.create = AsyncMock(
-            return_value=_mock_thinking_response(input_tokens=300, output_tokens=150)
-        )
+        events = _make_events(input_tokens=300, output_tokens=150)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert a.last_usage == (300, 150)
 
@@ -119,8 +159,10 @@ class TestErrorHandling:
         import anthropic
 
         a, client = adapter
-        client.messages.create = AsyncMock(
-            side_effect=anthropic.APIConnectionError(request=MagicMock())
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [], error=anthropic.APIConnectionError(request=MagicMock())
+            )
         )
         with pytest.raises(SpectraRetryError) as exc_info:
             await a.analyze("sys", "user", "model", 1000)
@@ -134,11 +176,14 @@ class TestErrorHandling:
         response = MagicMock()
         response.status_code = 429
         response.headers = {}
-        client.messages.create = AsyncMock(
-            side_effect=anthropic.RateLimitError(
-                message="rate limited",
-                response=response,
-                body=None,
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [],
+                error=anthropic.RateLimitError(
+                    message="rate limited",
+                    response=response,
+                    body=None,
+                ),
             )
         )
         with pytest.raises(SpectraRetryError) as exc_info:
@@ -150,8 +195,10 @@ class TestErrorHandling:
         import anthropic
 
         a, client = adapter
-        client.messages.create = AsyncMock(
-            side_effect=anthropic.APIConnectionError(request=MagicMock())
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [], error=anthropic.APIConnectionError(request=MagicMock())
+            )
         )
         with pytest.raises(SpectraRetryError) as exc_info:
             await a.analyze_with_thinking("sys", "user", "model", 2000)
@@ -165,11 +212,14 @@ class TestErrorHandling:
         response = MagicMock()
         response.status_code = 429
         response.headers = {}
-        client.messages.create = AsyncMock(
-            side_effect=anthropic.RateLimitError(
-                message="rate limited",
-                response=response,
-                body=None,
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [],
+                error=anthropic.RateLimitError(
+                    message="rate limited",
+                    response=response,
+                    body=None,
+                ),
             )
         )
         with pytest.raises(SpectraRetryError) as exc_info:
@@ -181,12 +231,15 @@ class TestClose:
     @pytest.mark.asyncio
     async def test_close_calls_client_close(self, adapter):
         a, client = adapter
+        client.close = AsyncMock()
         await a.close()
         client.close.assert_called_once()
 
 
 class TestLastUsage:
     def test_initial_usage_is_zero(self):
-        with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"):
+        with patch(
+            "spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"
+        ):
             a = AnthropicAdapter(api_key="test")
             assert a.last_usage == (0, 0)
