@@ -102,14 +102,29 @@ class AnthropicAdapter:
         except anthropic.RateLimitError as exc:
             raise SpectraRetryError(ERRORS["SPEC-003"]) from exc
         except anthropic.BadRequestError as exc:
-            raise SpectraRetryError(ERRORS["SPEC-002"]) from exc
+            # 400 errors are not retryable — raise directly with details
+            import logging
+            logging.getLogger("spectra").error(
+                "BadRequestError in thinking call: %s", exc
+            )
+            raise
 
         self._last_usage = (
             response.usage.input_tokens,
             response.usage.output_tokens,
         )
         # Extract text blocks (skip thinking blocks)
+        import logging
+        _log = logging.getLogger("spectra.adapter")
+        text_parts = []
         for block in response.content:
+            _log.debug("Response block: type=%s", block.type)
             if block.type == "text":
-                return block.text
-        return ""
+                text_parts.append(block.text)
+        result = "".join(text_parts)
+        if not result.strip():
+            _log.warning(
+                "Thinking call returned empty text. Blocks: %s",
+                [(b.type, len(getattr(b, "text", "") or getattr(b, "thinking", "") or "")) for b in response.content],
+            )
+        return result

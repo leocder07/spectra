@@ -62,11 +62,16 @@ class BaseAgent(ABC):
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:
+        import logging
+        _log = logging.getLogger("spectra.parse")
         cleaned = strip_code_fence(raw)
         try:
             return json.loads(cleaned)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            _log.debug(
+                "JSON parse failed for %s: %s | First 300 chars: %s",
+                self._role, e, cleaned[:300]
+            )
         # Fallback: try to find JSON object in the text
         for start in range(len(cleaned)):
             if cleaned[start] == "{":
@@ -77,6 +82,10 @@ class BaseAgent(ABC):
                         except json.JSONDecodeError:
                             break
                 break
+        _log.warning(
+            "All JSON extraction failed for %s. Raw length: %d, Cleaned length: %d, First 200: %s",
+            self._role, len(raw), len(cleaned), cleaned[:200]
+        )
         raise AgentError(ERRORS["SPEC-005"])
 
     @abstractmethod
