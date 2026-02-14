@@ -46,6 +46,22 @@ _SEVERITY_ORDER: dict[str, int] = {
     "info": 4,
 }
 
+_SPECTRUM_COLOR: dict[str, str] = {
+    "grade-a": "#22C55E",
+    "grade-b": "#06B6D4",
+    "grade-c": "#F59E0B",
+    "grade-d": "#EF4444",
+    "grade-f": "#EF4444",
+}
+
+_BADGE_COLOR: dict[str, str] = {
+    "A": "22C55E",
+    "B": "06B6D4",
+    "C": "F59E0B",
+    "D": "EF4444",
+    "F": "EF4444",
+}
+
 
 def _grade_class(grade: Grade) -> str:
     return _GRADE_CLASS.get(grade, "grade-f")
@@ -77,6 +93,51 @@ def _severity_distribution(
     return counts
 
 
+def _build_spectrum_segments(
+    report: AnalysisReport,
+) -> list[dict[str, object]]:
+    """Build ordered spectrum bar segments from dimension scores."""
+    segments: list[dict[str, object]] = []
+    dim_lookup = {d.dimension: d for d in report.score_card.dimensions}
+    for dim in _DIMENSIONS_ORDER:
+        ds = dim_lookup.get(dim)
+        if ds is None:
+            continue
+        gc = _grade_class(ds.grade)
+        segments.append({
+            "label": dim_label(dim),
+            "score": int(ds.score),
+            "grade": ds.grade,
+            "weight_pct": ds.weight * 100,
+            "color": _SPECTRUM_COLOR.get(gc, "#EF4444"),
+        })
+    return segments
+
+
+def _top_findings(findings: tuple[Finding, ...]) -> list[Finding]:
+    """Return the top 5 actionable findings by severity."""
+    sorted_all = sorted(
+        findings,
+        key=lambda f: _SEVERITY_ORDER.get(f.severity, 5),
+    )
+    return sorted_all[:5]
+
+
+def _total_hours(findings: tuple[Finding, ...]) -> float:
+    """Sum estimated_hours across all findings."""
+    return round(sum(f.estimated_hours for f in findings), 1)
+
+
+def _dimension_hours(
+    findings: tuple[Finding, ...],
+) -> dict[Dimension, float]:
+    """Sum estimated hours per dimension."""
+    hours: dict[Dimension, float] = {}
+    for f in findings:
+        hours[f.dimension] = hours.get(f.dimension, 0.0) + f.estimated_hours
+    return {k: round(v, 1) for k, v in hours.items()}
+
+
 def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
     """Compute executive summary data for the HTML template."""
     dims = sorted(
@@ -94,6 +155,8 @@ def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
         "agents_count": len(report.agents_used),
         "duration": report.analysis_duration_seconds,
         "severity_dist": _severity_distribution(report.findings),
+        "total_tech_debt_hours": _total_hours(report.findings),
+        "dimension_hours": _dimension_hours(report.findings),
     }
 
 
@@ -120,6 +183,9 @@ class ReportAdapter:
         html = template.render(
             report=report,
             summary=_build_executive_summary(report),
+            spectrum_segments=_build_spectrum_segments(report),
+            top_findings=_top_findings(report.findings),
+            badge_svg=self.render_badge(report),
             has_mermaid=has_mermaid,
             generated_at=datetime.now(UTC).strftime(
                 "%Y-%m-%d %H:%M UTC"
@@ -127,3 +193,21 @@ class ReportAdapter:
         )
         Path(output_path).write_text(html, encoding="utf-8")
         return output_path
+
+    def render_badge(self, report: AnalysisReport) -> str:
+        """Render a shields.io-style SVG badge for the overall grade."""
+        grade = report.score_card.overall_grade
+        score = int(report.score_card.overall_score)
+        grade_color = _BADGE_COLOR.get(grade[0], "6B7280")
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="160"'
+            f' height="20">'
+            f'<rect width="80" height="20" rx="3" fill="#555"/>'
+            f'<rect x="80" width="80" height="20" rx="3" fill="'
+            f'#{grade_color}"/>'
+            f'<text x="40" y="14" fill="#fff" text-anchor="middle"'
+            f' font-size="11" font-family="Verdana">Spectra</text>'
+            f'<text x="120" y="14" fill="#fff" text-anchor="middle"'
+            f' font-size="11" font-family="Verdana">'
+            f'{grade} {score}/100</text></svg>'
+        )

@@ -70,6 +70,7 @@ class SpecialistAgent(BaseAgent):
                     recommendation=str(f.get("recommendation", "")),
                     agent_role=self._role,
                     confidence=confidence,
+                    estimated_hours=float(f.get("estimated_hours", 0.0)),
                 )
             )
         return tuple(validated)

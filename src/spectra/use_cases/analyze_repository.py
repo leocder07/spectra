@@ -95,6 +95,13 @@ async def analyze_repository(
     # Stage 4: MERGE
     unique_findings = _merge_findings(successes)
 
+    # Stage 4b: Validate file paths (remove hallucinated paths)
+    pre_count = len(unique_findings)
+    unique_findings = _validate_finding_paths(
+        unique_findings, codebase.file_tree,
+    )
+    hallucination_removed = pre_count - len(unique_findings)
+
     # Stage 5: CRITIQUE
     critique_insights: tuple[str, ...] = ()
     if _should_run_critique(request, is_degraded, critique_agent, remaining):
@@ -129,6 +136,7 @@ async def analyze_repository(
             _role_to_dimension(r) for r in failed_roles
         ),
         cross_cutting_insights=critique_insights,
+        hallucination_removed_count=hallucination_removed,
     )
 
 
@@ -237,6 +245,26 @@ def _merge_findings(
     for output in successes:
         all_findings.extend(output.findings)
     return tuple(dict.fromkeys(all_findings))
+
+
+def _validate_finding_paths(
+    findings: tuple[Finding, ...],
+    file_tree: tuple[str, ...],
+) -> tuple[Finding, ...]:
+    """Remove findings that reference files not in the repository."""
+    valid: list[Finding] = []
+    file_set = set(file_tree)
+    for f in findings:
+        path = f.location.file_path
+        if not path or path in file_set or any(path in ft for ft in file_set):
+            valid.append(f)
+        else:
+            _log.warning(
+                "Hallucinated path removed: %s (finding: %s)",
+                path,
+                f.id,
+            )
+    return tuple(valid)
 
 
 def _should_run_critique(

@@ -511,6 +511,106 @@
             color: var(--gray-dark);
         }
 
+        /* Spectrum Bar */
+        .spectrum-bar {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0 1.5rem;
+            height: 36px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spectrum-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .spectrum-seg:hover { opacity: 0.85; }
+
+        /* Inline Badge */
+        .header-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .header-inner {
+            position: relative;
+        }
+
+        /* Priority Actions */
+        .priority-actions {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .priority-actions h2 {
+            font-size: 1.1rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .priority-actions ol {
+            list-style: none;
+            counter-reset: actions;
+            padding: 0;
+        }
+
+        .priority-actions li {
+            counter-increment: actions;
+            padding: 0.75rem 0 0.75rem 2.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-actions li:last-child {
+            border-bottom: none;
+        }
+
+        .priority-actions li::before {
+            content: counter(actions);
+            position: absolute;
+            left: 0;
+            top: 0.75rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--violet);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .action-location {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .action-rec {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             body { padding: 1rem; }
@@ -528,14 +628,27 @@
     <div class="container">
         <!-- Header -->
         <header class="header" id="top">
-            <h1>SPECTRA</h1>
-            <div class="repo-name">{{ report.repo_name }}</div>
-            <div class="tagline">The full spectrum of your codebase</div>
+            <div class="header-inner">
+                <div class="header-badge">{{ badge_svg | safe }}</div>
+                <h1>SPECTRA</h1>
+                <div class="repo-name">{{ report.repo_name }}</div>
+                <div class="tagline">The full spectrum of your codebase</div>
+            </div>
         </header>
+
+        <!-- Spectrum Bar -->
+        <div class="spectrum-bar">
+            {% for seg in spectrum_segments %}
+            <div class="spectrum-seg" style="width: {{ seg.weight_pct }}%; background: {{ seg.color }};">
+                {{ seg.label }} {{ seg.score }} {{ seg.grade }}
+            </div>
+            {% endfor %}
+        </div>
 
         <!-- [3] Sticky Section Navigation -->
         <nav class="section-nav">
             <a href="#summary">Summary</a>
+            {% if top_findings %}<a href="#actions">Actions</a>{% endif %}
             <a href="#scores">Scores</a>
             {% for dimension in dimensions_order %}
             {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
@@ -613,9 +726,26 @@
             {% endif %}
 
             <div class="quick-stats">
-                {{ summary.total_findings }} findings · {{ summary.agents_count }} agents · {{ summary.duration | round(0) | int }}s analysis
+                {{ summary.total_findings }} findings · {{ summary.agents_count }} agents · {{ summary.duration | round(0) | int }}s analysis{% if summary.total_tech_debt_hours > 0 %} · Total tech debt: ~{{ summary.total_tech_debt_hours | round(0) | int }}h{% endif %}
             </div>
         </section>
+
+        <!-- Priority Actions -->
+        {% if top_findings %}
+        <section id="actions" class="priority-actions">
+            <h2>What to Fix First</h2>
+            <ol>
+                {% for finding in top_findings[:5] %}
+                <li>
+                    <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
+                    <strong>{{ finding.title }}</strong>
+                    <span class="action-location">{{ finding.location.file_path }}{% if finding.location.line_start %}:{{ finding.location.line_start }}{% endif %}</span>
+                    <p class="action-rec">{{ finding.recommendation }}</p>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+        {% endif %}
 
         <!-- ScoreCard -->
         <section class="scorecard" id="scores">
@@ -688,6 +818,9 @@
                 <div class="finding-header">
                     <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
                     <span class="finding-title">{{ finding.title }}</span>
+                    {% if finding.estimated_hours > 0 %}
+                    <span class="validated-badge" style="color: var(--amber);">~{{ finding.estimated_hours | round(1) }}h</span>
+                    {% endif %}
                     {% if finding.validated_by_critique %}
                     <span class="validated-badge">✓ Validated</span>
                     {% endif %}
@@ -704,6 +837,12 @@
                 </div>
             </div>
             {% endfor %}
+            {% set dim_hours = summary.dimension_hours.get(dimension, 0) if summary.dimension_hours is defined else 0 %}
+            {% if dim_hours > 0 %}
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~{{ dim_hours | round(0) | int }}h
+            </div>
+            {% endif %}
         </section>
         {% endif %}
         {% endfor %}

@@ -24,12 +24,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (rename, config tweak)
+- 2.0 = moderate (refactor a function, add a missing layer)
+- 8.0 = significant (restructure a module, introduce new pattern)
+- 40.0 = major refactor (rewrite subsystem, migrate architecture)
 
 EXAMPLE OUTPUT:
 {
@@ -45,7 +52,8 @@ that prevents independent testing.",
       "line_end": 3,
       "recommendation": "Extract shared types into a common module \
 that both auth and users depend on.",
-      "confidence": 0.92
+      "confidence": 0.92,
+      "estimated_hours": 4.0
     }
   ],
   "dimension_score": 72,
@@ -80,12 +88,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (add a header, update a config)
+- 2.0 = moderate (add input validation, fix auth check)
+- 8.0 = significant (implement RBAC, add encryption layer)
+- 40.0 = major refactor (redesign auth system, full security audit remediation)
 
 EXAMPLE OUTPUT:
 {
@@ -101,7 +116,8 @@ Credentials. OWASP A07:2021 Identification and Authentication Failures.",
       "line_end": 12,
       "recommendation": "Move credentials to environment variables \
 and load via os.environ or a secrets manager.",
-      "confidence": 0.98
+      "confidence": 0.98,
+      "estimated_hours": 1.0
     }
   ],
   "dimension_score": 45,
@@ -148,12 +164,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (rename variable, remove dead code)
+- 2.0 = moderate (refactor a function, reduce complexity)
+- 8.0 = significant (split a god class, add test coverage)
+- 40.0 = major refactor (rewrite module, overhaul test infrastructure)
 
 EXAMPLE OUTPUT:
 {
@@ -168,7 +191,8 @@ High cyclomatic complexity makes this function hard to test and maintain.",
       "line_end": 139,
       "recommendation": "Extract validation, payment, and notification \
 into separate functions. Target <=20 lines and complexity <=10.",
-      "confidence": 0.95
+      "confidence": 0.95,
+      "estimated_hours": 4.0
     }
   ],
   "dimension_score": 68,
@@ -212,12 +236,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (add a missing docstring, fix a typo)
+- 2.0 = moderate (document a module, add usage examples)
+- 8.0 = significant (write API reference, create architecture docs)
+- 40.0 = major effort (full documentation overhaul)
 
 EXAMPLE OUTPUT:
 {
@@ -234,7 +265,8 @@ for parameters or return types.",
       "recommendation": "Add Google-style or NumPy-style docstrings to \
 all public functions, including parameter types, return values, \
 and a usage example.",
-      "confidence": 0.93
+      "confidence": 0.93,
+      "estimated_hours": 3.0
     }
   ],
   "dimension_score": 55,
@@ -278,12 +310,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (bump a patch version, update lock file)
+- 2.0 = moderate (upgrade a major version, replace a deprecated package)
+- 8.0 = significant (migrate to a new package, resolve breaking changes)
+- 40.0 = major effort (full dependency tree overhaul, license remediation)
 
 EXAMPLE OUTPUT:
 {
@@ -299,7 +338,8 @@ on redirects). Current stable is 2.31+.",
       "line_end": 8,
       "recommendation": "Upgrade to requests>=2.31.0 and add Dependabot \
 or Renovate for automated dependency updates.",
-      "confidence": 0.97
+      "confidence": 0.97,
+      "estimated_hours": 1.0
     }
   ],
   "dimension_score": 60,
@@ -343,12 +383,19 @@ OUTPUT FORMAT (JSON):
       "line_start": N,
       "line_end": N,
       "recommendation": "...",
-      "confidence": 0.0-1.0
+      "confidence": 0.0-1.0,
+      "estimated_hours": 2.0
     }
   ],
   "dimension_score": 0-100,
   "summary": "..."
 }
+
+ESTIMATED HOURS GUIDE:
+- 0.5 = trivial fix (add an index, enable caching header)
+- 2.0 = moderate (optimize a query, add connection pooling)
+- 8.0 = significant (implement caching layer, fix N+1 patterns)
+- 40.0 = major refactor (redesign data pipeline, add async processing)
 
 EXAMPLE OUTPUT:
 {
@@ -364,7 +411,8 @@ With 1000 users this generates 1001 queries.",
       "line_end": 40,
       "recommendation": "Use a JOIN or batch query to fetch users with \
 profiles in a single query. Consider adding pagination.",
-      "confidence": 0.94
+      "confidence": 0.94,
+      "estimated_hours": 4.0
     }
   ],
   "dimension_score": 65,

@@ -39,6 +39,7 @@ class Finding(BaseModel, frozen=True):
     agent_role: AgentRole
     confidence: float = Field(ge=0.0, le=1.0)
     validated_by_critique: bool = False
+    estimated_hours: float = 0.0
 
     def __hash__(self) -> int:
         return hash((self.location.file_path, self.location.line_start, self.dimension))
@@ -136,6 +137,7 @@ class AnalysisReport(BaseModel, frozen=True):
     is_degraded: bool = False
     degraded_dimensions: tuple[Dimension, ...] = ()
     cross_cutting_insights: tuple[str, ...] = ()
+    hallucination_removed_count: int = 0
 
     def critical_finding_count(self) -> int:
         return sum(1 for f in self.findings if f.is_critical())
