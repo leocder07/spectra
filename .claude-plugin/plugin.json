@@ -1,0 +1,17 @@
+{
+  "name": "spectra",
+  "description": "Spectra codebase intelligence CLI - development toolkit with skills, agents, and hooks for the 48hr hackathon sprint",
+  "version": "0.1.0",
+  "skills": [
+    "skills/spectra-architect",
+    "skills/spectra-orchestrator",
+    "skills/spectra-brand-voice",
+    "skills/spectra-hackathon"
+  ],
+  "agents": [
+    "agents/architect-1.md",
+    "agents/pipeline-1.md",
+    "agents/interface-1.md",
+    "agents/qa-1.md"
+  ]
+}

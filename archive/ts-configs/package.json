@@ -1,0 +1,43 @@
+{
+  "name": "spectra",
+  "version": "0.1.0",
+  "description": "6 AI agents analyze your entire repository in 90 seconds",
+  "type": "module",
+  "bin": {
+    "spectra": "./dist/infrastructure/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/infrastructure/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/",
+    "spectra": "tsx src/infrastructure/main.ts"
+  },
+  "keywords": ["code-review", "ai-agents", "due-diligence", "codebase-analysis", "multi-agent"],
+  "author": "Vivek Prakash",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "handlebars": "^4.7.8",
+    "ora": "^8.1.1",
+    "simple-git": "^3.27.0",
+    "tiktoken": "^1.0.18",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.12.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

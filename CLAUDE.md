@@ -87,7 +87,7 @@ Stage 6: REPORT     → Render HTML via Jinja2 + Excalidraw diagrams
 2. Extended thinking: CritiqueAgent ONLY. No other agent uses it.
 3. 6 specialists ALWAYS run in parallel: `await asyncio.gather(*agents, return_exceptions=True)`
 4. Every agent output validated against Pydantic model BEFORE merge.
-5. `asyncio.wait_for(timeout=30)` per agent.
+5. `asyncio.wait_for(timeout=120)` per agent.
 6. If 2+ agents fail → abort with partial report (DEGRADED state).
 7. All LLM calls through decorator chain: LoggingDecorator → RetryDecorator → AnthropicAdapter
 
@@ -151,12 +151,8 @@ spectra/
 │               ├── base_agent.py      # ABC Template Method
 │               ├── agent_factory.py   # Creates all 8 agent configs
 │               ├── meta_prompter.py   # Sonnet 4.5, planning only
-│               ├── architecture_agent.py  # Opus 4.6
-│               ├── security_agent.py      # Opus 4.6
-│               ├── quality_agent.py       # Opus 4.6
-│               ├── documentation_agent.py # Opus 4.6
-│               ├── dependency_agent.py    # Opus 4.6 (supply chain, SBOM)
-│               ├── performance_agent.py   # Opus 4.6 (hotspots, N+1)
+│               ├── specialist_agent.py    # Parameterized specialist (all 6 dimensions)
+│               ├── specialist_prompts.py  # System prompts per dimension
 │               └── critique_agent.py      # Opus 4.6, EXTENDED THINKING
 ├── templates/
 │   └── report.html.j2                # Jinja2 HTML report template
@@ -185,7 +181,7 @@ spectra/
 | SPEC-003 | Rate Limit | Yes (3x) | Anthropic 429 rate limited |
 | SPEC-004 | Budget | No | Token budget exceeded |
 | SPEC-005 | Validation | Yes (1x) | Agent output failed Pydantic validation |
-| SPEC-006 | Timeout | No | Agent exceeded 30s timeout |
+| SPEC-006 | Timeout | No | Agent exceeded 120s timeout |
 | SPEC-007 | Pipeline | No | 2+ agents failed |
 | SPEC-008 | Critique | No | CritiqueAgent failed |
 | SPEC-009 | Report | No | Template render failed |
