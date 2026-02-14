@@ -88,6 +88,7 @@ async def _run_analysis(
             meta_prompter=meta_prompter,
             specialists=specialists,
             critique_agent=critique_agent,
+            observer=observer,
         )
 
         # Stage 6: REPORT
