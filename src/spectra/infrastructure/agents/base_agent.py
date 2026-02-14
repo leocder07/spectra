@@ -7,17 +7,9 @@ import time
 from abc import ABC, abstractmethod
 
 from spectra.entities.enums import AgentRole
-from spectra.entities.errors import ERRORS, SpectraError
+from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
 from spectra.entities.models import AgentOutput, Finding
 from spectra.use_cases.interfaces import LLMGateway
-
-
-class AgentError(Exception):
-    """Raised when an agent operation fails with a domain error."""
-
-    def __init__(self, error: SpectraError) -> None:
-        self.error = error
-        super().__init__(f"{error.code}: {error.message}")
 
 
 class BaseAgent(ABC):
@@ -69,12 +61,8 @@ class BaseAgent(ABC):
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]
-            cleaned = cleaned.rsplit("```", 1)[0]
         try:
-            return json.loads(cleaned)
+            return json.loads(strip_code_fence(raw))
         except json.JSONDecodeError as exc:
             raise AgentError(ERRORS["SPEC-005"]) from exc
 

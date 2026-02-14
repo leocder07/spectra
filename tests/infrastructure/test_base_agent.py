@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from spectra.entities.errors import AgentError
 from spectra.entities.models import Finding
-from spectra.infrastructure.agents.base_agent import AgentError, BaseAgent
+from spectra.infrastructure.agents.base_agent import BaseAgent
 
 
 class StubAgent(BaseAgent):

@@ -7,7 +7,15 @@ from spectra.entities.enums import (
     PipelineState,
     Severity,
 )
-from spectra.entities.errors import ERRORS, Result, SpectraError
+from spectra.entities.errors import (
+    ERRORS,
+    AgentError,
+    GitError,
+    Result,
+    SpectraError,
+    SpectraRetryError,
+    strip_code_fence,
+)
 from spectra.entities.models import (
     DEFAULT_DIMENSION_SCORE,
     EXCELLENT_SCORE,
@@ -23,6 +31,7 @@ from spectra.entities.models import (
     Finding,
     ScoreCard,
     TokenBudget,
+    estimate_cost,
     score_to_grade,
 )
 
@@ -35,8 +44,12 @@ __all__ = [
     "Severity",
     # errors
     "ERRORS",
+    "AgentError",
+    "GitError",
     "Result",
     "SpectraError",
+    "SpectraRetryError",
+    "strip_code_fence",
     # constants
     "DEFAULT_DIMENSION_SCORE",
     "EXCELLENT_SCORE",
@@ -53,5 +66,6 @@ __all__ = [
     "Finding",
     "ScoreCard",
     "TokenBudget",
+    "estimate_cost",
     "score_to_grade",
 ]

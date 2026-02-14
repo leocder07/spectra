@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import anthropic
 
-from spectra.entities.errors import ERRORS
-from spectra.infrastructure.retry_decorator import SpectraRetryError
+from spectra.entities.errors import ERRORS, SpectraRetryError
 
 
 class AnthropicAdapter:

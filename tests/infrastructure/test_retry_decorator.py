@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from spectra.entities.errors import ERRORS
-from spectra.infrastructure.retry_decorator import RetryDecorator, SpectraRetryError
+from spectra.entities.errors import ERRORS, SpectraRetryError
+from spectra.infrastructure.retry_decorator import RetryDecorator
 
 
 @pytest.fixture

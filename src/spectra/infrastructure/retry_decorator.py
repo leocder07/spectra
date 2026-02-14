@@ -4,16 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from spectra.entities.errors import SpectraError
+from spectra.entities.errors import SpectraRetryError
 from spectra.use_cases.interfaces import LLMGateway
-
-
-class SpectraRetryError(Exception):
-    """Raised when all retry attempts are exhausted for a SpectraError."""
-
-    def __init__(self, error: SpectraError) -> None:
-        self.error = error
-        super().__init__(f"{error.code}: {error.message}")
 
 
 class RetryDecorator:

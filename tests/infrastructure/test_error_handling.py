@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from spectra.entities.errors import ERRORS, SpectraError
-from spectra.infrastructure.agents.base_agent import AgentError
-from spectra.infrastructure.git_adapter import GitError
-from spectra.infrastructure.retry_decorator import SpectraRetryError
+from spectra.entities.errors import ERRORS, AgentError, GitError, SpectraError, SpectraRetryError
 
 
 # ── Error type hierarchy ──────────────────────────────────────

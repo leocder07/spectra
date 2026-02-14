@@ -8,10 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from spectra.adapters.cli_controller import app, set_analyzer_factory
-from spectra.entities.errors import ERRORS
-from spectra.infrastructure.agents.base_agent import AgentError
-from spectra.infrastructure.git_adapter import GitError
-from spectra.infrastructure.retry_decorator import SpectraRetryError
+from spectra.entities.errors import ERRORS, AgentError, GitError, SpectraRetryError
 
 runner = CliRunner()
 

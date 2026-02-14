@@ -16,9 +16,7 @@ import typer
 from rich.console import Console
 
 from spectra.adapters.analysis_presenter import present_scorecard
-from spectra.infrastructure.agents.base_agent import AgentError
-from spectra.infrastructure.git_adapter import GitError
-from spectra.infrastructure.retry_decorator import SpectraRetryError
+from spectra.entities.errors import AgentError, GitError, SpectraRetryError
 
 app = typer.Typer(
     name="spectra",
