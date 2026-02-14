@@ -30,6 +30,7 @@ class GitAdapter:
                         repo_url,
                         target_dir,
                         depth=1,
+                        allow_unsafe_options=True,
                         multi_options=[
                             "--config core.hooksPath=/dev/null",
                             "--no-recurse-submodules",

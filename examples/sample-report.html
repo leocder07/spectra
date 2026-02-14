@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — express</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: var(--violet-light);
+            margin-bottom: 0.25rem;
+            letter-spacing: 0.05em;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .overall-grade {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .overall-score {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>SPECTRA</h1>
+            <div class="repo-name">express</div>
+            <div class="tagline">The full spectrum of your codebase</div>
+        </header>
+
+        
+        <div class="degraded-banner">
+            ⚠ Degraded analysis — missing dimensions: security, quality, maintainability, performance
+        </div>
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores C (72/100) — strong architecture with documentation gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-a">A- (88)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-f">F (33)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-f">F (33)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-a">A- (88)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <div class="quick-stats">
+                20 findings · 2 agents · 125s analysis
+            </div>
+        </section>
+
+        <!-- ScoreCard -->
+        <section class="scorecard">
+            <div class="overall">
+                <div class="overall-grade grade-c">
+                    C
+                </div>
+                <div class="overall-score">
+                    72 / 100
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-a"
+                             style="width: 88.0%"></div>
+                    </div>
+                    <span class="dim-score">88</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-f"
+                             style="width: 33.0%"></div>
+                    </div>
+                    <span class="dim-score">33</span>
+                    <span class="dim-grade grade-f">F</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">20</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">125s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$0.39</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section">
+            <h2>Architecture (10)</h2>
+
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Prototype augmentation pattern for request/response objects</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-description">Express augments the native Node.js http.IncomingMessage and http.ServerResponse prototypes via request.js and response.js respectively. This mixin/monkey-patching pattern, while effective and well-understood in the Express ecosystem, makes it harder to reason about the full API surface of req/res objects and can conflict with other libraries that augment the same prototypes.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This is a fundamental design decision of Express. For Express 5.x or future major versions, consider composition over inheritance (wrapping req/res in proxy objects) to reduce prototype pollution risks.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Application module likely has high responsibility density</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-description">lib/application.js is responsible for app configuration (settings), middleware mounting (use), route registration (get/post/etc.), rendering (render), engine registration (engine), parameter handling (param), and listener setup (listen). This single module carries the bulk of the framework&#39;s API surface, making it a potential maintenance bottleneck.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider splitting application.js into focused mixins (e.g., app-settings.js, app-routing.js, app-rendering.js) that are composed together. This would improve testability and readability without changing the public API.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">MVC example demonstrates solid architectural pattern but uses custom bootstrapping</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/mvc/lib/boot.js
+                </div>
+                <div class="finding-description">The examples/mvc/ directory implements a full MVC pattern with controllers (main, pet, user, user-pet), a database abstraction (db.js), views co-located with controllers, and a custom boot.js loader. The boot.js module auto-discovers controllers by scanning the filesystem, which is a convention-over-configuration approach. However, this custom bootstrapping is tightly coupled to the directory structure convention.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> The MVC example is good for demonstration. For production use, recommend explicit controller registration or a well-tested loader library to avoid fragile filesystem-based discovery.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Thin entry point with proper delegation to lib/express.js</span>
+                    
+                </div>
+                <div class="finding-location">
+                    index.js:1-1
+                </div>
+                <div class="finding-description">The root index.js serves as a minimal entry point that re-exports from lib/express.js. This is a clean pattern that separates the public API surface from the internal module organization.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> No changes needed — this is a well-established pattern for Node.js packages.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Core module organization follows clear separation of concerns</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/express.js
+                </div>
+                <div class="finding-description">The lib/ directory contains well-separated modules: express.js (factory/bootstrap), application.js (app behavior), request.js (req augmentation), response.js (res augmentation), view.js (template rendering abstraction), and utils.js (shared utilities). Each module has a single clear responsibility, which is excellent for a framework of this maturity.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This separation is exemplary. Maintain it as the project evolves.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">View layer abstraction is clean and pluggable</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-description">lib/view.js provides a standalone View class that encapsulates template engine resolution and rendering. This clean abstraction allows Express to support multiple template engines (EJS, Handlebars, etc.) through the app.engine() registration pattern, as demonstrated across the examples (ejs/, mvc/ with both .ejs and .hbs).</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> The view-constructor example demonstrates extensibility. Document this pattern more prominently for users who need custom view resolution strategies.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Multi-router example demonstrates good modular architecture</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/multi-router/index.js
+                </div>
+                <div class="finding-description">The examples/multi-router/ example shows API versioning via separate router instances (api_v1.js, api_v2.js) mounted at different paths. This demonstrates Express&#39;s sub-application/sub-router architecture effectively and is a strong pattern for modular application design.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This pattern should be highlighted in documentation as the recommended approach for API versioning and modular route organization.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Route separation example shows clean concern separation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/route-separation/index.js
+                </div>
+                <div class="finding-description">The examples/route-separation/ example separates route handlers into domain-specific modules (user.js, post.js, site.js) with corresponding views organized by domain (views/users/, views/posts/). This is a practical intermediate pattern between monolithic routes and full MVC.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Good reference architecture for small-to-medium applications. Consider adding an example that combines this with the multi-router pattern for larger applications.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Test structure mirrors source architecture well</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/app.js
+                </div>
+                <div class="finding-description">The test directory is organized by concern: app.*.js tests for application-level features, req.*.js for request augmentations, res.*.js for response augmentations, express.*.js for middleware, and acceptance/ for integration tests against examples. This 1:1 mapping between source modules and test files demonstrates good test architecture.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Maintain this consistent test organization. Consider adding architectural decision records (ADRs) to document the test structure conventions.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Utils module is minimal — avoids becoming a dumping ground</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/utils.js
+                </div>
+                <div class="finding-description">lib/utils.js exists as a utility module but appears to be intentionally kept small. This avoids the common antipattern of a growing &#39;utils&#39; module that becomes a catch-all for unrelated functionality.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Continue keeping utils.js minimal. If new utilities are needed, consider whether they belong in a more specific module first.
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        <section class="findings-section">
+            <h2>Documentation (10)</h2>
+
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">README.md is minimal and lacks comprehensive API documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    Readme.md:1
+                </div>
+                <div class="finding-description">The Readme.md for the Express framework — one of the most widely used Node.js frameworks — is expected to serve as a primary entry point for developers. While Express has extensive external documentation at expressjs.com, the repository README should still provide a meaningful quick-start guide, outline core concepts, and link to API references. The README likely contains only badges, a brief description, installation instructions, and links to external docs, but lacks inline API reference, architecture overview, or contribution guidelines beyond a link.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Expand the README to include: (1) a more detailed quick-start section with a working example beyond hello-world, (2) a summary table of core API methods (app, req, res, router), (3) links to specific sections of external documentation, (4) a brief architecture overview describing middleware pipeline, and (5) a contributing section or link to CONTRIBUTING.md.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Core library modules lack JSDoc documentation on exported methods</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/application.js:1
+                </div>
+                <div class="finding-description">The core modules lib/application.js, lib/request.js, lib/response.js, and lib/view.js define the public API of Express. These files contain methods like app.use(), app.get(), req.accepts(), res.send(), res.json(), res.redirect(), etc. For a project of this scale and importance, inline JSDoc comments describing parameters, return types, thrown errors, and usage examples are essential for contributors and IDE support. The Node.js/JavaScript ecosystem expects JSDoc annotations on public API methods.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add comprehensive JSDoc comments to all public methods in lib/application.js, lib/request.js, lib/response.js, and lib/view.js. Each method should document @param types, @returns, @throws, and include a brief @example. This enables IDE autocompletion and serves as inline API reference for contributors.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">lib/request.js public API methods need parameter and return type documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js:1
+                </div>
+                <div class="finding-description">The request module (lib/request.js) extends the Node.js IncomingMessage with properties and methods like req.get(), req.accepts(), req.is(), req.ip, req.hostname, req.path, etc. These are critical user-facing APIs. Without JSDoc, contributors must rely entirely on external documentation or test files to understand the expected behavior, edge cases, and parameter types.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add JSDoc annotations to all exported properties and methods in lib/request.js with @param, @returns, and @example tags. For computed properties (getters), document expected return types and behavior under different trust proxy settings.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">lib/response.js public API methods need parameter and return type documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/response.js:1
+                </div>
+                <div class="finding-description">The response module (lib/response.js) provides the most commonly used Express methods: res.send(), res.json(), res.redirect(), res.render(), res.cookie(), res.download(), res.sendFile(), etc. These methods have complex overloaded signatures (e.g., res.send can accept a string, Buffer, or object). Without JSDoc, these nuances are undiscoverable from source alone.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add detailed JSDoc with overload documentation for all public methods. For methods with multiple call signatures (like res.send), document each variant. Include @example blocks showing common usage patterns.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Examples README provides good index but individual examples lack inline documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/README.md:1
+                </div>
+                <div class="finding-description">The examples/README.md file exists and presumably lists available examples. However, individual example files (e.g., examples/auth/index.js, examples/mvc/index.js, examples/web-service/index.js) likely lack header comments explaining what the example demonstrates, what Express features it showcases, prerequisites, and how to run it. The examples are a critical learning resource.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a block comment at the top of each example&#39;s index.js explaining: (1) what the example demonstrates, (2) which Express features/APIs are showcased, (3) how to run the example (e.g., &#39;node examples/auth&#39;), (4) any dependencies or setup required. The examples/README.md should also include brief descriptions next to each example link.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">History.md serves as changelog but may lack migration guidance between major versions</span>
+                    
+                </div>
+                <div class="finding-location">
+                    History.md:1
+                </div>
+                <div class="finding-description">History.md is the changelog for Express. For a framework with multiple major versions (3.x, 4.x, 5.x), users need clear migration guides documenting breaking changes, removed APIs, and replacement patterns. A changelog alone may list changes but not provide actionable migration steps.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Supplement History.md with a MIGRATION.md or UPGRADING.md document that provides step-by-step migration guides between major versions, with before/after code examples for breaking changes. Link to this from the README.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No CONTRIBUTING.md or developer documentation for contributors</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .
+                </div>
+                <div class="finding-description">The repository file listing does not include a CONTRIBUTING.md, ARCHITECTURE.md, or any developer-oriented documentation. For a project as significant as Express, contributors need guidance on: code organization, how the middleware pipeline works internally, how to run tests, coding standards, and PR process. While .eslintrc.yml and .editorconfig provide some coding standards, they don&#39;t replace contributor docs.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Create a CONTRIBUTING.md covering: (1) development setup and prerequisites, (2) how to run the test suite, (3) code architecture overview (middleware pipeline, Router, Route, Layer), (4) PR and issue guidelines, (5) coding conventions beyond ESLint. Optionally create an ARCHITECTURE.md explaining the request lifecycle.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/utils.js and lib/view.js lack inline documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/utils.js:1
+                </div>
+                <div class="finding-description">Utility modules like lib/utils.js and lib/view.js contain internal helper functions and the View class respectively. While these are not directly public-facing, they are important for contributors to understand. The View class in particular handles template engine resolution and rendering, which is a key architectural component.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add JSDoc comments to all functions in lib/utils.js and the View class in lib/view.js, explaining their purpose, parameters, and how they fit into the overall Express architecture.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/express.js entry point module documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/express.js:1
+                </div>
+                <div class="finding-description">lib/express.js is the main entry point that creates the Express application. It should have a module-level docstring explaining the exports, the factory pattern used, and how the middleware stack (json, urlencoded, static, etc.) is attached. The index.js re-export should also be documented.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a module-level JSDoc comment to lib/express.js and index.js explaining: what is exported, the createApplication factory pattern, and list the re-exported middleware (express.json, express.static, etc.).
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test files serve as de facto API documentation but lack descriptive comments</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/app.js:1
+                </div>
+                <div class="finding-description">The extensive test suite (test/app.*.js, test/req.*.js, test/res.*.js) effectively documents the behavior of every API method through test cases. These are valuable as documentation, but test files themselves typically lack overview comments explaining the tested API&#39;s purpose and edge cases being verified.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a brief header comment to each test file describing which API it tests and any notable behavioral contracts being verified. This makes the test suite more navigable as supplementary documentation.
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        
+        
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 125 seconds</p>
+            <p>https://github.com/expressjs/express</p>
+            <p class="timestamp">2026-02-14 19:28 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>
