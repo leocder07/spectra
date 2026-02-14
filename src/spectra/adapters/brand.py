@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from spectra.entities.enums import Dimension
+from spectra.entities.enums import Dimension
 
 # Brand colors
 VIOLET = "#7C3AED"

@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c 'import sys,json,subprocess as sp;d=json.load(sys.stdin);sys.exit(sp.call([\"bash\",\".claude-plugin/hooks/dependency-guard.sh\",d.get(\"file_path\",\"\")]))'  "
+          },
+          {
+            "type": "command",
+            "command": "python3 -c 'import sys,json,subprocess as sp;d=json.load(sys.stdin);sys.exit(sp.call([\"bash\",\".claude-plugin/hooks/no-any-types.sh\",d.get(\"file_path\",\"\")]))'  "
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_input.file_path' | xargs .venv/bin/ruff check --fix 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | xargs -I{} bash -c 'if [[ \"{}\" == src/* ]]; then .venv/bin/python -m pytest tests/ -q --tb=short 2>&1 | tail -5; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}

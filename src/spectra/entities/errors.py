@@ -17,10 +17,14 @@ class SpectraError:
 
 ERRORS: dict[str, SpectraError] = {
     "SPEC-001": SpectraError("SPEC-001", "Git clone failed", retryable=True, max_retries=2),
-    "SPEC-002": SpectraError("SPEC-002", "Anthropic API unreachable", retryable=True, max_retries=3),
+    "SPEC-002": SpectraError(
+        "SPEC-002", "Anthropic API unreachable", retryable=True, max_retries=3,
+    ),
     "SPEC-003": SpectraError("SPEC-003", "Rate limited (429)", retryable=True, max_retries=3),
     "SPEC-004": SpectraError("SPEC-004", "Token budget exceeded", retryable=False),
-    "SPEC-005": SpectraError("SPEC-005", "Agent output validation failed", retryable=True, max_retries=1),
+    "SPEC-005": SpectraError(
+        "SPEC-005", "Agent output validation failed", retryable=True, max_retries=1,
+    ),
     "SPEC-006": SpectraError("SPEC-006", "Agent timeout (120s)", retryable=False),
     "SPEC-007": SpectraError("SPEC-007", "2+ agents failed", retryable=False),
     "SPEC-008": SpectraError("SPEC-008", "CritiqueAgent failed", retryable=False),

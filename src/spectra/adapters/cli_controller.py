@@ -10,15 +10,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import traceback
-from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import typer
 from rich.console import Console
 
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 app = typer.Typer(
     name="spectra",
@@ -30,6 +32,14 @@ app = typer.Typer(
 console = Console()
 
 OutputFormat = Literal["html", "json"]
+
+_DEFAULT_OUTPUT = Path("spectra-report.html")
+_OUTPUT_OPTION = typer.Option(
+    _DEFAULT_OUTPUT,
+    "--output",
+    "-o",
+    help="Report output path",
+)
 
 # Injected by the composition root before CLI runs
 _analyzer_factory: Callable[..., Awaitable[object]] | None = None
@@ -69,12 +79,7 @@ def analyze(
         ...,
         help="Git repository URL to analyze",
     ),
-    output: Path = typer.Option(
-        Path("spectra-report.html"),
-        "--output",
-        "-o",
-        help="Report output path",
-    ),
+    output: Path = _OUTPUT_OPTION,
     quick: bool = typer.Option(
         False,
         "--quick",
@@ -126,18 +131,18 @@ def analyze(
         )
     except KeyboardInterrupt:
         console.print("\n[#F59E0B]⚠[/] Analysis cancelled by user")
-        raise typer.Exit(code=130)
+        raise typer.Exit(code=130) from None
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(
             f"[#EF4444]✗[/] {err.code}: {err.message}"
         )
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from exc
     except Exception as exc:
         console.print(f"[#EF4444]✗[/] Unexpected error: {exc}")
         if verbose:
             console.print(traceback.format_exc())
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from exc
 
     if report is None:
         raise typer.Exit(code=1)

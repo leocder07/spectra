@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import jinja2
 
 from spectra.adapters.brand import build_verdict, dim_label
-
-if TYPE_CHECKING:
-    from spectra.entities.enums import Dimension, Grade
-    from spectra.entities.models import AnalysisReport, Finding
+from spectra.entities.enums import Dimension, Grade
+from spectra.entities.models import AnalysisReport, Finding
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "templates"
 

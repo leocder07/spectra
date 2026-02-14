@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
-
-from spectra.entities.models import AgentOutput, Finding
+from spectra.entities.models import Finding
 from spectra.infrastructure.agents.base_agent import BaseAgent
 from spectra.use_cases.interfaces import LLMGateway
 

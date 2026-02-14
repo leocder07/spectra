@@ -8,7 +8,6 @@ from spectra.entities.enums import (
     AgentRole,
     Dimension,
     Grade,
-    PipelineState,
     Severity,
 )
 

@@ -13,5 +13,9 @@
     "agents/pipeline-1.md",
     "agents/interface-1.md",
     "agents/qa-1.md"
-  ]
+  ],
+  "commands": [
+    "commands/analyze.md"
+  ],
+  "hooks": "hooks/hooks.json"
 }

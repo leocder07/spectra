@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -11,8 +12,8 @@ from spectra.adapters.cli_controller import cli_entry, set_analyzer_factory
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.errors import ERRORS, SpectraError
 from spectra.entities.models import AnalysisReport, AnalysisRequest, Codebase
-from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
 from spectra.infrastructure.agents.agent_factory import AgentFactory
+from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
@@ -50,7 +51,7 @@ async def _run_analysis(
 
     # Infrastructure adapters
     git = GitAdapter()
-    token_counter = TiktokenAdapter()
+    TiktokenAdapter()
     report_renderer = ReportAdapter()
 
     clone_dir = tempfile.mkdtemp(prefix="spectra-")
@@ -94,7 +95,11 @@ async def _run_analysis(
         # Stage 6: REPORT
         observer.on_stage_start("REPORT", "Rendering report")
         try:
-            report_renderer.render(report, output_path)
+            if output_format == "json":
+                data = json.dumps(report.model_dump(mode="json"), indent=2)
+                Path(output_path).write_text(data, encoding="utf-8")
+            else:
+                report_renderer.render(report, output_path)
         except Exception as exc:
             raise ReportError(ERRORS["SPEC-009"]) from exc
         observer.on_stage_complete("REPORT", "Report generated")

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -18,11 +17,7 @@ from spectra.adapters.brand import (
     VIOLET,
     build_verdict,
 )
-
-if TYPE_CHECKING:
-    from rich.console import Console
-
-    from spectra.entities.enums import Dimension, Grade
+from spectra.entities.enums import Grade
 
 GRADE_COLORS: dict[str, str] = {
     "A+": GREEN, "A": GREEN, "A-": GREEN,

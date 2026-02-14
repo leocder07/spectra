@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import json
+from typing import TYPE_CHECKING
 
-from spectra.entities.models import AgentOutput, Finding
 from spectra.infrastructure.agents.base_agent import BaseAgent
-from spectra.use_cases.interfaces import LLMGateway
+
+if TYPE_CHECKING:
+    from spectra.entities.models import Finding
+    from spectra.use_cases.interfaces import LLMGateway
 
 _SYSTEM_PROMPT = """You are the critique agent. Use extended thinking to carefully validate
 every finding from the specialist agents.
@@ -28,16 +30,29 @@ OUTPUT FORMAT (JSON):
 EXAMPLE OUTPUT:
 {
   "validated_findings": [
-    {"id": "sec-001", "original_severity": "critical", "validated": true, "reason": "Confirmed hardcoded secret on line 12 of config.py"}
+    {
+      "id": "sec-001",
+      "original_severity": "critical",
+      "validated": true,
+      "reason": "Confirmed hardcoded secret on line 12 of config.py"
+    }
   ],
   "rejected_findings": [
-    {"id": "arch-002", "reason": "False positive — the import is a type-only import and does not violate the dependency rule"}
+    {
+      "id": "arch-002",
+      "reason": "False positive — type-only import, does not violate the dependency rule"
+    }
   ],
   "severity_adjustments": [
-    {"id": "qual-003", "original_severity": "high", "adjusted_severity": "medium", "reason": "Function is 25 lines, slightly over threshold but well-structured with early returns"}
+    {
+      "id": "qual-003",
+      "original_severity": "high",
+      "adjusted_severity": "medium",
+      "reason": "Function is 25 lines, slightly over threshold but well-structured"
+    }
   ],
   "cross_cutting_insights": [
-    "The hardcoded secret (sec-001) and missing .env documentation (doc-001) are related — fixing secrets management addresses both."
+    "sec-001 and doc-001 are related — fixing secrets management addresses both."
   ]
 }
 

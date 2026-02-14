@@ -64,7 +64,7 @@ async def analyze_repository(
 
     # Wire token budget from plan allocations
     allocations = _extract_token_allocations(plan_output.raw_response)
-    dim_budgets = allocate_specialist_budgets(budget, allocations)
+    allocate_specialist_budgets(budget, allocations)
 
     # Read source files if needed
     if source_files is None and git_port is not None:
@@ -208,7 +208,7 @@ async def _run_analysis_stage(
     successes, failed_roles, state = evaluate_results(results, roles)
 
     # Notify observer per agent
-    for result, role in zip(results, roles):
+    for result, role in zip(results, roles, strict=False):
         if isinstance(result, Exception):
             _notify(observer, "on_agent_failure", role, str(result))
         else:
@@ -247,9 +247,7 @@ def _should_run_critique(
     """Determine whether the critique stage should run."""
     if request.quick or is_degraded or critique_agent is None:
         return False
-    if remaining_tokens == 0:
-        return False
-    return True
+    return remaining_tokens != 0
 
 
 async def _run_critique_stage(

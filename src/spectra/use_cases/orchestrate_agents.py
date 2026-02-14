@@ -58,7 +58,7 @@ def evaluate_results(
     successes: list[AgentOutput] = []
     failed_roles: list[AgentRole] = []
 
-    for result, role in zip(results, roles):
+    for result, role in zip(results, roles, strict=False):
         if isinstance(result, Exception):
             failed_roles.append(role)
         else:
