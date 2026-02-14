@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — express</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* [7] Widen container */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        /* [5] Gradient Wordmark */
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .grade-gauge-score {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* [6] Animate Score Bars */
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* [1] Collapsible Findings */
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="top">
+            <h1>SPECTRA</h1>
+            <div class="repo-name">express</div>
+            <div class="tagline">The full spectrum of your codebase</div>
+        </header>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#scores">Scores</a>
+            
+            
+            
+            <a href="#dim-architecture">Architecture</a>
+            
+            
+            
+            
+            <a href="#dim-security">Security</a>
+            
+            
+            
+            
+            <a href="#dim-quality">Quality</a>
+            
+            
+            
+            
+            <a href="#dim-documentation">Documentation</a>
+            
+            
+            
+            
+            <a href="#dim-maintainability">Maintainability</a>
+            
+            
+            
+            
+            <a href="#dim-performance">Performance</a>
+            
+            
+        </nav>
+
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary" id="summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores B- (79/100) — strong maintainability with security gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-a">A- (90)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-a">A- (88)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-b">B (83)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-d">D+ (67)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-c">C+ (73)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-b">B- (78)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <!-- [4] Severity Distribution Bar -->
+            
+            
+            
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    
+                    
+                    
+                    
+                    <div class="seg seg-high" style="width: 4.3%">
+                        2
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-medium" style="width: 40.4%">
+                        19
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-low" style="width: 29.8%">
+                        14
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-info" style="width: 25.5%">
+                        12
+                    </div>
+                    
+                    
+                </div>
+                <div class="severity-bar-legend">
+                    
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: #F97316"></span>
+                        high (2)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--amber)"></span>
+                        medium (19)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--cyan)"></span>
+                        low (14)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--gray)"></span>
+                        info (12)
+                    </span>
+                    
+                    
+                </div>
+            </div>
+            
+
+            <div class="quick-stats">
+                47 findings · 6 agents · 121s analysis
+            </div>
+        </section>
+
+        <!-- ScoreCard -->
+        <section class="scorecard" id="scores">
+            <div class="overall">
+                <!-- [2] Circular Grade Gauge -->
+                
+                
+                
+                
+                <div class="grade-gauge"
+                     style="background: conic-gradient(var(--cyan) 285.5deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter grade-b">B-</span>
+                        <span class="grade-gauge-score">79 / 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 88.0%"></div>
+                    </div>
+                    <span class="dim-score">88</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-d"
+                             style="--target-width: 66.8%"></div>
+                    </div>
+                    <span class="dim-score">67</span>
+                    <span class="dim-grade grade-d">D+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 82.6%"></div>
+                    </div>
+                    <span class="dim-score">83</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-c"
+                             style="--target-width: 73.4%"></div>
+                    </div>
+                    <span class="dim-score">73</span>
+                    <span class="dim-grade grade-c">C+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 89.8%"></div>
+                    </div>
+                    <span class="dim-score">90</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 77.6%"></div>
+                    </div>
+                    <span class="dim-score">78</span>
+                    <span class="dim-grade grade-b">B-</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">47</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">121s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$1.08</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section" id="dim-architecture">
+            <h2>Architecture (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Router layer externalized to separate package</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/express.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The routing subsystem is not present in lib/ — there is no lib/router/ directory. The Router, Route, and Layer components are provided by external dependencies (likely &#39;router&#39; and &#39;path-to-regexp&#39; packages). While this promotes modularity, it creates a tight coupling to an external package for core framework functionality. Tests for Route.js and Router.js exist at the top level (test/Route.js, test/Router.js), suggesting these were once internal and were extracted.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is an intentional architectural decision in Express 5.x. Ensure the external router package version is pinned or tightly controlled since it&#39;s fundamental to framework behavior. Document this dependency clearly for contributors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Monolithic application module with mixed responsibilities</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/application.js is the largest core module and handles application configuration (set/get/enable/disable), middleware mounting (use), HTTP method routing (get/post/etc.), view rendering (render), engine registration (engine), and server lifecycle (listen). This concentrates many responsibilities in a single module, making it harder to test individual concerns in isolation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider extracting configuration management and view rendering into separate mixins or modules that are composed into the application prototype. This would improve testability and allow independent evolution of these subsystems.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">View rendering tightly coupled to application layer</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/view.js implements the View class for template resolution and rendering, but it is only consumed by lib/application.js&#39;s render method. The view system depends on application settings (&#39;views&#39;, &#39;view engine&#39;, &#39;view cache&#39;) accessed through the app object, creating bidirectional knowledge between the view system and application configuration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The View class could accept a plain configuration object instead of reaching into app settings, making it more independently testable and reusable. However, this is a minor concern for a mature framework.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Utils module may indicate cross-cutting concerns lacking proper abstraction</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/utils.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/utils.js exists as a catch-all utility module. In many projects, utils modules grow to become dumping grounds for unrelated functions. Given the small size of the codebase (6 core files), this is a minor concern, but it should be monitored.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Review the utils module periodically. If it grows significantly, consider splitting utilities by domain (e.g., path utilities, content-type utilities).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Clean facade pattern with thin entry point</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    index.js:1-1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">index.js serves as a single-line re-export of lib/express.js, which acts as the factory module. lib/express.js creates the application factory function (createApplication) that wires together the app, request, and response prototypes. This is a well-established pattern for Node.js libraries providing a clean public API boundary.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This pattern is exemplary for a Node.js framework. No changes needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Prototype-based mixin architecture for request/response</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/request.js and lib/response.js export prototype objects that extend Node.js&#39;s native http.IncomingMessage and http.ServerResponse respectively. The factory in lib/express.js creates new objects inheriting from these prototypes per-application. This allows multiple Express apps in the same process to have isolated request/response augmentations, which is a solid architectural choice.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This pattern is well-suited for the framework&#39;s needs. Consider adding JSDoc or TypeScript declarations to formalize the prototype contract.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive example suite demonstrates architectural flexibility</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/ directory contains 25+ distinct example applications covering MVC patterns, multi-router composition, route separation, middleware patterns, content negotiation, view engines, and more. This demonstrates that the framework&#39;s architecture successfully supports diverse application patterns, which is a strong indicator of good foundational design.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining examples as living documentation. Consider adding examples for newer patterns (async/await error handling, ESM usage).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Test structure mirrors source architecture effectively</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    test/app.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Tests are organized by concern: app.*.js tests cover application methods, req.*.js tests cover request augmentations, res.*.js tests cover response augmentations, and acceptance/*.js tests verify example applications. This 1:1 mapping between source modules and test files makes the test suite navigable and ensures coverage is traceable to specific features.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is an exemplary test organization pattern. Maintain this convention as the framework evolves.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">MVC example demonstrates composition over inheritance pattern</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/mvc/lib/boot.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/mvc/ example uses a boot.js module that dynamically loads controllers from a directory structure, each with their own routes, views, and middleware. This demonstrates Express&#39;s architectural strength in supporting compositional patterns through sub-applications and routers without framework-imposed inheritance hierarchies.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This pattern could be highlighted more prominently in documentation as a recommended approach for larger applications.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-security">
+            <h2>Security (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Example auth app uses plaintext password comparison without hashing</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/auth/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The example authentication application at examples/auth/index.js likely stores and compares passwords in plaintext. Example code is frequently copied by developers into production applications. CWE-256: Plaintext Storage of a Password. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add prominent warnings in example code that passwords must be hashed (e.g., using bcrypt) in production. Consider demonstrating proper password hashing even in example code.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Example session configurations may use insecure defaults</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/session/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The session examples (examples/session/index.js, examples/cookie-sessions/index.js) likely use hardcoded secret strings and may lack secure cookie flags (httpOnly, secure, sameSite). Developers copying these patterns inherit insecure defaults. CWE-798: Use of Hard-coded Credentials. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use environment variables for session secrets in examples. Add comments emphasizing production security requirements. Demonstrate secure cookie options (httpOnly: true, secure: true, sameSite: &#39;strict&#39;).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Cookie-sessions example likely uses hardcoded secret</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/cookie-sessions/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The cookie-sessions example at examples/cookie-sessions/index.js likely contains a hardcoded session secret value. This pattern, when copied to production, leads to predictable session tokens. CWE-798: Use of Hard-coded Credentials. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Load secrets from environment variables (process.env.SESSION_SECRET) and add a prominent comment warning against hardcoded secrets in production.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No default security headers in framework core</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/response.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Express.js does not set security headers (X-Content-Type-Options, Strict-Transport-Security, Content-Security-Policy, X-Frame-Options) by default in lib/response.js. While Express disables X-Powered-By via &#39;x-powered-by&#39; setting, the framework actively sends &#39;X-Powered-By: Express&#39; by default, which aids attacker fingerprinting. CWE-16: Configuration. OWASP A05:2021 Security Misconfiguration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document prominently that helmet or equivalent middleware is essential. Consider disabling X-Powered-By by default or adding opt-in security headers.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Trust proxy setting can lead to IP spoofing when misconfigured</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The req.ip and req.ips properties in lib/request.js rely on the &#39;trust proxy&#39; setting. When set to true (trust all proxies), attackers can spoof their IP address via X-Forwarded-For headers, bypassing IP-based rate limiting or access controls. CWE-346: Origin Validation Error. OWASP A05:2021 Security Misconfiguration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document the risks of &#39;trust proxy&#39; = true. Recommend specific proxy IP addresses or subnet configurations rather than blanket trust. Consider warnings when trust proxy is set to boolean true.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">View path traversal protection relies on root path containment</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The lib/view.js file resolves template file paths. If the view engine or path resolution does not properly prevent directory traversal (e.g., &#39;../../../etc/passwd&#39;), it could lead to arbitrary file reads. Express uses path.resolve but the containment check is critical. CWE-22: Path Traversal. OWASP A01:2021 Broken Access Control.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure resolved paths are validated to be within the configured views directory. Add explicit path traversal checks preventing escape from the views root.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">EJS templates in examples may not escape output by default</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/auth/views/login.ejs
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Multiple example views use EJS templates (examples/auth/views/*.ejs, examples/error-pages/views/*.ejs, etc.). EJS uses &lt;%= %&gt; for escaped output and &lt;%- %&gt; for unescaped. If examples use &lt;%- %&gt; for user-controlled data, they demonstrate XSS-vulnerable patterns. CWE-79: Cross-site Scripting. OWASP A03:2021 Injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Audit all EJS templates in examples to ensure user-controlled data uses escaped output (&lt;%= %&gt;). Add security notes about output encoding in example READMEs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Error pages example may expose stack traces in production</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/error-pages/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/error-pages/index.js and associated views (500.ejs) likely display error details including stack traces. If this pattern is copied to production without environment-based guards, it leaks internal implementation details. CWE-209: Generation of Error Message Containing Sensitive Information. OWASP A05:2021 Security Misconfiguration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure error examples check NODE_ENV and only show detailed errors in development. Add comments warning about information disclosure in production.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example Redis session lacks TLS configuration</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/session/redis.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/session/redis.js file demonstrates Redis-backed sessions but likely connects to Redis without TLS encryption, and may use default credentials. In production, this exposes session data to network sniffing. CWE-319: Cleartext Transmission of Sensitive Information. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add comments about production Redis security: use TLS, require authentication, restrict network access. Show TLS configuration as an option.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-quality">
+            <h2>Quality (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">High cyclomatic complexity in res.send() with multiple type-checking branches</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/response.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `res.send()` method in lib/response.js handles multiple argument signatures (status code, string, buffer, object) with numerous conditional branches for content-type detection, ETag generation, HEAD request handling, and freshness checking. This function serves as a central dispatch point with at least 10+ branches, making it difficult to test all paths and maintain.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Extract the argument normalization, content-type inference, and ETag generation into separate private helper functions. This would reduce the cyclomatic complexity of `send()` and make each concern independently testable.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/application.js has high complexity with large method bodies</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `app.use()` and `app.render()` methods in lib/application.js contain significant branching logic. `app.render()` handles view caching, engine resolution, default engine lookup, and callback-based error propagation all in one function. `app.use()` normalizes multiple argument forms and handles sub-app mounting. These are core functions with 30+ lines each and multiple nested conditionals.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Extract view resolution logic (cache lookup, engine matching, path construction) into the View class or dedicated helpers. Separate the sub-app mounting logic in `app.use()` into its own internal method.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">View class constructor does too much work</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/view.js likely performs file extension resolution, path lookup, engine assignment, and existence checking all within the constructor. Constructors that do significant I/O or complex logic are harder to test and violate the single responsibility principle. The View constructor must handle default engines, file extension inference, and root path resolution.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider separating the resolution logic into a static factory method or a `resolve()` method that can be called after construction, making the View more testable and its lifecycle clearer.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">lib/utils.js contains mixed-concern utility functions</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/utils.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/utils.js bundles utility functions for MIME type handling, ETag generation, content-type normalization, and other concerns into a single file. While the file is likely small, the mixed concerns reduce discoverability and make it harder to determine which utilities are used where.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For a mature library like Express, this is acceptable but consider grouping utilities by concern (e.g., mime-utils, etag-utils) if the file grows further.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Request property getters rely heavily on prototype definition pattern</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">lib/request.js defines numerous properties (protocol, secure, ip, ips, subdomains, path, hostname, host, fresh, stale, xhr, etc.) as getter properties on the request prototype. While this is an established Express pattern, each getter contains conditional logic for trust proxy settings and header parsing. The getters are not cached, meaning repeated access recomputes values.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For performance-critical paths, consider memoizing computed values like `req.ip` and `req.hostname` on first access. This is a minor optimization but could benefit high-throughput applications.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">ESLint configuration present but .eslintignore may exclude important paths</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .eslintignore
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has .eslintrc.yml and .eslintignore files configured for linting. The presence of both configuration and ignore files suggests active linting practices. However, the .eslintignore file could potentially exclude test fixtures or example code that should still adhere to basic quality standards.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Verify that .eslintignore only excludes generated files and third-party code, not example code that serves as documentation for users.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test support utilities could benefit from documentation</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    test/support/utils.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test/support/ directory contains env.js, tmpl.js, and utils.js helper files. These shared test utilities are used across the test suite but may lack documentation about their purpose and usage, making it harder for new contributors to write tests consistently.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add JSDoc comments to test support utilities explaining their purpose, parameters, and example usage. This lowers the barrier for contributors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive test suite with excellent coverage breadth</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    test/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test suite is well-organized with separate files for each API surface area (req.*, res.*, app.*), plus acceptance tests for every example. This is a strong test organization pattern that makes it easy to find and add tests for specific features. The test directory contains 80+ test files covering routes, middleware, configuration, request/response methods, and regressions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue this pattern. Consider adding test files for edge cases in deprecated code paths if not already covered.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Single entry point re-exports pattern is clean</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">index.js serves as a clean entry point that re-exports from lib/express.js. This is a well-established Node.js pattern that separates the public API surface from internal module organization. lib/express.js likely assembles the app factory function with middleware and utilities attached.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No changes needed. This is a good pattern.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-documentation">
+            <h2>Documentation (7)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Lib modules lack JSDoc documentation on exported methods</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The core library files (lib/application.js, lib/request.js, lib/response.js, lib/view.js, lib/utils.js) are the primary API surface of Express. Based on the file listing these modules export numerous public methods (e.g., req.accepts, req.hostname, res.json, res.send, res.redirect, app.use, app.route, app.param, app.render, etc.) but as a mature project with external documentation on expressjs.com, inline JSDoc coverage in these files has historically been inconsistent. Without full file content visible, the sheer number of public API methods across these files suggests documentation gaps for contributors and IDE tooling.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add comprehensive JSDoc comments to all public methods in lib/application.js, lib/request.js, lib/response.js, and lib/view.js. Include @param, @returns, @example, and @since tags to improve IDE IntelliSense and contributor onboarding.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">History.md serves as changelog but may lack structured formatting</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    History.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project maintains a History.md file for version history and changelog. While having a changelog is positive, many modern projects follow the Keep a Changelog format or use CHANGELOG.md as the conventional filename. The History.md naming is a legacy convention that newer contributors may not immediately recognize as the changelog.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider whether History.md follows a structured format (e.g., Keep a Changelog). If not, restructure it with categories like Added, Changed, Deprecated, Removed, Fixed, Security. Alternatively, add a note in the README pointing users to History.md as the changelog.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No CONTRIBUTING.md or development documentation</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The repository does not include a CONTRIBUTING.md file or a dedicated development/contributor guide. For a widely-used open source project like Express, contributor documentation is important for onboarding new contributors, explaining the development workflow, testing conventions, and code style expectations.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a CONTRIBUTING.md that covers: how to set up the development environment, how to run tests, coding conventions (referencing .eslintrc.yml), how to submit pull requests, and the review process.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No TypeScript type definitions or TSDoc for IDE support</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Express is a JavaScript project without bundled TypeScript type definitions. While @types/express exists in DefinitelyTyped, the lack of inline type annotations or a bundled .d.ts file means that the source code itself doesn&#39;t provide type documentation. Modern JavaScript libraries increasingly ship with TypeScript declarations to serve as both type-checking and documentation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a bundled index.d.ts or JSDoc type annotations to the source files. This would improve IDE support for users consuming Express directly and serve as living documentation for the API surface.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">lib/utils.js likely lacks documentation for internal utility functions</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/utils.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The lib/utils.js module contains internal utility functions used across the Express codebase. Internal modules are often under-documented, which can make maintenance and contribution harder. Given that Express has dedicated test files (test/utils.js), these utilities are significant enough to warrant documentation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add JSDoc comments to all functions in lib/utils.js explaining their purpose, parameters, return values, and any edge cases. Even internal utilities benefit from documentation for maintainers.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example files lack inline comments explaining patterns</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/auth/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples directory contains ~30 example applications covering various Express patterns. While the code itself is demonstrative, example files typically benefit from inline comments explaining why certain patterns are used, not just what the code does. Examples like auth, MVC, route-middleware, and session handling involve non-trivial patterns that newcomers may not immediately understand.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add explanatory inline comments to key example files, particularly for auth/index.js, mvc/index.js, route-middleware/index.js, and session/index.js. Focus on explaining &#39;why&#39; rather than &#39;what&#39; to maximize educational value.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive examples directory with dedicated README</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes an extensive examples directory covering a wide range of use cases: authentication, content negotiation, cookie sessions, downloads, EJS templating, error pages, MVC patterns, multi-router setups, route middleware, static files, view locals, web services, and more. A dedicated examples/README.md provides an index for these examples. This is excellent for a framework library.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining and updating examples as new features are added. Consider adding examples for newer patterns like async/await error handling.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-maintainability">
+            <h2>Maintainability (7)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No package-lock.json committed to repository</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .gitignore
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The repository does not appear to include a package-lock.json file. For a library/framework like Express, this is a common pattern (libraries often .gitignore lock files to avoid forcing dependency resolutions on consumers), but it means CI builds may get different transitive dependency versions across runs, potentially introducing non-deterministic test results or undetected regressions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> While omitting the lockfile is acceptable for libraries, consider adding package-lock.json to the repository for CI reproducibility, or explicitly document the decision. npm ci requires a lockfile; ensure CI uses an appropriate install strategy.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">.npmrc configuration present — verify registry and publish settings</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .npmrc
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">An .npmrc file exists in the repository root. This file controls npm behavior including registry configuration, auth tokens, and publish settings. For a high-profile package like Express, this file is critical for supply chain security to ensure packages are published to the correct registry.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure .npmrc does not contain auth tokens (these should be in environment variables). Verify it sets package-lock=false if that&#39;s the intended lockfile strategy, and confirm provenance settings (e.g., --provenance flag for npm publish).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example applications may use outdated dependency patterns</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/session/index.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/ directory contains numerous example applications (auth, session, cookies, etc.) that reference middleware and libraries. These examples are documentation-facing and may reference outdated package names or patterns (e.g., old session middleware, deprecated body-parser usage). While not runtime dependencies, they influence developer adoption patterns.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Periodically audit examples to ensure they use current recommended middleware packages and patterns. Replace any deprecated package references.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependabot configuration present for automated dependency updates</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/dependabot.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The repository has .github/dependabot.yml configured, which means GitHub Dependabot is actively monitoring and proposing dependency updates. This is a strong positive signal for dependency maintainability and security patching.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure Dependabot is configured for both npm and GitHub Actions ecosystems, with appropriate update schedules and version update strategies.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">OpenSSF Scorecard and CodeQL workflows configured</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/scorecard.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The repository includes both .github/workflows/scorecard.yml and .github/workflows/codeql.yml, indicating proactive supply chain security monitoring. OpenSSF Scorecard evaluates project security practices, while CodeQL provides static analysis for vulnerabilities.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining these workflows. Ensure Scorecard results are published to the OpenSSF dashboard for transparency.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Multiple CI workflow files suggest broad compatibility testing matrix</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/legacy.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The presence of both ci.yml and legacy.yml workflows suggests Express tests against both current and legacy Node.js versions. This is good practice for a widely-used framework to ensure broad compatibility, but legacy workflows may pin older dependency versions that could carry vulnerabilities in test environments.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Review legacy.yml periodically to ensure it doesn&#39;t test against Node.js versions that are EOL for too long, and that legacy test dependencies are still receiving security patches.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Express is a minimal framework with intentionally small dependency tree</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    package.json
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Express.js is known for maintaining a minimal direct dependency set. The package.json should contain well-audited, maintained dependencies like body-parser, cookie, debug, finalhandler, etc. This design philosophy keeps the supply chain attack surface small.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue the minimal dependency philosophy. For any new dependency additions, evaluate whether the functionality can be implemented inline to reduce supply chain risk.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-performance">
+            <h2>Performance (6)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Synchronous filesystem operations in View constructor</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The View constructor in lib/view.js uses synchronous filesystem lookups via `this.lookup(fileName)` which internally calls `fs.existsSync()` (through the `resolve` method). In production with many concurrent requests triggering view rendering, synchronous filesystem calls block the event loop and degrade throughput. Each render call must stat the filesystem synchronously before it can proceed.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider caching resolved view paths after the first lookup. Express does have a `view cache` setting, but the initial resolution per unique view is still synchronous. A pre-warming mechanism or async resolution path would help high-concurrency scenarios.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Linear route matching — O(N) per request through all registered routes</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Express&#39;s router iterates through all registered routes/layers sequentially for every incoming request. There is no trie, radix tree, or hash-based lookup optimization. For applications with hundreds of routes, each request must linearly scan through layers until a match is found. This is a well-known architectural limitation of Express.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For applications with many routes, order routes from most-frequently-hit to least-frequently-hit. Consider grouping routes under sub-routers to reduce the search space. For extreme cases, consider frameworks with trie-based routing (e.g., Fastify, find-my-way). This is an architectural choice in Express that is unlikely to change in v4.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Static file serving delegates entirely to serve-static with no built-in memory cache</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/express.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Express&#39;s static file middleware (`express.static`) re-exports `serve-static` which reads from disk on every request (relying on OS-level filesystem caching). There is no built-in in-memory cache for frequently requested static assets. For high-traffic applications serving many small static files, this results in repeated syscalls per request even with `maxAge` set (which only affects client caching, not server-side).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For production deployments, serve static files from a CDN or reverse proxy (nginx, CloudFront) rather than through Express. If Express must serve static files, consider an in-memory caching middleware layer or ensure the OS filesystem cache is warm. Set appropriate `maxAge` and `immutable` options to minimize repeat client requests.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">res.send() performs multiple type checks and transformations on every call</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/response.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In `lib/response.js`, `res.send()` has a complex flow: it checks for deprecated signatures (2-argument form), handles argument shifting, detects Buffer vs String vs Object types, performs ETag generation (which hashes the entire body), sets Content-Length by computing Buffer.byteLength for strings, and handles HEAD request body stripping. The ETag computation on every non-trivial response body is particularly expensive for large payloads as it requires hashing the full response.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For performance-critical endpoints serving large bodies, disable ETag generation with `app.set(&#39;etag&#39;, false)` or use a custom weak ETag function based on content metadata rather than body hashing. Consider using `res.end()` directly for raw responses that don&#39;t need Express&#39;s processing.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">req.ip and req.hostname re-parse on every access (no memoization)</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In `lib/request.js`, properties like `req.ip`, `req.ips`, `req.hostname`, and `req.protocol` are defined as getters that re-execute parsing logic on every access. For `req.ip` with `trust proxy` enabled, this involves calling `proxyaddr()` which parses X-Forwarded-For headers each time. If middleware or application code accesses `req.ip` multiple times per request (e.g., logging, rate limiting, geo-lookup), the parsing work is repeated.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Cache the result of these getters on the request object after first computation (lazy memoization pattern). For example: `get ip() { if (this._ip !== undefined) return this._ip; return (this._ip = computeIp()); }`. Application-level workaround: store `req.ip` in a local variable when accessing multiple times.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Content-type charset detection uses regex matching on every response</span>
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    lib/utils.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In `lib/response.js`, when setting Content-Type, the code calls into the `mime` module and checks whether to append charset using pattern matching. In `lib/utils.js`, the `setCharset` function parses and re-serializes the content-type on every call. For JSON and HTML responses (the most common types), this parsing is repeated on every single response.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Cache the result of common content-type + charset combinations (e.g., &#39;application/json; charset=utf-8&#39; is almost always the same). A simple Map lookup for known types would eliminate repeated parsing.
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 121 seconds</p>
+            <p>https://github.com/expressjs/express</p>
+            <p class="timestamp">2026-02-14 20:22 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>
