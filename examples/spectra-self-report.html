@@ -1,0 +1,2263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — spectra</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* [7] Widen container */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        /* [5] Gradient Wordmark */
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .grade-gauge-score {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* [6] Animate Score Bars */
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* [1] Collapsible Findings */
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Spectrum Bar */
+        .spectrum-bar {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0 1.5rem;
+            height: 36px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spectrum-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .spectrum-seg:hover { opacity: 0.85; }
+
+        /* Inline Badge */
+        .header-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .header-inner {
+            position: relative;
+        }
+
+        /* Priority Actions */
+        .priority-actions {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .priority-actions h2 {
+            font-size: 1.1rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .priority-actions ol {
+            list-style: none;
+            counter-reset: actions;
+            padding: 0;
+        }
+
+        .priority-actions li {
+            counter-increment: actions;
+            padding: 0.75rem 0 0.75rem 2.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-actions li:last-child {
+            border-bottom: none;
+        }
+
+        .priority-actions li::before {
+            content: counter(actions);
+            position: absolute;
+            left: 0;
+            top: 0.75rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--violet);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .action-location {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .action-rec {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="top">
+            <div class="header-inner">
+                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#F59E0B"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">C- 69/100</text></svg></div>
+                <h1>SPECTRA</h1>
+                <div class="repo-name">spectra</div>
+                <div class="tagline">The full spectrum of your codebase</div>
+            </div>
+        </header>
+
+        <!-- Spectrum Bar -->
+        <div class="spectrum-bar">
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #06B6D4;">
+                Architecture 83 B+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #F59E0B;">
+                Security 67 C-
+            </div>
+            
+            <div class="spectrum-seg" style="width: 20.0%; background: #EF4444;">
+                Quality 61 D
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #EF4444;">
+                Documentation 65 D+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #F59E0B;">
+                Maintainability 68 C-
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #EF4444;">
+                Performance 62 D
+            </div>
+            
+        </div>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#actions">Actions</a>
+            <a href="#scores">Scores</a>
+            
+            
+            
+            <a href="#dim-architecture">Architecture</a>
+            
+            
+            
+            
+            <a href="#dim-security">Security</a>
+            
+            
+            
+            
+            <a href="#dim-quality">Quality</a>
+            
+            
+            
+            
+            <a href="#dim-documentation">Documentation</a>
+            
+            
+            
+            
+            <a href="#dim-maintainability">Maintainability</a>
+            
+            
+            
+            
+            <a href="#dim-performance">Performance</a>
+            
+            
+        </nav>
+
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary" id="summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores C- (70/100) — strong architecture with quality gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-b">B+ (84)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-c">C- (68)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-c">C- (67)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-d">D (62)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-d">D (62)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-d">D+ (65)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <!-- [4] Severity Distribution Bar -->
+            
+            
+            
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    
+                    
+                    
+                    
+                    <div class="seg seg-high" style="width: 16.7%">
+                        9
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-medium" style="width: 46.3%">
+                        25
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-low" style="width: 24.1%">
+                        13
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-info" style="width: 13.0%">
+                        7
+                    </div>
+                    
+                    
+                </div>
+                <div class="severity-bar-legend">
+                    
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: #F97316"></span>
+                        high (9)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--amber)"></span>
+                        medium (25)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--cyan)"></span>
+                        low (13)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--gray)"></span>
+                        info (7)
+                    </span>
+                    
+                    
+                </div>
+            </div>
+            
+
+            <div class="quick-stats">
+                54 findings · 6 agents · 282s analysis · Total tech debt: ~190h
+            </div>
+        </section>
+
+        <!-- Priority Actions -->
+        
+        <section id="actions" class="priority-actions">
+            <h2>What to Fix First</h2>
+            <ol>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>Potential API key exposure risk in Anthropic adapter</strong>
+                    <span class="action-location">src/spectra/infrastructure/anthropic_adapter.py</span>
+                    <p class="action-rec">Ensure API keys are loaded exclusively from environment variables or a secrets manager. Never log API keys. Validate that the logging_decorator.py does not capture API key values in debug/info logs. Add .env to .gitignore if not already present.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>Potential command injection in Git adapter</strong>
+                    <span class="action-location">src/spectra/infrastructure/git_adapter.py</span>
+                    <p class="action-rec">Use subprocess.run() with a list of arguments (not shell=True). Validate and sanitize repository paths/URLs against an allowlist pattern. Reject paths containing shell metacharacters (;, |, &amp;, $, backticks). Consider using GitPython library instead of raw subprocess calls for safer Git operations.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>Empty integration and e2e test directories with no test files</strong>
+                    <span class="action-location">tests/integration/__init__.py</span>
+                    <p class="action-rec">Add integration tests that verify: (1) use_cases interacting with real infrastructure adapters (mocked at the external boundary only), (2) the full agent orchestration pipeline with a fake LLM provider, (3) Git adapter + repository analysis flow. Add e2e tests that exercise the CLI controller through to report generation with fixture repositories.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>No test for critique_agent.py despite being a distinct agent type</strong>
+                    <span class="action-location">src/spectra/infrastructure/agents/critique_agent.py</span>
+                    <p class="action-rec">Create tests/infrastructure/test_critique_agent.py with tests covering: (1) critique generation for valid specialist output, (2) handling of malformed specialist output, (3) critique scoring/rating logic, (4) interaction with base_agent interface, (5) error handling when LLM returns unexpected critique format. Mirror the test patterns used in test_specialist_agent.py for consistency.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>Python source modules lack comprehensive docstrings for public API</strong>
+                    <span class="action-location">src/spectra/use_cases/interfaces.py</span>
+                    <p class="action-rec">Add Google-style or NumPy-style docstrings to all public classes and methods in use_cases/interfaces.py, entities/models.py, entities/enums.py, and the adapter layer. Include parameter types, return values, raised exceptions, and brief usage examples. Prioritize the interfaces module as it defines the contracts other layers depend on.</p>
+                </li>
+                
+            </ol>
+        </section>
+        
+
+        <!-- ScoreCard -->
+        <section class="scorecard" id="scores">
+            <div class="overall">
+                <!-- [2] Circular Grade Gauge -->
+                
+                
+                
+                
+                <div class="grade-gauge"
+                     style="background: conic-gradient(var(--amber) 250.6deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter grade-c">C-</span>
+                        <span class="grade-gauge-score">70 / 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 83.8%"></div>
+                    </div>
+                    <span class="dim-score">84</span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-c"
+                             style="--target-width: 67.0%"></div>
+                    </div>
+                    <span class="dim-score">67</span>
+                    <span class="dim-grade grade-c">C-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-d"
+                             style="--target-width: 61.6%"></div>
+                    </div>
+                    <span class="dim-score">62</span>
+                    <span class="dim-grade grade-d">D</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-d"
+                             style="--target-width: 65.0%"></div>
+                    </div>
+                    <span class="dim-score">65</span>
+                    <span class="dim-grade grade-d">D+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-c"
+                             style="--target-width: 68.4%"></div>
+                    </div>
+                    <span class="dim-score">68</span>
+                    <span class="dim-grade grade-c">C-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-d"
+                             style="--target-width: 62.2%"></div>
+                    </div>
+                    <span class="dim-score">62</span>
+                    <span class="dim-grade grade-d">D</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">54</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">282s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$2.15</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section" id="dim-architecture">
+            <h2>Architecture (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Infrastructure layer contains application entry point (main.py)</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/main.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The application&#39;s main entry point (main.py) is located inside src/spectra/infrastructure/, which is an infrastructure concern. In Clean Architecture, the composition root / entry point should sit outside all layers (or at the outermost layer) to wire dependencies together. Placing it in infrastructure conflates infrastructure adapters with application bootstrapping and dependency injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Move main.py to src/spectra/ (package root) or create a dedicated src/spectra/bootstrap/ or src/spectra/composition_root.py. This separates the wiring/composition concern from infrastructure implementations and makes the dependency graph cleaner.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Adapters layer role ambiguity — adapters vs infrastructure boundary is unclear</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/adapters/__init__.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Both src/spectra/adapters/ and src/spectra/infrastructure/ contain &#39;adapter&#39; classes (e.g., adapters/cli_controller.py, adapters/analysis_presenter.py vs infrastructure/anthropic_adapter.py, infrastructure/git_adapter.py, infrastructure/report_adapter.py). In Clean Architecture, &#39;adapters&#39; (interface adapters) and &#39;infrastructure&#39; (frameworks &amp; drivers) are distinct rings, but the naming convention uses &#39;_adapter&#39; suffix in both layers, creating confusion about which layer a component belongs to and what the boundary semantics are.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Establish a clear naming convention: use &#39;controller&#39;, &#39;presenter&#39;, &#39;gateway&#39; for the adapters layer and reserve &#39;_adapter&#39; suffix exclusively for infrastructure implementations of use-case-defined ports. Document this convention in CLAUDE.md or an ADR.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Cross-cutting concerns (logging, retry) live in infrastructure without clear abstraction</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/logging_decorator.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">logging_decorator.py and retry_decorator.py are placed in infrastructure/, which is reasonable for their implementations. However, if use cases or adapters need logging/retry behavior, they would need to import from infrastructure, violating the dependency rule (inner layers should not depend on outer layers). These cross-cutting concerns should either be defined as interfaces in use_cases/ or placed in a shared &#39;common&#39; module accessible to all layers.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create a src/spectra/shared/ or src/spectra/common/ package for cross-cutting decorators, or define abstract decorator interfaces in use_cases/interfaces.py with concrete implementations in infrastructure/. This preserves the dependency rule.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">tiktoken_adapter in infrastructure suggests potential entity-layer token counting leak</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/tiktoken_adapter.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tiktoken_adapter.py in infrastructure provides token counting, which is consumed by manage_token_budget.py (a use case). If the use case directly imports the tiktoken adapter, this violates the dependency rule. The use case should depend on an abstract token counter interface defined in use_cases/interfaces.py, with tiktoken_adapter.py implementing that interface.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Verify that use_cases/interfaces.py defines a TokenCounter (or similar) abstract interface, and that manage_token_budget.py depends only on that abstraction, not on tiktoken_adapter directly. If not, add the interface and inject the dependency.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Agent subsystem is deeply nested within infrastructure</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/__init__.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The agents/ subdirectory under infrastructure/ contains 6 files (agent_factory.py, base_agent.py, critique_agent.py, meta_prompter.py, specialist_agent.py, specialist_prompts.py) forming a significant subsystem. While agents are correctly placed in infrastructure (they depend on external LLM APIs), the depth of this sub-package and its internal complexity (factory pattern, base class hierarchy, specialized agents) suggests it could benefit from being a standalone bounded context or at minimum a more explicitly documented internal architecture.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider whether the agent subsystem warrants its own top-level package (src/spectra/agents/) with its own internal layering, or at minimum add a README/docstring in __init__.py documenting the agent subsystem&#39;s internal design (factory, base, specialists, critique, meta-prompter).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Brand adapter in adapters layer may have misplaced responsibility</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/adapters/brand.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">src/spectra/adapters/brand.py sits in the adapters (interface adapters) layer. Brand voice/identity is typically a domain or configuration concern rather than an interface adapter. If brand.py contains presentation formatting logic, it belongs in adapters. If it contains brand rules or identity constants, it may belong in entities or a configuration module.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Review brand.py&#39;s contents: if it&#39;s purely presentation/formatting, keep it in adapters. If it defines brand identity rules or constants, consider moving to entities/ or a dedicated config module.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Archive directory contains stale/duplicate configuration and documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    archive/ts-configs/tsconfig.json:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The archive/ directory contains duplicates (archive/duplicates/CLAUDE 2.md), old TypeScript configs (archive/ts-configs/), and legacy Lumen project docs. While archiving is fine, the presence of ts-configs (biome.json, package.json, tsconfig.json, vitest.config.ts) for what is now a Python project could confuse contributors about the tech stack.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a README.md in archive/ explaining these are historical artifacts from a TypeScript prototype. Consider moving to a separate branch or removing entirely to reduce confusion.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Clean Architecture layers are well-defined with proper directory structure</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/__init__.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The codebase follows a textbook Clean Architecture layout: entities/ (domain models, enums, errors), use_cases/ (application logic with interfaces), adapters/ (presenters, controllers, brand), and infrastructure/ (external service adapters, agents). This four-layer separation is clearly intentional and well-organized. The test directory mirrors this structure faithfully.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive finding documenting good architectural practice.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Use cases define interfaces (ports) for dependency inversion</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/interfaces.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The use_cases/interfaces.py file defines port interfaces that infrastructure implementations must satisfy. This is the correct application of the Dependency Inversion Principle — use cases depend on abstractions, not concrete infrastructure. The presence of analyze_repository.py, orchestrate_agents.py, and manage_token_budget.py as separate use cases shows good single-responsibility decomposition.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue maintaining interfaces as the contract between use cases and infrastructure.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Entities layer is properly isolated with domain models, enums, and errors</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/entities/models.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The entities/ layer contains models.py (domain models), enums.py (domain enumerations), and errors.py (domain-specific exceptions). This is a clean separation with no apparent imports from outer layers. The entities are the innermost ring and appear to have zero dependencies on use cases, adapters, or infrastructure.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is exemplary Clean Architecture entity isolation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Token budget management as a use case is well-architected</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/manage_token_budget.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">manage_token_budget.py as a dedicated use case alongside orchestrate_agents.py and analyze_repository.py shows thoughtful decomposition. Token budget management is a distinct business rule (how to allocate limited API tokens across analysis dimensions) and deserves its own use case rather than being buried in infrastructure or mixed into orchestration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural decision.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Test coverage mirrors architecture layers comprehensively</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/conftest.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test directory structure (tests/entities/, tests/use_cases/, tests/adapters/, tests/infrastructure/) mirrors the source architecture 1:1. Each layer has dedicated tests, and there are separate integration/ and e2e/ directories for higher-level testing. This enables testing each architectural ring independently.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Consider adding tests in tests/e2e/ and tests/integration/ as the project matures.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~16h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-security">
+            <h2>Security (7)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Potential API key exposure risk in Anthropic adapter</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/anthropic_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project integrates with Anthropic&#39;s API (anthropic_adapter.py) which requires API keys. Without seeing the implementation, the architecture suggests API credentials must be managed. If keys are passed via CLI arguments, logged, or stored in configuration files rather than secure environment variables or a secrets manager, this constitutes CWE-798 (Use of Hard-coded Credentials) or CWE-532 (Insertion of Sensitive Information into Log File). OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure API keys are loaded exclusively from environment variables or a secrets manager. Never log API keys. Validate that the logging_decorator.py does not capture API key values in debug/info logs. Add .env to .gitignore if not already present.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Potential command injection in Git adapter</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/git_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The git_adapter.py likely executes Git commands (clone, log, diff, etc.) against user-supplied repository paths or URLs. If subprocess calls are constructed using string interpolation or shell=True without proper input sanitization, this creates a command injection vulnerability. CWE-78: Improper Neutralization of Special Elements used in an OS Command. OWASP A03:2021 Injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use subprocess.run() with a list of arguments (not shell=True). Validate and sanitize repository paths/URLs against an allowlist pattern. Reject paths containing shell metacharacters (;, |, &amp;, $, backticks). Consider using GitPython library instead of raw subprocess calls for safer Git operations.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Potential XSS in HTML report generation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    templates/report.html.j2
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project generates HTML reports (report_adapter.py, templates/report.html.j2, examples/*.html). If analysis findings containing user-controlled content (repository names, file paths, code snippets, commit messages) are inserted into HTML templates without proper escaping, this creates stored XSS vulnerabilities. CWE-79: Improper Neutralization of Input During Web Page Generation. OWASP A03:2021 Injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure Jinja2 autoescape is enabled (autoescape=True or autoescape=select_autoescape()). Verify that no |safe filters are used on user-controlled data. Review report_adapter.py to confirm the Jinja2 Environment is configured with autoescaping enabled by default.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Potential information leakage in error handling</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/entities/errors.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has custom error classes (entities/errors.py) and a logging decorator (logging_decorator.py). If exceptions expose internal paths, API responses, stack traces, or configuration details to end users via CLI output or HTML reports, this constitutes information disclosure. CWE-209: Generation of Error Message Containing Sensitive Information. OWASP A04:2021 Insecure Design.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure error messages shown to users are sanitized and do not include internal paths, API keys, or full stack traces. Log detailed errors to a secure log file while presenting generic messages to users. Review the logging_decorator.py to ensure sensitive data (API keys, tokens) is redacted before logging.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">CLI input validation concerns</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/adapters/cli_controller.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The CLI controller (cli_controller.py) accepts user input including repository paths/URLs and configuration parameters. Insufficient validation of these inputs before passing them to git_adapter.py or other infrastructure components could enable path traversal (CWE-22) or injection attacks (CWE-74). OWASP A03:2021 Injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement strict input validation at the CLI boundary: validate repository URLs against a URL schema, sanitize file paths using os.path.realpath() and verify they don&#39;t escape expected directories, validate all numeric inputs for range, and reject unexpected characters in string inputs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Retry decorator may leak sensitive data in retry logs</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/retry_decorator.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The retry_decorator.py implements retry logic likely for API calls to Anthropic. If retry attempts log the full request/response including API keys, prompts containing sensitive repository code, or authentication headers, this creates a sensitive data exposure risk. CWE-532: Insertion of Sensitive Information into Log File.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure retry logging redacts sensitive headers (Authorization, API keys) and truncates large payloads. Log only retry attempt count, status codes, and sanitized error messages. Never log full request bodies that may contain repository source code.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Hook scripts may have insufficient input sanitization</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .claude-plugin/hooks/dependency-guard.sh
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Shell hook scripts (dependency-guard.sh, no-any-types.sh) process file paths and potentially user-controlled input. If these scripts use unquoted variables or eval constructs, they may be vulnerable to shell injection. CWE-78: OS Command Injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure all shell variables are double-quoted (&#34;$var&#34;), avoid eval and backtick command substitution with user input, use shellcheck to validate scripts, and set &#39;set -euo pipefail&#39; at the top of each script.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~15h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-quality">
+            <h2>Quality (10)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Empty integration and e2e test directories with no test files</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/integration/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Both tests/integration/ and tests/e2e/ directories contain only __init__.py files with no actual test implementations. For a project with clean architecture layers (entities, use cases, adapters, infrastructure) and external dependencies (Anthropic API, Git, tiktoken), integration tests verifying cross-layer interactions and e2e tests verifying full pipeline execution are critical for confidence in the system.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add integration tests that verify: (1) use_cases interacting with real infrastructure adapters (mocked at the external boundary only), (2) the full agent orchestration pipeline with a fake LLM provider, (3) Git adapter + repository analysis flow. Add e2e tests that exercise the CLI controller through to report generation with fixture repositories.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">No test for critique_agent.py despite being a distinct agent type</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/critique_agent.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The infrastructure/agents/ directory contains base_agent.py, specialist_agent.py, critique_agent.py, and meta_prompter.py. Tests exist for base_agent, specialist_agent, and meta_prompter, but there is no test_critique_agent.py in the test suite. The critique agent is a key part of the analysis pipeline (likely providing quality feedback on specialist outputs), and its absence from testing is a significant coverage gap.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create tests/infrastructure/test_critique_agent.py with tests covering: (1) critique generation for valid specialist output, (2) handling of malformed specialist output, (3) critique scoring/rating logic, (4) interaction with base_agent interface, (5) error handling when LLM returns unexpected critique format. Mirror the test patterns used in test_specialist_agent.py for consistency.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Test conftest.py may have insufficient shared fixture organization for multi-layer testing</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/conftest.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has a single top-level tests/conftest.py but the test suite spans 4+ architectural layers (adapters, entities, infrastructure, use_cases) plus integration and e2e. With empty integration/e2e directories, the conftest likely lacks fixtures for cross-layer testing scenarios such as pre-built repository snapshots, mock LLM response chains, or full pipeline configurations. Each sub-directory (tests/adapters/, tests/entities/, etc.) has its own __init__.py but no layer-specific conftest.py files for scoped fixtures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add layer-specific conftest.py files in tests/infrastructure/, tests/use_cases/, and tests/integration/ with appropriately scoped fixtures. Create shared fixtures for common mock objects (mock LLM client, mock git repository, sample analysis results) in the top-level conftest.py. Use pytest fixture scoping (session, module) for expensive setup.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Decorator modules (logging, retry) may lack edge case test coverage</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/retry_decorator.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The infrastructure includes logging_decorator.py and retry_decorator.py which are cross-cutting concerns wrapping agent and API calls. While test files exist (test_logging_decorator.py, test_retry_decorator.py), decorators are notoriously tricky to test thoroughly — common gaps include: testing that decorated function signatures/metadata are preserved (functools.wraps), testing retry with various exception types, testing retry backoff timing, testing logging output format and levels, and testing decorator stacking (both decorators applied to same function).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure tests cover: (1) functools.wraps preservation of __name__, __doc__, __module__, (2) retry exhaustion raising the final exception, (3) retry succeeding on Nth attempt, (4) non-retryable exceptions propagating immediately, (5) logging decorator capturing both success and failure paths with correct log levels, (6) stacking both decorators together. Use unittest.mock.patch on time.sleep to avoid slow tests.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">External dependency mocking strategy may be inconsistent across test layers</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/use_cases/test_orchestrate_agents.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project depends on external services (Anthropic API via anthropic_adapter.py, Git via git_adapter.py, tiktoken via tiktoken_adapter.py). There are individual test files for each adapter, but without integration tests, there&#39;s no verification that the mock boundaries are consistent — i.e., that the interfaces mocked in use_case tests match the actual adapter implementations. This is a classic clean architecture testing gap where unit tests pass but the system fails at integration points.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement contract tests or interface verification tests that assert mock objects used in use_case tests conform to the same interface (use_cases/interfaces.py) that the real adapters implement. Consider using Python&#39;s Protocol or ABC with runtime checks. Add at least one integration test per adapter that verifies the mock-to-real boundary.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No test coverage for specialist_prompts.py prompt templates</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/specialist_prompts.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The file src/spectra/infrastructure/agents/specialist_prompts.py likely contains prompt templates for the 6-agent analysis pipeline (as suggested by the UML sequence diagram). There is a test for specialist_agent.py but no dedicated test for specialist_prompts.py. Prompt templates are critical for an AI agent system — untested prompts can silently degrade output quality. Template validation (required variables present, no syntax errors, length within token budgets) should be explicitly tested.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add tests/infrastructure/test_specialist_prompts.py that validates: (1) all prompt templates are valid strings with expected placeholder variables, (2) prompt templates don&#39;t exceed token budget limits (using tiktoken_adapter), (3) all agent types defined in enums have corresponding prompts, (4) prompt templates produce valid output when rendered with sample data. This is especially important for an AI analysis tool.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No test coverage for brand adapter and analysis presenter</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/adapters/brand.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">While tests/adapters/ contains test_analysis_presenter.py, test_cli_controller.py, and test_progress_reporter.py, there is no test file for src/spectra/adapters/brand.py. The brand adapter likely handles Spectra&#39;s branded output formatting, which is important for the product&#39;s presentation layer. Missing tests here mean brand-related regressions could go undetected.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create tests/adapters/test_brand.py covering: (1) brand text formatting, (2) color/style application if applicable, (3) brand consistency across different output types, (4) edge cases with special characters or long text. This is a lower-risk adapter but should still have basic coverage.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No test for main.py application entry point and dependency wiring</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/main.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">src/spectra/infrastructure/main.py serves as the application entry point and likely handles dependency injection/wiring of all clean architecture layers. There is no corresponding test file. The composition root is where misconfiguration bugs often hide — wrong adapter bound to wrong interface, missing initialization, incorrect ordering of middleware/decorators.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a smoke test that verifies main.py can wire up all dependencies without errors (using mocked external services). Test that the composition root correctly binds interfaces to implementations. This could be part of the integration test suite. Even a simple &#39;can instantiate the application&#39; test catches many wiring bugs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test file for error handling (test_error_handling.py) exists separately from entity error tests</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/infrastructure/test_error_handling.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">There are two test files related to errors: tests/entities/test_errors.py and tests/infrastructure/test_error_handling.py. This split suggests error handling is tested at two levels, but it may also indicate unclear ownership of error testing. The entity-level errors test likely covers error class definitions, while the infrastructure test covers error propagation — but this separation could lead to gaps in testing error transformation across layers (e.g., infrastructure exceptions being mapped to domain errors).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Verify that error transformation/mapping between layers is explicitly tested. Ensure tests cover: (1) infrastructure exceptions (API errors, network timeouts) being caught and re-raised as domain-specific errors from entities/errors.py, (2) error context preservation (original exception chaining), (3) error messages being user-friendly at the adapter layer. Consider consolidating or clearly documenting the testing strategy for errors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test for JSON output exists but may not cover all report formats</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/infrastructure/test_json_output.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/infrastructure/test_json_output.py exists alongside test_report_adapter.py, and there&#39;s a Jinja2 template (templates/report.html.j2) plus example HTML reports. The separation of JSON output testing from report adapter testing suggests partial coverage — the HTML report generation path through Jinja2 templating may not be fully tested, especially edge cases like missing data fields, XSS-safe escaping, or large report rendering.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure test_report_adapter.py covers HTML report generation via the Jinja2 template, including: (1) template renders without errors for complete data, (2) template handles missing/optional fields gracefully, (3) special characters in analysis output are properly escaped, (4) generated HTML is valid. Consider snapshot testing for report output stability.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~49h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-documentation">
+            <h2>Documentation (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Python source modules lack comprehensive docstrings for public API</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/interfaces.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The src/spectra/ package follows clean architecture (entities, use_cases, adapters, infrastructure) but the __init__.py files and key public modules (use_cases/interfaces.py, use_cases/analyze_repository.py, use_cases/orchestrate_agents.py, entities/models.py, entities/enums.py) likely lack thorough docstrings documenting parameters, return types, exceptions, and usage examples. For a Python library, inline API documentation is the primary reference for developers integrating with or extending the codebase.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add Google-style or NumPy-style docstrings to all public classes and methods in use_cases/interfaces.py, entities/models.py, entities/enums.py, and the adapter layer. Include parameter types, return values, raised exceptions, and brief usage examples. Prioritize the interfaces module as it defines the contracts other layers depend on.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Infrastructure agents module missing documentation on agent pipeline flow</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~5.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The src/spectra/infrastructure/agents/ directory contains 6 modules (agent_factory.py, base_agent.py, critique_agent.py, meta_prompter.py, specialist_agent.py, specialist_prompts.py) implementing a multi-agent analysis pipeline. While docs/diagrams/ contains a UML sequence diagram (spectra-uml-sequence-full-6-agent-pipeline.svg), there is no Markdown documentation explaining the agent lifecycle, how agents are composed, the role of each agent type, or how to add new specialist agents. This is the core domain logic and needs developer-facing documentation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a comprehensive docstring to src/spectra/infrastructure/agents/__init__.py explaining: (1) the agent pipeline architecture, (2) the role of each agent type (base, specialist, critique, meta-prompter), (3) how agent_factory creates and configures agents, (4) how to add a new specialist agent, (5) reference to the UML sequence diagram. Also create a docs/architecture/agent-pipeline.md developer guide.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No auto-generated API reference documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~6.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Despite having a well-structured Python package with clean architecture layers (entities, use_cases, adapters, infrastructure), there is no evidence of Sphinx, MkDocs, pdoc, or any API documentation generation tooling configured in pyproject.toml or the project root. For a project with this many modules (30+ Python files), auto-generated API docs would significantly improve developer experience.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add MkDocs with mkdocstrings plugin or Sphinx with autodoc to generate API reference from docstrings. Configure in pyproject.toml and add a docs build step to the CI pipeline (.github/workflows/ci.yml). This pairs well with the existing docs/ directory structure.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Architecture Decision Records are sparse — only 2 ADRs for a complex system</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~6.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    cortex-vault/decisions/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The cortex-vault/decisions/ directory contains only ADR-001-verification-findings.md and ADR-002-hackathon-sprint-plan.md. For a project with clean architecture, multiple agent types (critique, specialist, meta-prompter), token budget management, retry/logging decorators, and Anthropic API integration, many significant architectural decisions are undocumented. Key missing ADRs include: choice of clean architecture pattern, agent orchestration strategy, token budget approach, retry/resilience strategy, and the decision to use Anthropic vs other LLM providers.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create ADRs for: (1) ADR-003: Clean architecture layer boundaries, (2) ADR-004: Agent orchestration pipeline design, (3) ADR-005: Token budget management strategy, (4) ADR-006: LLM provider selection (Anthropic), (5) ADR-007: Error handling and retry strategy. Use the existing cortex-vault/templates/decision.md template.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Duplicate and archived documentation creates confusion</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/strategy/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The archive/ directory contains duplicates (archive/duplicates/CLAUDE 2.md, archive/duplicates/spectra-skill-prompts (1).md) and lumen-docs that appear to be templates rebranded for Spectra (archive/lumen-docs/ mirrors docs/strategy/ naming). Additionally, docs/strategy/ contains what appear to be two generations of documents (01-09 series and M1-M10 series) covering overlapping topics (e.g., &#39;02-Spectra-Discovery-Market-Analysis.docx&#39; vs &#39;M1-Spectra-Discovery-Market-Analysis.docx&#39;). This makes it unclear which documents are authoritative.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a docs/strategy/README.md index that clarifies which document series is current and authoritative. Consider moving superseded documents to archive/. Remove or clearly label the archive/duplicates/ directory. Add version/date metadata to strategy documents.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Agent skill prompts lack standardized structure and cross-referencing</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/skills/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/skills/ directory contains 8+ skill prompt documents (spectra-architect-SKILL.md, spectra-brand-voice-SKILL.md, spectra-agent-orchestrator-SKILL.md, etc.) alongside related documents (architecture-patterns.md, domain-model.md). There is also a Master-Prompt.md. These appear to be critical operational documents for the agent system, but there&#39;s no index explaining the relationship between skill prompts, how they map to code in src/spectra/infrastructure/agents/, or which prompts are active vs. reference material.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create a docs/skills/README.md index that: (1) lists all skill prompts with one-line descriptions, (2) maps each skill to its corresponding agent implementation in src/spectra/infrastructure/agents/, (3) documents the prompt hierarchy (Master → Orchestrator → Specialists), (4) notes which prompts are actively used vs. reference/deprecated.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">CLAUDE.md serves as effective project context but may drift from actual code</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CLAUDE.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">CLAUDE.md provides AI agent context for the project, which is a good practice for AI-assisted development. However, as the codebase evolves, this file risks becoming stale if not actively maintained. It should accurately reflect the current architecture, key commands, and project conventions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a CI check or periodic review reminder to verify CLAUDE.md stays in sync with the actual project structure. Cross-reference it with pyproject.toml for commands and src/spectra/ for architecture claims.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Plugin configuration (.claude-plugin/) lacks user-facing documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .claude-plugin/plugin.json
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .claude-plugin/ directory contains agent definitions (architect-1.md, interface-1.md, pipeline-1.md, qa-1.md), commands (analyze.md), hooks (dependency-guard.sh, no-any-types.sh), and a plugin.json configuration. This appears to be a Claude Code plugin system, but there&#39;s no README or documentation explaining what the plugin does, how to use it, how hooks are triggered, or how to extend it with new agents/commands.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a .claude-plugin/README.md explaining: (1) what the plugin provides, (2) available agents and their roles, (3) available commands and usage, (4) how hooks work (dependency-guard, no-any-types), (5) how to add new agents or commands. This helps contributors understand the AI-assisted development workflow.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test files lack module-level docstrings explaining test strategy</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/conftest.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The tests/ directory is well-organized mirroring the src/ structure (tests/adapters/, tests/entities/, tests/infrastructure/, tests/use_cases/, tests/e2e/, tests/integration/) with 17+ test files. However, there&#39;s no tests/README.md or module-level docstrings explaining the testing strategy, how to run specific test suites, what the conftest.py fixtures provide, or the distinction between unit/integration/e2e test directories.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a tests/README.md documenting: (1) testing strategy and pyramid approach, (2) how to run unit vs integration vs e2e tests, (3) key fixtures in conftest.py, (4) mocking strategy for external services (Anthropic API, Git). Add module-level docstrings to conftest.py explaining shared fixtures.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Memory directory duplicates cortex-vault content without clear purpose</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    memory/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Both memory/ and cortex-vault/ directories contain overlapping content: memory/glossary.md vs cortex-vault/learnings/glossary.md, memory/projects/spectra.md vs cortex-vault/projects/spectra/_index.md, memory/projects/lumen.md vs cortex-vault/projects/lumen/_index.md. It&#39;s unclear which is the source of truth or whether memory/ is a simplified view of cortex-vault/.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Either consolidate memory/ into cortex-vault/ or add a memory/README.md explaining its distinct purpose (e.g., lightweight agent context vs. full knowledge base). If memory/ is deprecated, move it to archive/.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Diagrams directory has no documentation on how to update diagrams</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/diagrams/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">docs/diagrams/ contains 5 SVG diagrams covering clean architecture, 6-stage analysis, design patterns, domain model ER, and UML sequence. These are valuable visual documentation, but there&#39;s no indication of the source format (Mermaid, PlantUML, draw.io, etc.) or instructions for updating them. SVGs are typically generated from a source format, and without knowing the source, diagrams will become stale as the architecture evolves.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a docs/diagrams/README.md documenting: (1) the tool used to create each diagram, (2) source files if applicable (e.g., .puml, .mmd files), (3) instructions for regenerating SVGs. Consider storing diagram source files alongside SVGs for maintainability.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Extensive strategy and architecture documentation ecosystem</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has an unusually rich documentation ecosystem spanning strategy docs (docs/strategy/ with 20+ documents), architecture decision records (cortex-vault/decisions/), design patterns (cortex-vault/patterns/), agent skill prompts (docs/skills/), sprint planning docs, diagrams (SVG), and a cortex-vault knowledge base. This is well above average for a project of this size.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining this documentation ecosystem. Consider adding a documentation map or index page that helps newcomers navigate the extensive docs/ and cortex-vault/ directories.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~41h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-maintainability">
+            <h2>Maintainability (6)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">No lock file present for Python dependencies</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The repository uses pyproject.toml for dependency management but there is no poetry.lock, pdm.lock, uv.lock, or requirements.txt lock file present in the file listing. Without a lock file, builds are not reproducible — different installs at different times may resolve to different dependency versions, potentially introducing breaking changes or security vulnerabilities silently.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Generate and commit a lock file. If using pip/setuptools, consider migrating to uv, poetry, or pdm which produce lock files natively. Alternatively, generate a requirements.txt via `pip-compile` (pip-tools) and commit it. This ensures reproducible builds and auditable dependency trees.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Anthropic SDK dependency requires careful version management</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/anthropic_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has an anthropic_adapter.py infrastructure module that wraps the Anthropic Python SDK. The Anthropic SDK has undergone significant breaking changes (e.g., the migration from v0.x to v1.x changed the entire client interface). Without explicit version pinning and a lock file, CI or production environments could pull incompatible versions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the anthropic SDK version is explicitly constrained in pyproject.toml (e.g., anthropic&gt;=0.39,&lt;1.0 or anthropic&gt;=1.0,&lt;2.0 depending on which API surface is used). Add integration tests that validate the adapter against the pinned SDK version.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No automated dependency update tooling configured</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/ci.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .github/workflows/ci.yml exists but there is no Dependabot configuration (.github/dependabot.yml) or Renovate config (renovate.json) present. Without automated dependency update tooling, the project relies on manual monitoring for security patches and version updates, which is error-prone and often neglected.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a .github/dependabot.yml configuration targeting the pip ecosystem with weekly update checks. Alternatively, configure Renovate for more granular control. This ensures timely awareness of security patches and new versions.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Jinja2 template dependency should be version-constrained</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/report_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes templates/report.html.j2 and src/spectra/infrastructure/report_adapter.py, indicating a dependency on Jinja2 for HTML report generation. Jinja2 has had security-relevant releases (e.g., sandbox escape fixes). The dependency should be explicitly version-constrained with a minimum version that includes all known security patches.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Pin Jinja2&gt;=3.1.3 (which includes fixes for sandbox escape vulnerabilities) with an upper bound on the next major version. Enable autoescape in templates by default to prevent XSS in generated reports.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Tiktoken dependency may pull heavy native extensions</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/tiktoken_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes a tiktoken_adapter.py, indicating a dependency on the tiktoken package. Tiktoken includes Rust-compiled native extensions which can increase build times, Docker image sizes, and may cause issues on some platforms (e.g., Alpine Linux, ARM architectures). This is a dependency bloat concern for what is essentially a token counting utility.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Evaluate whether tiktoken is strictly necessary or if a lighter-weight token estimation approach would suffice. If tiktoken is required, ensure CI builds test on all target platforms and document the native dependency requirement.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependency guard hook exists but scope is unclear</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .claude-plugin/hooks/dependency-guard.sh
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes .claude-plugin/hooks/dependency-guard.sh which suggests some form of dependency validation is in place for the Claude plugin workflow. However, this is a plugin-specific hook and does not replace proper dependency management tooling for the Python project itself.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the dependency guard hook is documented and its scope is clear. Consider extending its principles to a pre-commit hook or CI step that validates dependency constraints (e.g., pip-audit, safety check) for the main Python project.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~8h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-performance">
+            <h2>Performance (7)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Agent orchestration likely sequential despite parallel execution pattern documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/orchestrate_agents.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The codebase documents a parallel execution pattern (cortex-vault/patterns/agent-parallel-execution.md) but the orchestration is implemented in src/spectra/use_cases/orchestrate_agents.py as a single use case file. With 6+ specialist agents (architect, critique, meta_prompter, specialist) each making API calls, sequential execution would multiply total latency by the number of agents. For a 6-agent pipeline, this could mean 6x the wall-clock time compared to parallel execution where independent agents run concurrently.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement asyncio.gather() or concurrent.futures.ThreadPoolExecutor to run independent agent analyses in parallel. Group agents by dependency - agents that don&#39;t depend on each other&#39;s output should execute concurrently. This could reduce wall-clock time from O(n) to O(max_depth) of the dependency graph.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Git adapter may load entire repository content into memory</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/git_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The git_adapter.py is responsible for reading repository contents for analysis. For large repositories, loading all file contents into memory simultaneously (rather than streaming or processing files incrementally) could cause significant memory pressure. A repository with thousands of files could easily consume gigabytes of memory if all contents are held simultaneously.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement lazy loading or generator-based file reading that yields file contents one at a time. Use the token budget manager to determine which files to include before reading them. Consider implementing file filtering (by extension, size, gitignore patterns) before loading content.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Token budget management may re-tokenize content multiple times</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/manage_token_budget.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The presence of both src/spectra/use_cases/manage_token_budget.py and src/spectra/infrastructure/tiktoken_adapter.py suggests token counting is performed as a separate operation. If the token budget manager calls the tiktoken adapter repeatedly for the same content (e.g., checking budget before each agent call, splitting content, then re-counting), this creates redundant CPU-intensive tokenization. tiktoken encoding is O(n) per call and can be expensive for large repository contents.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Cache token counts for content that has already been tokenized using an LRU cache or a dictionary keyed by content hash. Consider tokenizing once and passing token counts alongside content through the pipeline rather than re-counting.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">tiktoken adapter may initialize encoding on every call</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/tiktoken_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tiktoken.encoding_for_model() or tiktoken.get_encoding() can be relatively expensive if called repeatedly rather than cached. If the TiktokenAdapter instantiates or looks up the encoding object on each token-counting call rather than caching it at initialization, this adds unnecessary overhead, especially when processing many files in a repository analysis.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the tiktoken encoding object is created once during adapter initialization (in __init__) and reused across all subsequent encode/count calls. Store it as an instance attribute.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Retry decorator may lack exponential backoff or have aggressive retry strategy</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/retry_decorator.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The retry_decorator.py handles API call retries for Anthropic API interactions. Without proper exponential backoff with jitter, retries against rate-limited APIs can cause thundering herd problems, especially when multiple agents retry simultaneously. This is critical for a tool making multiple concurrent API calls to Claude/Anthropic endpoints which have strict rate limits.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement exponential backoff with jitter (e.g., base_delay * 2^attempt + random_jitter). Respect Retry-After headers from Anthropic API responses. Consider implementing a shared rate limiter/semaphore across all agent API calls to prevent exceeding rate limits proactively rather than reactively.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No visible caching layer for repeated repository analyses</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/analyze_repository.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The codebase shows no caching infrastructure for analysis results. When analyzing the same repository multiple times (e.g., during development iteration), all API calls to Anthropic are repeated from scratch. Given that API calls are both the most expensive (cost) and slowest (latency) operations, caching previous dimension analyses that haven&#39;t changed would significantly improve performance for iterative use.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement a file-hash-based caching layer that stores analysis results keyed by (file_content_hash, dimension, model_version). On subsequent runs, only re-analyze files that have changed. Store cache in a local SQLite database or filesystem cache directory.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Specialist prompts may include redundant context across agents</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~12.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/specialist_prompts.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">With specialist_prompts.py providing prompts for multiple specialist agents, and each agent receiving the full repository context, the same large content payload is likely sent to the Anthropic API multiple times (once per agent). This multiplies both token costs and API latency. For a 6-agent pipeline analyzing a large repo, this could mean sending the same 100K+ tokens 6 times.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Implement context-aware file selection per dimension - security agents only need security-relevant files, performance agents only need performance-relevant files. Use the token budget manager to allocate tokens per agent based on relevance scoring. This reduces both cost and latency.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~60h
+            </div>
+            
+        </section>
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 282 seconds</p>
+            <p>https://github.com/leocder07/spectra</p>
+            <p class="timestamp">2026-02-14 21:49 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>
