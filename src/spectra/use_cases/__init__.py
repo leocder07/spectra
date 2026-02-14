@@ -1,0 +1,23 @@
+"""Use cases layer — business logic orchestration."""
+
+from spectra.use_cases.analyze_repository import analyze_repository
+from spectra.use_cases.manage_token_budget import (
+    DIMENSION_WEIGHTS,
+    allocate_specialist_budgets,
+    check_budget_remaining,
+)
+from spectra.use_cases.orchestrate_agents import (
+    AnalysisAgent,
+    evaluate_results,
+    run_specialists,
+)
+
+__all__ = [
+    "DIMENSION_WEIGHTS",
+    "AnalysisAgent",
+    "allocate_specialist_budgets",
+    "analyze_repository",
+    "check_budget_remaining",
+    "evaluate_results",
+    "run_specialists",
+]
