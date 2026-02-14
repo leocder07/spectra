@@ -28,13 +28,14 @@ class AgentFactory:
             msg = f"Unknown agent role: {role}"
             raise ValueError(msg)
 
-        dimension, id_prefix, system_prompt = config
+        dimension, id_prefix, system_prompt, model = config
         return SpecialistAgent(
             role=role,
             gateway=self._gateway,
             dimension=dimension,
             id_prefix=id_prefix,
             system_prompt=system_prompt,
+            model=model,
         )
 
     def create_specialists(self) -> list[BaseAgent]:

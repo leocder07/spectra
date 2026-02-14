@@ -59,6 +59,7 @@ class AnthropicAdapter:
             async with self._client.messages.stream(
                 model=model,
                 max_tokens=max_tokens,
+                temperature=0.0,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             ) as stream:

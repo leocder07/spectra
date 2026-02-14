@@ -18,13 +18,15 @@ class SpecialistAgent(BaseAgent):
         dimension: Dimension,
         id_prefix: str,
         system_prompt: str,
+        model: str = "claude-opus-4-6",
+        max_tokens: int = 80_000,
     ) -> None:
         super().__init__(
             role=role,
             gateway=gateway,
-            model="claude-opus-4-6",
+            model=model,
             system_prompt=system_prompt,
-            max_tokens=80_000,
+            max_tokens=max_tokens,
         )
         self._dimension = dimension
         self._id_prefix = id_prefix

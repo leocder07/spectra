@@ -415,11 +415,14 @@ CONFIDENCE CALIBRATION:
 - Assign <0.5 for suspicions without direct evidence"""
 
 
-SPECIALIST_CONFIGS: dict[AgentRole, tuple[Dimension, str, str]] = {
-    "architecture": ("architecture", "arch", ARCHITECTURE_PROMPT + _SHARED_GUIDANCE),
-    "security": ("security", "sec", SECURITY_PROMPT + _SHARED_GUIDANCE),
-    "quality": ("quality", "qual", QUALITY_PROMPT + _SHARED_GUIDANCE),
-    "documentation": ("documentation", "doc", DOCUMENTATION_PROMPT + _SHARED_GUIDANCE),
-    "dependency": ("maintainability", "dep", DEPENDENCY_PROMPT + _SHARED_GUIDANCE),
-    "performance": ("performance", "perf", PERFORMANCE_PROMPT + _SHARED_GUIDANCE),
+_OPUS = "claude-opus-4-6"
+
+# (dimension, id_prefix, prompt, model) — all Opus for maximum quality
+SPECIALIST_CONFIGS: dict[AgentRole, tuple[Dimension, str, str, str]] = {
+    "architecture": ("architecture", "arch", ARCHITECTURE_PROMPT + _SHARED_GUIDANCE, _OPUS),
+    "security": ("security", "sec", SECURITY_PROMPT + _SHARED_GUIDANCE, _OPUS),
+    "quality": ("quality", "qual", QUALITY_PROMPT + _SHARED_GUIDANCE, _OPUS),
+    "documentation": ("documentation", "doc", DOCUMENTATION_PROMPT + _SHARED_GUIDANCE, _OPUS),
+    "dependency": ("maintainability", "dep", DEPENDENCY_PROMPT + _SHARED_GUIDANCE, _OPUS),
+    "performance": ("performance", "perf", PERFORMANCE_PROMPT + _SHARED_GUIDANCE, _OPUS),
 }

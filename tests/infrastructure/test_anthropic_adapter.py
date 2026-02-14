@@ -90,6 +90,7 @@ class TestAnalyze:
         client.messages.stream.assert_called_once_with(
             model="claude-test",
             max_tokens=2000,
+            temperature=0.0,
             system="sys prompt",
             messages=[{"role": "user", "content": "user prompt"}],
         )
