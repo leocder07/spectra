@@ -40,8 +40,9 @@
             padding: 2rem;
         }
 
+        /* [7] Widen container */
         .container {
-            max-width: 960px;
+            max-width: 1100px;
             margin: 0 auto;
         }
 
@@ -53,11 +54,16 @@
             border-bottom: 2px solid var(--violet);
         }
 
+        /* [5] Gradient Wordmark */
         .header h1 {
-            font-size: 2rem;
-            color: var(--violet-light);
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
             margin-bottom: 0.25rem;
-            letter-spacing: 0.05em;
         }
 
         .header .repo-name {
@@ -69,6 +75,38 @@
             font-size: 0.85rem;
             color: var(--gray);
             margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
         }
 
         /* Executive Summary */
@@ -134,6 +172,65 @@
             margin-bottom: 1rem;
         }
 
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
         .quick-stats {
             text-align: center;
             color: var(--gray-light);
@@ -154,16 +251,29 @@
             margin-bottom: 1.5rem;
         }
 
-        .overall-grade {
-            font-size: 3.5rem;
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
             font-weight: 800;
             line-height: 1;
         }
 
-        .overall-score {
-            font-size: 1.2rem;
+        .grade-gauge-score {
+            font-size: 0.95rem;
             color: var(--text-muted);
-            margin-top: 0.25rem;
+            margin-top: 0.15rem;
         }
 
         .dimensions {
@@ -195,10 +305,17 @@
             overflow: hidden;
         }
 
+        /* [6] Animate Score Bars */
         .dim-bar-fill {
             height: 100%;
             border-radius: 4px;
-            transition: width 0.6s ease;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
         }
 
         .dim-score {
@@ -276,6 +393,7 @@
             border-bottom: 1px solid var(--border);
         }
 
+        /* [1] Collapsible Findings */
         .finding {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -283,6 +401,7 @@
             padding: 1.25rem;
             margin-bottom: 0.75rem;
             border-left: 3px solid var(--border);
+            cursor: pointer;
         }
 
         .finding.severity-critical { border-left-color: var(--red); }
@@ -295,13 +414,23 @@
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            margin-bottom: 0.5rem;
             flex-wrap: wrap;
         }
 
         .finding-title {
             font-weight: 700;
             font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
         }
 
         .badge {
@@ -324,7 +453,16 @@
             font-size: 0.8rem;
             color: var(--gray-light);
             font-family: 'SF Mono', 'Fira Code', monospace;
-            margin-bottom: 0.5rem;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
         }
 
         .finding-description {
@@ -381,17 +519,31 @@
             .dimensions { grid-template-columns: 1fr; }
             .summary-grid { grid-template-columns: 1fr; }
             .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
-        <header class="header">
+        <header class="header" id="top">
             <h1>SPECTRA</h1>
             <div class="repo-name">{{ report.repo_name }}</div>
             <div class="tagline">The full spectrum of your codebase</div>
         </header>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#scores">Scores</a>
+            {% for dimension in dimensions_order %}
+            {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
+            {% if dim_findings %}
+            <a href="#dim-{{ dimension }}">{{ _dim_label(dimension) }}</a>
+            {% endif %}
+            {% endfor %}
+        </nav>
 
         {% if report.is_degraded %}
         <div class="degraded-banner">
@@ -400,7 +552,7 @@
         {% endif %}
 
         <!-- Executive Summary -->
-        <section class="executive-summary">
+        <section class="executive-summary" id="summary">
             <h2>Executive Summary</h2>
             <div class="verdict">{{ summary.verdict }}</div>
 
@@ -432,19 +584,55 @@
             </div>
             {% endif %}
 
+            <!-- [4] Severity Distribution Bar -->
+            {% set dist = summary.severity_dist %}
+            {% set total = summary.total_findings %}
+            {% if total > 0 %}
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    {% for sev in ["critical", "high", "medium", "low", "info"] %}
+                    {% if dist[sev] > 0 %}
+                    <div class="seg seg-{{ sev }}" style="width: {{ (dist[sev] / total * 100) | round(1) }}%">
+                        {{ dist[sev] }}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="severity-bar-legend">
+                    {% for sev, color in [("critical", "var(--red)"), ("high", "#F97316"), ("medium", "var(--amber)"), ("low", "var(--cyan)"), ("info", "var(--gray)")] %}
+                    {% if dist[sev] > 0 %}
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: {{ color }}"></span>
+                        {{ sev }} ({{ dist[sev] }})
+                    </span>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <div class="quick-stats">
                 {{ summary.total_findings }} findings · {{ summary.agents_count }} agents · {{ summary.duration | round(0) | int }}s analysis
             </div>
         </section>
 
         <!-- ScoreCard -->
-        <section class="scorecard">
+        <section class="scorecard" id="scores">
             <div class="overall">
-                <div class="overall-grade {{ _grade_class(report.score_card.overall_grade) }}">
-                    {{ report.score_card.overall_grade }}
-                </div>
-                <div class="overall-score">
-                    {{ report.score_card.overall_score | round(0) | int }} / 100
+                <!-- [2] Circular Grade Gauge -->
+                {% set score_pct = report.score_card.overall_score %}
+                {% set grade_cls = _grade_class(report.score_card.overall_grade) %}
+                {% if grade_cls == 'grade-a' %}{% set gauge_color = 'var(--green)' %}
+                {% elif grade_cls == 'grade-b' %}{% set gauge_color = 'var(--cyan)' %}
+                {% elif grade_cls == 'grade-c' %}{% set gauge_color = 'var(--amber)' %}
+                {% else %}{% set gauge_color = 'var(--red)' %}{% endif %}
+                <div class="grade-gauge"
+                     style="background: conic-gradient({{ gauge_color }} {{ (score_pct * 3.6) | round(1) }}deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter {{ grade_cls }}">{{ report.score_card.overall_grade }}</span>
+                        <span class="grade-gauge-score">{{ score_pct | round(0) | int }} / 100</span>
+                    </div>
                 </div>
             </div>
 
@@ -453,8 +641,9 @@
                 <div class="dim-row">
                     <span class="dim-label">{{ _dim_label(dim.dimension) }}</span>
                     <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
                         <div class="dim-bar-fill {{ _bar_class(dim.grade) }}"
-                             style="width: {{ dim.score }}%"></div>
+                             style="--target-width: {{ dim.score }}%"></div>
                     </div>
                     <span class="dim-score">{{ dim.score | round(0) | int }}</span>
                     <span class="dim-grade {{ _grade_class(dim.grade) }}">{{ dim.grade }}</span>
@@ -490,24 +679,28 @@
         {% for dimension in dimensions_order %}
         {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
         {% if dim_findings %}
-        <section class="findings-section">
+        <section class="findings-section" id="dim-{{ dimension }}">
             <h2>{{ _dim_label(dimension) }} ({{ dim_findings | length }})</h2>
 
             {% for finding in _sort_by_severity(dim_findings) %}
-            <div class="finding severity-{{ finding.severity }}">
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-{{ finding.severity }}" onclick="this.classList.toggle('expanded')">
                 <div class="finding-header">
                     <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
                     <span class="finding-title">{{ finding.title }}</span>
                     {% if finding.validated_by_critique %}
                     <span class="validated-badge">✓ Validated</span>
                     {% endif %}
+                    <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
                     {{ finding.location.file_path }}{% if finding.location.line_start %}:{{ finding.location.line_start }}{% endif %}{% if finding.location.line_end %}-{{ finding.location.line_end }}{% endif %}
                 </div>
-                <div class="finding-description">{{ finding.description }}</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> {{ finding.recommendation }}
+                <div class="finding-body">
+                    <div class="finding-description">{{ finding.description }}</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> {{ finding.recommendation }}
+                    </div>
                 </div>
             </div>
             {% endfor %}

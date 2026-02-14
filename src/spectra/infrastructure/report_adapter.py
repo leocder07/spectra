@@ -66,6 +66,17 @@ def _sort_by_severity(findings: list[Finding]) -> list[Finding]:
     )
 
 
+def _severity_distribution(
+    findings: tuple[Finding, ...],
+) -> dict[str, int]:
+    """Count findings per severity level."""
+    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    for f in findings:
+        if f.severity in counts:
+            counts[f.severity] += 1
+    return counts
+
+
 def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
     """Compute executive summary data for the HTML template."""
     dims = sorted(
@@ -82,6 +93,7 @@ def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
         "total_findings": len(report.findings),
         "agents_count": len(report.agents_used),
         "duration": report.analysis_duration_seconds,
+        "severity_dist": _severity_distribution(report.findings),
     }
 
 
