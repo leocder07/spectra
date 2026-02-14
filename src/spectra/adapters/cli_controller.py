@@ -8,6 +8,8 @@ callable via `set_analyzer_factory()` before the CLI runs.
 from __future__ import annotations
 
 import asyncio
+import logging
+import traceback
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Literal
@@ -92,6 +94,12 @@ def analyze(
     ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(name)s %(levelname)s %(message)s",
+        )
+
     if fmt not in ("html", "json"):
         console.print("[#EF4444]✗[/] Invalid format: use html or json")
         raise typer.Exit(code=1)
@@ -127,6 +135,8 @@ def analyze(
         raise typer.Exit(code=1)
     except Exception as exc:
         console.print(f"[#EF4444]✗[/] Unexpected error: {exc}")
+        if verbose:
+            console.print(traceback.format_exc())
         raise typer.Exit(code=1)
 
     if report is None:

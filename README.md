@@ -1,3 +1,5 @@
+![CI](https://github.com/leocder07/spectra/actions/workflows/ci.yml/badge.svg)
+
 # Spectra
 
 **8 AI agents analyze your entire repository in 90 seconds.**

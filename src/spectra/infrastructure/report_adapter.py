@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 import jinja2
 
+from spectra.adapters.brand import build_verdict, dim_label
+
 if TYPE_CHECKING:
     from spectra.entities.enums import Dimension, Grade
     from spectra.entities.models import AnalysisReport, Finding
@@ -39,15 +41,6 @@ _BAR_CLASS: dict[str, str] = {
     "F": "bar-f",
 }
 
-_DIM_LABELS: dict[Dimension, str] = {
-    "architecture": "Architecture",
-    "security": "Security",
-    "quality": "Quality",
-    "documentation": "Documentation",
-    "maintainability": "Maintainability",
-    "performance": "Performance",
-}
-
 _SEVERITY_ORDER: dict[str, int] = {
     "critical": 0,
     "high": 1,
@@ -65,10 +58,6 @@ def _bar_class(grade: Grade) -> str:
     return _BAR_CLASS.get(grade, "bar-f")
 
 
-def _dim_label(dimension: Dimension) -> str:
-    return _DIM_LABELS.get(dimension, dimension.capitalize())
-
-
 def _critical_count(findings: tuple[Finding, ...]) -> int:
     return sum(1 for f in findings if f.severity == "critical")
 
@@ -77,27 +66,6 @@ def _sort_by_severity(findings: list[Finding]) -> list[Finding]:
     """Sort findings: critical → high → medium → low → info."""
     return sorted(
         findings, key=lambda f: _SEVERITY_ORDER.get(f.severity, 5),
-    )
-
-
-def _build_verdict(report: AnalysisReport) -> str:
-    """Generate a one-line executive verdict."""
-    grade = report.score_card.overall_grade
-    score = report.score_card.overall_score
-    dims = sorted(
-        report.score_card.dimensions,
-        key=lambda d: d.score,
-        reverse=True,
-    )
-    if not dims:
-        return f"Your codebase scores {grade} ({score:.0f}/100)"
-    top = _dim_label(dims[0].dimension).lower()
-    bottom = _dim_label(dims[-1].dimension).lower()
-    if top == bottom:
-        return f"Your codebase scores {grade} ({score:.0f}/100)"
-    return (
-        f"Your codebase scores {grade} ({score:.0f}/100)"
-        f" \u2014 strong {top} with {bottom} gaps"
     )
 
 
@@ -110,7 +78,7 @@ def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
     )
     bottom = dims[-3:] if len(dims) >= 3 else dims
     return {
-        "verdict": _build_verdict(report),
+        "verdict": build_verdict(report),
         "strengths": dims[:3],
         "concerns": list(reversed(bottom)),
         "critical_count": _critical_count(report.findings),
@@ -130,16 +98,20 @@ class ReportAdapter:
         )
         self._env.globals["_grade_class"] = _grade_class
         self._env.globals["_bar_class"] = _bar_class
-        self._env.globals["_dim_label"] = _dim_label
+        self._env.globals["_dim_label"] = dim_label
         self._env.globals["_critical_count"] = _critical_count
         self._env.globals["_sort_by_severity"] = _sort_by_severity
         self._env.globals["dimensions_order"] = _DIMENSIONS_ORDER
 
     def render(self, report: AnalysisReport, output_path: str) -> str:
         template = self._env.get_template("report.html.j2")
+        has_mermaid = any(
+            "```mermaid" in f.description for f in report.findings
+        )
         html = template.render(
             report=report,
             summary=_build_executive_summary(report),
+            has_mermaid=has_mermaid,
             generated_at=datetime.now(UTC).strftime(
                 "%Y-%m-%d %H:%M UTC"
             ),

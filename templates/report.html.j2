@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
     <title>Spectra Report — {{ report.repo_name }}</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    {% if has_mermaid %}
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"
+            integrity="sha384-enVdc7lTHDGtpROV85t9+VqPC2EyyB0hsRD0MrvQnHUsHmTHIz2D8SPP4EnBkstH"
+            crossorigin="anonymous"></script>
     <script>document.addEventListener('DOMContentLoaded', function() { if (window.mermaid) mermaid.initialize({startOnLoad: true, theme: 'dark'}); });</script>
+    {% endif %}
     <style>
         :root {
             --violet: #7C3AED;
