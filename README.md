@@ -149,8 +149,10 @@ Every failure has a code, a retry strategy, and a user-facing message:
 | SPEC-003 | Rate limited | Yes (3x) |
 | SPEC-004 | Token budget exceeded | No |
 | SPEC-005 | Agent output invalid | Yes (1x) |
-| SPEC-006 | Agent timeout (30s) | No |
+| SPEC-006 | Agent timeout (120s) | No |
 | SPEC-007 | 2+ agents failed | No |
+| SPEC-008 | CritiqueAgent failed | No |
+| SPEC-009 | Report render failed | No |
 
 If two or more agents fail, Spectra produces a partial report in DEGRADED state rather than failing silently.
 
@@ -161,7 +163,7 @@ If two or more agents fail, Spectra produces a partial report in DEGRADED state 
 - **Claude Opus 4.6** powers 7 of 8 agents, using the 1M token context window to analyze entire repositories without chunking
 - **Extended thinking** is reserved for CritiqueAgent — the one agent that needs to reason deeply about finding validity
 - **Claude Sonnet 4.5** powers MetaPrompter for fast planning decisions
-- **6 agents run in true parallel** via `asyncio.gather`, each with a 30-second timeout
+- **6 agents run in true parallel** via `asyncio.gather`, each with a 120-second timeout
 - **Token budget management** allocates 800K tokens across agents, with 200K reserved for CritiqueAgent
 
 ---
