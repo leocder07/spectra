@@ -389,28 +389,29 @@
         </header>
 
         
-        <div class="degraded-banner">
-            ⚠ Degraded analysis — missing dimensions: security, quality, maintainability, performance
-        </div>
-        
 
         <!-- Executive Summary -->
         <section class="executive-summary">
             <h2>Executive Summary</h2>
-            <div class="verdict">Your codebase scores C (72/100) — strong architecture with documentation gaps</div>
+            <div class="verdict">Your codebase scores F (55/100) — strong maintainability with documentation gaps</div>
 
             <div class="summary-grid">
                 <div class="summary-col strengths">
                     <h3>Top Strengths</h3>
                     
                     <div class="summary-item">
-                        <span class="summary-dim">Architecture</span>
-                        <span class="summary-score grade-a">A- (88)</span>
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-b">B (81)</span>
                     </div>
                     
                     <div class="summary-item">
-                        <span class="summary-dim">Documentation</span>
-                        <span class="summary-score grade-f">F (33)</span>
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-b">B- (78)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-c">C+ (76)</span>
                     </div>
                     
                 </div>
@@ -420,12 +421,17 @@
                     
                     <div class="summary-item">
                         <span class="summary-dim">Documentation</span>
-                        <span class="summary-score grade-f">F (33)</span>
+                        <span class="summary-score grade-f">F (26)</span>
                     </div>
                     
                     <div class="summary-item">
-                        <span class="summary-dim">Architecture</span>
-                        <span class="summary-score grade-a">A- (88)</span>
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-f">F (35)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-f">F (42)</span>
                     </div>
                     
                 </div>
@@ -434,18 +440,18 @@
             
 
             <div class="quick-stats">
-                20 findings · 2 agents · 125s analysis
+                61 findings · 6 agents · 122s analysis
             </div>
         </section>
 
         <!-- ScoreCard -->
         <section class="scorecard">
             <div class="overall">
-                <div class="overall-grade grade-c">
-                    C
+                <div class="overall-grade grade-f">
+                    F
                 </div>
                 <div class="overall-score">
-                    72 / 100
+                    55 / 100
                 </div>
             </div>
 
@@ -454,28 +460,68 @@
                 <div class="dim-row">
                     <span class="dim-label">Architecture</span>
                     <div class="dim-bar">
-                        <div class="dim-bar-fill bar-a"
-                             style="width: 88.0%"></div>
+                        <div class="dim-bar-fill bar-b"
+                             style="width: 78.0%"></div>
                     </div>
-                    <span class="dim-score">88</span>
-                    <span class="dim-grade grade-a">A-</span>
+                    <span class="dim-score">78</span>
+                    <span class="dim-grade grade-b">B-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-f"
+                             style="width: 35.0%"></div>
+                    </div>
+                    <span class="dim-score">35</span>
+                    <span class="dim-grade grade-f">F</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-f"
+                             style="width: 42.0%"></div>
+                    </div>
+                    <span class="dim-score">42</span>
+                    <span class="dim-grade grade-f">F</span>
                 </div>
                 
                 <div class="dim-row">
                     <span class="dim-label">Documentation</span>
                     <div class="dim-bar">
                         <div class="dim-bar-fill bar-f"
-                             style="width: 33.0%"></div>
+                             style="width: 26.0%"></div>
                     </div>
-                    <span class="dim-score">33</span>
+                    <span class="dim-score">26</span>
                     <span class="dim-grade grade-f">F</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-b"
+                             style="width: 81.0%"></div>
+                    </div>
+                    <span class="dim-score">81</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-c"
+                             style="width: 76.0%"></div>
+                    </div>
+                    <span class="dim-score">76</span>
+                    <span class="dim-grade grade-c">C+</span>
                 </div>
                 
             </div>
 
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-value">20</div>
+                    <div class="stat-value">61</div>
                     <div class="stat-label">Findings</div>
                 </div>
                 <div class="stat">
@@ -483,15 +529,15 @@
                     <div class="stat-label">Critical</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">125s</div>
+                    <div class="stat-value">122s</div>
                     <div class="stat-label">Duration</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">$0.39</div>
+                    <div class="stat-value">$1.10</div>
                     <div class="stat-label">Cost</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">2</div>
+                    <div class="stat-value">6</div>
                     <div class="stat-label">Agents</div>
                 </div>
             </div>
@@ -505,318 +551,153 @@
             <h2>Architecture (10)</h2>
 
             
-            <div class="finding severity-medium">
+            <div class="finding severity-high">
                 <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Prototype augmentation pattern for request/response objects</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/request.js
-                </div>
-                <div class="finding-description">Express augments the native Node.js http.IncomingMessage and http.ServerResponse prototypes via request.js and response.js respectively. This mixin/monkey-patching pattern, while effective and well-understood in the Express ecosystem, makes it harder to reason about the full API surface of req/res objects and can conflict with other libraries that augment the same prototypes.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> This is a fundamental design decision of Express. For Express 5.x or future major versions, consider composition over inheritance (wrapping req/res in proxy objects) to reduce prototype pollution risks.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Application module likely has high responsibility density</span>
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Application module serves as God object with mixed responsibilities</span>
                     
                 </div>
                 <div class="finding-location">
                     lib/application.js
                 </div>
-                <div class="finding-description">lib/application.js is responsible for app configuration (settings), middleware mounting (use), route registration (get/post/etc.), rendering (render), engine registration (engine), parameter handling (param), and listener setup (listen). This single module carries the bulk of the framework&#39;s API surface, making it a potential maintenance bottleneck.</div>
+                <div class="finding-description">lib/application.js is the central hub of the framework, handling application configuration (settings), middleware registration, routing setup, template engine registration, view rendering, and HTTP server creation. This single module conflates configuration management, routing orchestration, view/render pipeline, and server lifecycle — violating the Single Responsibility Principle.</div>
                 <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Consider splitting application.js into focused mixins (e.g., app-settings.js, app-routing.js, app-rendering.js) that are composed together. This would improve testability and readability without changing the public API.
+                    <strong>Recommendation:</strong> Consider extracting distinct concerns into separate modules: a configuration/settings manager, a render pipeline module, and keeping application.js as a thin orchestrator that delegates to these subsystems. This would improve testability and make the framework easier to extend.
                 </div>
             </div>
             
-            <div class="finding severity-low">
+            <div class="finding severity-medium">
                 <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">MVC example demonstrates solid architectural pattern but uses custom bootstrapping</span>
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Prototype mixin pattern for request/response extension</span>
                     
                 </div>
                 <div class="finding-location">
-                    examples/mvc/lib/boot.js
+                    lib/request.js
                 </div>
-                <div class="finding-description">The examples/mvc/ directory implements a full MVC pattern with controllers (main, pet, user, user-pet), a database abstraction (db.js), views co-located with controllers, and a custom boot.js loader. The boot.js module auto-discovers controllers by scanning the filesystem, which is a convention-over-configuration approach. However, this custom bootstrapping is tightly coupled to the directory structure convention.</div>
+                <div class="finding-description">The framework uses a prototype mixin approach where lib/request.js and lib/response.js extend the native Node.js http.IncomingMessage.prototype and http.ServerResponse.prototype respectively. While this is the established Express pattern, it creates tight coupling to Node&#39;s HTTP module internals and means request/response enhancements are applied globally via prototype chain manipulation rather than through composition or decorators.</div>
                 <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> The MVC example is good for demonstration. For production use, recommend explicit controller registration or a well-tested loader library to avoid fragile filesystem-based discovery.
+                    <strong>Recommendation:</strong> This is a legacy architectural decision deeply embedded in Express&#39;s design. For a next-generation framework, consider using composition over inheritance (wrapping req/res objects) to avoid prototype pollution concerns and enable better testability.
                 </div>
             </div>
             
-            <div class="finding severity-info">
+            <div class="finding severity-medium">
                 <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Thin entry point with proper delegation to lib/express.js</span>
-                    
-                </div>
-                <div class="finding-location">
-                    index.js:1-1
-                </div>
-                <div class="finding-description">The root index.js serves as a minimal entry point that re-exports from lib/express.js. This is a clean pattern that separates the public API surface from the internal module organization.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> No changes needed — this is a well-established pattern for Node.js packages.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Core module organization follows clear separation of concerns</span>
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Missing lib/router.js — Router likely externalized to separate package</span>
                     
                 </div>
                 <div class="finding-location">
                     lib/express.js
                 </div>
-                <div class="finding-description">The lib/ directory contains well-separated modules: express.js (factory/bootstrap), application.js (app behavior), request.js (req augmentation), response.js (res augmentation), view.js (template rendering abstraction), and utils.js (shared utilities). Each module has a single clear responsibility, which is excellent for a framework of this maturity.</div>
+                <div class="finding-description">The file listing includes lib/application.js, lib/request.js, lib/response.js, lib/view.js, and lib/utils.js, but notably no lib/router.js or lib/router/ directory. The Router is a core architectural component referenced throughout Express (app.route(), Router(), middleware stacking). Its absence from lib/ suggests it has been extracted to a separate npm package (likely &#39;router&#39; or within the express monorepo). This creates an implicit architectural dependency that isn&#39;t visible from the source tree alone.</div>
                 <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> This separation is exemplary. Maintain it as the project evolves.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">View layer abstraction is clean and pluggable</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/view.js
-                </div>
-                <div class="finding-description">lib/view.js provides a standalone View class that encapsulates template engine resolution and rendering. This clean abstraction allows Express to support multiple template engines (EJS, Handlebars, etc.) through the app.engine() registration pattern, as demonstrated across the examples (ejs/, mvc/ with both .ejs and .hbs).</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> The view-constructor example demonstrates extensibility. Document this pattern more prominently for users who need custom view resolution strategies.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Multi-router example demonstrates good modular architecture</span>
-                    
-                </div>
-                <div class="finding-location">
-                    examples/multi-router/index.js
-                </div>
-                <div class="finding-description">The examples/multi-router/ example shows API versioning via separate router instances (api_v1.js, api_v2.js) mounted at different paths. This demonstrates Express&#39;s sub-application/sub-router architecture effectively and is a strong pattern for modular application design.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> This pattern should be highlighted in documentation as the recommended approach for API versioning and modular route organization.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Route separation example shows clean concern separation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    examples/route-separation/index.js
-                </div>
-                <div class="finding-description">The examples/route-separation/ example separates route handlers into domain-specific modules (user.js, post.js, site.js) with corresponding views organized by domain (views/users/, views/posts/). This is a practical intermediate pattern between monolithic routes and full MVC.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Good reference architecture for small-to-medium applications. Consider adding an example that combines this with the multi-router pattern for larger applications.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Test structure mirrors source architecture well</span>
-                    
-                </div>
-                <div class="finding-location">
-                    test/app.js
-                </div>
-                <div class="finding-description">The test directory is organized by concern: app.*.js tests for application-level features, req.*.js for request augmentations, res.*.js for response augmentations, express.*.js for middleware, and acceptance/ for integration tests against examples. This 1:1 mapping between source modules and test files demonstrates good test architecture.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Maintain this consistent test organization. Consider adding architectural decision records (ADRs) to document the test structure conventions.
-                </div>
-            </div>
-            
-            <div class="finding severity-info">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Utils module is minimal — avoids becoming a dumping ground</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/utils.js
-                </div>
-                <div class="finding-description">lib/utils.js exists as a utility module but appears to be intentionally kept small. This avoids the common antipattern of a growing &#39;utils&#39; module that becomes a catch-all for unrelated functionality.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Continue keeping utils.js minimal. If new utilities are needed, consider whether they belong in a more specific module first.
-                </div>
-            </div>
-            
-        </section>
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        <section class="findings-section">
-            <h2>Documentation (10)</h2>
-
-            
-            <div class="finding severity-high">
-                <div class="finding-header">
-                    <span class="badge badge-high">high</span>
-                    <span class="finding-title">README.md is minimal and lacks comprehensive API documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    Readme.md:1
-                </div>
-                <div class="finding-description">The Readme.md for the Express framework — one of the most widely used Node.js frameworks — is expected to serve as a primary entry point for developers. While Express has extensive external documentation at expressjs.com, the repository README should still provide a meaningful quick-start guide, outline core concepts, and link to API references. The README likely contains only badges, a brief description, installation instructions, and links to external docs, but lacks inline API reference, architecture overview, or contribution guidelines beyond a link.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Expand the README to include: (1) a more detailed quick-start section with a working example beyond hello-world, (2) a summary table of core API methods (app, req, res, router), (3) links to specific sections of external documentation, (4) a brief architecture overview describing middleware pipeline, and (5) a contributing section or link to CONTRIBUTING.md.
-                </div>
-            </div>
-            
-            <div class="finding severity-high">
-                <div class="finding-header">
-                    <span class="badge badge-high">high</span>
-                    <span class="finding-title">Core library modules lack JSDoc documentation on exported methods</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/application.js:1
-                </div>
-                <div class="finding-description">The core modules lib/application.js, lib/request.js, lib/response.js, and lib/view.js define the public API of Express. These files contain methods like app.use(), app.get(), req.accepts(), res.send(), res.json(), res.redirect(), etc. For a project of this scale and importance, inline JSDoc comments describing parameters, return types, thrown errors, and usage examples are essential for contributors and IDE support. The Node.js/JavaScript ecosystem expects JSDoc annotations on public API methods.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add comprehensive JSDoc comments to all public methods in lib/application.js, lib/request.js, lib/response.js, and lib/view.js. Each method should document @param types, @returns, @throws, and include a brief @example. This enables IDE autocompletion and serves as inline API reference for contributors.
-                </div>
-            </div>
-            
-            <div class="finding severity-high">
-                <div class="finding-header">
-                    <span class="badge badge-high">high</span>
-                    <span class="finding-title">lib/request.js public API methods need parameter and return type documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/request.js:1
-                </div>
-                <div class="finding-description">The request module (lib/request.js) extends the Node.js IncomingMessage with properties and methods like req.get(), req.accepts(), req.is(), req.ip, req.hostname, req.path, etc. These are critical user-facing APIs. Without JSDoc, contributors must rely entirely on external documentation or test files to understand the expected behavior, edge cases, and parameter types.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add JSDoc annotations to all exported properties and methods in lib/request.js with @param, @returns, and @example tags. For computed properties (getters), document expected return types and behavior under different trust proxy settings.
-                </div>
-            </div>
-            
-            <div class="finding severity-high">
-                <div class="finding-header">
-                    <span class="badge badge-high">high</span>
-                    <span class="finding-title">lib/response.js public API methods need parameter and return type documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/response.js:1
-                </div>
-                <div class="finding-description">The response module (lib/response.js) provides the most commonly used Express methods: res.send(), res.json(), res.redirect(), res.render(), res.cookie(), res.download(), res.sendFile(), etc. These methods have complex overloaded signatures (e.g., res.send can accept a string, Buffer, or object). Without JSDoc, these nuances are undiscoverable from source alone.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add detailed JSDoc with overload documentation for all public methods. For methods with multiple call signatures (like res.send), document each variant. Include @example blocks showing common usage patterns.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Examples README provides good index but individual examples lack inline documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    examples/README.md:1
-                </div>
-                <div class="finding-description">The examples/README.md file exists and presumably lists available examples. However, individual example files (e.g., examples/auth/index.js, examples/mvc/index.js, examples/web-service/index.js) likely lack header comments explaining what the example demonstrates, what Express features it showcases, prerequisites, and how to run it. The examples are a critical learning resource.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add a block comment at the top of each example&#39;s index.js explaining: (1) what the example demonstrates, (2) which Express features/APIs are showcased, (3) how to run the example (e.g., &#39;node examples/auth&#39;), (4) any dependencies or setup required. The examples/README.md should also include brief descriptions next to each example link.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">History.md serves as changelog but may lack migration guidance between major versions</span>
-                    
-                </div>
-                <div class="finding-location">
-                    History.md:1
-                </div>
-                <div class="finding-description">History.md is the changelog for Express. For a framework with multiple major versions (3.x, 4.x, 5.x), users need clear migration guides documenting breaking changes, removed APIs, and replacement patterns. A changelog alone may list changes but not provide actionable migration steps.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Supplement History.md with a MIGRATION.md or UPGRADING.md document that provides step-by-step migration guides between major versions, with before/after code examples for breaking changes. Link to this from the README.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">No CONTRIBUTING.md or developer documentation for contributors</span>
-                    
-                </div>
-                <div class="finding-location">
-                    .
-                </div>
-                <div class="finding-description">The repository file listing does not include a CONTRIBUTING.md, ARCHITECTURE.md, or any developer-oriented documentation. For a project as significant as Express, contributors need guidance on: code organization, how the middleware pipeline works internally, how to run tests, coding standards, and PR process. While .eslintrc.yml and .editorconfig provide some coding standards, they don&#39;t replace contributor docs.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Create a CONTRIBUTING.md covering: (1) development setup and prerequisites, (2) how to run the test suite, (3) code architecture overview (middleware pipeline, Router, Route, Layer), (4) PR and issue guidelines, (5) coding conventions beyond ESLint. Optionally create an ARCHITECTURE.md explaining the request lifecycle.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">lib/utils.js and lib/view.js lack inline documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/utils.js:1
-                </div>
-                <div class="finding-description">Utility modules like lib/utils.js and lib/view.js contain internal helper functions and the View class respectively. While these are not directly public-facing, they are important for contributors to understand. The View class in particular handles template engine resolution and rendering, which is a key architectural component.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add JSDoc comments to all functions in lib/utils.js and the View class in lib/view.js, explaining their purpose, parameters, and how they fit into the overall Express architecture.
-                </div>
-            </div>
-            
-            <div class="finding severity-medium">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">lib/express.js entry point module documentation</span>
-                    
-                </div>
-                <div class="finding-location">
-                    lib/express.js:1
-                </div>
-                <div class="finding-description">lib/express.js is the main entry point that creates the Express application. It should have a module-level docstring explaining the exports, the factory pattern used, and how the middleware stack (json, urlencoded, static, etc.) is attached. The index.js re-export should also be documented.</div>
-                <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add a module-level JSDoc comment to lib/express.js and index.js explaining: what is exported, the createApplication factory pattern, and list the re-exported middleware (express.json, express.static, etc.).
+                    <strong>Recommendation:</strong> Document the external router dependency explicitly in architecture docs. Consider whether this separation provides sufficient benefit given that the router is tightly coupled to Express&#39;s middleware model. Ensure version pinning is strict to prevent API drift between the router package and Express core.
                 </div>
             </div>
             
             <div class="finding severity-low">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
-                    <span class="finding-title">Test files serve as de facto API documentation but lack descriptive comments</span>
+                    <span class="finding-title">utils.js is a generic utility module risking becoming a dumping ground</span>
                     
                 </div>
                 <div class="finding-location">
-                    test/app.js:1
+                    lib/utils.js
                 </div>
-                <div class="finding-description">The extensive test suite (test/app.*.js, test/req.*.js, test/res.*.js) effectively documents the behavior of every API method through test cases. These are valuable as documentation, but test files themselves typically lack overview comments explaining the tested API&#39;s purpose and edge cases being verified.</div>
+                <div class="finding-description">lib/utils.js is a catch-all utility module. While currently likely small and focused, utility modules in frameworks tend to accumulate unrelated functions over time, creating a module with no cohesive responsibility that everything depends on.</div>
                 <div class="finding-recommendation">
-                    <strong>Recommendation:</strong> Add a brief header comment to each test file describing which API it tests and any notable behavioral contracts being verified. This makes the test suite more navigable as supplementary documentation.
+                    <strong>Recommendation:</strong> Keep utils.js minimal and consider moving utilities closer to where they are used. If the module grows, split it into purpose-specific utility modules (e.g., path-utils, content-type-utils).
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Clean facade pattern via index.js entry point</span>
+                    
+                </div>
+                <div class="finding-location">
+                    index.js:1-1
+                </div>
+                <div class="finding-description">The index.js file serves as a thin re-export facade that delegates to lib/express.js. This is a well-established Node.js convention that cleanly separates the public entry point from the internal module structure, allowing internal reorganization without breaking the public API.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> No changes needed. This is a good architectural pattern.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">View layer provides good abstraction for template engine integration</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-description">lib/view.js encapsulates template engine resolution and rendering behind a consistent interface. The app.engine() registration pattern allows any compliant template engine to be plugged in, following the Strategy pattern. This is a well-designed extensibility point that decouples Express from any specific template engine.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This is a solid architectural pattern. Consider documenting the template engine contract interface more formally (TypeScript types or JSDoc) to help third-party engine authors.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">MVC example demonstrates good layered architecture with auto-bootstrapping</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/mvc/lib/boot.js
+                </div>
+                <div class="finding-description">The examples/mvc/ directory implements a proper MVC pattern with controllers separated into their own directories (main, pet, user, user-pet), each with co-located views. The lib/boot.js module provides automatic controller discovery and mounting. The db.js module serves as a data access layer. This demonstrates how Express&#39;s flexible architecture supports structured application patterns.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This is an excellent reference architecture. Consider promoting this pattern more prominently in documentation as a recommended structure for medium-to-large applications.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Multi-router example demonstrates good API versioning through composition</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/multi-router/index.js
+                </div>
+                <div class="finding-description">The examples/multi-router/ directory shows API versioning (v1, v2) through Router composition — separate router instances mounted at different path prefixes. This is a clean architectural pattern that enables independent evolution of API versions without coupling them together.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> No changes needed. This pattern correctly leverages Express&#39;s router mounting capability for API versioning.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Route-separation example provides good horizontal layering pattern</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/route-separation/index.js
+                </div>
+                <div class="finding-description">The examples/route-separation/ directory separates route handlers by domain (user.js, post.js, site.js) with shared views. This demonstrates a flat, feature-based organization that scales well for small-to-medium applications and is a common and effective Express pattern.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider adding an example that shows how this pattern evolves when the application grows — bridging to the full MVC pattern shown in examples/mvc/.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive test organization mirrors source structure well</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/app.js
+                </div>
+                <div class="finding-description">The test directory is well-organized with clear naming conventions: test/app.*.js for application-level tests, test/req.*.js for request tests, test/res.*.js for response tests, test/acceptance/*.js for integration tests against examples, and test/support/ for test utilities. This mirrors the architectural layers of the framework and makes it easy to find tests for specific features.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> No changes needed. The test organization is exemplary.
                 </div>
             </div>
             
@@ -825,16 +706,820 @@
         
         
         
+        <section class="findings-section">
+            <h2>Security (12)</h2>
+
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Open redirect potential in res.location and res.redirect</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/response.js
+                </div>
+                <div class="finding-description">The response redirect/location methods in lib/response.js may accept user-controlled URLs without validating the destination, potentially enabling open redirect attacks where an attacker crafts a URL like `//evil.com` or uses protocol-relative URLs. CWE-601: URL Redirection to Untrusted Site (&#39;Open Redirect&#39;). OWASP A01:2021 Broken Access Control.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Document the open redirect risk prominently. Consider adding an option to validate redirect URLs against a whitelist of allowed domains, or at minimum warn when redirecting to external URLs.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">XSS risk in search example with user input reflection</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/search/index.js
+                </div>
+                <div class="finding-description">The search example (examples/search/) accepts user search queries and may reflect them in HTML responses without proper output encoding, creating a reflected XSS vulnerability. CWE-79: Improper Neutralization of Input During Web Page Generation. OWASP A03:2021 Injection.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure all user input reflected in HTML responses is properly escaped using the template engine&#39;s auto-escaping features. Set Content-Security-Policy headers.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Hardcoded credentials in authentication example</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/auth/index.js
+                </div>
+                <div class="finding-description">The auth example uses hardcoded username/password (&#39;tj&#39;/&#39;foobar&#39;) for authentication. While this is example code, it demonstrates an insecure pattern that developers may copy. CWE-798: Use of Hard-coded Credentials. OWASP A07:2021 Identification and Authentication Failures.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add prominent comments warning this is for demonstration only and credentials should be loaded from environment variables or a secrets manager in production. Show environment variable usage as the primary pattern.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Cookie sessions example may lack secure cookie flags</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/cookie-sessions/index.js
+                </div>
+                <div class="finding-description">Cookie-based session examples may not demonstrate setting &#39;secure&#39;, &#39;httpOnly&#39;, and &#39;sameSite&#39; flags, which are critical for preventing session hijacking and CSRF. CWE-614: Sensitive Cookie in HTTPS Session Without &#39;Secure&#39; Attribute. OWASP A01:2021 Broken Access Control.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure cookie-session configuration includes `secure: true`, `httpOnly: true`, and `sameSite: &#39;strict&#39;` or `&#39;lax&#39;` flags in all session examples.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Session example may use insecure session secret</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/session/index.js
+                </div>
+                <div class="finding-description">Session examples typically use a hardcoded session secret string, which if copied to production would allow session forgery. CWE-798: Use of Hard-coded Credentials. OWASP A02:2021 Cryptographic Failures.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Use `process.env.SESSION_SECRET` with a fallback that emits a warning, and document that the secret must be a strong random value in production.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Trust proxy misconfiguration risk in request IP/protocol handling</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-description">lib/request.js uses the &#39;trust proxy&#39; setting to determine req.ip, req.protocol, and req.hostname from X-Forwarded-* headers. If misconfigured (e.g., trusting all proxies), an attacker can spoof their IP address and protocol, bypassing IP-based access controls or HTTPS checks. CWE-346: Origin Validation Error. OWASP A05:2021 Security Misconfiguration.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Document the security implications of &#39;trust proxy&#39; more prominently. Default to not trusting any proxy, and provide clear guidance on configuring it securely for specific deployment environments.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Potential path traversal in view rendering</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-description">lib/view.js resolves template file paths. If the view name is derived from user input without proper sanitization, it could allow path traversal attacks to read arbitrary files from the filesystem. CWE-22: Improper Limitation of a Pathname to a Restricted Directory (&#39;Path Traversal&#39;). OWASP A01:2021 Broken Access Control.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure view.js validates that resolved paths remain within the configured views directory. Reject view names containing &#39;..&#39; or absolute path components.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Information disclosure via detailed error responses</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/error-pages/index.js
+                </div>
+                <div class="finding-description">The error-pages example and Express default error handling may expose stack traces and internal server details in error responses when not in production mode. CWE-209: Generation of Error Message Containing Sensitive Information. OWASP A04:2021 Insecure Design.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure error handling middleware always sanitizes error output in production. Set NODE_ENV=production and only show generic error messages to end users.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Redis session example may lack connection security</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/session/redis.js
+                </div>
+                <div class="finding-description">The Redis session example likely connects to Redis without TLS or authentication, which could expose session data if Redis is accessible on the network. CWE-319: Cleartext Transmission of Sensitive Information. OWASP A02:2021 Cryptographic Failures.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Demonstrate TLS-enabled Redis connections and Redis AUTH in the example. Add comments about securing Redis in production environments.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Missing CSRF protection in form-based examples</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/mvc/index.js
+                </div>
+                <div class="finding-description">Form-based examples (auth, MVC, route-separation) handle POST requests without implementing CSRF token validation, making them vulnerable to cross-site request forgery attacks. CWE-352: Cross-Site Request Forgery (CSRF). OWASP A01:2021 Broken Access Control.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add CSRF protection middleware (e.g., csurf or csrf-csrf) to examples that handle form submissions. Demonstrate proper CSRF token generation and validation patterns.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">EJS template injection risk without explicit auto-escaping verification</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/ejs/index.js
+                </div>
+                <div class="finding-description">Multiple examples use EJS templates which use `&lt;%= %&gt;` for escaped output and `&lt;%- %&gt;` for unescaped output. If examples use unescaped output with user-controlled data, XSS vulnerabilities would result. CWE-79: Improper Neutralization of Input During Web Page Generation. OWASP A03:2021 Injection.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Audit all EJS templates to ensure user-controlled data uses `&lt;%= %&gt;` (escaped) rather than `&lt;%- %&gt;` (unescaped). Add linting rules to flag unescaped EJS output tags.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependabot configuration enables automated dependency updates (positive)</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/dependabot.yml
+                </div>
+                <div class="finding-description">The repository has Dependabot configured for automated dependency vulnerability detection and updates, and CodeQL scanning is enabled. This is a positive security practice. CWE-1395: Dependency on Vulnerable Third-Party Component (mitigation).</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Continue maintaining Dependabot and CodeQL workflows. Consider adding OSSF Scorecard checks (already present in scorecard.yml) and ensuring all PRs require passing security checks.
+                </div>
+            </div>
+            
+        </section>
         
         
+        
+        
+        <section class="findings-section">
+            <h2>Quality (15)</h2>
+
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Large monolithic application.js with high cyclomatic complexity</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/application.js:1
+                </div>
+                <div class="finding-description">lib/application.js is the core of Express and handles app configuration, routing setup, engine registration, rendering, and middleware management all in a single file. This concentrates significant complexity and multiple responsibilities into one module, making it harder to maintain and test in isolation.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider extracting rendering logic, settings management, and middleware handling into separate modules. This would reduce per-file complexity and improve testability of individual concerns.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Response module likely has high complexity with many branching paths</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/response.js:1
+                </div>
+                <div class="finding-description">lib/response.js augments the http.ServerResponse prototype with many methods (send, json, jsonp, redirect, render, download, sendFile, cookie, clearCookie, attachment, append, set, get, links, location, vary, type, format, status, etc.). Each method contains its own validation, content negotiation, and error handling logic, leading to significant overall complexity in a single file.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Group related response methods into sub-modules (e.g., content negotiation helpers, cookie helpers, file sending helpers) and compose them into the response prototype. This reduces per-file cognitive load.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Request module augments prototype with many computed properties</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js:1
+                </div>
+                <div class="finding-description">lib/request.js defines numerous properties and methods on the request prototype (get, accepts, acceptsEncodings, acceptsCharsets, acceptsLanguages, range, param, is, protocol, secure, ip, ips, subdomains, path, hostname, host, fresh, stale, xhr, etc.). Many of these involve getter definitions with conditional logic, trust proxy checks, and header parsing, creating a dense file.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider organizing request augmentations by concern (header parsing, content negotiation, proxy trust) into smaller, focused modules.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Comprehensive test suite but potential gaps in edge-case error handling</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/regression.js:1
+                </div>
+                <div class="finding-description">The test suite is extensive with dedicated files for nearly every request/response property and method. However, the separation between test/app.routes.error.js (route errors) and individual method tests suggests error path testing may not be systematically covered for all methods. Files like test/regression.js hint at bug-fix-driven testing rather than systematic negative testing.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Audit each test file (e.g., res.send.js, res.json.js) to ensure error paths, malformed inputs, and edge cases are systematically tested. Consider adding a test coverage reporting step to CI.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No test coverage reporting in CI pipeline</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/workflows/ci.yml:1
+                </div>
+                <div class="finding-description">The CI workflow (.github/workflows/ci.yml) and legacy workflow (.github/workflows/legacy.yml) run tests but there is no evidence of coverage reporting or enforcement of coverage thresholds. Without coverage gates, regressions in test coverage can go unnoticed.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a coverage reporting step (e.g., nyc/istanbul or c8) to the CI pipeline and set minimum coverage thresholds. Integrate with a coverage service like Codecov or Coveralls for PR-level visibility.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/utils.js is a generic utility grab-bag module</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/utils.js:1
+                </div>
+                <div class="finding-description">lib/utils.js serves as a catch-all utility module. Generic utility files tend to accumulate unrelated functions over time, increasing coupling — any module that imports utils gets access to all utilities, making dependency graphs unclear.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Group utilities by domain (e.g., content-type helpers, path helpers, header helpers) into focused modules. This clarifies dependencies and makes the codebase more navigable.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">View module couples file system operations with template engine resolution</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js:1
+                </div>
+                <div class="finding-description">lib/view.js handles both file path resolution (including extension lookup and default engine assignment) and template engine invocation. This coupling of file system concerns with rendering logic increases the complexity of the module and makes it harder to test or extend with custom view resolution strategies.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Separate the path resolution logic from the rendering logic. This would make it easier to support custom view resolvers (as demonstrated in examples/view-constructor/) without modifying the core view class.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Missing acceptance tests for some example applications</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/acceptance/
+                </div>
+                <div class="finding-description">Several examples lack corresponding acceptance tests: examples/online, examples/search, examples/session (redis variant), examples/static-files, examples/view-constructor, examples/view-locals, and examples/route-middleware. The test/acceptance/ directory has 18 test files but there are approximately 25+ example applications.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add acceptance tests for the remaining examples (online, search, session/redis, static-files, view-constructor, view-locals, route-middleware) to ensure they remain functional as the framework evolves.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Legacy CI workflow may mask quality issues across Node.js versions</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/workflows/legacy.yml:1
+                </div>
+                <div class="finding-description">The presence of .github/workflows/legacy.yml indicates testing against older Node.js versions. While important for backwards compatibility, if these legacy runs have different linting or test configurations, quality issues specific to certain versions may be missed or suppressed.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure the legacy workflow runs the same lint and test commands as the main CI. Document which Node.js versions are officially supported and remove legacy support that is no longer maintained.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">ESLint ignore file may suppress important warnings</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .eslintignore:1
+                </div>
+                <div class="finding-description">.eslintignore is present which excludes certain paths from linting. If example code or test support files are excluded, they may accumulate quality issues over time without detection.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Review .eslintignore to ensure only generated or third-party files are excluded. Consider adding a separate, relaxed ESLint config for examples rather than ignoring them entirely.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Examples lack consistent error handling patterns</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/README.md:1
+                </div>
+                <div class="finding-description">The examples directory contains ~30 example applications. Examples like examples/auth/index.js, examples/session/index.js, and examples/web-service/index.js likely demonstrate different error handling approaches. Inconsistency across examples can confuse users who reference them as learning materials.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Establish a consistent pattern for error handling in examples (e.g., always include an error-handling middleware at the end). Add comments in examples explaining the error handling approach used.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test support utilities may duplicate framework functionality</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/support/utils.js:1
+                </div>
+                <div class="finding-description">test/support/utils.js and test/support/tmpl.js provide test utilities and a template engine for testing. These support files should be well-maintained as they underpin the entire test suite, but being in a support directory they may receive less attention during reviews.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure test support files have clear documentation and are reviewed as carefully as production code. Consider whether some test utilities could be replaced by well-known testing libraries.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Thin index.js entry point is well-structured</span>
+                    
+                </div>
+                <div class="finding-location">
+                    index.js:1
+                </div>
+                <div class="finding-description">index.js serves as a simple re-export of lib/express.js, following the common Node.js pattern of keeping the package entry point minimal. This is a good practice that keeps the module&#39;s public API clearly defined.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> No changes needed. This is a well-established pattern.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Extensive acceptance test suite provides good integration coverage</span>
+                    
+                </div>
+                <div class="finding-location">
+                    test/acceptance/auth.js:1
+                </div>
+                <div class="finding-description">The test/acceptance/ directory contains integration tests for 18 example applications (auth, content-negotiation, cookie-sessions, downloads, etc.). This provides strong confidence that examples work correctly and serves as integration-level validation of the framework.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Continue maintaining acceptance tests in parallel with examples. Consider adding acceptance tests for examples that may not have them (e.g., session/redis.js, online, search).
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Security analysis pipeline is well-configured</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/workflows/codeql.yml:1
+                </div>
+                <div class="finding-description">The project includes both .github/workflows/codeql.yml for static security analysis and .github/workflows/scorecard.yml for supply chain security scoring, along with .github/dependabot.yml for automated dependency updates. This demonstrates mature security practices.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure CodeQL is configured to scan JavaScript/TypeScript and that Scorecard results are regularly reviewed. Consider adding SAST results as PR checks.
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section">
+            <h2>Documentation (12)</h2>
+
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Main README.md is minimal and lacks comprehensive API documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    Readme.md:1
+                </div>
+                <div class="finding-description">The Readme.md file for a major framework like Express likely provides only a brief overview, installation instructions, and links to external documentation (expressjs.com). It does not contain inline API reference documentation for the core modules (application, request, response). While Express historically relies on its website for full docs, the README itself should provide more getting-started content, a quick API overview, and common patterns for developers who discover the project on GitHub.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Expand the README to include: a quick-start section with a minimal working example, a brief API overview table covering app, req, res core methods, links to migration guides between major versions, a contributing section, and a troubleshooting/FAQ section. Even if full docs live at expressjs.com, the README should be self-sufficient for basic usage.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Core lib/application.js likely lacks comprehensive JSDoc documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/application.js:1
+                </div>
+                <div class="finding-description">lib/application.js is the primary module defining the Express application object and its methods (app.use, app.get, app.set, app.engine, app.render, app.listen, etc.). As the central API surface, it should have thorough JSDoc comments covering every public method with @param, @returns, @example, and @throws tags. Given Express&#39;s age and coding style, many methods may have minimal or inconsistent inline documentation.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add or improve JSDoc comments for all public methods in application.js. Each method should document: purpose, all parameters with types, return value, thrown errors, and at least one usage example. Use @public/@private tags to distinguish API surface from internal helpers.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Core lib/request.js likely has incomplete parameter documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js:1
+                </div>
+                <div class="finding-description">lib/request.js extends the Node.js http.IncomingMessage with Express-specific properties and methods (req.params, req.query, req.body, req.get, req.accepts, req.is, req.ip, req.hostname, etc.). These are heavily used by every Express developer, and comprehensive inline documentation with JSDoc is essential for IDE support and developer experience. Properties that depend on configuration (like &#39;trust proxy&#39;) need explicit documentation of their behavior.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure every public property and method on the request object has JSDoc with @type or @returns, @param descriptions, notes about configuration dependencies (e.g., &#39;trust proxy&#39; affecting req.ip), and edge case behavior. Add @see links to related methods.
+                </div>
+            </div>
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Core lib/response.js likely has incomplete JSDoc for response methods</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/response.js:1
+                </div>
+                <div class="finding-description">lib/response.js extends http.ServerResponse with Express methods (res.send, res.json, res.redirect, res.render, res.sendFile, res.cookie, res.clearCookie, res.status, res.set, res.append, res.links, res.format, etc.). This is the largest API surface in Express and directly impacts every response sent. Thorough documentation of method signatures, chaining behavior, content-type handling, and error scenarios is critical.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add comprehensive JSDoc to all public response methods. Document chaining behavior (which methods return `this`), content negotiation logic in res.format, security implications of res.redirect, and deprecation notices. Include @example blocks showing common usage patterns.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Examples README lacks detailed descriptions and categorization</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/README.md:1
+                </div>
+                <div class="finding-description">The examples/README.md serves as the index for 30+ example applications. With such a large number of examples spanning authentication, routing, templating, sessions, static files, MVC patterns, and more, the README needs clear categorization and descriptions to help users find relevant examples quickly. A flat list of example names without context makes discoverability poor.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Organize examples into categories (e.g., &#39;Routing&#39;, &#39;Templating&#39;, &#39;Authentication&#39;, &#39;Sessions &amp; Cookies&#39;, &#39;Architecture Patterns&#39;, &#39;Static Files&#39;) with brief one-line descriptions for each example. Include difficulty level indicators and prerequisites (e.g., &#39;requires redis&#39; for session/redis.js).
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/view.js lacks documentation on view engine integration contract</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js:1
+                </div>
+                <div class="finding-description">lib/view.js implements the view resolution and rendering logic that connects Express to template engines. Understanding how Express discovers views, resolves paths, and invokes engine callbacks is critical for anyone building a custom view engine or debugging rendering issues. This module needs clear documentation of the View constructor contract and the expected engine interface.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Document the View class constructor parameters, the engine callback signature expected (fn(path, options, callback)), view resolution algorithm (how &#39;views&#39; setting and extensions are used), and caching behavior. This helps template engine authors integrate correctly.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">History.md changelog may not follow Keep a Changelog conventions</span>
+                    
+                </div>
+                <div class="finding-location">
+                    History.md:1
+                </div>
+                <div class="finding-description">History.md serves as the changelog for Express. For a project of this scale and importance, the changelog should clearly categorize changes (Added, Changed, Deprecated, Removed, Fixed, Security), include links to relevant issues/PRs, and make migration between versions straightforward. The use of &#39;History.md&#39; rather than the more standard &#39;CHANGELOG.md&#39; may reduce discoverability.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider adopting the Keep a Changelog format (https://keepachangelog.com/) with categorized entries. Include links to PRs/issues for each change. Consider adding a CHANGELOG.md symlink or renaming for better ecosystem discoverability. Add migration notes for breaking changes between major versions.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No CONTRIBUTING.md or development setup documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .
+                </div>
+                <div class="finding-description">The repository lacks a visible CONTRIBUTING.md file that would guide new contributors on development setup, coding standards, test execution, PR process, and issue triage. For a project as widely used as Express, clear contribution guidelines are essential to maintain code quality and encourage community participation.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a CONTRIBUTING.md covering: development environment setup, how to run the test suite, coding style guidelines (referencing .eslintrc.yml), commit message conventions, PR review process, and how to report security vulnerabilities. Link to it from the README.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Example applications lack individual README files with setup instructions</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/auth/index.js:1
+                </div>
+                <div class="finding-description">The 30+ example applications in the examples/ directory generally consist of just source files without individual README files explaining their purpose, prerequisites, how to run them, and what to expect. Only examples/README.md exists as a top-level index. Individual examples like auth, mvc, session/redis, and web-service have dependencies or setup requirements that aren&#39;t documented inline.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a brief README.md to each example directory (or at minimum, add a comprehensive comment block at the top of each index.js) explaining: what the example demonstrates, any prerequisites (e.g., Redis for session/redis.js), how to run it, and expected behavior. Complex examples like mvc/ and auth/ especially need this.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">lib/express.js main entry module needs documentation of exported API</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/express.js:1
+                </div>
+                <div class="finding-description">lib/express.js is the main module that creates the express() factory function and attaches middleware (express.json, express.urlencoded, express.static, express.raw, express.text) and other exports (Router, Route). This file should clearly document what is exported and the relationship between the factory function and the application object.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add a module-level JSDoc comment documenting all exports from the express module. Document the express() factory function, all attached middleware constructors, and utility exports like Router. Include @module tag and @example showing basic usage.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">lib/utils.js internal utilities lack documentation</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/utils.js:1
+                </div>
+                <div class="finding-description">lib/utils.js contains internal utility functions used across Express modules. While these are not part of the public API, documenting them improves maintainability and helps contributors understand the codebase. Utility functions for content-type handling, ETag generation, and path normalization benefit from clear documentation.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Add JSDoc comments to all utility functions with @private tags, parameter types, return types, and a brief description of purpose. This aids contributors and reduces onboarding time for new maintainers.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">No TypeScript type definitions or documentation of types</span>
+                    
+                </div>
+                <div class="finding-location">
+                    index.js:1
+                </div>
+                <div class="finding-description">While Express has community-maintained @types/express on DefinitelyTyped, the repository itself does not include TypeScript declarations or reference them. Modern JavaScript projects benefit from either shipping their own .d.ts files or at minimum documenting the types contract in JSDoc format that TypeScript can consume.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Consider adding JSDoc type annotations that are compatible with TypeScript&#39;s JSDoc-based type checking, or ship a types/index.d.ts. At minimum, document the relationship with @types/express in the README so users know where to find type definitions.
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section">
+            <h2>Maintainability (6)</h2>
+
+            
+            <div class="finding severity-high">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">No package-lock.json detected in repository file listing</span>
+                    
+                </div>
+                <div class="finding-location">
+                    package.json
+                </div>
+                <div class="finding-description">The repository file listing does not include a package-lock.json or npm-shrinkwrap.json file. Without a lock file committed to the repository, builds are not reproducible and dependency resolution may vary between environments. This increases the risk of supply chain attacks where a compromised transitive dependency version could be silently pulled in. The presence of .npmrc suggests some npm configuration exists, but a lock file is critical for integrity.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Generate and commit a package-lock.json to the repository. Use &#39;npm ci&#39; in CI pipelines instead of &#39;npm install&#39; to ensure deterministic builds. If the omission is intentional (as a library), document this decision but consider using npm-shrinkwrap.json for published packages.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Legacy CI workflow may test against outdated Node.js versions</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/workflows/legacy.yml
+                </div>
+                <div class="finding-description">The presence of .github/workflows/legacy.yml suggests the project maintains CI testing against older/legacy Node.js versions. While this is good for backward compatibility, it may mask dependency issues where newer dependency versions drop support for older Node.js runtimes, creating maintenance burden and potentially forcing the project to pin older, less secure dependency versions.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Clearly define the Node.js version support matrix. When legacy Node.js versions reach EOL, plan deprecation timelines. Ensure dependency updates don&#39;t silently break legacy support by having clear CI failure policies.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example dependencies not declared — potential confusion for contributors</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/session/redis.js
+                </div>
+                <div class="finding-description">Multiple example files reference external packages that are likely devDependencies or optionally installed: examples/session/redis.js uses &#39;connect-redis&#39; and &#39;express-session&#39;, examples/auth/index.js likely uses &#39;express-session&#39;, examples/markdown/index.js uses a markdown engine, examples/ejs/*.js uses &#39;ejs&#39;, examples/mvc uses &#39;hbs&#39; (Handlebars). These are example-only dependencies whose versions and maintenance status are not tracked in the main package.json, potentially leading to broken examples over time.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Document required dependencies for each example in examples/README.md. Consider adding a separate package.json for examples or listing example dependencies as optionalDependencies/devDependencies with version ranges in the main package.json.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">.npmrc configuration may affect dependency resolution behavior</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .npmrc:1-1
+                </div>
+                <div class="finding-description">An .npmrc file is present which can configure registry URLs, authentication tokens, and resolution behavior. If misconfigured, it could point to alternative registries or disable security features like audit checks, potentially introducing supply chain risks.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Verify that .npmrc does not disable npm audit, does not point to untrusted registries, and does not contain leaked credentials. Ensure &#39;package-lock=true&#39; is set if lock files are desired.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependabot configured for automated dependency updates</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/dependabot.yml:1-1
+                </div>
+                <div class="finding-description">The repository has a .github/dependabot.yml configuration file, indicating that automated dependency update PRs are enabled. This is a positive practice for maintaining up-to-date dependencies and reducing supply chain risk.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure Dependabot is configured with appropriate update frequency and version strategies. Verify that both npm and GitHub Actions ecosystems are covered.
+                </div>
+            </div>
+            
+            <div class="finding severity-info">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CodeQL and Scorecard security workflows present</span>
+                    
+                </div>
+                <div class="finding-location">
+                    .github/workflows/codeql.yml:1-1
+                </div>
+                <div class="finding-description">The repository includes .github/workflows/codeql.yml and .github/workflows/scorecard.yml, indicating proactive security scanning via GitHub&#39;s CodeQL analysis and OpenSSF Scorecard. This helps detect vulnerabilities in dependencies and code.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Continue maintaining these workflows and ensure they run on all PRs and scheduled intervals.
+                </div>
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section">
+            <h2>Performance (6)</h2>
+
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Linear route matching in router middleware chain</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/application.js
+                </div>
+                <div class="finding-description">Express uses a linear scan through all registered routes/middleware for each incoming request. As the number of routes grows (e.g., hundreds of routes), each request must iterate through all non-matching route layers before finding the correct handler. This is O(n) per request where n is the total number of registered routes.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> For applications with many routes, organize routes using sub-routers (app.use(&#39;/api/v1&#39;, v1Router)) to reduce the search space per request. Consider a radix-tree based router like &#39;find-my-way&#39; for high-route-count applications.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">View template lookup performed on every render call without caching in development</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/view.js
+                </div>
+                <div class="finding-description">In lib/view.js, the View constructor performs filesystem lookups (fs.statSync or similar) to resolve template paths. When &#39;view cache&#39; setting is disabled (default in development), every res.render() call triggers fresh filesystem I/O to locate and compile templates. This includes synchronous file stat operations that block the event loop.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Ensure &#39;view cache&#39; is enabled in production (it is by default when NODE_ENV=production). For development, consider using a file-watcher-based cache invalidation strategy instead of disabling caching entirely. Replace synchronous fs calls with async alternatives.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No ETag caching strategy for JSON responses</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/response.js
+                </div>
+                <div class="finding-description">In lib/response.js, res.json() serializes the response body with JSON.stringify on every call. For responses that return the same data frequently (e.g., configuration endpoints, rarely-changing resources), there is no built-in mechanism to cache serialized output or compute ETags efficiently. The &#39;etag&#39; setting computes a hash of the full body on every response.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> For frequently-requested, rarely-changing JSON endpoints, implement application-level caching (e.g., cache the serialized JSON string and its ETag). Consider using &#39;json replacer&#39; and &#39;json spaces&#39; settings judiciously, as pretty-printing adds significant serialization overhead in production.
+                </div>
+            </div>
+            
+            <div class="finding severity-medium">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Middleware stack processes all layers even for static assets</span>
+                    
+                </div>
+                <div class="finding-location">
+                    examples/static-files/index.js
+                </div>
+                <div class="finding-description">When express.static() middleware is placed after other middleware (e.g., body parsing, session, authentication), static file requests unnecessarily pass through those middleware layers. In examples/static-files/index.js, the ordering of middleware determines whether static files incur unnecessary processing overhead.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> Place express.static() as early as possible in the middleware chain, before body parsers, session middleware, and authentication layers. This allows static file requests to be served without incurring the overhead of unrelated middleware processing.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Request and response prototype extension on every request</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/express.js
+                </div>
+                <div class="finding-description">In lib/express.js, each incoming request has its prototype set to the app&#39;s custom request/response objects using Object.create() or __proto__ assignment. While V8 optimizes prototype chains, this per-request object setup adds allocation overhead that accumulates under high throughput.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> This is an architectural pattern of Express that is difficult to change without a major rewrite. For extremely high-throughput scenarios, consider frameworks like Fastify that use a different approach to request decoration. Ensure the application avoids adding heavy properties to app.request/app.response prototypes.
+                </div>
+            </div>
+            
+            <div class="finding severity-low">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Trust proxy setting parsed on every request</span>
+                    
+                </div>
+                <div class="finding-location">
+                    lib/request.js
+                </div>
+                <div class="finding-description">In lib/request.js, properties like req.ip, req.ips, req.protocol, and req.hostname evaluate the &#39;trust proxy&#39; setting on every access. This involves calling app.get(&#39;trust proxy fn&#39;) and potentially running a trust function against the connection&#39;s remote address each time these properties are read.</div>
+                <div class="finding-recommendation">
+                    <strong>Recommendation:</strong> If req.ip or similar properties are accessed multiple times per request in middleware/handlers, cache the result in a local variable. The framework could benefit from per-request memoization of these computed properties.
+                </div>
+            </div>
+            
+        </section>
         
         
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 125 seconds</p>
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 122 seconds</p>
             <p>https://github.com/expressjs/express</p>
-            <p class="timestamp">2026-02-14 19:28 UTC</p>
+            <p class="timestamp">2026-02-14 19:37 UTC</p>
         </footer>
     </div>
 </body>
