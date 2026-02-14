@@ -9,6 +9,7 @@ import time
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.errors import ERRORS, strip_code_fence
 from spectra.entities.models import (
+    DEFAULT_DIMENSION_SCORE,
     AgentOutput,
     AnalysisReport,
     AnalysisRequest,
@@ -109,7 +110,7 @@ async def analyze_repository(
         _notify(observer, "on_stage_complete", "CRITIQUE", "Critique complete")
 
     # Stage 6: REPORT — compute scores
-    score_card = _compute_scorecard(unique_findings, failed_roles)
+    score_card = _compute_scorecard(unique_findings, failed_roles, agent_outputs)
     cost = estimate_cost(tuple(agent_outputs))
 
     return AnalysisReport(
@@ -415,8 +416,9 @@ def _extract_plan_files(raw_plan: str) -> set[str]:
 def _compute_scorecard(
     findings: tuple[Finding, ...],
     failed_roles: list[AgentRole],
+    agent_outputs: list[AgentOutput] | None = None,
 ) -> ScoreCard:
-    """Build ScoreCard from findings, reweighting if dimensions failed."""
+    """Build ScoreCard from findings + LLM scores, reweighting if dimensions failed."""
     active_weights = {
         dim: w
         for dim, w in DIMENSION_WEIGHTS.items()
@@ -424,10 +426,18 @@ def _compute_scorecard(
     }
     total_weight = sum(active_weights.values()) or 1.0
 
+    # Build LLM score map from agent outputs
+    llm_scores: dict[Dimension, float] = {}
+    if agent_outputs:
+        for out in agent_outputs:
+            dim = _role_to_dimension(out.agent_role)
+            if out.dimension_score is not None:
+                llm_scores[dim] = out.dimension_score
+
     dimensions: list[DimensionScore] = []
     for dim, raw_weight in active_weights.items():
         dim_findings = [f for f in findings if f.dimension == dim]
-        score = _estimate_score(dim_findings)
+        score = _estimate_score(dim_findings, llm_scores.get(dim))
         normalized_weight = raw_weight / total_weight
         dimensions.append(
             DimensionScore(
@@ -448,22 +458,33 @@ def _compute_scorecard(
     )
 
 
-def _estimate_score(findings: list[Finding]) -> float:
-    """Estimate dimension score from findings severity distribution."""
-    if not findings:
-        return 85.0
+_PENALTY_MAP: dict[str, float] = {
+    "critical": 15.0,
+    "high": 8.0,
+    "medium": 3.0,
+    "low": 1.0,
+    "info": 0.0,
+}
+_MAX_PENALTY: float = 55.0
 
-    penalty_map = {
-        "critical": 20.0,
-        "high": 10.0,
-        "medium": 5.0,
-        "low": 2.0,
-        "info": 0.0,
-    }
-    total_penalty = sum(
-        penalty_map.get(f.severity, 0.0) for f in findings
+
+def _estimate_score(
+    findings: list[Finding],
+    llm_score: float | None = None,
+) -> float:
+    """Estimate dimension score blending LLM assessment with penalty formula."""
+    if not findings:
+        return DEFAULT_DIMENSION_SCORE
+
+    raw_penalty = sum(
+        _PENALTY_MAP.get(f.severity, 0.0) for f in findings
     )
-    return max(0.0, min(100.0, 100.0 - total_penalty))
+    capped_penalty = min(raw_penalty, _MAX_PENALTY)
+    penalty_score = max(0.0, 100.0 - capped_penalty)
+
+    if llm_score is not None:
+        return round(0.4 * llm_score + 0.6 * penalty_score, 1)
+    return round(penalty_score, 1)
 
 
 # ── Role/dimension mapping ────────────────────────────────────

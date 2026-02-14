@@ -393,11 +393,33 @@ CONSTRAINTS:
 - Score 0-100 for performance dimension"""
 
 
+_SHARED_GUIDANCE = """
+
+FINDING COUNT:
+- Target 5-15 findings per dimension. Focus on the MOST impactful issues.
+- Do not report every minor style issue. Group similar issues into one finding.
+- If the codebase is excellent, report fewer findings (even 0-3 is valid).
+
+SCORE CALIBRATION (dimension_score):
+- 90-100: Production-ready, follows best practices, minor nitpicks only
+- 75-89: Good quality, some issues but nothing blocking
+- 60-74: Acceptable but needs improvement, several real concerns
+- 40-59: Significant issues that should be addressed
+- 0-39: Critical problems, major rework needed
+- Judge RELATIVE to the ecosystem and project type (framework vs app vs library)
+- A well-maintained library with sparse inline docs can still score 70+ on documentation if it has good README/guides
+
+CONFIDENCE CALIBRATION:
+- Only assign confidence >0.9 if you see exact evidence in the code
+- Assign 0.5-0.7 for likely issues based on patterns
+- Assign <0.5 for suspicions without direct evidence"""
+
+
 SPECIALIST_CONFIGS: dict[AgentRole, tuple[Dimension, str, str]] = {
-    "architecture": ("architecture", "arch", ARCHITECTURE_PROMPT),
-    "security": ("security", "sec", SECURITY_PROMPT),
-    "quality": ("quality", "qual", QUALITY_PROMPT),
-    "documentation": ("documentation", "doc", DOCUMENTATION_PROMPT),
-    "dependency": ("maintainability", "dep", DEPENDENCY_PROMPT),
-    "performance": ("performance", "perf", PERFORMANCE_PROMPT),
+    "architecture": ("architecture", "arch", ARCHITECTURE_PROMPT + _SHARED_GUIDANCE),
+    "security": ("security", "sec", SECURITY_PROMPT + _SHARED_GUIDANCE),
+    "quality": ("quality", "qual", QUALITY_PROMPT + _SHARED_GUIDANCE),
+    "documentation": ("documentation", "doc", DOCUMENTATION_PROMPT + _SHARED_GUIDANCE),
+    "dependency": ("maintainability", "dep", DEPENDENCY_PROMPT + _SHARED_GUIDANCE),
+    "performance": ("performance", "perf", PERFORMANCE_PROMPT + _SHARED_GUIDANCE),
 }

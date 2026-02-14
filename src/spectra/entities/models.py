@@ -108,6 +108,7 @@ class AgentOutput(BaseModel, frozen=True):
     tokens_used: int
     duration_seconds: float
     raw_response: str
+    dimension_score: float | None = None
 
 
 class AgentContext(BaseModel, frozen=True):

@@ -220,20 +220,26 @@ class TestEstimateScore:
     def test_critical_penalty(self):
         findings = [_finding("security", "critical")]
         score = _estimate_score(findings)
-        assert score == 80.0
+        assert score == 85.0  # 100 - 15 = 85
 
     def test_high_penalty(self):
         findings = [_finding("security", "high")]
-        assert _estimate_score(findings) == 90.0
+        assert _estimate_score(findings) == 92.0  # 100 - 8 = 92
 
     def test_info_no_penalty(self):
         findings = [_finding("security", "info")]
         assert _estimate_score(findings) == 100.0
 
-    def test_floor_at_zero(self):
+    def test_penalty_capped_at_55(self):
+        # 10 criticals = 150 raw penalty, but capped at 55
         findings = [_finding("security", "critical", line=i) for i in range(10)]
         score = _estimate_score(findings)
-        assert score == 0.0
+        assert score == 45.0  # 100 - 55 (cap)
+
+    def test_blended_with_llm_score(self):
+        findings = [_finding("security", "high")]
+        # penalty_score = 92, llm_score = 80 → 0.4*80 + 0.6*92 = 32 + 55.2 = 87.2
+        assert _estimate_score(findings, llm_score=80.0) == 87.2
 
     def test_cap_at_100(self):
         assert _estimate_score([]) == 85.0

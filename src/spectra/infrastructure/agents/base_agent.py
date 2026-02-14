@@ -42,7 +42,8 @@ class BaseAgent(ABC):
         tokens = self._get_tokens_used()
         parsed = self.parse_output(raw_output)
         findings = self.validate_output(parsed)
-        return self.format_result(findings, raw_output, duration, tokens)
+        dim_score = self._extract_dimension_score(parsed)
+        return self.format_result(findings, raw_output, duration, tokens, dim_score)
 
     @abstractmethod
     def validate_input(self, user_prompt: str) -> None:
@@ -85,16 +86,19 @@ class BaseAgent(ABC):
         ...
 
     def _get_tokens_used(self) -> int:
-        """Get actual token usage from the gateway's last API call.
-
-        Falls back to len // 4 approximation if the gateway doesn't
-        expose usage metadata (e.g. in tests with mocks).
-        """
+        """Get actual token usage from the gateway's last API call."""
         usage: tuple[int, int] = getattr(
             self._gateway, "last_usage", (0, 0)
         )
         inp, out = usage
         return inp + out if (inp + out) > 0 else 0
+
+    def _extract_dimension_score(self, parsed: dict) -> float | None:
+        """Extract the LLM's holistic dimension score from parsed output."""
+        score = parsed.get("dimension_score")
+        if isinstance(score, (int, float)) and 0 <= score <= 100:
+            return float(score)
+        return None
 
     def format_result(
         self,
@@ -102,6 +106,7 @@ class BaseAgent(ABC):
         raw_response: str,
         duration: float,
         tokens_used: int = 0,
+        dimension_score: float | None = None,
     ) -> AgentOutput:
         # Use actual API tokens when available, else rough approximation
         final_tokens = tokens_used if tokens_used > 0 else max(
@@ -113,4 +118,5 @@ class BaseAgent(ABC):
             tokens_used=final_tokens,
             duration_seconds=round(duration, 2),
             raw_response=raw_response,
+            dimension_score=dimension_score,
         )
