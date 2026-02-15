@@ -1,7 +1,34 @@
 """Composition root — wires all dependencies and exposes the CLI entry point.
 
-This is the outermost layer: it imports from all inner layers and wires
-the decorator chain (Logging → Retry → Anthropic) and agent factory.
+This is the outermost layer (Layer 4) of Spectra's Clean Architecture. It is
+the ONLY module that imports from all inner layers and wires the complete
+dependency graph. No other module should perform dependency injection.
+
+Dependency Injection (DI) wiring:
+
+    1. **Decorator chain**: ``LoggingDecorator`` → ``RetryDecorator`` →
+       ``AnthropicAdapter``. Each decorator wraps the next, adding
+       observability and resilience without modifying the core adapter.
+       The chain implements ``LLMGateway`` at every level via structural
+       subtyping (Protocol compliance).
+
+    2. **Agent factory**: ``AgentFactory`` receives the fully-decorated
+       gateway and creates all 8 agents (MetaPrompter, 6 specialists,
+       CritiqueAgent). The factory pattern ensures agents are constructed
+       consistently with the same gateway instance.
+
+    3. **Pipeline orchestration**: After cloning the repo (Stage 1: INGEST),
+       control is handed to ``analyze_repository()`` which runs Stages 2-5.
+       Stage 6 (REPORT) is handled here via ``ReportAdapter`` or JSON output.
+
+    4. **CLI injection**: The ``cli()`` entry point injects ``_run_analysis``
+       into the CLI controller via ``set_analyzer_factory()``, completing the
+       inversion of control — the CLI never imports infrastructure directly.
+
+Security:
+    - Clone directories use ``tempfile.mkdtemp`` with ``0o700`` permissions.
+    - Cleanup is guaranteed via ``finally`` block with ``shutil.rmtree``.
+    - The Anthropic client is explicitly closed to release connection pools.
 """
 
 from __future__ import annotations
@@ -70,13 +97,20 @@ async def _run_analysis(
         msg = "ANTHROPIC_API_KEY environment variable is required"
         raise RuntimeError(msg)
 
-    # Wire decorator chain: Logging → Retry → Anthropic
+    # ── DI Wiring: Decorator Chain ────────────────────────────────
+    # The chain wraps each layer around the next (innermost → outermost):
+    #   AnthropicAdapter (raw API)  ← innermost, actual HTTP calls
+    #   → RetryDecorator            ← adds exponential backoff (1s/2s/4s)
+    #   → LoggingDecorator          ← adds call logging + timing (outermost)
+    # All three satisfy the LLMGateway protocol via structural subtyping.
     observer = RichProgressReporter()
     adapter = AnthropicAdapter(api_key=api_key)
     retry = RetryDecorator(adapter, max_retries=3, backoff_base=1.0)
     gateway = LoggingDecorator(retry, observer=observer)
 
-    # Infrastructure adapters
+    # ── DI Wiring: Infrastructure Adapters ─────────────────────────
+    # GitAdapter implements GitPort (clone, file tree, read_file)
+    # ReportAdapter implements ReportPort (Jinja2 HTML rendering)
     git = GitAdapter()
     report_renderer = ReportAdapter()
 
@@ -98,13 +132,22 @@ async def _run_analysis(
             file_tree=tuple(file_tree),
         )
 
-        # Create agents
+        # ── DI Wiring: Agent Factory ──────────────────────────────
+        # AgentFactory creates all 8 agents with the decorated gateway.
+        # MetaPrompter (Sonnet 4.5) plans from file tree only.
+        # 6 specialists (Opus 4.6) run in parallel via asyncio.gather.
+        # CritiqueAgent (Opus 4.6, extended thinking) validates findings.
         factory = AgentFactory(gateway=gateway)
         meta_prompter = factory.create("meta_prompter")
         specialists = factory.create_specialists()
         critique_agent = None if skip_critique else factory.create("critique")
 
-        # Stages 2-5: PLAN → ANALYZE → MERGE → CRITIQUE
+        # ── Pipeline Stages 2-5 ──────────────────────────────────
+        # Delegates to analyze_repository() which orchestrates:
+        # Stage 2: PLAN  — MetaPrompter creates focus areas
+        # Stage 3: ANALYZE — 6 specialists run in parallel
+        # Stage 4: MERGE — Deduplicate and validate findings
+        # Stage 5: CRITIQUE — CritiqueAgent validates (if not skipped)
         request = AnalysisRequest(
             repo_url=repo_url,
             quick=skip_critique,

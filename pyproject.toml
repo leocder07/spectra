@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Quality Assurance",
 ]
+# Runtime dependencies — required for spectra to function
 dependencies = [
     "anthropic>=0.40",
     "typer>=0.12",
@@ -31,6 +32,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Development-only dependencies — NOT included in production installs
+# Install with: pip install -e ".[dev]"
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
@@ -69,25 +72,78 @@ select = [
     "C4",   # flake8-comprehensions
     "RET",  # flake8-return
     "SIM",  # flake8-simplify
+    "PT",   # flake8-pytest-style
+    "PLW",  # pylint warnings
+    "PLR",  # pylint refactor
+    "PERF", # perflint — performance anti-patterns
+    "RUF",  # ruff-specific rules
+    "T20",  # flake8-print — no print() in src/
+    "DTZ",  # flake8-datetimez — timezone-aware datetimes
+    "PIE",  # flake8-pie — misc lints
+    "RSE",  # flake8-raise — clean raise patterns
+    "TCH",  # flake8-type-checking — TYPE_CHECKING optimization
+    "TID",  # flake8-tidy-imports — import hygiene
 ]
 ignore = [
-    "TC001",  # typing-only-first-party-import — conflicts with Pydantic runtime needs
-    "TC002",  # typing-only-third-party-import — same issue
+    "TCH001",  # typing-only-first-party-import — conflicts with Pydantic runtime needs
+    "TCH002",  # typing-only-third-party-import — same issue
+    "PLR0913", # too-many-arguments — agent constructors need multiple params
+    "PLR2004", # magic-value-comparison — score thresholds are self-documenting
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN"]  # Allow assert and skip annotations in tests
+"tests/**/*.py" = ["S101", "ANN", "PLR2004", "PT011", "T20"]  # Allow assert, skip annotations, magic values, broad raises, print in tests
 "src/spectra/infrastructure/agents/specialist_prompts.py" = ["E501"]  # Long prompt strings
 "src/spectra/infrastructure/agents/critique_agent.py" = ["E501"]  # Long prompt strings
 "src/spectra/infrastructure/agents/meta_prompter.py" = ["E501"]  # Long prompt strings
+"src/spectra/adapters/cli_controller.py" = ["T20"]  # CLI uses Rich console.print, not stdlib print
 
 [tool.mypy]
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+no_implicit_optional = true
 python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = ["git.*", "tiktoken.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 timeout = 30
 testpaths = ["tests"]
+markers = [
+    "unit: Pure unit tests with no I/O or external dependencies",
+    "integration: Tests requiring infrastructure adapters or file I/O",
+    "slow: Tests that take >5 seconds (e.g. large repo analysis)",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:tiktoken.*",
+]
+
+[tool.coverage.run]
+source = ["spectra"]
+omit = [
+    "tests/*",
+    "src/spectra/infrastructure/agents/specialist_prompts.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+    "pass",
+]

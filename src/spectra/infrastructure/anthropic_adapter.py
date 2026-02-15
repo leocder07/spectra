@@ -3,6 +3,15 @@
 Provides ``AnthropicAdapter`` which wraps the ``anthropic.AsyncAnthropic``
 client with streaming support and maps API errors to Spectra error codes
 (SPEC-002 for connection failures, SPEC-003 for rate limits).
+
+Security:
+    - API key is accepted as a constructor argument and passed directly to
+      the Anthropic SDK — it is never logged, serialized, or stored beyond
+      the client instance.
+    - The key is validated at construction time to reject empty or
+      placeholder values before any network call is attempted.
+    - ``close()`` shuts down the underlying httpx connection pool.
+    - ``__del__`` provides a safety net to warn about unclosed clients.
 """
 
 from __future__ import annotations
@@ -32,7 +41,17 @@ class AnthropicAdapter:
 
         Args:
             api_key: Anthropic API key (``sk-ant-*``).
+
+        Raises:
+            ValueError: If the key is empty, whitespace-only, or a
+                placeholder value from ``.env.example``.
         """
+        _PLACEHOLDERS = {"sk-ant-your-key-here", "your-key-here", ""}
+        stripped = api_key.strip()
+        if not stripped or stripped in _PLACEHOLDERS:
+            msg = "ANTHROPIC_API_KEY is missing or contains a placeholder value"
+            raise ValueError(msg)
+        self._closed = False
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key,
             http_client=httpx.AsyncClient(
@@ -96,8 +115,14 @@ class AnthropicAdapter:
         return await self._call_with_thinking(system_prompt, user_prompt, model, max_tokens)
 
     async def close(self) -> None:
-        """Close the underlying HTTP client."""
+        """Close the underlying HTTP client and release connection pool."""
+        self._closed = True
         await self._client.close()
+
+    def __del__(self) -> None:
+        """Warn if the client was not explicitly closed."""
+        if not getattr(self, "_closed", True):
+            _log.warning("AnthropicAdapter was not closed — call close() or use async with")
 
     async def _call_streaming(
         self,

@@ -416,7 +416,7 @@ def _dd_compliance_mapping(
         "owasp_2024_covered_count": covered_2024,
         "owasp_total": len(_OWASP_2021_CATEGORIES),
         "owasp_2024_total": len(_OWASP_2024_CATEGORIES),
-        "cwes": sorted(cwes_found, key=lambda x: int(x)),
+        "cwes": sorted(cwes_found, key=int),
     }
 
 

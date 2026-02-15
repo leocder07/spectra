@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -33,6 +34,26 @@ app = typer.Typer(
 console = Console()
 
 OutputFormat = Literal["html", "json"]
+
+_MAX_URL_LENGTH = 2048
+_URL_PATTERN = re.compile(
+    r"^https://[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}"  # scheme + host
+    r"(/[^\s]*)?$"  # optional path
+)
+
+
+def _validate_repo_url(url: str) -> str | None:
+    """Validate the repository URL and return an error message or None."""
+    if not url or not url.strip():
+        return "Repository URL cannot be empty"
+    if len(url) > _MAX_URL_LENGTH:
+        return f"URL exceeds {_MAX_URL_LENGTH} character limit"
+    if not url.startswith("https://"):
+        return "Only HTTPS repository URLs are supported"
+    if not _URL_PATTERN.match(url):
+        return "Invalid URL format — expected https://host/path"
+    return None
+
 
 _DEFAULT_OUTPUT = Path("spectra-report.html")
 _OUTPUT_OPTION = typer.Option(
@@ -80,7 +101,7 @@ def _version_callback(value: bool) -> None:
     """Print version and exit when --version/-v is passed."""
     if value:
         console.print(f"[bold {VIOLET}]spectra[/] v0.1.0 [dim]// codebase intelligence[/]")
-        raise typer.Exit()
+        raise typer.Exit
 
 
 @app.callback()
@@ -128,6 +149,11 @@ def analyze(
             level=logging.DEBUG,
             format="%(name)s %(levelname)s %(message)s",
         )
+
+    url_error = _validate_repo_url(repo_url)
+    if url_error:
+        console.print(f"[{RED}]✗[/] {url_error}")
+        raise typer.Exit(code=1)
 
     if fmt not in ("html", "json"):
         console.print(f"[{RED}]✗[/] Invalid format: use html or json")

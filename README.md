@@ -325,6 +325,230 @@ Uncomment the threshold check in the workflow to block PRs that score below a mi
 
 ---
 
+## Programmatic API
+
+Spectra can be used as a Python library, not just from the CLI. Import the pipeline function and wire your own adapters.
+
+### Basic Programmatic Usage
+
+```python
+import asyncio
+from spectra.infrastructure.main import _run_analysis
+
+async def analyze_my_repo():
+    """Run Spectra analysis programmatically."""
+    report = await _run_analysis(
+        repo_url="https://github.com/expressjs/express",
+        output_path="report.html",
+        skip_critique=False,
+        output_format="html",
+        verbose=False,
+    )
+    print(f"Overall: {report.score_card.overall_grade} ({report.score_card.overall_score}/100)")
+    print(f"Total findings: {len(report.findings)}")
+    for dim in report.score_card.dimensions:
+        print(f"  {dim.dimension}: {dim.grade} ({dim.score})")
+
+asyncio.run(analyze_my_repo())
+```
+
+### Working with Domain Models
+
+All domain models are immutable Pydantic `frozen=True` models:
+
+```python
+from spectra.entities.models import Finding, FileLocation, ScoreCard, score_to_grade
+
+# Create a finding
+location = FileLocation(file_path="src/auth.py", line_start=42, line_end=50)
+finding = Finding(
+    id="sec-001",
+    dimension="security",
+    severity="high",
+    title="SQL injection in login query",
+    description="User input concatenated into raw SQL",
+    location=location,
+    recommendation="Use parameterized queries",
+    agent_role="security",
+    confidence=0.95,
+)
+
+# Findings are immutable — use model_copy to modify
+adjusted = finding.model_copy(
+    update={"severity": "critical", "validated_by_critique": True}
+)
+
+# Grade conversion
+grade = score_to_grade(83.5)  # Returns "B+"
+```
+
+### Custom Agent Integration
+
+Implement the `AnalysisAgent` protocol to create custom agents:
+
+```python
+from spectra.use_cases.orchestrate_agents import AnalysisAgent
+from spectra.entities.models import AgentOutput, Finding
+from spectra.entities.enums import AgentRole
+
+class CustomAgent:
+    """Custom agent satisfying the AnalysisAgent protocol."""
+
+    @property
+    def role(self) -> AgentRole:
+        return "security"
+
+    async def run(self, user_prompt: str) -> AgentOutput:
+        # Your custom analysis logic here
+        findings = self._analyze(user_prompt)
+        return AgentOutput(
+            agent_role=self.role,
+            findings=tuple(findings),
+            tokens_used=0,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+```
+
+### Protocol Interfaces (Ports)
+
+Spectra defines 5 protocol interfaces for dependency inversion:
+
+| Protocol | Purpose | Default Implementation |
+|----------|---------|----------------------|
+| `LLMGateway` | LLM inference calls | `AnthropicAdapter` |
+| `GitPort` | Repository operations | `GitAdapter` |
+| `TokenPort` | Token counting | `TiktokenAdapter` |
+| `ReportPort` | Report rendering | `ReportAdapter` |
+| `ProgressObserver` | Pipeline progress | `RichProgressReporter` |
+
+```python
+from spectra.use_cases.interfaces import LLMGateway, GitPort, TokenPort
+
+# All ports are Protocol classes — implement them for custom backends
+class MyLLMGateway:
+    async def analyze(self, system_prompt, user_prompt, model, max_tokens) -> str:
+        ...
+    async def analyze_with_thinking(self, system_prompt, user_prompt, model, max_tokens) -> str:
+        ...
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | — | Anthropic API key for Claude models |
+
+### CLI Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--quick` | `-q` | `False` | Skip CritiqueAgent, ~40s instead of ~90s |
+| `--format` | `-f` | `html` | Output format: `html` or `json` |
+| `--output` | `-o` | `spectra-report.html` | Report file path |
+| `--verbose` | — | `False` | Enable debug logging output |
+| `--version` | `-v` | — | Show version and exit |
+
+### Token Budget
+
+The default token budget is 800K tokens distributed as:
+
+| Stage | Budget | Purpose |
+|-------|--------|---------|
+| MetaPrompter | 5,000 | File tree planning |
+| Specialists pool | 500,000 | Shared across 6 agents |
+| CritiqueAgent | 200,000 | Finding validation |
+| Buffer | 95,000 | Safety margin |
+
+### Scoring Thresholds
+
+| Constant | Value | Used By |
+|----------|-------|---------|
+| `PASSING_SCORE` | 60.0 | Minimum for a passing grade |
+| `EXCELLENT_SCORE` | 90.0 | Threshold for excellent |
+| `DEFAULT_DIMENSION_SCORE` | 85.0 | Score when no findings exist |
+| `MIN_CONFIDENCE` | 0.7 | Minimum finding confidence |
+
+### Severity Penalties
+
+Each finding severity maps to a score penalty:
+
+| Severity | Penalty | Example |
+|----------|---------|---------|
+| Critical | -15 pts | SQL injection, auth bypass |
+| High | -8 pts | Missing input validation |
+| Medium | -3 pts | No error handling |
+| Low | -1 pt | Minor code smell |
+| Info | 0 pts | Suggestion only |
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### `ANTHROPIC_API_KEY environment variable is required`
+
+Set your API key before running Spectra:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+#### `SPEC-001: Git clone failed`
+
+The repository URL is unreachable. Check that:
+- The URL is a valid HTTPS git URL
+- The repository is public (or you have access)
+- Your network allows outbound HTTPS connections
+
+```bash
+# Verify the repo is accessible
+git ls-remote https://github.com/org/repo
+```
+
+#### `SPEC-003: Rate limited (429)`
+
+Spectra automatically retries rate-limited requests up to 3 times with exponential backoff (1s, 2s, 4s). If you still hit limits:
+- Reduce concurrent usage
+- Use `--quick` to reduce API calls
+- Wait 60 seconds and retry
+
+#### `SPEC-006: Agent timeout (120s)`
+
+A specialist agent exceeded its 120-second timeout. This usually means:
+- The repository is very large (10,000+ files)
+- Network latency to the Anthropic API is high
+
+#### `SPEC-007: 2+ agents failed`
+
+When two or more agents fail, Spectra enters DEGRADED state and produces a partial report. The report will indicate which dimensions are missing.
+
+#### Report is empty or missing sections
+
+Ensure you're using `--format html` (default). JSON output does not include the visual report:
+
+```bash
+spectra analyze <url>                    # HTML report (default)
+spectra analyze <url> --format json      # JSON data only
+```
+
+### Debug Mode
+
+Enable verbose logging to see detailed pipeline execution:
+
+```bash
+spectra analyze <url> --verbose
+```
+
+This shows: agent prompts, token counts, timing per stage, and error details.
+
+---
+
 ## Development
 
 ```bash
@@ -344,6 +568,21 @@ mypy src/
 ```
 
 Requires Python 3.12+ and an `ANTHROPIC_API_KEY`.
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|-----------|
+| **Dimension** | One of 6 analysis categories: architecture, security, quality, documentation, maintainability, performance |
+| **Finding** | A single actionable issue discovered by an agent, with severity, location, and recommendation |
+| **ScoreCard** | Aggregate scores across all dimensions with weighted overall grade |
+| **MetaPrompter** | Planning agent (Sonnet 4.5) that reads the file tree and creates per-agent focus areas |
+| **CritiqueAgent** | Validation agent (Opus 4.6 with extended thinking) that filters false positives |
+| **DEGRADED state** | Pipeline state when 2+ agents fail — produces partial report with reweighted scores |
+| **Decorator chain** | LLM call wrapping: LoggingDecorator → RetryDecorator → AnthropicAdapter |
+| **Composition root** | `infrastructure/main.py` — the only place all layers are imported and wired |
 
 ---
 

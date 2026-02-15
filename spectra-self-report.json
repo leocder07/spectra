@@ -1,0 +1,342 @@
+{
+  "repo_url": "https://github.com/leocder07/spectra",
+  "repo_name": "spectra",
+  "score_card": {
+    "overall_score": 74.9,
+    "overall_grade": "C+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 80.0,
+        "grade": "B",
+        "findings_count": 1,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 68.8,
+        "grade": "C-",
+        "findings_count": 4,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 80.0,
+        "grade": "B",
+        "findings_count": 1,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 54.8,
+        "grade": "F",
+        "findings_count": 5,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 81.2,
+        "grade": "B",
+        "findings_count": 4,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 81.4,
+        "grade": "B",
+        "findings_count": 1,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 16
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Insufficient code provided for meaningful architecture analysis",
+      "description": "The provided codebase content only includes two file paths (docs/adr/ADR-001-clean-architecture.md and docs/diagrams/Spectra-clean_architecture.svg) without any actual source code content. The analysis plan references key architectural files (src/spectra/entities/, src/spectra/use_cases/, src/spectra/adapters/, src/spectra/infrastructure/) but none of their contents were provided. Without the actual implementation code, it is impossible to verify whether clean architecture boundaries are respected, dependency directions are enforced, or interfaces are properly segregated.",
+      "location": {
+        "file_path": "docs/adr/ADR-001-clean-architecture.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the analysis with the full source code contents of the referenced files, particularly: src/spectra/entities/models.py, src/spectra/use_cases/interfaces.py, src/spectra/adapters/, src/spectra/infrastructure/, and any agent_factory.py files.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "high",
+      "title": "Potential API Key Exposure via Environment Variables",
+      "description": "The presence of .env.example suggests the project uses .env files for configuration, likely including the Anthropic API key referenced by anthropic_adapter.py. If .env files are not properly excluded from version control or if the .env.example contains real credentials, this constitutes CWE-798 (Use of Hard-coded Credentials) and OWASP A07:2021 Identification and Authentication Failures.",
+      "location": {
+        "file_path": ".env.example",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Verify .env is in .gitignore, ensure .env.example contains only placeholder values (not real keys), and consider using a secrets manager for production deployments. Audit git history for any previously committed real credentials.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "high",
+      "title": "Anthropic API Key Handling in Infrastructure Adapter",
+      "description": "The anthropic_adapter.py likely loads an API key to communicate with the Anthropic API. Without proper validation that the key is loaded from environment variables (not hardcoded) and that it is not logged or exposed in error messages, this risks CWE-798 (Hard-coded Credentials) and CWE-209 (Information Exposure Through Error Messages). OWASP A07:2021.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/anthropic_adapter.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure API keys are loaded exclusively from environment variables or a secrets manager. Never log API keys. Wrap API calls in try/except blocks that sanitize error messages before propagation.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Git Repository Path Traversal Risk",
+      "description": "git_adapter.py likely accepts repository paths or file paths as input. If user-supplied paths are not validated and canonicalized, this could allow path traversal attacks (CWE-22) enabling access to files outside the intended repository directory. OWASP A01:2021 Broken Access Control.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/git_adapter.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Canonicalize all file paths using os.path.realpath() and verify they remain within the expected repository root directory. Reject paths containing '..' sequences or symbolic links that escape the boundary.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "CLI Input Validation Gaps",
+      "description": "cli_controller.py serves as the entry point for user input. If CLI arguments (repository paths, configuration values, dimension names) are not validated before being passed to internal services, this could enable injection attacks (CWE-78 OS Command Injection, CWE-20 Improper Input Validation). OWASP A03:2021 Injection.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Implement strict input validation on all CLI parameters using allowlists where possible. Sanitize file paths, validate dimension names against a known set, and never pass raw user input to shell commands or subprocess calls.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Insufficient code provided for meaningful quality analysis",
+      "description": "The repository analysis was provided with only file paths (.github/workflows/ci.yml, docs/adr/ADR-004-frozen-pydantic-models.md, pyproject.toml) and a PLAN block, but no actual source code content was included for any of these files. Without the actual code, it is impossible to assess cyclomatic complexity, code duplication, naming conventions, test coverage, dead code, or error handling patterns.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the analysis with the full file contents included so that meaningful quality findings can be produced. Include the contents of files in src/spectra/, tests/, pyproject.toml, .github/workflows/ci.yml, and any other relevant source files.",
+      "agent_role": "quality",
+      "confidence": 1.0,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "critical",
+      "title": "Repository contains only top-level markdown files with no substantive content visible",
+      "description": "The analyzed codebase only shows three file names (CLAUDE.md, CONTRIBUTING.md, README.md) and a PLAN comment, but no actual file contents were provided. Based on the PLAN's references to docs/adr/, docs/skills/, docs/diagrams/, docs/sprint/, cortex-vault/, and .claude-plugin/ directories, the project appears to be a complex agent/plugin system, yet the actual content of these documentation files and directories was not available for analysis. This severely limits the ability to assess documentation quality.",
+      "location": {
+        "file_path": "README.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure the README.md contains comprehensive project overview, setup instructions, usage examples, and links to sub-documentation. Without visible content, a full audit cannot be completed \u2014 re-run analysis with file contents included.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "Architecture Decision Records (ADR) directory referenced but content not verifiable",
+      "description": "The PLAN references a docs/adr/ directory for architectural decisions, which is a best practice. However, no ADR content was provided for review. For a project with agent skills, a cortex-vault knowledge management system, and a Claude plugin configuration, architectural decisions are critical to document \u2014 covering topics like prompt engineering strategies, vault structure decisions, plugin API contracts, and agent orchestration patterns.",
+      "location": {
+        "file_path": "docs/adr/",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure ADRs exist for key decisions: (1) cortex-vault knowledge structure, (2) agent skill prompt design patterns, (3) plugin configuration schema, (4) diagram-to-implementation sync strategy. Use a standard ADR template (e.g., MADR or Nygard format) with Status, Context, Decision, and Consequences sections.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Agent skill prompt documentation coverage unknown",
+      "description": "The PLAN references docs/skills/ which suggests the project includes agent skill definitions (likely prompt templates or behavioral specifications). Skill documentation is essential for maintainability and onboarding \u2014 each skill should document its purpose, expected inputs/outputs, edge cases, and interaction patterns with other skills.",
+      "location": {
+        "file_path": "docs/skills/",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Each skill document should include: (1) skill name and purpose, (2) trigger conditions, (3) input/output schema, (4) example invocations, (5) known limitations, and (6) dependencies on other skills or vault knowledge.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "CONTRIBUTING.md exists but content not verifiable",
+      "description": "A CONTRIBUTING.md file is present, which is good practice. However, for a project involving agent prompts, a knowledge vault, and plugin configuration, the contributing guide needs to cover non-standard workflows \u2014 such as how to add new skills, how to update the cortex-vault, how to test prompt changes, and how to validate diagram accuracy against implementation.",
+      "location": {
+        "file_path": "CONTRIBUTING.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure CONTRIBUTING.md covers: (1) standard code contribution workflow, (2) how to add/modify agent skills, (3) cortex-vault update procedures, (4) prompt testing methodology, (5) diagram update requirements when implementation changes.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Plugin configuration documentation (.claude-plugin/) needs public interface docs",
+      "description": "The PLAN references a .claude-plugin/ directory, suggesting this project provides a plugin interface. Plugin configurations typically need clear documentation of the schema, available options, default values, and integration points. Without visible content, it's unclear whether this documentation exists.",
+      "location": {
+        "file_path": ".claude-plugin/",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Create or verify existence of plugin configuration documentation covering: (1) configuration schema with all fields explained, (2) default values and their rationale, (3) example configurations for common use cases, (4) troubleshooting guide for configuration errors.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Archived TypeScript configuration still present in repository",
+      "description": "The file archive/ts-configs/package.json indicates abandoned TypeScript configuration files remain in the repository. Archived dependencies that are no longer maintained or used can create confusion about the project's actual dependency surface and may contain outdated or vulnerable packages that show up in automated scanning tools.",
+      "location": {
+        "file_path": "archive/ts-configs/package.json",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Either remove the archive/ts-configs directory entirely or add it to .gitignore/.npmignore. If it must remain for historical reference, ensure automated security scanners (including Dependabot) are configured to exclude this path so it doesn't generate noise.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Dependabot configuration present \u2014 verify ecosystem coverage",
+      "description": "A .github/dependabot.yml file exists, which is positive for automated dependency updates. However, the project appears to span multiple ecosystems (Python via pyproject.toml/requirements.lock, and potentially npm via archive/ts-configs/package.json). Without seeing the file contents, there is a risk that not all active ecosystems or directories are covered by the Dependabot configuration.",
+      "location": {
+        "file_path": ".github/dependabot.yml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Verify that dependabot.yml includes an entry for the 'pip' ecosystem targeting the root directory (where pyproject.toml lives). Ensure the archived TypeScript configs are either excluded or the npm ecosystem entry is removed if no longer needed. Consider adding a GitHub Actions ecosystem entry if workflows use third-party actions.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Lock file strategy \u2014 requirements.lock should be kept in sync with pyproject.toml",
+      "description": "The project uses pyproject.toml for dependency specification and requirements.lock for pinning. This is a common pattern (often generated by tools like pip-compile, uv, or rye). Without seeing the contents, the key risk is lock file drift \u2014 where pyproject.toml constraints are updated but requirements.lock is not regenerated, leading to inconsistent environments or missed security patches.",
+      "location": {
+        "file_path": "requirements.lock",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure CI includes a step that verifies the lock file is up-to-date with pyproject.toml (e.g., `pip-compile --check` or `uv lock --check`). Document the lock file regeneration process in CONTRIBUTING.md or a Makefile target.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Dev vs production dependency separation should be verified",
+      "description": "pyproject.toml supports optional dependency groups (e.g., [project.optional-dependencies] or [tool.pdm.dev-dependencies]). Proper separation of dev/test dependencies from production dependencies is important for reducing the attack surface in production deployments and keeping container images lean.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Verify that development-only packages (testing frameworks, linters, type checkers) are in optional dependency groups rather than the main [project.dependencies]. Generate separate lock files or use dependency groups for production vs development if the tooling supports it.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Git repository cloning and file tree generation for large repos",
+      "description": "Cloning entire repositories and generating full file trees for large codebases can consume significant memory and time. Without shallow cloning (--depth 1), sparse checkout, or file size/count limits, processing a repository with thousands of files or large binary assets could cause memory pressure and slow startup significantly.",
+      "location": {
+        "file_path": "src/spectra/use_cases/orchestrate_agents.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Use shallow clones (git clone --depth 1), implement file count and size limits, exclude binary files and common non-code directories (node_modules, .git, vendor), and consider streaming file tree generation rather than building the entire tree in memory.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0
+    }
+  ],
+  "analysis_duration_seconds": 67.57,
+  "total_tokens_used": 18885,
+  "total_cost_usd": 0.5042,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 0
+}

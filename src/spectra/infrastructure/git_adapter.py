@@ -1,11 +1,38 @@
 """Git adapter — implements GitPort using GitPython.
 
-Security hardening:
-- HTTPS-only cloning (no SSH/git:// protocols).
-- URL length cap to prevent abuse.
-- SSRF protection via private/loopback IP detection.
-- Symlink and path-traversal blocking on file reads.
-- Per-file size limit (1 MB) and repo-wide limits (10K files, 100 MB).
+Security hardening applied at multiple layers:
+
+1. **Protocol restriction** — Only HTTPS URLs are accepted. SSH (``git@``),
+   ``git://``, and ``file://`` protocols are rejected to prevent
+   local-file-read and unauthenticated-clone attacks.
+
+2. **SSRF prevention** — Before cloning, the hostname is resolved and
+   checked against private (RFC 1918), loopback (127.x), and link-local
+   (169.254.x) IP ranges via ``_is_private_ip()``. This blocks requests
+   to internal services even when hidden behind DNS.
+
+3. **URL length cap** — URLs longer than 2 048 characters are rejected to
+   prevent header-overflow and log-injection attacks.
+
+4. **Path traversal protection** — ``read_file()`` resolves the requested
+   path *after* joining it with the repo root, then verifies the resolved
+   path is still within the repo via ``Path.is_relative_to()``. Paths
+   containing null bytes or starting with ``/`` are also rejected.
+
+5. **Symlink blocking** — Symlinks are skipped during tree walks and
+   explicitly rejected in ``read_file()`` to prevent symlink-based
+   directory-escape attacks.
+
+6. **Size limits** — Individual files are capped at 1 MB; repositories
+   are capped at 10 000 files and 100 MB total to prevent resource
+   exhaustion (zip-bomb style repos).
+
+7. **Clone hardening** — Clones are shallow (``depth=1``), disable Git
+   hooks (``core.hooksPath=/dev/null``), skip submodules, and enforce a
+   60-second timeout to prevent hanging on slow or malicious remotes.
+
+8. **Read timeout** — ``read_file()`` uses a 5-second ``asyncio.wait_for``
+   to avoid blocking on special device files or FUSE mounts.
 """
 
 from __future__ import annotations
@@ -58,13 +85,24 @@ def _is_private_ip(hostname: str) -> bool:
 
 
 class GitAdapter:
-    """Async wrapper around GitPython implementing the GitPort protocol."""
+    """Async wrapper around GitPython implementing the GitPort protocol.
+
+    All public methods are hardened against untrusted input — see the
+    module docstring for the full security model.
+    """
 
     async def clone(self, repo_url: str, target_dir: str) -> None:
         """Clone a repository with security hardening.
 
-        Security: HTTPS-only, URL length capped, hostname checked
-        against private/loopback IP ranges to prevent SSRF.
+        Security checks applied (in order):
+            1. URL length ≤ 2 048 characters.
+            2. Protocol must be ``https://``.
+            3. Hostname resolved and checked against private/loopback IPs.
+            4. Shallow clone (``depth=1``), Git hooks disabled, no submodules.
+            5. 60-second timeout via ``asyncio.wait_for``.
+
+        Raises:
+            GitError: SPEC-001 on any validation or clone failure.
         """
         if len(repo_url) > _MAX_URL_LENGTH:
             raise GitError(ERRORS["SPEC-001"])
@@ -110,7 +148,18 @@ class GitAdapter:
         return await loop.run_in_executor(None, self._walk_tree, repo_dir)
 
     async def read_file(self, repo_dir: str, file_path: str) -> str:
-        """Read a file with path traversal, symlink, and size protection."""
+        """Read a single file from the cloned repository.
+
+        Security checks applied (in order):
+            1. Reject null bytes and absolute paths.
+            2. Reject symlinks (before resolving).
+            3. Resolve and verify the path stays within ``repo_dir``.
+            4. Reject files larger than 1 MB.
+            5. 5-second read timeout.
+
+        Raises:
+            ValueError: On any security violation or size limit breach.
+        """
         if "\0" in file_path or file_path.startswith("/"):
             msg = f"Invalid file path: {file_path!r}"
             raise ValueError(msg)

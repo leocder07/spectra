@@ -1,8 +1,23 @@
 """Agent factory — creates configured agent instances by role.
 
-Centralizes agent construction so the composition root only needs a
-single ``AgentFactory`` instance. The factory reads specialist configs
-from ``specialist_prompts.SPECIALIST_CONFIGS``.
+Implements the Factory pattern to centralize agent construction. The
+composition root (``infrastructure/main.py``) creates a single
+``AgentFactory`` instance with the decorated LLM gateway, then uses
+it to create all 8 agents without knowing their concrete classes.
+
+Factory dispatch logic:
+    - ``"meta_prompter"`` → ``MetaPrompter`` (Sonnet 4.5, file tree only)
+    - ``"critique"`` → ``CritiqueAgent`` (Opus 4.6, extended thinking)
+    - Any specialist role → ``SpecialistAgent`` parameterized with config
+      from ``specialist_prompts.SPECIALIST_CONFIGS``
+
+The ``create_specialists()`` convenience method returns all 6 specialist
+agents in canonical order for parallel execution via ``asyncio.gather``.
+
+Dependencies:
+    - Imports from ``entities/`` (AgentRole enum) and ``use_cases/``
+      (LLMGateway protocol) — respects the dependency rule.
+    - Imports sibling agent classes from the same ``agents/`` package.
 """
 
 from __future__ import annotations
@@ -42,11 +57,16 @@ class AgentFactory:
         Raises:
             ValueError: If the role is unknown.
         """
+        # Factory dispatch: special agents first, then parameterized specialists
         if role == "meta_prompter":
+            # MetaPrompter uses Sonnet 4.5, receives ONLY file tree (≤5K tokens)
             return MetaPrompter(gateway=self._gateway)
         if role == "critique":
+            # CritiqueAgent uses Opus 4.6 with extended thinking
             return CritiqueAgent(gateway=self._gateway)
 
+        # All 6 specialist roles use the same SpecialistAgent class,
+        # parameterized by dimension-specific config from SPECIALIST_CONFIGS
         config = SPECIALIST_CONFIGS.get(role)
         if config is None:
             msg = f"Unknown agent role: {role}"
