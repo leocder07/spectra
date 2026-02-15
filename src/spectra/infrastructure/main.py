@@ -169,6 +169,11 @@ async def _run_analysis(
             if output_format == "json":
                 data = json.dumps(report.model_dump(mode="json"), indent=2)
                 Path(output_path).write_text(data, encoding="utf-8")
+            elif output_format == "sarif":
+                sarif = _build_sarif(report)
+                Path(output_path).write_text(
+                    json.dumps(sarif, indent=2), encoding="utf-8",
+                )
             else:
                 report_renderer.render(report, output_path)
         except Exception as exc:
@@ -180,6 +185,61 @@ async def _run_analysis(
     finally:
         shutil.rmtree(clone_dir, ignore_errors=True)
         await adapter.close()
+
+
+_SARIF_SEVERITY: dict[str, str] = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "info": "note",
+}
+
+
+def _build_sarif(report: AnalysisReport) -> dict:
+    """Build SARIF v2.1.0 output for GitHub Security tab integration.
+
+    Args:
+        report: Completed analysis report.
+
+    Returns:
+        SARIF-compliant dictionary ready for JSON serialization.
+    """
+    results = []
+    for f in report.findings:
+        results.append({
+            "ruleId": f"spectra/{f.dimension}/{f.id}",
+            "level": _SARIF_SEVERITY.get(f.severity, "note"),
+            "message": {"text": f"{f.title}: {f.description}"},
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": f.location.file_path},
+                    "region": {"startLine": max(1, f.location.line_start)},
+                },
+            }],
+            "properties": {
+                "severity": f.severity,
+                "dimension": f.dimension,
+                "recommendation": f.recommendation,
+                "estimatedHours": f.estimated_hours,
+            },
+        })
+
+    return {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "Spectra",
+                    "version": "0.1.0",
+                    "informationUri": "https://github.com/leocder07/spectra",
+                    "rules": [],
+                },
+            },
+            "results": results,
+        }],
+    }
 
 
 def cli() -> None:

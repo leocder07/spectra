@@ -144,7 +144,12 @@ def analyze(
         "html",
         "--format",
         "-f",
-        help="Output format: html or json",
+        help="Output format: html, json, or sarif",
+    ),
+    min_score: float = typer.Option(
+        0.0,
+        "--min-score",
+        help="Minimum overall score to pass (exit 1 if below)",
     ),
     verbose: bool = typer.Option(
         False,
@@ -164,8 +169,8 @@ def analyze(
         console.print(f"[{RED}]✗[/] {url_error}")
         raise typer.Exit(code=1)
 
-    if fmt not in ("html", "json"):
-        console.print(f"[{RED}]✗[/] Invalid format: use html or json")
+    if fmt not in ("html", "json", "sarif"):
+        console.print(f"[{RED}]✗[/] Invalid format: use html, json, or sarif")
         raise typer.Exit(code=1)
 
     if _analyzer_factory is None:
@@ -210,6 +215,21 @@ def analyze(
         raise typer.Exit(code=1)
 
     _print_summary(report, str(output), fmt)
+
+    # Quality gate: exit 1 if score is below --min-score threshold
+    if min_score > 0:
+        sc = getattr(report, "score_card", None)
+        if sc and sc.overall_score < min_score:
+            console.print(
+                f"\n[{RED}]✗[/] Quality gate FAILED: "
+                f"{sc.overall_score:.0f} < {min_score:.0f} threshold"
+            )
+            raise typer.Exit(code=1)
+        if sc:
+            console.print(
+                f"  [{GREEN}]✓[/] Quality gate passed: "
+                f"{sc.overall_score:.0f} >= {min_score:.0f}"
+            )
 
 
 def _print_summary(
