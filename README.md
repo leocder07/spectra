@@ -4,16 +4,18 @@
 
 **8 AI agents analyze your entire repository in 90 seconds.**
 
-Spectra deploys 6 parallel specialist agents — plus a planner and a critic — to score your codebase across architecture, security, quality, documentation, maintainability, and performance. You get a letter grade, a ranked list of findings, and a single-file HTML report.
+Spectra deploys 8 AI agents — 1 MetaPrompter (planner) + 6 specialists (parallel) + 1 CritiqueAgent (validator) — to score your codebase across architecture, security, quality, documentation, maintainability, and performance. You get a letter grade, a ranked list of findings, and a single-file HTML report.
 
 ---
 
 ## Quick Start
 
 ```bash
-pip install spectra-cli
-export ANTHROPIC_API_KEY=sk-...
-spectra analyze https://github.com/your-org/your-repo
+git clone https://github.com/leocder07/spectra.git
+cd spectra
+pip install -e ".[dev]"
+export ANTHROPIC_API_KEY=sk-ant-...
+spectra analyze https://github.com/expressjs/express
 ```
 
 That's it. Open `spectra-report.html` when it's done.
@@ -68,7 +70,7 @@ Spectra runs a 6-stage pipeline:
 ```
 INGEST ──→ PLAN ──→ ANALYZE ──→ MERGE ──→ CRITIQUE ──→ REPORT
   │          │         │           │          │            │
-  Clone    MetaP    6 agents    Dedup     Validate     HTML +
+  Clone    MetaP   6 specialist  Dedup     Validate     HTML +
   repo     plans    parallel    + score   findings     ScoreCard
 ```
 
@@ -229,8 +231,8 @@ The HTML report includes every finding with severity, file path, line number, fi
 ## Development
 
 ```bash
-git clone https://github.com/leocder07/spectra-cli.git
-cd spectra-cli
+git clone https://github.com/leocder07/spectra.git
+cd spectra
 pip install -e ".[dev]"
 
 # Run

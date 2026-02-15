@@ -75,9 +75,8 @@ class AnthropicAdapter:
                         elif event.type == "message_delta":
                             if hasattr(event.usage, "output_tokens"):
                                 output_tokens = event.usage.output_tokens
-                        elif event.type == "message_start":
-                            if hasattr(event.message, "usage"):
-                                input_tokens = event.message.usage.input_tokens
+                        elif event.type == "message_start" and hasattr(event.message, "usage"):
+                            input_tokens = event.message.usage.input_tokens
             self._last_usage = (input_tokens, output_tokens)
             return "".join(collected_text)
         except anthropic.APIConnectionError as exc:

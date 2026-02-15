@@ -105,10 +105,13 @@ async def analyze_repository(
     # Stage 5: CRITIQUE
     critique_insights: tuple[str, ...] = ()
     if _should_run_critique(request, is_degraded, critique_agent, remaining):
+        if critique_agent is None:  # guaranteed by _should_run_critique
+            msg = "critique_agent must not be None when critique is enabled"
+            raise RuntimeError(msg)
         _notify(observer, "on_stage_start", "CRITIQUE", "Validating findings")
         unique_findings, critique_insights, critique_out = (
             await _run_critique_stage(
-                critique_agent, unique_findings, observer,  # type: ignore[arg-type]
+                critique_agent, unique_findings, observer,
             )
         )
         if critique_out is not None:

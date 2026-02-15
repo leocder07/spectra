@@ -23,7 +23,6 @@ from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
-from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import analyze_repository
 
 
@@ -56,7 +55,6 @@ async def _run_analysis(
 
     # Infrastructure adapters
     git = GitAdapter()
-    TiktokenAdapter()
     report_renderer = ReportAdapter()
 
     clone_dir = tempfile.mkdtemp(prefix="spectra-")
@@ -64,6 +62,7 @@ async def _run_analysis(
         # Stage 1: INGEST — clone repo
         observer.on_stage_start("INGEST", "Cloning repository")
         await git.clone(repo_url, clone_dir)
+        await git.validate_repo_size(clone_dir)
         file_tree = await git.get_file_tree(clone_dir)
         observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
 

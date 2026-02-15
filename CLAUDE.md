@@ -160,8 +160,8 @@ spectra/
 │   ├── conftest.py
 │   ├── entities/
 │   ├── use_cases/
-│   ├── integration/
-│   └── e2e/
+│   ├── adapters/
+│   └── infrastructure/
 └── golden_files/
     ├── express-starter/
     ├── react-dashboard/
