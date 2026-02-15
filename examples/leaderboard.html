@@ -384,17 +384,17 @@
         <div class="header">
             <h1>SPECTRA LEADERBOARD</h1>
             <div class="subtitle">How do popular frameworks compare?</div>
-            <div class="meta">3 repos analyzed &middot; 6 dimensions &middot; 8 AI agents each</div>
+            <div class="meta">5 repos analyzed &middot; 6 dimensions &middot; 8 AI agents each</div>
         </div>
 
         <!-- Stats bar -->
         <div class="stats-bar">
             <div class="stat">
-                <div class="stat-value">3</div>
+                <div class="stat-value">5</div>
                 <div class="stat-label">Repos Analyzed</div>
             </div>
             <div class="stat">
-                <div class="stat-value">159</div>
+                <div class="stat-value">232</div>
                 <div class="stat-label">Total Findings</div>
             </div>
             <div class="stat">
@@ -423,24 +423,70 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- #1 Flask -->
+                <!-- #1 Django -->
                 <tr>
                     <td>
                         <div class="repo-name">
                             <span class="rank rank-1">1</span>
+                            <span>
+                                <span class="repo-link">django/django</span>
+                                <span class="repo-lang">Python</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="overall-cell grade-a">A- <span style="font-size:0.75rem;color:var(--text-muted)">(89)</span></td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">92</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">94</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">81</span>
+                        <span class="score-grade grade-b">B</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">93</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">86</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">81</span>
+                        <span class="score-grade grade-b">B</span>
+                    </td>
+                    <td class="findings-count">38</td>
+                </tr>
+                <!-- #2 Flask -->
+                <tr>
+                    <td>
+                        <div class="repo-name">
+                            <span class="rank rank-2">2</span>
                             <span>
                                 <span class="repo-link">pallets/flask</span>
                                 <span class="repo-lang">Python</span>
                             </span>
                         </div>
                     </td>
-                    <td class="overall-cell grade-a">A- <span style="font-size:0.75rem;color:var(--text-muted)">(87)</span></td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">91</span>
-                        <span class="score-grade grade-a">A</span>
+                    <td class="overall-cell grade-b">B+ <span style="font-size:0.75rem;color:var(--text-muted)">(85)</span></td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">85</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">81</span>
+                        <span class="score-grade grade-b">B</span>
                     </td>
                     <td class="score-cell best-in-class">
-                        <span class="score-num grade-b">83</span>
+                        <span class="score-num grade-a">88</span>
+                        <span class="score-grade grade-a">A-</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">86</span>
                         <span class="score-grade grade-b">B+</span>
                     </td>
                     <td class="score-cell best-in-class">
@@ -448,78 +494,112 @@
                         <span class="score-grade grade-a">A</span>
                     </td>
                     <td class="score-cell best-in-class">
-                        <span class="score-num grade-b">86</span>
+                        <span class="score-num grade-b">87</span>
                         <span class="score-grade grade-b">B+</span>
                     </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-a">87</span>
-                        <span class="score-grade grade-a">A-</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-b">83</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="findings-count">59</td>
+                    <td class="findings-count">42</td>
                 </tr>
-                <!-- #2 Express -->
+                <!-- #3 FastAPI -->
                 <tr>
                     <td>
                         <div class="repo-name">
-                            <span class="rank rank-2">2</span>
+                            <span class="rank rank-3">3</span>
+                            <span>
+                                <span class="repo-link">tiangolo/fastapi</span>
+                                <span class="repo-lang">Python</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="overall-cell grade-b">B <span style="font-size:0.75rem;color:var(--text-muted)">(81)</span></td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">87</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">79</span>
+                        <span class="score-grade grade-b">B-</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-c">70</span>
+                        <span class="score-grade grade-c">C</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-a">93</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">82</span>
+                        <span class="score-grade grade-b">B</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">83</span>
+                        <span class="score-grade grade-b">B</span>
+                    </td>
+                    <td class="findings-count">48</td>
+                </tr>
+                <!-- #4 Express -->
+                <tr>
+                    <td>
+                        <div class="repo-name">
+                            <span class="rank">4</span>
                             <span>
                                 <span class="repo-link">expressjs/express</span>
                                 <span class="repo-lang">JavaScript</span>
                             </span>
                         </div>
                     </td>
-                    <td class="overall-cell grade-b">B- <span style="font-size:0.75rem;color:var(--text-muted)">(80)</span></td>
+                    <td class="overall-cell grade-c">C+ <span style="font-size:0.75rem;color:var(--text-muted)">(75)</span></td>
                     <td class="score-cell">
-                        <span class="score-num grade-a">89</span>
-                        <span class="score-grade grade-a">A-</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-d">67</span>
-                        <span class="score-grade grade-d">D+</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">87</span>
+                        <span class="score-num grade-b">86</span>
                         <span class="score-grade grade-b">B+</span>
                     </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-c">68</span>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-c">69</span>
                         <span class="score-grade grade-c">C-</span>
                     </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">92</span>
+                    <td class="score-cell">
+                        <span class="score-num grade-c">71</span>
+                        <span class="score-grade grade-c">C</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-d">59</span>
+                        <span class="score-grade grade-d">D-</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-a">90</span>
                         <span class="score-grade grade-a">A</span>
                     </td>
                     <td class="score-cell">
-                        <span class="score-num grade-c">76</span>
-                        <span class="score-grade grade-c">C+</span>
+                        <span class="score-num grade-c">71</span>
+                        <span class="score-grade grade-c">C</span>
                     </td>
-                    <td class="findings-count">46</td>
+                    <td class="findings-count">50</td>
                 </tr>
-                <!-- #3 Spectra -->
+                <!-- #5 Spectra (self) -->
                 <tr>
                     <td>
                         <div class="repo-name">
-                            <span class="rank rank-3">3</span>
+                            <span class="rank">5</span>
                             <span>
-                                <span class="repo-link">spectra</span>
+                                <span class="repo-link">spectra (self)</span>
                                 <span class="repo-lang">Python</span>
                             </span>
                         </div>
                     </td>
-                    <td class="overall-cell grade-c">C- <span style="font-size:0.75rem;color:var(--text-muted)">(70)</span></td>
+                    <td class="overall-cell grade-c">C- <span style="font-size:0.75rem;color:var(--text-muted)">(69)</span></td>
                     <td class="score-cell">
-                        <span class="score-num grade-b">84</span>
-                        <span class="score-grade grade-b">B+</span>
+                        <span class="score-num grade-b">80</span>
+                        <span class="score-grade grade-b">B-</span>
                     </td>
                     <td class="score-cell">
-                        <span class="score-num grade-c">67</span>
-                        <span class="score-grade grade-c">C-</span>
+                        <span class="score-num grade-d">59</span>
+                        <span class="score-grade grade-d">D-</span>
                     </td>
-                    <td class="score-cell worst-in-class">
+                    <td class="score-cell">
+                        <span class="score-num grade-c">74</span>
+                        <span class="score-grade grade-c">C+</span>
+                    </td>
+                    <td class="score-cell">
                         <span class="score-num grade-d">62</span>
                         <span class="score-grade grade-d">D</span>
                     </td>
