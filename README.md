@@ -29,9 +29,11 @@ spectra analyze https://github.com/expressjs/express
 Open `spectra-report.html` when it's done.
 
 ```bash
-spectra analyze <repo-url> --quick          # Skip critique pass, ~40s
-spectra analyze <repo-url> --format json    # Machine-readable output
-spectra analyze <repo-url> --output my.html # Custom report path
+spectra analyze <repo-url> --quick           # Skip critique pass, ~40s
+spectra analyze <repo-url> --format json     # Machine-readable output
+spectra analyze <repo-url> --format sarif    # SARIF for GitHub Security tab
+spectra analyze <repo-url> --min-score 70    # Quality gate (exit 1 if below)
+spectra analyze <repo-url> --output my.html  # Custom report path
 ```
 
 ---
