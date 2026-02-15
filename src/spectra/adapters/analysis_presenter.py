@@ -1,4 +1,9 @@
-"""Rich Console ScoreCard presenter — Layer 3 adapter."""
+"""Rich Console ScoreCard presenter — Layer 3 adapter.
+
+Renders the ScoreCard as a terminal panel with colored grade badges,
+block-character score bars, and dimension breakdown using the Rich
+library.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +24,7 @@ from spectra.adapters.brand import (
 )
 from spectra.entities.enums import Grade
 
-GRADE_COLORS: dict[str, str] = {
+GRADE_COLORS: dict[str, str] = {  # Maps letter grade to Rich hex color
     "A+": GREEN,
     "A": GREEN,
     "A-": GREEN,
@@ -39,14 +44,28 @@ BAR_WIDTH = 10
 
 
 def _score_bar(score: float) -> str:
-    """Render a score as a block-character bar."""
+    """Render a 0-100 score as a 10-character block bar.
+
+    Args:
+        score: Numeric score (0-100).
+
+    Returns:
+        String of filled (``█``) and empty (``░``) blocks.
+    """
     filled = round(score / BAR_WIDTH)
     empty = BAR_WIDTH - filled
     return "█" * filled + "░" * empty
 
 
 def _grade_text(grade: Grade) -> Text:
-    """Color-coded grade text."""
+    """Return a color-coded Rich Text for the given grade.
+
+    Args:
+        grade: Letter grade (A+ through F).
+
+    Returns:
+        Rich ``Text`` object with bold grade-appropriate color.
+    """
     color = GRADE_COLORS.get(grade, GRAY)
     return Text(grade, style=f"bold {color}")
 
@@ -56,7 +75,16 @@ def _build_header_grid(
     overall_grade: Grade,
     overall_score: float,
 ) -> Table:
-    """Build the scorecard header with repo name and overall grade."""
+    """Build the scorecard header grid with repo name and overall grade.
+
+    Args:
+        repo_name: Short repository name.
+        overall_grade: Overall letter grade.
+        overall_score: Overall numeric score (0-100).
+
+    Returns:
+        Rich ``Table`` grid for the panel header.
+    """
     grade_color = GRADE_COLORS.get(overall_grade, GRAY)
     header = Table.grid(padding=(0, 1))
     header.add_column(justify="left")
@@ -75,7 +103,14 @@ def _build_header_grid(
 
 
 def _build_dimensions_table(dimensions: tuple[object, ...]) -> Table:
-    """Build the dimension scores table."""
+    """Build the dimension scores table with bars and grades.
+
+    Args:
+        dimensions: Tuple of ``DimensionScore`` objects.
+
+    Returns:
+        Rich ``Table`` with one row per dimension.
+    """
     table = Table(
         show_header=False,
         show_edge=False,
@@ -99,7 +134,14 @@ def _build_dimensions_table(dimensions: tuple[object, ...]) -> Table:
 
 
 def _build_summary_text(report: object) -> Text:
-    """Build the summary footer line with stats."""
+    """Build the summary footer line with finding count, timing, and cost.
+
+    Args:
+        report: An ``AnalysisReport`` (or duck-typed equivalent).
+
+    Returns:
+        Rich ``Text`` with stats joined by ``·`` separators.
+    """
     total = getattr(report, "total_findings", None)
     if total is None:
         total = len(getattr(report, "findings", ()))
@@ -116,10 +158,15 @@ def _build_summary_text(report: object) -> Text:
 
 
 def present_scorecard(report: object, console: Console) -> None:
-    """Render the ScoreCard as a Rich Panel + Table.
+    """Render the ScoreCard as a Rich Panel with dimension breakdown.
 
-    Accepts an AnalysisReport (or any object matching its shape)
-    and prints a formatted ScoreCard to the console.
+    Accepts an ``AnalysisReport`` (or any duck-typed equivalent)
+    and prints a formatted ScoreCard panel to the console with
+    verdict, dimension bars, grades, and summary stats.
+
+    Args:
+        report: Analysis report with a ``score_card`` attribute.
+        console: Rich Console instance for output.
     """
     score_card = getattr(report, "score_card", None)
     if score_card is None:

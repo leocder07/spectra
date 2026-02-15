@@ -1,4 +1,10 @@
-"""CritiqueAgent — validates ALL findings using extended thinking."""
+"""CritiqueAgent — validates ALL findings using extended thinking.
+
+The CritiqueAgent is the ONLY agent that uses Anthropic's extended
+thinking feature. It reviews every specialist finding to reject false
+positives, adjust severity levels, and surface cross-cutting insights.
+Target: <5% false positive rate in validated findings.
+"""
 
 from __future__ import annotations
 
@@ -67,9 +73,18 @@ Target: <5% false positive rate in validated findings."""
 
 
 class CritiqueAgent(BaseAgent):
-    """Validates all findings from specialists. Uses extended thinking."""
+    """Validates all findings using Opus 4.6 with extended thinking.
+
+    Overrides ``execute_llm`` to use ``analyze_with_thinking`` instead
+    of the standard ``analyze`` call.
+    """
 
     def __init__(self, gateway: LLMGateway) -> None:
+        """Initialize the CritiqueAgent.
+
+        Args:
+            gateway: Shared LLM gateway.
+        """
         super().__init__(
             role="critique",
             gateway=gateway,
@@ -108,4 +123,12 @@ class CritiqueAgent(BaseAgent):
         return ()
 
     def get_critique_result(self, raw_output: str) -> dict[str, list[dict[str, str | int | float]]]:
+        """Parse the raw critique output into a structured dict.
+
+        Args:
+            raw_output: Raw LLM response containing critique JSON.
+
+        Returns:
+            Parsed critique dictionary with validated/rejected findings.
+        """
         return self.parse_output(raw_output)

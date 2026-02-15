@@ -522,10 +522,19 @@ async def _read_planned_files(
 def _merge_findings(
     successes: list[AgentOutput],
 ) -> tuple[Finding, ...]:
-    """Collect and deduplicate findings."""
+    """Collect and deduplicate findings from all successful agents.
+
+    Args:
+        successes: Agent outputs that completed without error.
+
+    Returns:
+        Deduplicated findings preserving first-seen order.
+    """
     all_findings: list[Finding] = []
     for output in successes:
         all_findings.extend(output.findings)
+    # dict.fromkeys preserves insertion order while deduplicating
+    # via Finding.__eq__ (same file, line, dimension = same finding)
     return tuple(dict.fromkeys(all_findings))
 
 
@@ -888,11 +897,24 @@ def _estimate_score(
     findings: list[Finding],
     llm_score: float | None = None,
 ) -> float:
-    """Blend LLM assessment with penalty-based formula."""
+    """Blend LLM assessment with penalty-based formula.
+
+    When the LLM provides a holistic score, we weight it 40% and the
+    penalty-based score 60% to anchor on evidence while respecting
+    the LLM's broader context awareness.
+
+    Args:
+        findings: Findings for a single dimension.
+        llm_score: Optional LLM-assigned score (0-100).
+
+    Returns:
+        Blended dimension score between 0 and 100.
+    """
     if not findings:
         return DEFAULT_DIMENSION_SCORE
     penalty_score = _compute_penalty_score(findings)
     if llm_score is not None:
+        # 40/60 blend: trust evidence more than LLM self-assessment
         return round(0.4 * llm_score + 0.6 * penalty_score, 1)
     return round(penalty_score, 1)
 

@@ -1,4 +1,9 @@
-"""MetaPrompter agent — Sonnet 4.5, planning from file tree only."""
+"""MetaPrompter agent — Sonnet 4.5, planning from file tree only.
+
+The MetaPrompter receives ONLY the repository file tree (never full
+source code) and produces an analysis plan with per-agent focus areas
+and token allocations. Budget: 5K tokens max.
+"""
 
 from __future__ import annotations
 
@@ -85,9 +90,18 @@ CONSTRAINTS:
 
 
 class MetaPrompter(BaseAgent):
-    """Plans analysis from file tree. Sonnet 4.5, never sees full code."""
+    """Plans analysis from file tree. Sonnet 4.5, never sees full code.
+
+    Outputs a JSON plan with ``repo_language``, ``focus_areas`` (per
+    agent), and ``token_allocation`` to guide specialist execution.
+    """
 
     def __init__(self, gateway: LLMGateway) -> None:
+        """Initialize the MetaPrompter.
+
+        Args:
+            gateway: Shared LLM gateway.
+        """
         super().__init__(
             role="meta_prompter",
             gateway=gateway,
@@ -118,4 +132,12 @@ class MetaPrompter(BaseAgent):
         return ()
 
     def get_plan(self, raw_output: str) -> dict[str, list[dict[str, str | int | float]]]:
+        """Parse the raw plan output into a structured dict.
+
+        Args:
+            raw_output: Raw LLM response containing the plan JSON.
+
+        Returns:
+            Parsed plan dictionary.
+        """
         return self.parse_output(raw_output)

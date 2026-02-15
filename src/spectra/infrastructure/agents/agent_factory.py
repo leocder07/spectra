@@ -1,4 +1,9 @@
-"""Agent factory — creates configured agent instances by role."""
+"""Agent factory — creates configured agent instances by role.
+
+Centralizes agent construction so the composition root only needs a
+single ``AgentFactory`` instance. The factory reads specialist configs
+from ``specialist_prompts.SPECIALIST_CONFIGS``.
+"""
 
 from __future__ import annotations
 
@@ -12,12 +17,31 @@ from spectra.use_cases.interfaces import LLMGateway
 
 
 class AgentFactory:
-    """Creates agent instances configured with the shared LLM gateway."""
+    """Creates agent instances configured with the shared LLM gateway.
+
+    Supports creating any of the 8 agents by role name.
+    """
 
     def __init__(self, gateway: LLMGateway) -> None:
+        """Initialize the factory.
+
+        Args:
+            gateway: Shared LLM gateway (with decorators applied).
+        """
         self._gateway = gateway
 
     def create(self, role: AgentRole) -> BaseAgent:
+        """Create a single agent by role.
+
+        Args:
+            role: Agent role identifier.
+
+        Returns:
+            Configured agent instance.
+
+        Raises:
+            ValueError: If the role is unknown.
+        """
         if role == "meta_prompter":
             return MetaPrompter(gateway=self._gateway)
         if role == "critique":
@@ -39,6 +63,11 @@ class AgentFactory:
         )
 
     def create_specialists(self) -> list[BaseAgent]:
+        """Create all 6 specialist agents for parallel execution.
+
+        Returns:
+            List of specialist agents in canonical order.
+        """
         specialist_roles: list[AgentRole] = [
             "architecture",
             "security",

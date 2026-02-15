@@ -1,18 +1,34 @@
-"""Shared brand constants — Layer 3 adapter."""
+"""Shared brand constants and helper functions — Layer 3 adapter.
+
+Centralizes Spectra's visual identity: hex colors, dimension labels,
+and the verdict builder used by both the CLI presenter and the HTML
+report renderer.
+"""
 
 from __future__ import annotations
 
 from spectra.entities.enums import Dimension
 
-# Brand colors
+# ── Brand Palette ──────────────────────────────────────────────
 VIOLET = "#7C3AED"
-AMBER = "#F59E0B"
-RED = "#EF4444"
-GREEN = "#22C55E"
-CYAN = "#06B6D4"
-GRAY = "#6B7280"
+"""Primary brand color (Spectrum Violet)."""
 
-# Display labels for analysis dimensions
+AMBER = "#F59E0B"
+"""Accent color (Prism Amber)."""
+
+RED = "#EF4444"
+"""Signal color for critical/error states."""
+
+GREEN = "#22C55E"
+"""Signal color for success/passing states."""
+
+CYAN = "#06B6D4"
+"""Secondary accent for B-range grades."""
+
+GRAY = "#6B7280"
+"""Muted color for secondary text."""
+
+# ── Dimension Display Labels ───────────────────────────────────
 DIMENSION_LABELS: dict[Dimension, str] = {
     "architecture": "Architecture",
     "security": "Security",
@@ -24,12 +40,28 @@ DIMENSION_LABELS: dict[Dimension, str] = {
 
 
 def dim_label(dimension: Dimension) -> str:
-    """Human-readable label for a dimension."""
+    """Return the human-readable label for a dimension.
+
+    Args:
+        dimension: Analysis dimension key.
+
+    Returns:
+        Display-friendly label (e.g. ``"Architecture"``).
+    """
     return DIMENSION_LABELS.get(dimension, dimension.capitalize())
 
 
 def build_verdict(report: object) -> str:
-    """Generate a one-line executive verdict from an analysis report."""
+    """Generate a one-line executive verdict from an analysis report.
+
+    Args:
+        report: An ``AnalysisReport`` (or any duck-typed equivalent).
+
+    Returns:
+        Verdict string like ``"Your codebase scores B+ (84/100)
+        — strong security with documentation gaps"``, or empty
+        string if no scorecard is available.
+    """
     sc = getattr(report, "score_card", None)
     if sc is None:
         return ""

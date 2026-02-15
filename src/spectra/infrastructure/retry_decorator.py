@@ -1,4 +1,9 @@
-"""Retry decorator — exponential backoff for transient LLM failures."""
+"""Retry decorator — exponential backoff for transient LLM failures.
+
+Wraps any ``LLMGateway`` and intercepts ``SpectraRetryError`` to apply
+exponential backoff with jitter (1s, 2s, 4s). Non-retryable errors
+propagate immediately.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +19,11 @@ _AsyncAnalyzeFn = Callable[..., Coroutine[None, None, str]]
 
 
 class RetryDecorator:
-    """Wraps an LLMGateway with exponential backoff: 1s, 2s, 4s. Max 3 retries."""
+    """Wraps an LLMGateway with exponential backoff: 1s, 2s, 4s.
+
+    Only retries when ``SpectraRetryError.error.retryable`` is True.
+    Non-retryable errors raise immediately.
+    """
 
     def __init__(
         self,
@@ -22,6 +31,13 @@ class RetryDecorator:
         max_retries: int = 3,
         backoff_base: float = 1.0,
     ) -> None:
+        """Initialize the retry wrapper.
+
+        Args:
+            inner: Underlying LLM gateway to wrap.
+            max_retries: Maximum number of retry attempts.
+            backoff_base: Base delay in seconds (doubles each attempt).
+        """
         self._inner = inner
         self._max_retries = max_retries
         self._backoff_base = backoff_base
@@ -38,6 +54,7 @@ class RetryDecorator:
         model: str,
         max_tokens: int,
     ) -> str:
+        """Analyze with automatic retry on transient failures."""
         return await self._retry(
             self._inner.analyze,
             system_prompt=system_prompt,
@@ -53,6 +70,7 @@ class RetryDecorator:
         model: str,
         max_tokens: int,
     ) -> str:
+        """Analyze with thinking, with automatic retry on transient failures."""
         return await self._retry(
             self._inner.analyze_with_thinking,
             system_prompt=system_prompt,

@@ -1,4 +1,12 @@
-"""Report rendering adapter — implements ReportPort using Jinja2."""
+"""Report rendering adapter — implements ReportPort using Jinja2.
+
+Transforms an ``AnalysisReport`` into a self-contained HTML file with:
+- Executive summary and spectrum bar
+- Per-dimension score breakdown
+- Severity-sorted findings list
+- VC due diligence frameworks (OWASP, SOC 2, bus factor, etc.)
+- Investment readiness score
+"""
 
 from __future__ import annotations
 
@@ -809,9 +817,18 @@ def _ir_rating(score: float) -> str:
 
 
 class ReportAdapter:
-    """Renders analysis reports to HTML via Jinja2."""
+    """Renders analysis reports to HTML via Jinja2.
+
+    Loads the ``report.html.j2`` template and injects helper functions
+    as Jinja2 globals for use in template expressions.
+    """
 
     def __init__(self, template_dir: Path = _TEMPLATE_DIR) -> None:
+        """Initialize the report renderer.
+
+        Args:
+            template_dir: Directory containing Jinja2 templates.
+        """
         self._env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(template_dir)),
             autoescape=True,
@@ -824,6 +841,15 @@ class ReportAdapter:
         self._env.globals["dimensions_order"] = _DIMENSIONS_ORDER
 
     def render(self, report: AnalysisReport, output_path: str) -> str:
+        """Render the analysis report to an HTML file.
+
+        Args:
+            report: Completed analysis report.
+            output_path: Destination file path for the HTML.
+
+        Returns:
+            The output path string.
+        """
         template = self._env.get_template("report.html.j2")
         has_mermaid = any("```mermaid" in f.description for f in report.findings)
         dd_frameworks = self._build_dd_frameworks(report)
@@ -879,7 +905,14 @@ class ReportAdapter:
         }
 
     def render_badge(self, report: AnalysisReport) -> str:
-        """Render a shields.io-style SVG badge for the overall grade."""
+        """Render an inline SVG badge for the overall grade.
+
+        Args:
+            report: Analysis report with score_card data.
+
+        Returns:
+            SVG markup string (shields.io style).
+        """
         grade = report.score_card.overall_grade
         score = int(report.score_card.overall_score)
         grade_color = _BADGE_COLOR.get(grade[0], "6B7280")

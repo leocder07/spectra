@@ -21,7 +21,15 @@ _SECRET_RE = re.compile(
 
 
 def _sanitize(text: str) -> str:
-    """Truncate and redact secrets from text before logging."""
+    """Truncate and redact secrets from text before logging.
+
+    Args:
+        text: Raw text that may contain API keys or tokens.
+
+    Returns:
+        Text with secrets replaced by ``[REDACTED]`` and truncated
+        to ``_MAX_LOG_CHARS`` characters.
+    """
     redacted = _SECRET_RE.sub("[REDACTED]", text)
     if len(redacted) > _MAX_LOG_CHARS:
         return redacted[:_MAX_LOG_CHARS] + "...[truncated]"
@@ -29,9 +37,19 @@ def _sanitize(text: str) -> str:
 
 
 class LoggingDecorator:
-    """Wraps an LLMGateway and logs call metadata to a ProgressObserver."""
+    """Wraps an LLMGateway and logs call metadata to a ProgressObserver.
+
+    Captures model name, wall-clock duration, and token count for
+    each LLM call and forwards them to the observer.
+    """
 
     def __init__(self, inner: LLMGateway, observer: ProgressObserver) -> None:
+        """Initialize the logging wrapper.
+
+        Args:
+            inner: Underlying LLM gateway to wrap.
+            observer: Progress observer to receive call metadata.
+        """
         self._inner = inner
         self._observer = observer
 

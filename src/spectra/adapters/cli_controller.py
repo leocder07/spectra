@@ -61,7 +61,11 @@ _analyzer_factory: Callable[..., Awaitable[object]] | None = None
 def set_analyzer_factory(
     factory: Callable[..., Awaitable[object]],
 ) -> None:
-    """Inject the async analyzer callable from the composition root."""
+    """Inject the async analyzer callable from the composition root.
+
+    Args:
+        factory: Async function accepting repo_url, output_path, etc.
+    """
     global _analyzer_factory  # noqa: PLW0603
     _analyzer_factory = factory
 
@@ -73,6 +77,7 @@ def _print_banner() -> None:
 
 
 def _version_callback(value: bool) -> None:
+    """Print version and exit when --version/-v is passed."""
     if value:
         console.print(f"[bold {VIOLET}]spectra[/] v0.1.0 [dim]// codebase intelligence[/]")
         raise typer.Exit()
@@ -173,7 +178,13 @@ def _print_summary(
     output_path: str,
     output_format: str,
 ) -> None:
-    """Print final summary after analysis completes."""
+    """Print the ScoreCard and report location after analysis completes.
+
+    Args:
+        report: Completed ``AnalysisReport``.
+        output_path: Path where the report was saved.
+        output_format: ``"html"`` or ``"json"``.
+    """
     console.print(_SCAN_LINE)
     present_scorecard(report, console)
 
@@ -186,5 +197,8 @@ def _print_summary(
 
 
 def cli_entry() -> None:
-    """Entry point — called by composition root after DI wiring."""
+    """Start the Typer CLI app.
+
+    Called by the composition root after DI wiring is complete.
+    """
     app()

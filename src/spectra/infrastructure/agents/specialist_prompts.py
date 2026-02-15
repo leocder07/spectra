@@ -1,4 +1,15 @@
-"""System prompts for each specialist dimension."""
+"""System prompts for each specialist dimension.
+
+Each specialist gets a dimension-specific system prompt that defines:
+- Output JSON schema with findings and dimension_score
+- Severity calibration guidance
+- Estimated hours guide for tech debt calculation
+- Example output for few-shot prompting
+- Guardrails against hallucination (no invented paths/CVEs/lines)
+
+The shared ``_SHARED_GUIDANCE`` appended to every prompt provides
+finding count targets, score calibration, and confidence thresholds.
+"""
 
 from __future__ import annotations
 

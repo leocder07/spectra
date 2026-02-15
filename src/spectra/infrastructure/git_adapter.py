@@ -1,4 +1,12 @@
-"""Git adapter — implements GitPort using GitPython."""
+"""Git adapter — implements GitPort using GitPython.
+
+Security hardening:
+- HTTPS-only cloning (no SSH/git:// protocols).
+- URL length cap to prevent abuse.
+- SSRF protection via private/loopback IP detection.
+- Symlink and path-traversal blocking on file reads.
+- Per-file size limit (1 MB) and repo-wide limits (10K files, 100 MB).
+"""
 
 from __future__ import annotations
 
@@ -22,7 +30,16 @@ _MAX_CLONES_PER_HOUR = 30  # rate-limiting advisory constant
 
 
 def _is_private_ip(hostname: str) -> bool:
-    """Return True if hostname resolves to a private/loopback/link-local IP."""
+    """Return True if hostname resolves to a private/loopback/link-local IP.
+
+    Prevents SSRF by blocking clones to internal network addresses.
+
+    Args:
+        hostname: DNS name or IP address string.
+
+    Returns:
+        True if the address is private, loopback, or link-local.
+    """
     try:
         addr = ipaddress.ip_address(hostname)
         return addr.is_private or addr.is_loopback or addr.is_link_local
@@ -81,6 +98,14 @@ class GitAdapter:
             raise GitError(ERRORS["SPEC-001"]) from exc
 
     async def get_file_tree(self, repo_dir: str) -> list[str]:
+        """Return a sorted list of all file paths in the repository.
+
+        Args:
+            repo_dir: Absolute path to the cloned repo.
+
+        Returns:
+            Sorted repository-relative file paths (excludes ``.git/``).
+        """
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._walk_tree, repo_dir)
 
@@ -108,7 +133,14 @@ class GitAdapter:
         )
 
     async def validate_repo_size(self, repo_dir: str) -> None:
-        """Reject repos exceeding file count or total size limits."""
+        """Reject repos exceeding file count or total size limits.
+
+        Args:
+            repo_dir: Absolute path to the cloned repo.
+
+        Raises:
+            ValueError: If the repo exceeds 10K files or 100 MB.
+        """
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._check_size, repo_dir)
 

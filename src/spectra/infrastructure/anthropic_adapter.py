@@ -1,4 +1,9 @@
-"""Anthropic API adapter — implements LLMGateway Protocol with streaming."""
+"""Anthropic API adapter — implements LLMGateway Protocol with streaming.
+
+Provides ``AnthropicAdapter`` which wraps the ``anthropic.AsyncAnthropic``
+client with streaming support and maps API errors to Spectra error codes
+(SPEC-002 for connection failures, SPEC-003 for rate limits).
+"""
 
 from __future__ import annotations
 
@@ -15,9 +20,19 @@ _MAX_CONNECTIONS = 10
 
 
 class AnthropicAdapter:
-    """Async Anthropic client implementing the LLMGateway protocol."""
+    """Async Anthropic client implementing the LLMGateway protocol.
+
+    Uses streaming for standard calls and adaptive thinking for
+    CritiqueAgent calls. Connection pooling is configured via httpx
+    with a fixed limit of 10 keep-alive connections.
+    """
 
     def __init__(self, api_key: str) -> None:
+        """Initialize the adapter with an Anthropic API key.
+
+        Args:
+            api_key: Anthropic API key (``sk-ant-*``).
+        """
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key,
             http_client=httpx.AsyncClient(
@@ -41,6 +56,20 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
     ) -> str:
+        """Send a streaming inference request.
+
+        Args:
+            system_prompt: System-level instructions.
+            user_prompt: User-level content.
+            model: Anthropic model identifier.
+            max_tokens: Maximum response tokens.
+
+        Returns:
+            Concatenated text from all content blocks.
+
+        Raises:
+            SpectraRetryError: On connection or rate-limit errors.
+        """
         return await self._call_streaming(system_prompt, user_prompt, model, max_tokens)
 
     async def analyze_with_thinking(
@@ -50,6 +79,20 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
     ) -> str:
+        """Send a streaming request with adaptive extended thinking.
+
+        Args:
+            system_prompt: System-level instructions.
+            user_prompt: User-level content.
+            model: Anthropic model identifier.
+            max_tokens: Maximum response tokens.
+
+        Returns:
+            Text content only (thinking blocks are excluded).
+
+        Raises:
+            SpectraRetryError: On connection or rate-limit errors.
+        """
         return await self._call_with_thinking(system_prompt, user_prompt, model, max_tokens)
 
     async def close(self) -> None:
@@ -138,7 +181,14 @@ class AnthropicAdapter:
 
 
 def _extract_text_blocks(response: anthropic.types.Message) -> str:
-    """Extract text content from response, skipping thinking blocks."""
+    """Extract text content from response, skipping thinking blocks.
+
+    Args:
+        response: Anthropic Message with mixed content blocks.
+
+    Returns:
+        Concatenated text from all ``type="text"`` blocks.
+    """
     text_parts = []
     for block in response.content:
         _log.debug("Response block: type=%s", block.type)

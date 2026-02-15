@@ -1,4 +1,10 @@
-"""Parameterized specialist agent — replaces 6 identical agent classes."""
+"""Parameterized specialist agent — replaces 6 identical agent classes.
+
+A single ``SpecialistAgent`` class handles all 6 analysis dimensions
+(architecture, security, quality, documentation, dependency,
+performance). Each instance is configured with a dimension-specific
+system prompt and ID prefix via ``specialist_prompts.SPECIALIST_CONFIGS``.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +15,12 @@ from spectra.use_cases.interfaces import LLMGateway
 
 
 class SpecialistAgent(BaseAgent):
-    """Generic specialist agent parameterized by dimension and id_prefix."""
+    """Generic specialist agent parameterized by dimension and id_prefix.
+
+    Validates raw findings from the LLM, filtering out those below
+    the ``MIN_CONFIDENCE`` threshold (0.7) and constructing typed
+    ``Finding`` objects with unique IDs.
+    """
 
     def __init__(
         self,
@@ -21,6 +32,17 @@ class SpecialistAgent(BaseAgent):
         model: str = "claude-opus-4-6",
         max_tokens: int = 80_000,
     ) -> None:
+        """Initialize a specialist agent.
+
+        Args:
+            role: Agent role identifier.
+            gateway: Shared LLM gateway.
+            dimension: Analysis dimension this agent covers.
+            id_prefix: Short prefix for finding IDs (e.g. ``sec``).
+            system_prompt: Dimension-specific system prompt.
+            model: Anthropic model ID (default Opus 4.6).
+            max_tokens: Maximum response tokens.
+        """
         super().__init__(
             role=role,
             gateway=gateway,

@@ -1,4 +1,9 @@
-"""Rich Progress reporter implementing ProgressObserver — Layer 3 adapter."""
+"""Rich Progress reporter implementing ProgressObserver — Layer 3 adapter.
+
+Displays pipeline stage transitions and parallel agent progress using
+Rich Progress bars, panels, and box-drawing characters for a premium
+hacker/terminal aesthetic.
+"""
 
 from __future__ import annotations
 
@@ -79,7 +84,14 @@ _SPECIALIST_ROLES: list[AgentRole] = [
 
 
 def _make_bar(pct: float) -> str:
-    """Build a 10-character block bar from a 0-100 percentage."""
+    """Build a 10-character block bar from a 0-100 percentage.
+
+    Args:
+        pct: Completion percentage (0-100).
+
+    Returns:
+        String of ``█`` (filled) and ``░`` (empty) characters.
+    """
     filled = round(pct / 10)
     return "\u2588" * filled + "\u2591" * (10 - filled)
 
@@ -93,6 +105,11 @@ class RichProgressReporter:
     """
 
     def __init__(self, console: Console | None = None) -> None:
+        """Initialize the reporter with an optional Rich Console.
+
+        Args:
+            console: Rich Console to write to (creates one if None).
+        """
         self._console = console or Console(theme=SPECTRA_THEME)
         self._progress: Progress | None = None
         self._agent_tasks: dict[AgentRole, TaskID] = {}
@@ -154,7 +171,12 @@ class RichProgressReporter:
         self._agent_tasks[agent] = task_id
 
     def on_agent_progress(self, agent: AgentRole, pct: float) -> None:
-        """Update agent progress percentage."""
+        """Update an agent's progress bar percentage.
+
+        Args:
+            agent: Role of the agent to update.
+            pct: New completion percentage (0-100).
+        """
         self._agent_pcts[agent] = pct
         if self._progress is not None and agent in self._agent_tasks:
             self._progress.update(

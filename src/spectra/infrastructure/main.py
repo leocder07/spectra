@@ -27,7 +27,11 @@ from spectra.use_cases.analyze_repository import analyze_repository
 
 
 class ReportError(Exception):
-    """Raised when report rendering fails."""
+    """Raised when report rendering fails (SPEC-009).
+
+    Attributes:
+        error: The underlying ``SpectraError`` with code and message.
+    """
 
     def __init__(self, error: SpectraError) -> None:
         self.error = error
@@ -41,7 +45,26 @@ async def _run_analysis(
     output_format: str = "html",
     verbose: bool = False,
 ) -> AnalysisReport:
-    """Full pipeline: clone → plan → analyze → critique → report."""
+    """Run the full pipeline: clone, plan, analyze, critique, report.
+
+    This is the composition root's async entry point. It wires the
+    decorator chain (Logging → Retry → Anthropic), creates agents
+    via the factory, and delegates to ``analyze_repository``.
+
+    Args:
+        repo_url: Git HTTPS URL to analyze.
+        output_path: File path for the rendered report.
+        skip_critique: Skip CritiqueAgent when True.
+        output_format: ``"html"`` or ``"json"``.
+        verbose: Enable debug logging when True.
+
+    Returns:
+        Completed analysis report.
+
+    Raises:
+        RuntimeError: If ``ANTHROPIC_API_KEY`` is not set.
+        ReportError: If report rendering fails (SPEC-009).
+    """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         msg = "ANTHROPIC_API_KEY environment variable is required"
@@ -117,6 +140,10 @@ async def _run_analysis(
 
 
 def cli() -> None:
-    """Package entry point — wires DI then starts CLI."""
+    """Package entry point — wires DI then starts CLI.
+
+    This is the ``[project.scripts]`` entry point. It injects the
+    analyzer factory into the CLI controller before starting Typer.
+    """
     set_analyzer_factory(_run_analysis)
     cli_entry()

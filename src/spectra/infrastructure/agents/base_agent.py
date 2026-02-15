@@ -1,4 +1,9 @@
-"""Base agent ABC — Template Method pattern for agent lifecycle."""
+"""Base agent ABC — Template Method pattern for agent lifecycle.
+
+All 8 agents inherit from ``BaseAgent`` and implement the lifecycle:
+``validate_input`` → ``build_prompt`` → ``execute_llm`` →
+``parse_output`` → ``validate_output`` → ``format_result``.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,12 @@ _log = logging.getLogger("spectra.parse")
 
 
 class BaseAgent(ABC):
-    """Template Method: validate → build_prompt → execute → parse → validate → format."""
+    """Template Method: validate → build_prompt → execute → parse → validate → format.
+
+    Subclasses must implement ``validate_input``, ``build_prompt``,
+    and ``validate_output``. The ``run`` method orchestrates the full
+    lifecycle and returns a validated ``AgentOutput``.
+    """
 
     def __init__(
         self,
@@ -26,6 +36,15 @@ class BaseAgent(ABC):
         system_prompt: str,
         max_tokens: int,
     ) -> None:
+        """Initialize the base agent.
+
+        Args:
+            role: Agent role identifier.
+            gateway: LLM gateway (possibly wrapped with decorators).
+            model: Anthropic model ID.
+            system_prompt: System prompt defining agent behavior.
+            max_tokens: Maximum response tokens.
+        """
         self._role = role
         self._gateway = gateway
         self._model = model
@@ -37,6 +56,17 @@ class BaseAgent(ABC):
         return self._role
 
     async def run(self, user_prompt: str) -> AgentOutput:
+        """Execute the full agent lifecycle and return validated output.
+
+        Args:
+            user_prompt: Content to analyze (file tree or source code).
+
+        Returns:
+            Validated ``AgentOutput`` with findings and metadata.
+
+        Raises:
+            AgentError: If output fails Pydantic validation (SPEC-005).
+        """
         self.validate_input(user_prompt)
         prompt = self.build_prompt(user_prompt)
         start = time.monotonic()
