@@ -95,7 +95,7 @@ jobs:
 
       - name: Post PR summary
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
