@@ -21,9 +21,7 @@ class StubAgent(BaseAgent):
     def build_prompt(self, user_prompt: str) -> str:
         return f"ANALYZE:\n{user_prompt}"
 
-    def validate_output(
-        self, parsed: dict[str, list[dict[str, str | int | float]]]
-    ) -> tuple[Finding, ...]:
+    def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]:
         return ()
 
 

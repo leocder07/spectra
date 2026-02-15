@@ -128,12 +128,33 @@ class TestValidateOutput:
     def test_mixed_confidence_filters_correctly(self, agent: SpecialistAgent):
         parsed = {
             "findings": [
-                {"severity": "high", "title": "Good", "description": "d", "file_path": "a.py",
-                 "line_start": 1, "recommendation": "r", "confidence": 0.9},
-                {"severity": "low", "title": "Bad", "description": "d", "file_path": "b.py",
-                 "line_start": 2, "recommendation": "r", "confidence": 0.1},
-                {"severity": "medium", "title": "OK", "description": "d", "file_path": "c.py",
-                 "line_start": 3, "recommendation": "r", "confidence": 0.85},
+                {
+                    "severity": "high",
+                    "title": "Good",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "r",
+                    "confidence": 0.9,
+                },
+                {
+                    "severity": "low",
+                    "title": "Bad",
+                    "description": "d",
+                    "file_path": "b.py",
+                    "line_start": 2,
+                    "recommendation": "r",
+                    "confidence": 0.1,
+                },
+                {
+                    "severity": "medium",
+                    "title": "OK",
+                    "description": "d",
+                    "file_path": "c.py",
+                    "line_start": 3,
+                    "recommendation": "r",
+                    "confidence": 0.85,
+                },
             ]
         }
         findings = agent.validate_output(parsed)
@@ -186,7 +207,11 @@ class TestValidateInput:
 class TestSpecialistAgentRun:
     @pytest.mark.asyncio
     async def test_full_run_lifecycle(self, agent: SpecialistAgent, mock_gateway: AsyncMock):
-        mock_gateway.analyze.return_value = '{"findings": [{"severity": "high", "title": "XSS", "description": "d", "file_path": "app.js", "line_start": 5, "recommendation": "fix", "confidence": 0.95}]}'
+        mock_gateway.analyze.return_value = (
+            '{"findings": [{"severity": "high", "title": "XSS",'
+            ' "description": "d", "file_path": "app.js", "line_start": 5,'
+            ' "recommendation": "fix", "confidence": 0.95}]}'
+        )
         output = await agent.run("const x = document.innerHTML;")
         assert output.agent_role == "security"
         assert len(output.findings) == 1

@@ -6,15 +6,16 @@ import pytest
 
 from spectra.entities.errors import ERRORS, SpectraError
 
-
 # ── SpectraError ────────────────────────────────────────────────
 
 
 class TestSpectraError:
     def test_create(self):
         err = SpectraError(
-            code="TEST-001", message="Test error",
-            retryable=True, max_retries=2,
+            code="TEST-001",
+            message="Test error",
+            retryable=True,
+            max_retries=2,
         )
         assert err.code == "TEST-001"
         assert err.message == "Test error"
@@ -23,7 +24,8 @@ class TestSpectraError:
 
     def test_frozen(self):
         err = SpectraError(
-            code="TEST-001", message="Test error",
+            code="TEST-001",
+            message="Test error",
             retryable=False,
         )
         with pytest.raises(AttributeError):
@@ -31,7 +33,9 @@ class TestSpectraError:
 
     def test_default_max_retries(self):
         err = SpectraError(
-            code="TEST-001", message="Test", retryable=False,
+            code="TEST-001",
+            message="Test",
+            retryable=False,
         )
         assert err.max_retries == 0
 
@@ -55,7 +59,11 @@ class TestErrorsDict:
     def test_non_retryable_errors(self):
         non_retryable = {k for k, v in ERRORS.items() if not v.retryable}
         assert non_retryable == {
-            "SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009",
+            "SPEC-004",
+            "SPEC-006",
+            "SPEC-007",
+            "SPEC-008",
+            "SPEC-009",
         }
 
     @pytest.mark.parametrize(

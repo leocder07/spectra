@@ -62,7 +62,8 @@ def _minimal_report() -> AnalysisReport:
         title="Test finding",
         description="Test description",
         location=FileLocation(
-            file_path="src/main.py", line_start=10,
+            file_path="src/main.py",
+            line_start=10,
         ),
         recommendation="Fix this",
         agent_role="security",
@@ -103,7 +104,8 @@ class TestJsonOutput:
     def test_model_dump_json_is_valid_json(self):
         report = _minimal_report()
         data = json.dumps(
-            report.model_dump(mode="json"), indent=2,
+            report.model_dump(mode="json"),
+            indent=2,
         )
         parsed = json.loads(data)
         assert isinstance(parsed, dict)
@@ -130,7 +132,8 @@ class TestJsonOutput:
     def test_json_output_is_not_html(self):
         report = _minimal_report()
         data = json.dumps(
-            report.model_dump(mode="json"), indent=2,
+            report.model_dump(mode="json"),
+            indent=2,
         )
         assert "<html" not in data
         assert "<!DOCTYPE" not in data
@@ -138,11 +141,13 @@ class TestJsonOutput:
     def test_json_written_to_file(self):
         report = _minimal_report()
         data = json.dumps(
-            report.model_dump(mode="json"), indent=2,
+            report.model_dump(mode="json"),
+            indent=2,
         )
 
         with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False,
+            suffix=".json",
+            delete=False,
         ) as f:
             path = f.name
 

@@ -45,9 +45,7 @@ class SpecialistAgent(BaseAgent):
             "Analyze the above code and produce your findings in the specified JSON format."
         )
 
-    def validate_output(
-        self, parsed: dict[str, list[dict[str, str | int | float]]]
-    ) -> tuple[Finding, ...]:
+    def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]:
         raw_findings = parsed.get("findings", [])
         validated: list[Finding] = []
 

@@ -26,8 +26,12 @@ class TestDimension:
     def test_all_values(self):
         values = get_args(Dimension)
         expected = {
-            "architecture", "security", "quality",
-            "documentation", "maintainability", "performance",
+            "architecture",
+            "security",
+            "quality",
+            "documentation",
+            "maintainability",
+            "performance",
         }
         assert set(values) == expected
 
@@ -39,10 +43,18 @@ class TestGrade:
     def test_all_values(self):
         values = get_args(Grade)
         expected = {
-            "A+", "A", "A-",
-            "B+", "B", "B-",
-            "C+", "C", "C-",
-            "D+", "D", "D-",
+            "A+",
+            "A",
+            "A-",
+            "B+",
+            "B",
+            "B-",
+            "C+",
+            "C",
+            "C-",
+            "D+",
+            "D",
+            "D-",
             "F",
         }
         assert set(values) == expected
@@ -60,8 +72,14 @@ class TestAgentRole:
     def test_all_values(self):
         values = get_args(AgentRole)
         expected = {
-            "meta_prompter", "architecture", "security", "quality",
-            "documentation", "dependency", "performance", "critique",
+            "meta_prompter",
+            "architecture",
+            "security",
+            "quality",
+            "documentation",
+            "dependency",
+            "performance",
+            "critique",
         }
         assert set(values) == expected
 
@@ -78,9 +96,16 @@ class TestPipelineState:
     def test_all_values(self):
         values = get_args(PipelineState)
         expected = {
-            "pending", "ingesting", "meta_prompting", "analyzing",
-            "merging", "critiquing", "reporting",
-            "complete", "degraded", "failed",
+            "pending",
+            "ingesting",
+            "meta_prompting",
+            "analyzing",
+            "merging",
+            "critiquing",
+            "reporting",
+            "complete",
+            "degraded",
+            "failed",
         }
         assert set(values) == expected
 

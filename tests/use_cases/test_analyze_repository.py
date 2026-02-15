@@ -14,8 +14,8 @@ from spectra.entities.models import (
     Codebase,
     FileLocation,
     Finding,
+    estimate_cost,
 )
-from spectra.entities.models import estimate_cost
 from spectra.use_cases.analyze_repository import (
     _apply_critique,
     _compute_scorecard,
@@ -61,7 +61,7 @@ def codebase():
     return Codebase(
         repo_url="https://github.com/test/repo",
         repo_name="repo",
-        local_path="/tmp/repo",
+        local_path="/tmp/repo",  # noqa: S108
         file_tree=("src/main.py", "README.md"),
     )
 
@@ -95,7 +95,11 @@ class TestAnalyzeRepository:
     @pytest.mark.asyncio
     async def test_full_pipeline(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
         )
         assert report.repo_url == "https://github.com/test/repo"
         assert report.repo_name == "repo"
@@ -107,7 +111,11 @@ class TestAnalyzeRepository:
     async def test_quick_mode_skips_critique(self, codebase, meta_prompter, six_specialists, critique_agent):
         req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
         report = await analyze_repository(
-            req, codebase, meta_prompter, six_specialists, critique_agent,
+            req,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
         )
         critique_agent.run.assert_not_called()
         assert report.is_degraded is False
@@ -115,7 +123,11 @@ class TestAnalyzeRepository:
     @pytest.mark.asyncio
     async def test_no_critique_agent(self, analysis_request, codebase, meta_prompter, six_specialists):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, None,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            None,
         )
         assert report.is_degraded is False
 
@@ -130,7 +142,11 @@ class TestAnalyzeRepository:
             make_agent("performance"),
         ]
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            specialists,
+            critique_agent,
         )
         assert report.is_degraded is True
         assert len(report.degraded_dimensions) == 2
@@ -145,13 +161,19 @@ class TestAnalyzeRepository:
             make_agent("dependency"),
             make_agent("performance"),
         ]
-        report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, specialists, critique_agent,
+        await analyze_repository(
+            analysis_request,
+            codebase,
+            meta_prompter,
+            specialists,
+            critique_agent,
         )
         critique_agent.run.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_degraded_logs_spec007(self, analysis_request, codebase, meta_prompter, critique_agent, make_agent, caplog):
+    async def test_degraded_logs_spec007(
+        self, analysis_request, codebase, meta_prompter, critique_agent, make_agent, caplog
+    ):
         specialists = [
             make_agent("architecture", error=RuntimeError("fail")),
             make_agent("security", error=RuntimeError("fail")),
@@ -162,22 +184,34 @@ class TestAnalyzeRepository:
         ]
         with caplog.at_level(logging.WARNING, logger="spectra.pipeline"):
             await analyze_repository(
-                analysis_request, codebase, meta_prompter, specialists, critique_agent,
+                analysis_request,
+                codebase,
+                meta_prompter,
+                specialists,
+                critique_agent,
             )
         assert any("SPEC-007" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_critique_failure_logs_spec008(self, analysis_request, codebase, meta_prompter, six_specialists, make_agent, caplog):
+    async def test_critique_failure_logs_spec008(
+        self, analysis_request, codebase, meta_prompter, six_specialists, make_agent, caplog
+    ):
         bad_critique = make_agent("critique", error=RuntimeError("critique boom"))
         with caplog.at_level(logging.WARNING, logger="spectra.pipeline"):
             report = await analyze_repository(
-                analysis_request, codebase, meta_prompter, six_specialists, bad_critique,
+                analysis_request,
+                codebase,
+                meta_prompter,
+                six_specialists,
+                bad_critique,
             )
         assert any("SPEC-008" in r.message for r in caplog.records)
         assert report.is_degraded is False  # critique failure doesn't degrade
 
     @pytest.mark.asyncio
-    async def test_findings_are_deduped(self, analysis_request, codebase, meta_prompter, critique_agent, make_agent, make_finding):
+    async def test_findings_are_deduped(
+        self, analysis_request, codebase, meta_prompter, critique_agent, make_agent, make_finding
+    ):
         dup_finding = make_finding("security", "high", line=10)
         specialists = [
             make_agent("architecture"),
@@ -188,15 +222,25 @@ class TestAnalyzeRepository:
             make_agent("performance"),
         ]
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            specialists,
+            critique_agent,
         )
         sec_findings = [f for f in report.findings if f.dimension == "security"]
         assert len(sec_findings) <= 1
 
     @pytest.mark.asyncio
-    async def test_scorecard_has_dimensions(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+    async def test_scorecard_has_dimensions(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
         )
         assert len(report.score_card.dimensions) == 6
         assert 0 <= report.score_card.overall_score <= 100
@@ -204,7 +248,11 @@ class TestAnalyzeRepository:
     @pytest.mark.asyncio
     async def test_tokens_accumulated(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
         )
         # meta_prompter(500) + 6 specialists(500 each) + critique(500) = 4000
         assert report.total_tokens_used == 4000
@@ -280,14 +328,16 @@ class TestComputeScorecard:
 
 class TestExtractPlanFiles:
     def test_extracts_files_from_plan(self):
-        plan = json.dumps({
-            "repo_language": "python",
-            "focus_areas": [
-                {"agent": "security", "files": ["src/auth.py", "src/db.py"], "concerns": []},
-                {"agent": "quality", "files": ["tests/test_main.py"], "concerns": []},
-            ],
-            "token_allocation": {},
-        })
+        plan = json.dumps(
+            {
+                "repo_language": "python",
+                "focus_areas": [
+                    {"agent": "security", "files": ["src/auth.py", "src/db.py"], "concerns": []},
+                    {"agent": "quality", "files": ["tests/test_main.py"], "concerns": []},
+                ],
+                "token_allocation": {},
+            }
+        )
         result = _extract_plan_files(plan)
         assert result == {"src/auth.py", "src/db.py", "tests/test_main.py"}
 
@@ -310,20 +360,24 @@ class TestApplyCritique:
     def test_filters_rejected_findings(self):
         f1 = _finding("security", "high", line=1)
         f2 = _finding("security", "medium", line=2)
-        critique = json.dumps({
-            "validated_findings": [],
-            "rejected_findings": [{"id": f1.id}],
-        })
+        critique = json.dumps(
+            {
+                "validated_findings": [],
+                "rejected_findings": [{"id": f1.id}],
+            }
+        )
         result = _apply_critique((f1, f2), critique)
         assert f1 not in result
         assert f2 in result
 
     def test_rejects_by_string_id(self):
         f1 = _finding("quality", "low", line=5)
-        critique = json.dumps({
-            "validated_findings": [],
-            "rejected_findings": [f1.id],
-        })
+        critique = json.dumps(
+            {
+                "validated_findings": [],
+                "rejected_findings": [f1.id],
+            }
+        )
         result = _apply_critique((f1,), critique)
         assert result == ()
 
@@ -334,10 +388,12 @@ class TestApplyCritique:
 
     def test_no_rejections_returns_original(self):
         f1 = _finding("quality", "low", line=5)
-        critique = json.dumps({
-            "validated_findings": [],
-            "rejected_findings": [],
-        })
+        critique = json.dumps(
+            {
+                "validated_findings": [],
+                "rejected_findings": [],
+            }
+        )
         result = _apply_critique((f1,), critique)
         assert result == (f1,)
 
@@ -347,14 +403,18 @@ class TestApplyCritique:
 
 class TestPipelineWithGitPort:
     @pytest.mark.asyncio
-    async def test_reads_plan_files_via_git_port(self, analysis_request, codebase, six_specialists, critique_agent, make_agent):
-        plan_json = json.dumps({
-            "repo_language": "python",
-            "focus_areas": [
-                {"agent": "security", "files": ["src/main.py"], "concerns": []},
-            ],
-            "token_allocation": {},
-        })
+    async def test_reads_plan_files_via_git_port(
+        self, analysis_request, codebase, six_specialists, critique_agent, make_agent
+    ):
+        plan_json = json.dumps(
+            {
+                "repo_language": "python",
+                "focus_areas": [
+                    {"agent": "security", "files": ["src/main.py"], "concerns": []},
+                ],
+                "token_allocation": {},
+            }
+        )
         meta = make_agent("meta_prompter")
         meta.run.return_value = AgentOutput(
             agent_role="meta_prompter",
@@ -368,31 +428,46 @@ class TestPipelineWithGitPort:
         git_port.read_file.return_value = "print('hello')"
 
         report = await analyze_repository(
-            analysis_request, codebase, meta, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta,
+            six_specialists,
+            critique_agent,
             git_port=git_port,
         )
-        git_port.read_file.assert_called_once_with("/tmp/repo", "src/main.py")
+        git_port.read_file.assert_called_once_with("/tmp/repo", "src/main.py")  # noqa: S108
         assert report.repo_url == "https://github.com/test/repo"
 
     @pytest.mark.asyncio
-    async def test_source_files_override_git_port(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+    async def test_source_files_override_git_port(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
         git_port = AsyncMock()
         source = {"src/main.py": "# pre-read content"}
-        report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
-            source_files=source, git_port=git_port,
+        await analyze_repository(
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
+            source_files=source,
+            git_port=git_port,
         )
         git_port.read_file.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_git_port_skips_files_not_in_tree(self, analysis_request, codebase, six_specialists, critique_agent, make_agent):
-        plan_json = json.dumps({
-            "repo_language": "python",
-            "focus_areas": [
-                {"agent": "security", "files": ["nonexistent.py"], "concerns": []},
-            ],
-            "token_allocation": {},
-        })
+    async def test_git_port_skips_files_not_in_tree(
+        self, analysis_request, codebase, six_specialists, critique_agent, make_agent
+    ):
+        plan_json = json.dumps(
+            {
+                "repo_language": "python",
+                "focus_areas": [
+                    {"agent": "security", "files": ["nonexistent.py"], "concerns": []},
+                ],
+                "token_allocation": {},
+            }
+        )
         meta = make_agent("meta_prompter")
         meta.run.return_value = AgentOutput(
             agent_role="meta_prompter",
@@ -403,8 +478,12 @@ class TestPipelineWithGitPort:
         )
 
         git_port = AsyncMock()
-        report = await analyze_repository(
-            analysis_request, codebase, meta, six_specialists, critique_agent,
+        await analyze_repository(
+            analysis_request,
+            codebase,
+            meta,
+            six_specialists,
+            critique_agent,
             git_port=git_port,
         )
         git_port.read_file.assert_not_called()
@@ -423,17 +502,29 @@ class TestCostCalculation:
         assert cost > 0.0
 
     def test_estimate_cost_sonnet_cheaper(self):
-        opus_out = (AgentOutput(agent_role="security", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),)
-        sonnet_out = (AgentOutput(agent_role="meta_prompter", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),)
+        opus_out = (
+            AgentOutput(agent_role="security", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),
+        )
+        sonnet_out = (
+            AgentOutput(
+                agent_role="meta_prompter", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"
+            ),
+        )
         assert estimate_cost(sonnet_out) < estimate_cost(opus_out)
 
     def test_estimate_cost_empty(self):
         assert estimate_cost(()) == 0.0
 
     @pytest.mark.asyncio
-    async def test_pipeline_reports_nonzero_cost(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+    async def test_pipeline_reports_nonzero_cost(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
         )
         assert report.total_cost_usd > 0.0
 
@@ -444,12 +535,14 @@ class TestCostCalculation:
 class TestSeverityAdjustments:
     def test_adjusts_severity(self):
         f1 = _finding("security", "high", line=1)
-        critique = json.dumps({
-            "rejected_findings": [],
-            "severity_adjustments": [
-                {"finding_id": f1.id, "original_severity": "high", "adjusted_severity": "critical"},
-            ],
-        })
+        critique = json.dumps(
+            {
+                "rejected_findings": [],
+                "severity_adjustments": [
+                    {"finding_id": f1.id, "original_severity": "high", "adjusted_severity": "critical"},
+                ],
+            }
+        )
         result = _apply_critique((f1,), critique)
         assert len(result) == 1
         assert result[0].severity == "critical"
@@ -458,31 +551,37 @@ class TestSeverityAdjustments:
     def test_adjusts_and_rejects(self):
         f1 = _finding("security", "high", line=1)
         f2 = _finding("quality", "medium", line=2)
-        critique = json.dumps({
-            "rejected_findings": [f1.id],
-            "severity_adjustments": [
-                {"finding_id": f2.id, "original_severity": "medium", "adjusted_severity": "low"},
-            ],
-        })
+        critique = json.dumps(
+            {
+                "rejected_findings": [f1.id],
+                "severity_adjustments": [
+                    {"finding_id": f2.id, "original_severity": "medium", "adjusted_severity": "low"},
+                ],
+            }
+        )
         result = _apply_critique((f1, f2), critique)
         assert len(result) == 1
         assert result[0].severity == "low"
 
     def test_no_adjustments_returns_as_is(self):
         f1 = _finding("security", "high", line=1)
-        critique = json.dumps({
-            "rejected_findings": [],
-            "severity_adjustments": [],
-        })
+        critique = json.dumps(
+            {
+                "rejected_findings": [],
+                "severity_adjustments": [],
+            }
+        )
         result = _apply_critique((f1,), critique)
         assert result[0].severity == "high"
 
     def test_ignores_invalid_adjustment(self):
         f1 = _finding("security", "high", line=1)
-        critique = json.dumps({
-            "rejected_findings": [],
-            "severity_adjustments": [{"bad_key": "value"}],
-        })
+        critique = json.dumps(
+            {
+                "rejected_findings": [],
+                "severity_adjustments": [{"bad_key": "value"}],
+            }
+        )
         result = _apply_critique((f1,), critique)
         assert result[0].severity == "high"
 
@@ -492,13 +591,15 @@ class TestSeverityAdjustments:
 
 class TestCrossCuttingInsights:
     def test_extracts_insights(self):
-        raw = json.dumps({
-            "rejected_findings": [],
-            "cross_cutting_insights": [
-                "Security patterns are inconsistent across modules",
-                "Documentation is sparse in infrastructure layer",
-            ],
-        })
+        raw = json.dumps(
+            {
+                "rejected_findings": [],
+                "cross_cutting_insights": [
+                    "Security patterns are inconsistent across modules",
+                    "Documentation is sparse in infrastructure layer",
+                ],
+            }
+        )
         insights = _extract_cross_cutting_insights(raw)
         assert len(insights) == 2
         assert "Security" in insights[0]
@@ -515,13 +616,17 @@ class TestCrossCuttingInsights:
         assert _extract_cross_cutting_insights(raw) == ()
 
     @pytest.mark.asyncio
-    async def test_pipeline_stores_insights(self, analysis_request, codebase, meta_prompter, six_specialists, make_agent):
-        critique_response = json.dumps({
-            "validated_findings": [],
-            "rejected_findings": [],
-            "severity_adjustments": [],
-            "cross_cutting_insights": ["Insight one", "Insight two"],
-        })
+    async def test_pipeline_stores_insights(
+        self, analysis_request, codebase, meta_prompter, six_specialists, make_agent
+    ):
+        critique_response = json.dumps(
+            {
+                "validated_findings": [],
+                "rejected_findings": [],
+                "severity_adjustments": [],
+                "cross_cutting_insights": ["Insight one", "Insight two"],
+            }
+        )
         critique = make_agent("critique")
         critique.run.return_value = AgentOutput(
             agent_role="critique",
@@ -531,7 +636,11 @@ class TestCrossCuttingInsights:
             raw_response=critique_response,
         )
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique,
         )
         assert len(report.cross_cutting_insights) == 2
         assert "Insight one" in report.cross_cutting_insights
@@ -542,10 +651,12 @@ class TestCrossCuttingInsights:
 
 class TestTokenAllocations:
     def test_extracts_allocations(self):
-        raw = json.dumps({
-            "focus_areas": [],
-            "token_allocation": {"architecture": 100000, "security": 120000},
-        })
+        raw = json.dumps(
+            {
+                "focus_areas": [],
+                "token_allocation": {"architecture": 100000, "security": 120000},
+            }
+        )
         result = _extract_token_allocations(raw)
         assert result == {"architecture": 100000, "security": 120000}
 
@@ -587,11 +698,18 @@ class TestShouldRunCritique:
 
 class TestObserverWiring:
     @pytest.mark.asyncio
-    async def test_observer_called_during_pipeline(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+    async def test_observer_called_during_pipeline(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
         from unittest.mock import MagicMock
+
         observer = MagicMock()
         await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
             observer=observer,
         )
         observer.on_stage_start.assert_called()
@@ -600,16 +718,25 @@ class TestObserverWiring:
         observer.on_agent_success.assert_called()
 
     @pytest.mark.asyncio
-    async def test_observer_none_doesnt_crash(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
+    async def test_observer_none_doesnt_crash(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
         report = await analyze_repository(
-            analysis_request, codebase, meta_prompter, six_specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            six_specialists,
+            critique_agent,
             observer=None,
         )
         assert report.repo_url == "https://github.com/test/repo"
 
     @pytest.mark.asyncio
-    async def test_observer_receives_failure_events(self, analysis_request, codebase, meta_prompter, critique_agent, make_agent):
+    async def test_observer_receives_failure_events(
+        self, analysis_request, codebase, meta_prompter, critique_agent, make_agent
+    ):
         from unittest.mock import MagicMock
+
         observer = MagicMock()
         specialists = [
             make_agent("architecture", error=RuntimeError("fail")),
@@ -620,7 +747,11 @@ class TestObserverWiring:
             make_agent("performance"),
         ]
         await analyze_repository(
-            analysis_request, codebase, meta_prompter, specialists, critique_agent,
+            analysis_request,
+            codebase,
+            meta_prompter,
+            specialists,
+            critique_agent,
             observer=observer,
         )
         observer.on_agent_failure.assert_called_once()

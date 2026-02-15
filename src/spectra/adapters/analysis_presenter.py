@@ -20,10 +20,18 @@ from spectra.adapters.brand import (
 from spectra.entities.enums import Grade
 
 GRADE_COLORS: dict[str, str] = {
-    "A+": GREEN, "A": GREEN, "A-": GREEN,
-    "B+": CYAN, "B": CYAN, "B-": CYAN,
-    "C+": AMBER, "C": AMBER, "C-": AMBER,
-    "D+": RED, "D": RED, "D-": RED,
+    "A+": GREEN,
+    "A": GREEN,
+    "A-": GREEN,
+    "B+": CYAN,
+    "B": CYAN,
+    "B-": CYAN,
+    "C+": AMBER,
+    "C": AMBER,
+    "C-": AMBER,
+    "D+": RED,
+    "D": RED,
+    "D-": RED,
     "F": RED,
 }
 
@@ -44,7 +52,9 @@ def _grade_text(grade: Grade) -> Text:
 
 
 def _build_header_grid(
-    repo_name: str, overall_grade: Grade, overall_score: float,
+    repo_name: str,
+    overall_grade: Grade,
+    overall_score: float,
 ) -> Table:
     """Build the scorecard header with repo name and overall grade."""
     grade_color = GRADE_COLORS.get(overall_grade, GRAY)
@@ -93,10 +103,7 @@ def _build_summary_text(report: object) -> Text:
     total = getattr(report, "total_findings", None)
     if total is None:
         total = len(getattr(report, "findings", ()))
-    critical = sum(
-        1 for f in getattr(report, "findings", ())
-        if getattr(f, "severity", "") == "critical"
-    )
+    critical = sum(1 for f in getattr(report, "findings", ()) if getattr(f, "severity", "") == "critical")
     duration = getattr(report, "analysis_duration_seconds", 0.0)
     cost = getattr(report, "total_cost_usd", 0.0)
     parts = [
@@ -125,7 +132,9 @@ def present_scorecard(report: object, console: Console) -> None:
 
     repo_name = getattr(report, "repo_name", "unknown")
     header = _build_header_grid(
-        repo_name, score_card.overall_grade, score_card.overall_score,
+        repo_name,
+        score_card.overall_grade,
+        score_card.overall_score,
     )
     dim_table = _build_dimensions_table(score_card.dimensions)
     summary = _build_summary_text(report)
@@ -142,7 +151,4 @@ def present_scorecard(report: object, console: Console) -> None:
     if getattr(report, "is_degraded", False):
         degraded = getattr(report, "degraded_dimensions", ())
         dims = ", ".join(str(d) for d in degraded)
-        console.print(
-            f"[{AMBER}]\u26a0[/] Degraded analysis \u2014 "
-            f"missing dimensions: {dims}"
-        )
+        console.print(f"[{AMBER}]\u26a0[/] Degraded analysis \u2014 missing dimensions: {dims}")

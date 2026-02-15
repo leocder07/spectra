@@ -17,6 +17,7 @@ import typer
 from rich.console import Console
 
 from spectra.adapters.analysis_presenter import present_scorecard
+from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
 
 if TYPE_CHECKING:
@@ -41,6 +42,18 @@ _OUTPUT_OPTION = typer.Option(
     help="Report output path",
 )
 
+# ASCII banner — hacker terminal aesthetic
+_BANNER = """\
+[bold #7C3AED]
+  ╔═╗╔═╗╔═╗╔═╗╔╦╗╦═╗╔═╗
+  ╚═╗╠═╝║╣ ║   ║ ╠╦╝╠═╣
+  ╚═╝╩  ╚═╝╚═╝ ╩ ╩╚═╩ ╩[/]
+[dim #a78bfa]  ░▒▓ the full spectrum of your codebase ▓▒░[/]
+[dim #52525b]  8 agents · 6 dimensions · 90 seconds[/]
+"""
+
+_SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
+
 # Injected by the composition root before CLI runs
 _analyzer_factory: Callable[..., Awaitable[object]] | None = None
 
@@ -53,9 +66,15 @@ def set_analyzer_factory(
     _analyzer_factory = factory
 
 
+def _print_banner() -> None:
+    """Print the hacker-style ASCII banner."""
+    console.print(_BANNER)
+    console.print(_SCAN_LINE)
+
+
 def _version_callback(value: bool) -> None:
     if value:
-        console.print("[bold #7C3AED]Spectra[/] v0.1.0")
+        console.print(f"[bold {VIOLET}]spectra[/] v0.1.0 [dim]// codebase intelligence[/]")
         raise typer.Exit()
 
 
@@ -106,18 +125,19 @@ def analyze(
         )
 
     if fmt not in ("html", "json"):
-        console.print("[#EF4444]✗[/] Invalid format: use html or json")
+        console.print(f"[{RED}]✗[/] Invalid format: use html or json")
         raise typer.Exit(code=1)
 
     if _analyzer_factory is None:
-        console.print(
-            "[#EF4444]✗[/] Not initialized: run via spectra entry point"
-        )
+        console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
         raise typer.Exit(code=1)
 
-    console.print(
-        "[bold #7C3AED]Spectra[/] — The full spectrum of your codebase\n"
-    )
+    _print_banner()
+    repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
+    console.print(f"  [{AMBER}]target:[/] {repo_name}  [dim]({repo_url})[/]")
+    if quick:
+        console.print(f"  [{AMBER}]mode:[/]   quick scan [dim](no critique)[/]")
+    console.print()
 
     try:
         report = asyncio.run(
@@ -130,16 +150,14 @@ def analyze(
             )
         )
     except KeyboardInterrupt:
-        console.print("\n[#F59E0B]⚠[/] Analysis cancelled by user")
+        console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
         raise typer.Exit(code=130) from None
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
-        console.print(
-            f"[#EF4444]✗[/] {err.code}: {err.message}"
-        )
+        console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
         raise typer.Exit(code=1) from exc
     except Exception as exc:
-        console.print(f"[#EF4444]✗[/] Unexpected error: {exc}")
+        console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
         if verbose:
             console.print(traceback.format_exc())
         raise typer.Exit(code=1) from exc
@@ -156,12 +174,15 @@ def _print_summary(
     output_format: str,
 ) -> None:
     """Print final summary after analysis completes."""
+    console.print(_SCAN_LINE)
     present_scorecard(report, console)
 
     if output_format == "html":
-        console.print(f"[#22C55E]✓[/] Report saved to {output_path}")
+        console.print(f"\n  [{GREEN}]✓[/] Report saved to [bold underline]{output_path}[/]")
     else:
-        console.print(f"[#22C55E]✓[/] JSON written to {output_path}")
+        console.print(f"\n  [{GREEN}]✓[/] JSON written to [bold underline]{output_path}[/]")
+
+    console.print(f"\n[dim {VIOLET}]  // spectra analysis complete[/]\n")
 
 
 def cli_entry() -> None:

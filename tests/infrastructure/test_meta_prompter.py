@@ -14,26 +14,28 @@ from spectra.infrastructure.agents.meta_prompter import MetaPrompter
 @pytest.fixture
 def mock_gateway() -> AsyncMock:
     gw = AsyncMock()
-    gw.analyze.return_value = json.dumps({
-        "repo_language": "python",
-        "repo_framework": "fastapi",
-        "focus_areas": [
-            {"agent": "architecture", "files": ["src/main.py"], "concerns": ["layering"]},
-            {"agent": "security", "files": ["src/auth.py"], "concerns": ["injection"]},
-            {"agent": "quality", "files": ["src/utils.py"], "concerns": ["complexity"]},
-            {"agent": "documentation", "files": ["README.md"], "concerns": ["completeness"]},
-            {"agent": "dependency", "files": ["pyproject.toml"], "concerns": ["outdated"]},
-            {"agent": "performance", "files": ["src/db.py"], "concerns": ["n+1"]},
-        ],
-        "token_allocation": {
-            "architecture": 80000,
-            "security": 80000,
-            "quality": 80000,
-            "documentation": 80000,
-            "dependency": 80000,
-            "performance": 80000,
-        },
-    })
+    gw.analyze.return_value = json.dumps(
+        {
+            "repo_language": "python",
+            "repo_framework": "fastapi",
+            "focus_areas": [
+                {"agent": "architecture", "files": ["src/main.py"], "concerns": ["layering"]},
+                {"agent": "security", "files": ["src/auth.py"], "concerns": ["injection"]},
+                {"agent": "quality", "files": ["src/utils.py"], "concerns": ["complexity"]},
+                {"agent": "documentation", "files": ["README.md"], "concerns": ["completeness"]},
+                {"agent": "dependency", "files": ["pyproject.toml"], "concerns": ["outdated"]},
+                {"agent": "performance", "files": ["src/db.py"], "concerns": ["n+1"]},
+            ],
+            "token_allocation": {
+                "architecture": 80000,
+                "security": 80000,
+                "quality": 80000,
+                "documentation": 80000,
+                "dependency": 80000,
+                "performance": 80000,
+            },
+        }
+    )
     gw.last_usage = (100, 50)
     return gw
 
@@ -110,11 +112,13 @@ class TestBuildPrompt:
 
 class TestGetPlan:
     def test_parses_valid_json(self, agent: MetaPrompter):
-        raw = json.dumps({
-            "repo_language": "python",
-            "focus_areas": [],
-            "token_allocation": {},
-        })
+        raw = json.dumps(
+            {
+                "repo_language": "python",
+                "focus_areas": [],
+                "token_allocation": {},
+            }
+        )
         plan = agent.get_plan(raw)
         assert plan["repo_language"] == "python"
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass, field
 
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.errors import ERRORS, strip_code_fence
@@ -36,6 +37,65 @@ from spectra.use_cases.orchestrate_agents import (
 _log = logging.getLogger("spectra.pipeline")
 
 
+# ── Pipeline context ─────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PipelineContext:
+    """Immutable config: request, codebase, agents, and ports."""
+
+    request: AnalysisRequest
+    codebase: Codebase
+    meta_prompter: AnalysisAgent
+    specialists: list[AnalysisAgent]
+    critique_agent: AnalysisAgent | None = None
+    git_port: GitPort | None = None
+    observer: ProgressObserver | None = None
+
+
+@dataclass
+class _PipelineState:
+    """Mutable accumulator for in-flight pipeline data."""
+
+    budget: TokenBudget = field(default_factory=TokenBudget)
+    agent_outputs: list[AgentOutput] = field(default_factory=list)
+    tokens_used: int = 0
+    start_time: float = 0.0
+    source_files: dict[str, str] | None = None
+    analysis: _AnalysisResult | None = None
+
+
+@dataclass(frozen=True)
+class _AnalysisResult:
+    """Immutable result from the analysis stage."""
+
+    results: list[AgentOutput | Exception]
+    failed_roles: list[AgentRole]
+    is_degraded: bool
+    successes: list[AgentOutput]
+
+
+@dataclass(frozen=True)
+class _StageOutput:
+    """Output from critique pipeline: findings + insights."""
+
+    findings: tuple[Finding, ...]
+    insights: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _ReportMeta:
+    """Computed metadata for the final report."""
+
+    duration: float
+    tokens: int
+    cost: float
+    agents: tuple[AgentRole, ...]
+    is_degraded: bool
+    degraded_dims: tuple[Dimension, ...]
+    hallucinations: int
+
+
 # ── Public entry point ────────────────────────────────────────
 
 
@@ -50,96 +110,334 @@ async def analyze_repository(
     observer: ProgressObserver | None = None,
 ) -> AnalysisReport:
     """Run the full 6-stage pipeline."""
-    start = time.monotonic()
-    budget = TokenBudget()
-    agent_outputs: list[AgentOutput] = []
-
-    # Stage 2: PLAN
-    _notify(observer, "on_stage_start", "PLAN", "Running MetaPrompter")
-    plan_output = await meta_prompter.run(
-        "\n".join(codebase.file_tree),
+    ctx = PipelineContext(
+        request,
+        codebase,
+        meta_prompter,
+        specialists,
+        critique_agent,
+        git_port,
+        observer,
     )
-    agent_outputs.append(plan_output)
-    tokens_used = plan_output.tokens_used
-    _notify(observer, "on_stage_complete", "PLAN", "Plan ready")
-
-    # Wire token budget from plan allocations
-    allocations = _extract_token_allocations(plan_output.raw_response)
-    allocate_specialist_budgets(budget, allocations)
-
-    # Read source files if needed
-    if source_files is None and git_port is not None:
-        source_files = await _read_planned_files(
-            git_port, codebase, plan_output.raw_response,
-        )
-
-    # Stage 3: ANALYZE
-    _notify(observer, "on_stage_start", "ANALYZE", "Running specialists")
-    prompts = _build_prompts(
-        specialists, codebase, plan_output.raw_response, source_files,
+    state = _PipelineState(
+        start_time=time.monotonic(),
+        source_files=source_files,
     )
-    results, failed_roles, is_degraded, successes = (
-        await _run_analysis_stage(
-            specialists, prompts, observer,
-        )
-    )
-    agent_outputs.extend(successes)
-    tokens_used += sum(o.tokens_used for o in successes)
-    _notify(observer, "on_stage_complete", "ANALYZE", "Analysis complete")
+    return await _run_pipeline(ctx, state)
 
-    # Check budget before critique
-    remaining = check_budget_remaining(budget, tokens_used)
+
+async def _run_pipeline(
+    ctx: PipelineContext,
+    state: _PipelineState,
+) -> AnalysisReport:
+    """Thin coordinator that delegates to stage functions."""
+    plan = await _run_plan_stage(ctx, state)
+    await _resolve_source_files(ctx, plan, state)
+    state.analysis = await _run_analyze_stage(ctx, plan, state)
+    findings = _run_merge_stage(state, ctx)
+    output = await _run_critique_pipeline(ctx, findings, state)
+    return _build_report(ctx, state, output)
+
+
+# ── Stage 2: PLAN ────────────────────────────────────────────
+
+
+async def _run_plan_stage(
+    ctx: PipelineContext,
+    state: _PipelineState,
+) -> AgentOutput:
+    """Execute MetaPrompter and wire token allocations."""
+    _notify(ctx.observer, "on_stage_start", "PLAN", "Running MetaPrompter")
+    plan_output = await ctx.meta_prompter.run(
+        "\n".join(ctx.codebase.file_tree),
+    )
+    _track_output(state, plan_output)
+    _notify(ctx.observer, "on_stage_complete", "PLAN", "Plan ready")
+    allocs = _extract_token_allocations(plan_output.raw_response)
+    allocate_specialist_budgets(state.budget, allocs)
+    return plan_output
+
+
+async def _resolve_source_files(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+) -> None:
+    """Read source files via git_port if not already provided."""
+    if state.source_files is not None:
+        return
+    if ctx.git_port is None:
+        return
+    state.source_files = await _read_planned_files(
+        ctx.git_port,
+        ctx.codebase,
+        plan_output.raw_response,
+    )
+
+
+# ── Stage 3: ANALYZE ─────────────────────────────────────────
+
+
+async def _run_analyze_stage(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+) -> _AnalysisResult:
+    """Run 6 specialists in parallel and collect results."""
+    _notify(ctx.observer, "on_stage_start", "ANALYZE", "Running specialists")
+    prompts = _build_specialist_prompts(ctx, plan_output, state)
+    analysis = await _execute_specialists(
+        ctx.specialists,
+        prompts,
+        ctx.observer,
+    )
+    _track_outputs(state, analysis.successes)
+    _notify(ctx.observer, "on_stage_complete", "ANALYZE", "Analysis complete")
+    _log_budget_warning(state)
+    return analysis
+
+
+def _build_specialist_prompts(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+) -> dict[AgentRole, str]:
+    """Assemble prompt strings for each specialist."""
+    tree_text = "\n".join(ctx.codebase.file_tree)
+    plan_ctx = _extract_plan_context(plan_output.raw_response)
+    source_ctx = _build_source_context(state.source_files)
+
+    prompts: dict[AgentRole, str] = {}
+    for s in ctx.specialists:
+        parts = [tree_text]
+        if plan_ctx:
+            parts.append(plan_ctx.get(s.role, ""))
+        if source_ctx:
+            parts.append(source_ctx)
+        prompts[s.role] = "\n\n".join(p for p in parts if p)
+    return prompts
+
+
+def _log_budget_warning(state: _PipelineState) -> None:
+    """Warn if token budget is exhausted after analysis."""
+    remaining = check_budget_remaining(state.budget, state.tokens_used)
     if remaining == 0:
         _log.warning("SPEC-004: Token budget exhausted after analysis")
 
-    # Stage 4: MERGE
-    unique_findings = _merge_findings(successes)
 
-    # Stage 4b: Validate file paths (remove hallucinated paths)
-    pre_count = len(unique_findings)
-    unique_findings = _validate_finding_paths(
-        unique_findings, codebase.file_tree,
+# ── Stage 4: MERGE ────────────────────────────────────────────
+
+
+def _run_merge_stage(
+    state: _PipelineState,
+    ctx: PipelineContext,
+) -> tuple[Finding, ...]:
+    """Merge, deduplicate, and validate findings."""
+    unique = _merge_findings(state.analysis.successes)
+    return _validate_finding_paths(unique, ctx.codebase.file_tree)
+
+
+# ── Stage 5: CRITIQUE ────────────────────────────────────────
+
+
+async def _run_critique_pipeline(
+    ctx: PipelineContext,
+    findings: tuple[Finding, ...],
+    state: _PipelineState,
+) -> _StageOutput:
+    """Run critique if eligible, return findings and insights."""
+    remaining = check_budget_remaining(state.budget, state.tokens_used)
+    eligible = _should_run_critique(
+        ctx.request,
+        state.analysis.is_degraded,
+        ctx.critique_agent,
+        remaining,
     )
-    hallucination_removed = pre_count - len(unique_findings)
+    if not eligible:
+        return _StageOutput(findings, ())
+    if ctx.critique_agent is None:
+        msg = "critique_agent must not be None when critique is enabled"
+        raise RuntimeError(msg)
+    return await _execute_critique(ctx, findings, state)
 
-    # Stage 5: CRITIQUE
-    critique_insights: tuple[str, ...] = ()
-    if _should_run_critique(request, is_degraded, critique_agent, remaining):
-        if critique_agent is None:  # guaranteed by _should_run_critique
-            msg = "critique_agent must not be None when critique is enabled"
-            raise RuntimeError(msg)
-        _notify(observer, "on_stage_start", "CRITIQUE", "Validating findings")
-        unique_findings, critique_insights, critique_out = (
-            await _run_critique_stage(
-                critique_agent, unique_findings, observer,
-            )
-        )
-        if critique_out is not None:
-            agent_outputs.append(critique_out)
-            tokens_used += critique_out.tokens_used
-        _notify(observer, "on_stage_complete", "CRITIQUE", "Critique complete")
 
-    # Stage 6: REPORT — compute scores
-    score_card = _compute_scorecard(unique_findings, failed_roles, agent_outputs)
-    cost = estimate_cost(tuple(agent_outputs))
+async def _execute_critique(
+    ctx: PipelineContext,
+    findings: tuple[Finding, ...],
+    state: _PipelineState,
+) -> _StageOutput:
+    """Execute CritiqueAgent and apply results."""
+    _notify(ctx.observer, "on_stage_start", "CRITIQUE", "Validating findings")
+    filtered, insights, out = await _run_critique_stage(
+        ctx.critique_agent,
+        findings,
+        ctx.observer,
+    )
+    if out is not None:
+        _track_output(state, out)
+    _notify(ctx.observer, "on_stage_complete", "CRITIQUE", "Critique complete")
+    return _StageOutput(filtered, insights)
 
+
+# ── Stage 6: REPORT ──────────────────────────────────────────
+
+
+def _build_report(
+    ctx: PipelineContext,
+    state: _PipelineState,
+    output: _StageOutput,
+) -> AnalysisReport:
+    """Compute scores and assemble the final report."""
+    score_card = _compute_scorecard(
+        output.findings,
+        state.analysis.failed_roles,
+        state.agent_outputs,
+    )
+    meta = _report_metadata(ctx, state)
     return AnalysisReport(
-        repo_url=request.repo_url,
-        repo_name=codebase.repo_name,
+        repo_url=ctx.request.repo_url,
+        repo_name=ctx.codebase.repo_name,
         score_card=score_card,
-        findings=unique_findings,
-        analysis_duration_seconds=round(time.monotonic() - start, 2),
-        total_tokens_used=tokens_used,
-        total_cost_usd=cost,
-        agents_used=tuple(
-            s.role for s in specialists if s.role not in failed_roles
+        findings=output.findings,
+        analysis_duration_seconds=meta.duration,
+        total_tokens_used=meta.tokens,
+        total_cost_usd=meta.cost,
+        agents_used=meta.agents,
+        is_degraded=meta.is_degraded,
+        degraded_dimensions=meta.degraded_dims,
+        cross_cutting_insights=output.insights,
+        hallucination_removed_count=meta.hallucinations,
+    )
+
+
+def _report_metadata(
+    ctx: PipelineContext,
+    state: _PipelineState,
+) -> _ReportMeta:
+    """Compute all derived metadata for the report."""
+    analysis = state.analysis
+    return _ReportMeta(
+        duration=round(time.monotonic() - state.start_time, 2),
+        tokens=state.tokens_used,
+        cost=estimate_cost(tuple(state.agent_outputs)),
+        agents=_active_agents(ctx.specialists, analysis),
+        is_degraded=analysis.is_degraded,
+        degraded_dims=_degraded_dims(analysis.failed_roles),
+        hallucinations=_hallucination_count(
+            analysis.successes,
+            ctx.codebase,
         ),
-        is_degraded=is_degraded,
-        degraded_dimensions=tuple(
-            _role_to_dimension(r) for r in failed_roles
-        ),
-        cross_cutting_insights=critique_insights,
-        hallucination_removed_count=hallucination_removed,
+    )
+
+
+def _active_agents(
+    specialists: list[AnalysisAgent],
+    analysis: _AnalysisResult,
+) -> tuple[AgentRole, ...]:
+    """Return roles of specialists that succeeded."""
+    return tuple(s.role for s in specialists if s.role not in analysis.failed_roles)
+
+
+def _degraded_dims(
+    failed_roles: list[AgentRole],
+) -> tuple[Dimension, ...]:
+    """Map failed roles to their dimensions."""
+    return tuple(_role_to_dimension(r) for r in failed_roles)
+
+
+def _hallucination_count(
+    successes: list[AgentOutput],
+    codebase: Codebase,
+) -> int:
+    """Count findings removed by path validation."""
+    merged = _merge_findings(successes)
+    validated = _validate_finding_paths(merged, codebase.file_tree)
+    return len(merged) - len(validated)
+
+
+# ── State tracking helpers ───────────────────────────────────
+
+
+def _track_output(state: _PipelineState, output: AgentOutput) -> None:
+    """Record a single agent output in the pipeline state."""
+    state.agent_outputs.append(output)
+    state.tokens_used += output.tokens_used
+
+
+def _track_outputs(
+    state: _PipelineState,
+    outputs: list[AgentOutput],
+) -> None:
+    """Record multiple agent outputs in the pipeline state."""
+    for output in outputs:
+        _track_output(state, output)
+
+
+# ── Specialist execution ─────────────────────────────────────
+
+
+async def _execute_specialists(
+    specialists: list[AnalysisAgent],
+    prompts: dict[AgentRole, str],
+    observer: ProgressObserver | None,
+) -> _AnalysisResult:
+    """Run specialists in parallel and evaluate results."""
+    roles = [s.role for s in specialists]
+    _notify_agent_starts(observer, roles)
+    results = await run_specialists(specialists, prompts)
+    successes, failed_roles, pipe_state = evaluate_results(
+        results,
+        roles,
+    )
+    _notify_agent_results(observer, results, roles)
+    _log_spec007_if_needed(failed_roles)
+    return _AnalysisResult(
+        results,
+        failed_roles,
+        pipe_state == "degraded",
+        successes,
+    )
+
+
+def _notify_agent_starts(
+    observer: ProgressObserver | None,
+    roles: list[AgentRole],
+) -> None:
+    """Send on_agent_start for each role."""
+    for role in roles:
+        _notify(observer, "on_agent_start", role)
+
+
+def _notify_agent_results(
+    observer: ProgressObserver | None,
+    results: list[AgentOutput | Exception],
+    roles: list[AgentRole],
+) -> None:
+    """Notify observer of each agent's success or failure."""
+    for result, role in zip(results, roles, strict=False):
+        if isinstance(result, Exception):
+            _notify(observer, "on_agent_failure", role, str(result))
+        else:
+            _notify(
+                observer,
+                "on_agent_success",
+                role,
+                result.duration_seconds,
+            )
+
+
+def _log_spec007_if_needed(
+    failed_roles: list[AgentRole],
+) -> None:
+    """Log SPEC-007 warning when 2+ agents failed."""
+    if len(failed_roles) < 2:
+        return
+    spec007 = ERRORS["SPEC-007"]
+    _log.warning(
+        "%s: %s — failed: %s",
+        spec007.code,
+        spec007.message,
+        failed_roles,
     )
 
 
@@ -172,78 +470,18 @@ async def _read_planned_files(
     for path in sorted(plan_files & tree_set):
         try:
             source[path] = await git_port.read_file(
-                codebase.local_path, path,
+                codebase.local_path,
+                path,
             )
         except (ValueError, OSError):
             continue
     return source
 
 
-def _build_prompts(
-    specialists: list[AnalysisAgent],
-    codebase: Codebase,
-    raw_plan: str,
-    source_files: dict[str, str] | None,
-) -> dict[AgentRole, str]:
-    """Build per-specialist prompt strings."""
-    file_tree_text = "\n".join(codebase.file_tree)
-    plan_context = _extract_plan_context(raw_plan)
-    source_context = _build_source_context(source_files)
-
-    prompts: dict[AgentRole, str] = {}
-    for s in specialists:
-        parts = [file_tree_text]
-        if plan_context:
-            parts.append(plan_context.get(s.role, ""))
-        if source_context:
-            parts.append(source_context)
-        prompts[s.role] = "\n\n".join(p for p in parts if p)
-    return prompts
-
-
-async def _run_analysis_stage(
-    specialists: list[AnalysisAgent],
-    prompts: dict[AgentRole, str],
-    observer: ProgressObserver | None,
-) -> tuple[
-    list[AgentOutput | Exception],
-    list[AgentRole],
-    bool,
-    list[AgentOutput],
-]:
-    """Run specialists in parallel, notify observer, return results."""
-    roles: list[AgentRole] = [s.role for s in specialists]
-    for role in roles:
-        _notify(observer, "on_agent_start", role)
-
-    results = await run_specialists(specialists, prompts)
-    successes, failed_roles, state = evaluate_results(results, roles)
-
-    # Notify observer per agent
-    for result, role in zip(results, roles, strict=False):
-        if isinstance(result, Exception):
-            _notify(observer, "on_agent_failure", role, str(result))
-        else:
-            _notify(
-                observer, "on_agent_success", role, result.duration_seconds,
-            )
-
-    if len(failed_roles) >= 2:
-        spec007 = ERRORS["SPEC-007"]
-        _log.warning(
-            "%s: %s — failed: %s",
-            spec007.code,
-            spec007.message,
-            failed_roles,
-        )
-
-    return results, failed_roles, state == "degraded", successes
-
-
 def _merge_findings(
     successes: list[AgentOutput],
 ) -> tuple[Finding, ...]:
-    """Collect and deduplicate findings from successful agents."""
+    """Collect and deduplicate findings."""
     all_findings: list[Finding] = []
     for output in successes:
         all_findings.extend(output.findings)
@@ -254,20 +492,24 @@ def _validate_finding_paths(
     findings: tuple[Finding, ...],
     file_tree: tuple[str, ...],
 ) -> tuple[Finding, ...]:
-    """Remove findings that reference files not in the repository."""
-    valid: list[Finding] = []
+    """Remove findings that reference files not in the repo."""
     file_set = set(file_tree)
-    for f in findings:
-        path = f.location.file_path
-        if not path or path in file_set or any(path in ft for ft in file_set):
-            valid.append(f)
-        else:
-            _log.warning(
-                "Hallucinated path removed: %s (finding: %s)",
-                path,
-                f.id,
-            )
-    return tuple(valid)
+    return tuple(f for f in findings if _is_valid_path(f, file_set))
+
+
+def _is_valid_path(finding: Finding, file_set: set[str]) -> bool:
+    """Check whether a finding references a real file."""
+    path = finding.location.file_path
+    if not path or path in file_set:
+        return True
+    if any(path in ft for ft in file_set):
+        return True
+    _log.warning(
+        "Hallucinated path removed: %s (finding: %s)",
+        path,
+        finding.id,
+    )
+    return False
 
 
 def _should_run_critique(
@@ -290,18 +532,18 @@ async def _run_critique_stage(
     """Run CritiqueAgent; return filtered findings + insights."""
     _notify(observer, "on_agent_start", "critique")
     findings_json = json.dumps(
-        [f.model_dump() for f in findings], indent=2,
+        [f.model_dump() for f in findings],
+        indent=2,
     )
     try:
         critique_output = await critique_agent.run(findings_json)
     except Exception as exc:
-        spec008 = ERRORS["SPEC-008"]
-        _log.warning("%s: %s — cause: %s", spec008.code, spec008.message, exc)
-        _notify(observer, "on_agent_failure", "critique", spec008.message)
-        return findings, (), None
+        return _handle_critique_failure(observer, findings, exc)
 
     _notify(
-        observer, "on_agent_success", "critique",
+        observer,
+        "on_agent_success",
+        "critique",
         critique_output.duration_seconds,
     )
     filtered = _apply_critique(findings, critique_output.raw_response)
@@ -311,67 +553,104 @@ async def _run_critique_stage(
     return filtered, insights, critique_output
 
 
+def _handle_critique_failure(
+    observer: ProgressObserver | None,
+    findings: tuple[Finding, ...],
+    exc: Exception,
+) -> tuple[tuple[Finding, ...], tuple[str, ...], None]:
+    """Log SPEC-008 and return unmodified findings."""
+    spec008 = ERRORS["SPEC-008"]
+    _log.warning("%s: %s — cause: %s", spec008.code, spec008.message, exc)
+    _notify(observer, "on_agent_failure", "critique", spec008.message)
+    return findings, (), None
+
+
 # ── Critique parsing ──────────────────────────────────────────
+
+
+def _parse_critique_json(raw_critique: str) -> dict | None:
+    """Parse critique JSON, returning None on failure."""
+    try:
+        return json.loads(strip_code_fence(raw_critique))
+    except (json.JSONDecodeError, IndexError):
+        return None
 
 
 def _apply_critique(
     findings: tuple[Finding, ...],
     raw_critique: str,
 ) -> tuple[Finding, ...]:
-    """Filter findings and apply severity adjustments from critique."""
-    try:
-        critique = json.loads(strip_code_fence(raw_critique))
-    except (json.JSONDecodeError, IndexError):
+    """Filter findings and apply severity adjustments."""
+    critique = _parse_critique_json(raw_critique)
+    if critique is None:
         return findings
+    validated = _reject_findings(findings, critique)
+    return _apply_severity_adjustments(validated, critique)
 
-    # Reject findings the critique agent flagged
-    rejected_ids: set[str] = set()
+
+def _reject_findings(
+    findings: tuple[Finding, ...],
+    critique: dict,
+) -> tuple[Finding, ...]:
+    """Remove findings flagged as rejected by the critique."""
+    rejected_ids = _collect_rejected_ids(critique)
+    return tuple(f for f in findings if f.id not in rejected_ids)
+
+
+def _collect_rejected_ids(critique: dict) -> set[str]:
+    """Extract rejected finding IDs from critique payload."""
+    ids: set[str] = set()
     for r in critique.get("rejected_findings", []):
         if isinstance(r, dict) and "id" in r:
-            rejected_ids.add(r["id"])
+            ids.add(r["id"])
         elif isinstance(r, str):
-            rejected_ids.add(r)
+            ids.add(r)
+    return ids
 
-    validated = tuple(f for f in findings if f.id not in rejected_ids)
 
-    # Apply severity adjustments (create new Finding since frozen)
-    adjustments = critique.get("severity_adjustments", [])
-    if not adjustments:
-        return validated
+def _apply_severity_adjustments(
+    findings: tuple[Finding, ...],
+    critique: dict,
+) -> tuple[Finding, ...]:
+    """Apply severity overrides from critique agent."""
+    adj_map = _build_severity_map(critique)
+    if not adj_map:
+        return findings
+    return tuple(_adjust_finding(f, adj_map) for f in findings)
 
-    adj_map: dict[str, str] = {}
-    for adj in adjustments:
+
+def _build_severity_map(critique: dict) -> dict[str, str]:
+    """Build finding_id -> adjusted_severity mapping."""
+    result: dict[str, str] = {}
+    for adj in critique.get("severity_adjustments", []):
         if isinstance(adj, dict) and "finding_id" in adj:
             new_sev = adj.get("adjusted_severity", "")
             if new_sev:
-                adj_map[adj["finding_id"]] = new_sev
+                result[adj["finding_id"]] = new_sev
+    return result
 
-    if not adj_map:
-        return validated
 
-    result: list[Finding] = []
-    for f in validated:
-        if f.id in adj_map:
-            result.append(
-                f.model_copy(
-                    update={
-                        "severity": adj_map[f.id],
-                        "validated_by_critique": True,
-                    },
-                ),
-            )
-        else:
-            result.append(f)
-    return tuple(result)
+def _adjust_finding(
+    finding: Finding,
+    adj_map: dict[str, str],
+) -> Finding:
+    """Apply severity adjustment to a single finding."""
+    if finding.id not in adj_map:
+        return finding
+    return finding.model_copy(
+        update={
+            "severity": adj_map[finding.id],
+            "validated_by_critique": True,
+        },
+    )
 
 
 def _extract_cross_cutting_insights(
     raw_critique: str,
 ) -> tuple[str, ...]:
     """Pull cross-cutting insights from critique output."""
-    try:
-        critique = json.loads(strip_code_fence(raw_critique))
-    except (json.JSONDecodeError, IndexError):
+    critique = _parse_critique_json(raw_critique)
+    if critique is None:
         return ()
     insights = critique.get("cross_cutting_insights", [])
     if isinstance(insights, list):
@@ -397,21 +676,28 @@ def _extract_plan_context(
 
     context: dict[AgentRole, str] = {}
     for area in focus_areas:
-        agent = area.get("agent", "")
-        files = area.get("files", [])
-        concerns = area.get("concerns", [])
-        if agent and (files or concerns):
-            parts = [f"PLAN — Focus for {agent}:"]
-            if files:
-                parts.append(
-                    f"  Files: {', '.join(str(f) for f in files)}",
-                )
-            if concerns:
-                parts.append(
-                    f"  Concerns: {', '.join(str(c) for c in concerns)}",
-                )
-            context[agent] = "\n".join(parts)
+        _add_focus_context(context, area)
     return context or None
+
+
+def _add_focus_context(
+    context: dict[AgentRole, str],
+    area: dict,
+) -> None:
+    """Add a single focus area to the context map."""
+    agent = area.get("agent", "")
+    files = area.get("files", [])
+    concerns = area.get("concerns", [])
+    if not agent or not (files or concerns):
+        return
+    parts = [f"PLAN — Focus for {agent}:"]
+    if files:
+        parts.append(f"  Files: {', '.join(str(f) for f in files)}")
+    if concerns:
+        parts.append(
+            f"  Concerns: {', '.join(str(c) for c in concerns)}",
+        )
+    context[agent] = "\n".join(parts)
 
 
 def _build_source_context(
@@ -449,37 +735,22 @@ def _compute_scorecard(
     failed_roles: list[AgentRole],
     agent_outputs: list[AgentOutput] | None = None,
 ) -> ScoreCard:
-    """Build ScoreCard from findings + LLM scores, reweighting if dimensions failed."""
-    active_weights = {
-        dim: w
-        for dim, w in DIMENSION_WEIGHTS.items()
-        if _dimension_to_role(dim) not in failed_roles
-    }
-    total_weight = sum(active_weights.values()) or 1.0
+    """Build ScoreCard from findings + LLM scores."""
+    active_weights = _compute_active_weights(failed_roles)
+    llm_scores = _build_llm_score_map(agent_outputs)
+    dimensions = _score_dimensions(
+        findings,
+        active_weights,
+        llm_scores,
+    )
+    return _finalize_scorecard(dimensions, findings)
 
-    # Build LLM score map from agent outputs
-    llm_scores: dict[Dimension, float] = {}
-    if agent_outputs:
-        for out in agent_outputs:
-            dim = _role_to_dimension(out.agent_role)
-            if out.dimension_score is not None:
-                llm_scores[dim] = out.dimension_score
 
-    dimensions: list[DimensionScore] = []
-    for dim, raw_weight in active_weights.items():
-        dim_findings = [f for f in findings if f.dimension == dim]
-        score = _estimate_score(dim_findings, llm_scores.get(dim))
-        normalized_weight = raw_weight / total_weight
-        dimensions.append(
-            DimensionScore(
-                dimension=dim,
-                score=score,
-                grade=score_to_grade(score),
-                findings_count=len(dim_findings),
-                weight=round(normalized_weight, 3),
-            ),
-        )
-
+def _finalize_scorecard(
+    dimensions: list[DimensionScore],
+    findings: tuple[Finding, ...],
+) -> ScoreCard:
+    """Compute overall score and build the ScoreCard."""
     overall = sum(d.score * d.weight for d in dimensions)
     return ScoreCard(
         overall_score=round(overall, 1),
@@ -487,6 +758,50 @@ def _compute_scorecard(
         dimensions=tuple(dimensions),
         total_findings=len(findings),
     )
+
+
+def _compute_active_weights(
+    failed_roles: list[AgentRole],
+) -> dict[Dimension, float]:
+    """Filter dimension weights to exclude failed agents."""
+    return {dim: w for dim, w in DIMENSION_WEIGHTS.items() if _dimension_to_role(dim) not in failed_roles}
+
+
+def _build_llm_score_map(
+    agent_outputs: list[AgentOutput] | None,
+) -> dict[Dimension, float]:
+    """Extract LLM-assigned dimension scores from outputs."""
+    scores: dict[Dimension, float] = {}
+    if not agent_outputs:
+        return scores
+    for out in agent_outputs:
+        if out.dimension_score is not None:
+            dim = _role_to_dimension(out.agent_role)
+            scores[dim] = out.dimension_score
+    return scores
+
+
+def _score_dimensions(
+    findings: tuple[Finding, ...],
+    active_weights: dict[Dimension, float],
+    llm_scores: dict[Dimension, float],
+) -> list[DimensionScore]:
+    """Score each active dimension."""
+    total = sum(active_weights.values()) or 1.0
+    dimensions: list[DimensionScore] = []
+    for dim, raw_weight in active_weights.items():
+        dim_findings = [f for f in findings if f.dimension == dim]
+        score = _estimate_score(dim_findings, llm_scores.get(dim))
+        dimensions.append(
+            DimensionScore(
+                dimension=dim,
+                score=score,
+                grade=score_to_grade(score),
+                findings_count=len(dim_findings),
+                weight=round(raw_weight / total, 3),
+            )
+        )
+    return dimensions
 
 
 _PENALTY_MAP: dict[str, float] = {
@@ -503,19 +818,20 @@ def _estimate_score(
     findings: list[Finding],
     llm_score: float | None = None,
 ) -> float:
-    """Estimate dimension score blending LLM assessment with penalty formula."""
+    """Blend LLM assessment with penalty-based formula."""
     if not findings:
         return DEFAULT_DIMENSION_SCORE
-
-    raw_penalty = sum(
-        _PENALTY_MAP.get(f.severity, 0.0) for f in findings
-    )
-    capped_penalty = min(raw_penalty, _MAX_PENALTY)
-    penalty_score = max(0.0, 100.0 - capped_penalty)
-
+    penalty_score = _compute_penalty_score(findings)
     if llm_score is not None:
         return round(0.4 * llm_score + 0.6 * penalty_score, 1)
     return round(penalty_score, 1)
+
+
+def _compute_penalty_score(findings: list[Finding]) -> float:
+    """Calculate penalty-based score from findings."""
+    raw_penalty = sum(_PENALTY_MAP.get(f.severity, 0.0) for f in findings)
+    capped = min(raw_penalty, _MAX_PENALTY)
+    return max(0.0, 100.0 - capped)
 
 
 # ── Role/dimension mapping ────────────────────────────────────
@@ -529,9 +845,7 @@ _ROLE_TO_DIM: dict[AgentRole, Dimension] = {
     "performance": "performance",
 }
 
-_DIM_TO_ROLE: dict[Dimension, AgentRole] = {
-    v: k for k, v in _ROLE_TO_DIM.items()
-}
+_DIM_TO_ROLE: dict[Dimension, AgentRole] = {v: k for k, v in _ROLE_TO_DIM.items()}
 
 
 def _role_to_dimension(role: AgentRole) -> Dimension:

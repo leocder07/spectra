@@ -27,15 +27,9 @@ def allocate_specialist_budgets(
 
     if allocations:
         total_alloc = sum(allocations.values())
-        return {
-            dim: int(pool * allocations.get(dim, 0) / max(total_alloc, 1))
-            for dim in DIMENSION_WEIGHTS
-        }
+        return {dim: int(pool * allocations.get(dim, 0) / max(total_alloc, 1)) for dim in DIMENSION_WEIGHTS}
 
-    return {
-        dim: int(pool * weight)
-        for dim, weight in DIMENSION_WEIGHTS.items()
-    }
+    return {dim: int(pool * weight) for dim, weight in DIMENSION_WEIGHTS.items()}
 
 
 def check_budget_remaining(

@@ -30,9 +30,7 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
     ) -> str:
-        return await self._call_streaming(
-            system_prompt, user_prompt, model, max_tokens
-        )
+        return await self._call_streaming(system_prompt, user_prompt, model, max_tokens)
 
     async def analyze_with_thinking(
         self,
@@ -41,9 +39,7 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
     ) -> str:
-        return await self._call_with_thinking(
-            system_prompt, user_prompt, model, max_tokens
-        )
+        return await self._call_with_thinking(system_prompt, user_prompt, model, max_tokens)
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -93,7 +89,10 @@ class AnthropicAdapter:
     ) -> str:
         """Streaming call with adaptive thinking."""
         response = await self._stream_thinking(
-            system_prompt, user_prompt, model, max_tokens,
+            system_prompt,
+            user_prompt,
+            model,
+            max_tokens,
         )
         self._last_usage = (
             response.usage.input_tokens,

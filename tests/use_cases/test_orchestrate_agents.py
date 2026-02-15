@@ -72,13 +72,18 @@ class TestRunSpecialists:
         async def slow_run(prompt: str) -> AgentOutput:
             await asyncio.sleep(5)
             return AgentOutput(
-                agent_role="quality", findings=(), tokens_used=0,
-                duration_seconds=5.0, raw_response="{}",
+                agent_role="quality",
+                findings=(),
+                tokens_used=0,
+                duration_seconds=5.0,
+                raw_response="{}",
             )
 
         slow_agent.run.side_effect = slow_run
         results = await run_specialists(
-            [slow_agent], {"quality": "x"}, timeout_seconds=0.1,
+            [slow_agent],
+            {"quality": "x"},
+            timeout_seconds=0.1,
         )
         assert len(results) == 1
         assert isinstance(results[0], asyncio.TimeoutError)
@@ -102,7 +107,9 @@ class TestRunSpecialists:
 class TestEvaluateResults:
     def test_all_succeed(self):
         outputs = [
-            AgentOutput(agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(
+                agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"
+            ),
             AgentOutput(agent_role="security", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
         ]
         roles = ["architecture", "security"]
@@ -112,7 +119,9 @@ class TestEvaluateResults:
         assert state == "merging"
 
     def test_one_failure(self):
-        output = AgentOutput(agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}")
+        output = AgentOutput(
+            agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"
+        )
         results = [output, RuntimeError("fail")]
         roles = ["architecture", "security"]
         successes, failed, state = evaluate_results(results, roles)
@@ -121,9 +130,17 @@ class TestEvaluateResults:
         assert state == "merging"
 
     def test_two_failures_degraded(self):
-        results = [RuntimeError("fail1"), RuntimeError("fail2"), AgentOutput(
-            agent_role="quality", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}",
-        )]
+        results = [
+            RuntimeError("fail1"),
+            RuntimeError("fail2"),
+            AgentOutput(
+                agent_role="quality",
+                findings=(),
+                tokens_used=100,
+                duration_seconds=1.0,
+                raw_response="{}",
+            ),
+        ]
         roles = ["architecture", "security", "quality"]
         successes, failed, state = evaluate_results(results, roles)
         assert len(successes) == 1

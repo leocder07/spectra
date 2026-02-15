@@ -99,9 +99,7 @@ class CritiqueAgent(BaseAgent):
             max_tokens=self._max_tokens,
         )
 
-    def validate_output(
-        self, parsed: dict[str, list[dict[str, str | int | float]]]
-    ) -> tuple[Finding, ...]:
+    def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]:
         required = {"validated_findings", "rejected_findings"}
         missing = required - set(parsed.keys())
         if missing:
@@ -109,7 +107,5 @@ class CritiqueAgent(BaseAgent):
             raise ValueError(msg)
         return ()
 
-    def get_critique_result(
-        self, raw_output: str
-    ) -> dict[str, list[dict[str, str | int | float]]]:
+    def get_critique_result(self, raw_output: str) -> dict[str, list[dict[str, str | int | float]]]:
         return self.parse_output(raw_output)

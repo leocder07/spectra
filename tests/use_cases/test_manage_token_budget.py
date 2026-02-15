@@ -9,7 +9,6 @@ from spectra.use_cases.manage_token_budget import (
     check_budget_remaining,
 )
 
-
 # ── DIMENSION_WEIGHTS ───────────────────────────────────────────
 
 

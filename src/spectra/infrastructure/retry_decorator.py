@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from collections.abc import Callable, Coroutine
-from typing import Any
 
 from spectra.entities.errors import SpectraRetryError
 from spectra.use_cases.interfaces import LLMGateway
 
 # Async callable that accepts keyword args and returns str
-_AsyncAnalyzeFn = Callable[..., Coroutine[Any, Any, str]]
+_AsyncAnalyzeFn = Callable[..., Coroutine[None, None, str]]
 
 
 class RetryDecorator:
@@ -76,5 +76,6 @@ class RetryDecorator:
                     raise
                 if attempt < self._max_retries:
                     delay = self._backoff_base * (2**attempt)
-                    await asyncio.sleep(delay)
+                    jitter = random.uniform(0, delay * 0.5)  # noqa: S311
+                    await asyncio.sleep(delay + jitter)
         raise last_error

@@ -6,7 +6,6 @@ import pytest
 
 from spectra.entities.errors import ERRORS, AgentError, GitError, SpectraError, SpectraRetryError
 
-
 # ── Error type hierarchy ──────────────────────────────────────
 
 
@@ -153,8 +152,11 @@ class TestBaseAgentErrorWiring:
         gw = AsyncMock()
         gw.last_usage = (0, 0)
         agent = _Stub(
-            role="architecture", gateway=gw,
-            model="m", system_prompt="s", max_tokens=100,
+            role="architecture",
+            gateway=gw,
+            model="m",
+            system_prompt="s",
+            max_tokens=100,
         )
         with pytest.raises(AgentError) as exc_info:
             agent.parse_output("not valid json")

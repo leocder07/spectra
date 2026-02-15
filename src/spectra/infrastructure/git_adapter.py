@@ -12,7 +12,7 @@ from spectra.entities.errors import ERRORS, GitError
 _MAX_FILE_COUNT = 10_000
 _MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MB
 _MAX_FILE_SIZE = 1_048_576  # 1 MB per file
-_CLONE_TIMEOUT = 120  # seconds
+_CLONE_TIMEOUT = 60  # seconds
 
 
 class GitAdapter:
@@ -56,6 +56,9 @@ class GitAdapter:
 
     async def read_file(self, repo_dir: str, file_path: str) -> str:
         """Read a file with path traversal, symlink, and size protection."""
+        if "\0" in file_path or file_path.startswith("/"):
+            msg = f"Invalid file path: {file_path!r}"
+            raise ValueError(msg)
         root = Path(repo_dir).resolve()
         raw = root / file_path
         if raw.is_symlink():
@@ -69,9 +72,7 @@ class GitAdapter:
             msg = f"File exceeds {_MAX_FILE_SIZE} byte limit: {file_path}"
             raise ValueError(msg)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, full.read_text, "utf-8"
-        )
+        return await loop.run_in_executor(None, full.read_text, "utf-8")
 
     async def validate_repo_size(self, repo_dir: str) -> None:
         """Reject repos exceeding file count or total size limits."""

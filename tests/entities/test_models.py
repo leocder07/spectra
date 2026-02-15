@@ -17,12 +17,10 @@ from spectra.entities.models import (
     Codebase,
     DimensionScore,
     FileLocation,
-    Finding,
     ScoreCard,
     TokenBudget,
     score_to_grade,
 )
-
 
 # ── FileLocation ────────────────────────────────────────────────
 
@@ -169,64 +167,91 @@ class TestDimensionScore:
     def test_score_lower_bound(self):
         with pytest.raises(ValidationError):
             DimensionScore(
-                dimension="security", score=-1.0, grade="F",
-                findings_count=0, weight=0.25,
+                dimension="security",
+                score=-1.0,
+                grade="F",
+                findings_count=0,
+                weight=0.25,
             )
 
     def test_score_upper_bound(self):
         with pytest.raises(ValidationError):
             DimensionScore(
-                dimension="security", score=101.0, grade="A+",
-                findings_count=0, weight=0.25,
+                dimension="security",
+                score=101.0,
+                grade="A+",
+                findings_count=0,
+                weight=0.25,
             )
 
     def test_frozen(self):
         ds = DimensionScore(
-            dimension="security", score=90.0, grade="A",
-            findings_count=2, weight=0.25,
+            dimension="security",
+            score=90.0,
+            grade="A",
+            findings_count=2,
+            weight=0.25,
         )
         with pytest.raises(ValidationError):
             ds.score = 50.0
 
     def test_is_passing_above_threshold(self):
         ds = DimensionScore(
-            dimension="security", score=75.0, grade="C+",
-            findings_count=2, weight=0.25,
+            dimension="security",
+            score=75.0,
+            grade="C+",
+            findings_count=2,
+            weight=0.25,
         )
         assert ds.is_passing() is True
 
     def test_is_passing_at_boundary(self):
         ds = DimensionScore(
-            dimension="security", score=60.0, grade="D",
-            findings_count=2, weight=0.25,
+            dimension="security",
+            score=60.0,
+            grade="D",
+            findings_count=2,
+            weight=0.25,
         )
         assert ds.is_passing() is True
 
     def test_is_passing_below_threshold(self):
         ds = DimensionScore(
-            dimension="security", score=59.9, grade="D-",
-            findings_count=2, weight=0.25,
+            dimension="security",
+            score=59.9,
+            grade="D-",
+            findings_count=2,
+            weight=0.25,
         )
         assert ds.is_passing() is False
 
     def test_is_excellent_above_threshold(self):
         ds = DimensionScore(
-            dimension="security", score=95.0, grade="A+",
-            findings_count=0, weight=0.25,
+            dimension="security",
+            score=95.0,
+            grade="A+",
+            findings_count=0,
+            weight=0.25,
         )
         assert ds.is_excellent() is True
 
     def test_is_excellent_at_boundary(self):
         ds = DimensionScore(
-            dimension="security", score=90.0, grade="A",
-            findings_count=1, weight=0.25,
+            dimension="security",
+            score=90.0,
+            grade="A",
+            findings_count=1,
+            weight=0.25,
         )
         assert ds.is_excellent() is True
 
     def test_is_excellent_below_threshold(self):
         ds = DimensionScore(
-            dimension="security", score=89.9, grade="A-",
-            findings_count=2, weight=0.25,
+            dimension="security",
+            score=89.9,
+            grade="A-",
+            findings_count=2,
+            weight=0.25,
         )
         assert ds.is_excellent() is False
 
@@ -264,8 +289,10 @@ class TestScoreCard:
 
     def test_worst_dimension_empty(self):
         sc = ScoreCard(
-            overall_score=0.0, overall_grade="F",
-            dimensions=(), total_findings=0,
+            overall_score=0.0,
+            overall_grade="F",
+            dimensions=(),
+            total_findings=0,
         )
         assert sc.worst_dimension() is None
 
@@ -277,8 +304,10 @@ class TestScoreCard:
 
     def test_best_dimension_empty(self):
         sc = ScoreCard(
-            overall_score=0.0, overall_grade="F",
-            dimensions=(), total_findings=0,
+            overall_score=0.0,
+            overall_grade="F",
+            dimensions=(),
+            total_findings=0,
         )
         assert sc.best_dimension() is None
 
@@ -292,8 +321,10 @@ class TestScoreCard:
 
     def test_grade_for_missing(self, sample_scorecard):
         sc = ScoreCard(
-            overall_score=0.0, overall_grade="F",
-            dimensions=(), total_findings=0,
+            overall_score=0.0,
+            overall_grade="F",
+            dimensions=(),
+            total_findings=0,
         )
         assert sc.grade_for("architecture") is None
 
@@ -386,12 +417,15 @@ class TestAnalysisReport:
         assert len(report.degraded_dimensions) == 2
 
     def test_critical_finding_count_with_criticals(
-        self, sample_scorecard, sample_finding_factory,
+        self,
+        sample_scorecard,
+        sample_finding_factory,
     ):
         critical = sample_finding_factory(severity="critical")
         high = sample_finding_factory(severity="high", line_start=20)
         critical2 = sample_finding_factory(
-            severity="critical", line_start=30,
+            severity="critical",
+            line_start=30,
         )
         report = AnalysisReport(
             repo_url="https://github.com/test/repo",
@@ -406,7 +440,9 @@ class TestAnalysisReport:
         assert report.critical_finding_count() == 2
 
     def test_critical_finding_count_no_criticals(
-        self, sample_scorecard, sample_finding_factory,
+        self,
+        sample_scorecard,
+        sample_finding_factory,
     ):
         high = sample_finding_factory(severity="high")
         report = AnalysisReport(
@@ -443,7 +479,7 @@ class TestCodebase:
         cb = Codebase(
             repo_url="https://github.com/test/repo",
             repo_name="repo",
-            local_path="/tmp/repo",
+            local_path="/tmp/repo",  # noqa: S108
             file_tree=("src/main.py", "README.md"),
         )
         assert len(cb.file_tree) == 2
@@ -452,7 +488,7 @@ class TestCodebase:
         cb = Codebase(
             repo_url="https://github.com/test/repo",
             repo_name="repo",
-            local_path="/tmp/repo",
+            local_path="/tmp/repo",  # noqa: S108
             file_tree=("src/main.py",),
         )
         with pytest.raises(ValidationError):
@@ -462,7 +498,7 @@ class TestCodebase:
         cb = Codebase(
             repo_url="https://github.com/test/repo",
             repo_name="repo",
-            local_path="/tmp/repo",
+            local_path="/tmp/repo",  # noqa: S108
             file_tree=("src/main.py", "README.md", "setup.py"),
         )
         assert cb.file_count() == 3
@@ -471,7 +507,7 @@ class TestCodebase:
         cb = Codebase(
             repo_url="https://github.com/test/repo",
             repo_name="repo",
-            local_path="/tmp/repo",
+            local_path="/tmp/repo",  # noqa: S108
             file_tree=(),
         )
         assert cb.file_count() == 0
@@ -487,9 +523,7 @@ class TestAnalysisRequest:
         assert req.output_format == "rich"
 
     def test_quick_mode(self):
-        req = AnalysisRequest(
-            repo_url="https://github.com/test/repo", quick=True
-        )
+        req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
         assert req.quick is True
 
 
@@ -507,12 +541,7 @@ class TestTokenBudget:
 
     def test_budget_sums_correctly(self):
         budget = TokenBudget()
-        allocated = (
-            budget.meta_prompter
-            + budget.specialists_pool
-            + budget.critique_reserved
-            + budget.buffer
-        )
+        allocated = budget.meta_prompter + budget.specialists_pool + budget.critique_reserved + budget.buffer
         assert allocated == budget.total
 
     def test_has_remaining_true(self):

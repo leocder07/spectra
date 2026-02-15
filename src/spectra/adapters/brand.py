@@ -42,7 +42,4 @@ def build_verdict(report: object) -> str:
     bottom = dim_label(dims[-1].dimension).lower()
     if top == bottom:
         return f"Your codebase scores {grade} ({score:.0f}/100)"
-    return (
-        f"Your codebase scores {grade} ({score:.0f}/100)"
-        f" \u2014 strong {top} with {bottom} gaps"
-    )
+    return f"Your codebase scores {grade} ({score:.0f}/100) \u2014 strong {top} with {bottom} gaps"

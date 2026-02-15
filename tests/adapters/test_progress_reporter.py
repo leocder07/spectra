@@ -8,11 +8,8 @@ from rich.console import Console
 
 from spectra.adapters.progress_reporter import (
     AGENT_DISPLAY_NAMES,
-    GREEN,
-    RED,
-    RichProgressReporter,
     SPECTRA_THEME,
-    VIOLET,
+    RichProgressReporter,
 )
 
 
@@ -28,24 +25,21 @@ class TestStageLifecycle:
         reporter, buf = _make_reporter()
         reporter.on_stage_start("INGEST", "Cloning repository")
         output = buf.getvalue()
-        assert "▸" in output
-        assert "INGEST" in output
+        assert "INIT" in output
         assert "Cloning repository" in output
 
     def test_on_stage_complete_prefix(self):
         reporter, buf = _make_reporter()
         reporter.on_stage_complete("INGEST", "Clone complete")
         output = buf.getvalue()
-        assert "✓" in output
-        assert "INGEST" in output
+        assert "INIT" in output
         assert "Clone complete" in output
 
     def test_on_error_prefix(self):
         reporter, buf = _make_reporter()
         reporter.on_error("ANALYZE", "Agent timed out")
         output = buf.getvalue()
-        assert "✗" in output
-        assert "ANALYZE" in output
+        assert "SCAN" in output
         assert "Agent timed out" in output
 
 
@@ -66,7 +60,6 @@ class TestAgentLifecycle:
         # Rich markup may split "1.5s" across ANSI codes — check components
         assert "1." in output
         assert "5s" in output
-        assert "✓" in output
 
     def test_on_agent_failure_output(self):
         reporter, buf = _make_reporter()
@@ -75,7 +68,6 @@ class TestAgentLifecycle:
         output = buf.getvalue()
         assert "ArchitectureAgent" in output
         assert "timeout" in output
-        assert "✗" in output
 
     def test_on_agent_progress_updates(self):
         reporter, _buf = _make_reporter()

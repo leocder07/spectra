@@ -37,10 +37,7 @@ async def run_specialists(
                 timeout=timeout_seconds,
             )
 
-    tasks = [
-        _run_one(agent, prompts.get(agent.role, ""))
-        for agent in agents
-    ]
+    tasks = [_run_one(agent, prompts.get(agent.role, "")) for agent in agents]
     return await asyncio.gather(*tasks, return_exceptions=True)
 
 

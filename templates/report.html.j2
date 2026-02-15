@@ -947,6 +947,507 @@
             .owasp-grid { grid-template-columns: 1fr; }
         }
 
+        /* ─── DD Framework: Investment Readiness ─── */
+        .ir-gauge-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .ir-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            animation: gaugeGlow 3s ease-in-out infinite;
+        }
+
+        .ir-gauge-inner {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ir-gauge-score {
+            font-family: var(--font-mono);
+            font-size: 2.2rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .ir-gauge-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .ir-rating-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .ir-rating-investment-ready { background: rgba(34, 197, 94, 0.12); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .ir-rating-near-ready { background: rgba(6, 182, 212, 0.12); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.3); }
+        .ir-rating-needs-work { background: rgba(245, 158, 11, 0.12); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .ir-rating-significant-gaps { background: rgba(249, 115, 22, 0.12); color: var(--orange); border: 1px solid rgba(249, 115, 22, 0.3); }
+        .ir-rating-not-ready { background: rgba(239, 68, 68, 0.12); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        .ir-meta {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .ir-components { margin-top: 1.25rem; }
+
+        .ir-component-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.4rem 0;
+        }
+
+        .ir-component-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 160px;
+            text-transform: capitalize;
+        }
+
+        .ir-component-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .ir-component-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s ease;
+        }
+
+        .ir-component-score {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 32px;
+            text-align: right;
+            color: var(--text-secondary);
+        }
+
+        .ir-component-weight {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-tertiary);
+            min-width: 32px;
+            text-align: right;
+        }
+
+        /* ─── DD Framework: SOC 2 Readiness ─── */
+        .soc2-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .soc2-criterion {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .soc2-criterion:hover { border-color: var(--border); }
+
+        .soc2-criterion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.6rem;
+        }
+
+        .soc2-criterion-label {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .soc2-criterion-count {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+        }
+
+        .soc2-count-ok { background: rgba(34, 197, 94, 0.1); color: var(--green); }
+        .soc2-count-warn { background: rgba(245, 158, 11, 0.1); color: var(--amber); }
+        .soc2-count-crit { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+
+        .soc2-severity-row {
+            display: flex;
+            gap: 0.6rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .soc2-sev-chip {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+        }
+
+        /* ─── DD Framework: Bus Factor ─── */
+        .bf-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .bf-score-display {
+            text-align: center;
+        }
+
+        .bf-score-num {
+            font-family: var(--font-mono);
+            font-size: 2.4rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .bf-score-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 0.2rem;
+        }
+
+        .bf-meta-grid {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .bf-meta-item {
+            text-align: center;
+        }
+
+        .bf-meta-value {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .bf-meta-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .bf-hotspot-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .bf-hotspot-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.45rem 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 0.2rem;
+            transition: background 0.2s ease;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .bf-hotspot-item:hover { background: var(--bg-elevated); }
+
+        .bf-hotspot-rank {
+            color: var(--text-tertiary);
+            font-size: 0.65rem;
+            min-width: 20px;
+            text-align: right;
+        }
+
+        .bf-hotspot-count {
+            font-weight: 700;
+            min-width: 24px;
+            text-align: right;
+        }
+
+        .bf-hotspot-bar {
+            width: 60px;
+            height: 4px;
+            background: var(--bg-elevated);
+            border-radius: 2px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .bf-hotspot-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        .bf-hotspot-path {
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ─── DD Framework: Dependency Risk ─── */
+        .dr-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .dr-gauge {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            animation: gaugeGlow 3s ease-in-out infinite;
+        }
+
+        .dr-gauge-inner {
+            width: 94px;
+            height: 94px;
+            border-radius: 50%;
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dr-gauge-score {
+            font-family: var(--font-mono);
+            font-size: 1.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .dr-gauge-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-tertiary);
+            margin-top: 0.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .dr-signals-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        .dr-signal-item {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.35rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .dr-signal-item:last-child { border-bottom: none; }
+
+        .dr-signal-keyword {
+            color: var(--text);
+            font-weight: 600;
+            text-transform: capitalize;
+            min-width: 120px;
+        }
+
+        .dr-signal-weight {
+            font-size: 0.65rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* ─── DD Framework: License Compliance ─── */
+        .lc-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .lc-tag {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            background: rgba(6, 182, 212, 0.08);
+            color: var(--cyan);
+            border: 1px solid rgba(6, 182, 212, 0.15);
+        }
+
+        .lc-tag-copyleft {
+            background: rgba(239, 68, 68, 0.08);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .lc-tag-count {
+            font-weight: 400;
+            color: var(--text-tertiary);
+            font-size: 0.6rem;
+            margin-left: 0.3rem;
+        }
+
+        .lc-copyleft-alert {
+            background: rgba(239, 68, 68, 0.06);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-top: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--red);
+            font-weight: 600;
+        }
+
+        .lc-copyleft-list {
+            display: flex;
+            gap: 0.4rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        /* ─── DD Framework: Complexity ─── */
+        .cx-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .cx-stat-block {
+            text-align: center;
+        }
+
+        .cx-stat-num {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .cx-stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 0.2rem;
+        }
+
+        .cx-file-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .cx-file-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 0.2rem;
+            transition: background 0.2s ease;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+        }
+
+        .cx-file-item:hover { background: var(--bg-elevated); }
+
+        .cx-file-sev {
+            font-weight: 700;
+            font-size: 0.6rem;
+            text-transform: uppercase;
+        }
+
+        .cx-file-title {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .cx-file-path {
+            color: var(--text-tertiary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: auto;
+            font-size: 0.68rem;
+        }
+
+        /* ─── DD Section Glow Variants ─── */
+        .dd-section.dd-green::before { background: linear-gradient(90deg, transparent, var(--green), transparent); }
+        .dd-section.dd-amber::before { background: linear-gradient(90deg, transparent, var(--amber), transparent); }
+        .dd-section.dd-red::before { background: linear-gradient(90deg, transparent, var(--red), transparent); }
+        .dd-section.dd-violet::before { background: linear-gradient(90deg, transparent, var(--violet), transparent); }
+
+        @media (max-width: 640px) {
+            .ir-gauge-wrapper { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .ir-gauge { width: 110px; height: 110px; }
+            .ir-gauge-inner { width: 86px; height: 86px; }
+            .ir-gauge-score { font-size: 1.8rem; }
+            .ir-component-label { min-width: 120px; font-size: 0.68rem; }
+            .soc2-grid { grid-template-columns: 1fr; }
+            .bf-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .dr-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .dr-gauge { width: 100px; height: 100px; }
+            .dr-gauge-inner { width: 78px; height: 78px; }
+            .cx-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+        }
+
         /* ─── Footer ─── */
         .footer {
             text-align: center;
@@ -1002,9 +1503,686 @@
             .grade-gauge-inner { width: 102px; height: 102px; }
             .grade-gauge-letter { font-size: 2.4rem; }
         }
+
+        /* ═══════════════════════════════════════════════════════
+           SPECTRA — Premium Hacker Theme Enhancements
+           Scanlines, Glow, Radar, Heatmap, Filters, Counters
+           ═══════════════════════════════════════════════════════ */
+
+        /* ─── 1. CRT Scanline Overlay ─── */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            opacity: 0.6;
+        }
+
+        /* ─── 2. Terminal Cursor Blink ─── */
+        .terminal-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 1.1em;
+            background: var(--violet-light);
+            margin-left: 4px;
+            vertical-align: text-bottom;
+            animation: cursorBlink 1s step-end infinite;
+        }
+
+        @keyframes cursorBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* ─── 3. Neon Glow Effects ─── */
+        .wordmark {
+            text-shadow: 0 0 40px var(--violet-glow), 0 0 80px rgba(124, 58, 237, 0.15);
+            animation: wordmarkPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes wordmarkPulse {
+            0%, 100% { filter: drop-shadow(0 0 30px var(--violet-glow)) brightness(1); }
+            50% { filter: drop-shadow(0 0 50px rgba(124, 58, 237, 0.4)) brightness(1.05); }
+        }
+
+        .grade-gauge {
+            box-shadow: 0 0 40px var(--gauge-glow, var(--violet-glow));
+        }
+
+        .grade-gauge-letter {
+            text-shadow: 0 0 20px currentColor;
+        }
+
+        /* ─── 4. Matrix-Style Data Rain (CSS-only, performant) ─── */
+        .matrix-rain {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0.04;
+        }
+
+        .matrix-col {
+            position: absolute;
+            top: -100%;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            line-height: 1.2;
+            color: var(--violet-light);
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            animation: matrixFall linear infinite;
+            will-change: transform;
+        }
+
+        @keyframes matrixFall {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(calc(100vh + 100%)); }
+        }
+
+        .matrix-col:nth-child(1) { left: 3%; animation-duration: 18s; animation-delay: 0s; font-size: 11px; }
+        .matrix-col:nth-child(2) { left: 10%; animation-duration: 22s; animation-delay: -5s; font-size: 13px; }
+        .matrix-col:nth-child(3) { left: 18%; animation-duration: 16s; animation-delay: -3s; font-size: 10px; }
+        .matrix-col:nth-child(4) { left: 25%; animation-duration: 25s; animation-delay: -8s; font-size: 12px; }
+        .matrix-col:nth-child(5) { left: 33%; animation-duration: 19s; animation-delay: -2s; font-size: 11px; }
+        .matrix-col:nth-child(6) { left: 42%; animation-duration: 21s; animation-delay: -12s; font-size: 14px; }
+        .matrix-col:nth-child(7) { left: 50%; animation-duration: 17s; animation-delay: -7s; font-size: 10px; }
+        .matrix-col:nth-child(8) { left: 58%; animation-duration: 24s; animation-delay: -4s; font-size: 13px; }
+        .matrix-col:nth-child(9) { left: 67%; animation-duration: 20s; animation-delay: -10s; font-size: 11px; }
+        .matrix-col:nth-child(10) { left: 75%; animation-duration: 15s; animation-delay: -1s; font-size: 12px; }
+        .matrix-col:nth-child(11) { left: 83%; animation-duration: 23s; animation-delay: -6s; font-size: 10px; }
+        .matrix-col:nth-child(12) { left: 92%; animation-duration: 18s; animation-delay: -9s; font-size: 14px; }
+
+        /* ─── 5. Code Block Styling ─── */
+        .finding-description code,
+        .finding-recommendation code {
+            font-family: var(--font-mono);
+            font-size: 0.8em;
+            background: rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(124, 58, 237, 0.15);
+            border-radius: 3px;
+            padding: 0.15em 0.4em;
+            color: var(--violet-light);
+        }
+
+        .finding-description pre,
+        .finding-recommendation pre {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            background: var(--bg-inset);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .finding-description pre::before,
+        .finding-recommendation pre::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--violet-dim), transparent);
+        }
+
+        .finding-description pre code,
+        .finding-recommendation pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            font-size: inherit;
+            color: inherit;
+        }
+
+        /* ─── 6. CSS Radar / Hexagon Chart ─── */
+        .radar-chart-container {
+            display: flex;
+            justify-content: center;
+            margin: 1.5rem 0 2rem;
+        }
+
+        .radar-chart {
+            position: relative;
+            width: 280px;
+            height: 280px;
+        }
+
+        .radar-grid {
+            position: absolute;
+            inset: 0;
+        }
+
+        .radar-grid-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 50%;
+        }
+
+        .radar-grid-ring:nth-child(1) { width: 100%; height: 100%; transform: translate(-50%, -50%); }
+        .radar-grid-ring:nth-child(2) { width: 75%; height: 75%; transform: translate(-50%, -50%); }
+        .radar-grid-ring:nth-child(3) { width: 50%; height: 50%; transform: translate(-50%, -50%); }
+        .radar-grid-ring:nth-child(4) { width: 25%; height: 25%; transform: translate(-50%, -50%); }
+
+        .radar-axis {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50%;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.04);
+            transform-origin: 0 0;
+        }
+
+        .radar-axis:nth-child(5) { transform: rotate(270deg); }
+        .radar-axis:nth-child(6) { transform: rotate(330deg); }
+        .radar-axis:nth-child(7) { transform: rotate(30deg); }
+        .radar-axis:nth-child(8) { transform: rotate(90deg); }
+        .radar-axis:nth-child(9) { transform: rotate(150deg); }
+        .radar-axis:nth-child(10) { transform: rotate(210deg); }
+
+        .radar-shape {
+            position: absolute;
+            inset: 0;
+        }
+
+        .radar-shape svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .radar-polygon {
+            fill: rgba(124, 58, 237, 0.12);
+            stroke: var(--violet);
+            stroke-width: 2;
+            filter: drop-shadow(0 0 6px var(--violet-glow));
+            animation: radarPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes radarPulse {
+            0%, 100% { fill: rgba(124, 58, 237, 0.12); }
+            50% { fill: rgba(124, 58, 237, 0.18); }
+        }
+
+        .radar-point {
+            fill: var(--violet-light);
+            filter: drop-shadow(0 0 4px var(--violet-glow));
+        }
+
+        .radar-label {
+            position: absolute;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            transform: translate(-50%, -50%);
+        }
+
+        .radar-label-score {
+            display: block;
+            font-size: 0.55rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+            margin-top: 1px;
+        }
+
+        /* ─── 7. Animated Score Counters ─── */
+        .counter-animate {
+            display: inline-block;
+        }
+
+        /* ─── 8. Scroll-triggered fade-in ─── */
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+
+        .scroll-reveal.revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ─── 9. File Hotspot Heatmap ─── */
+        .heatmap-section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .heatmap-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--red), transparent);
+        }
+
+        .heatmap-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .heatmap-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 0.25rem;
+            transition: background 0.2s ease;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+        }
+
+        .heatmap-item:hover { background: var(--bg-elevated); }
+
+        .heatmap-bar {
+            width: 80px;
+            height: 4px;
+            background: var(--bg-elevated);
+            border-radius: 2px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .heatmap-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.6s ease;
+        }
+
+        .heatmap-count {
+            min-width: 24px;
+            text-align: right;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .heatmap-path {
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .heatmap-severity-dots {
+            display: flex;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .heatmap-sev-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
+        /* Heatmap intensity levels */
+        .heat-critical { color: var(--red); }
+        .heat-high { color: var(--orange); }
+        .heat-medium { color: var(--amber); }
+        .heat-low { color: var(--cyan); }
+
+        /* ─── 10. Finding Filter Controls ─── */
+        .filter-bar {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-bar-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+        }
+
+        .filter-select {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.6rem;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2352525b'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            padding-right: 1.5rem;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--violet-dim);
+            box-shadow: 0 0 0 2px var(--violet-glow);
+        }
+
+        .filter-search {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            background: var(--bg-elevated);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.6rem 0.35rem 1.8rem;
+            flex: 1;
+            min-width: 160px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: 0.5rem center;
+        }
+
+        .filter-search:focus {
+            outline: none;
+            border-color: var(--violet-dim);
+            box-shadow: 0 0 0 2px var(--violet-glow);
+        }
+
+        .filter-search::placeholder { color: var(--text-tertiary); }
+
+        .filter-btn {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: var(--bg-elevated);
+            color: var(--text-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.35rem 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .filter-btn:hover {
+            background: rgba(124, 58, 237, 0.1);
+            color: var(--violet-light);
+            border-color: rgba(124, 58, 237, 0.2);
+        }
+
+        .filter-btn.active {
+            background: rgba(124, 58, 237, 0.15);
+            color: var(--violet-light);
+            border-color: var(--violet-dim);
+        }
+
+        .filter-count {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-tertiary);
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .finding.filter-hidden {
+            display: none;
+        }
+
+        .findings-section.filter-empty::after {
+            content: 'No findings match the current filters';
+            display: block;
+            text-align: center;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            padding: 2rem;
+        }
+
+        /* ─── Copy Button on Findings ─── */
+        .finding-copy-btn {
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background: var(--bg-elevated);
+            color: var(--text-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.2rem 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 0.5rem;
+        }
+
+        .finding-copy-btn:hover {
+            background: rgba(124, 58, 237, 0.1);
+            color: var(--violet-light);
+            border-color: rgba(124, 58, 237, 0.2);
+        }
+
+        .finding-copy-btn.copied {
+            color: var(--green);
+            border-color: rgba(34, 197, 94, 0.3);
+            background: rgba(34, 197, 94, 0.08);
+        }
+
+        /* ─── Keyboard Shortcut Hints ─── */
+        .kb-hint {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 50;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem 0.9rem;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            color: var(--text-tertiary);
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+
+        .kb-hint:hover { opacity: 1; }
+
+        .kb-key {
+            display: inline-block;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 0.1rem 0.3rem;
+            font-size: 0.6rem;
+            margin: 0 0.15rem;
+            color: var(--text-secondary);
+        }
+
+        /* ─── Active Finding (keyboard navigation) ─── */
+        .finding.kb-active {
+            outline: 2px solid var(--violet);
+            outline-offset: 2px;
+        }
+
+        /* ─── Scroll Spy Active Link ─── */
+        .section-nav a.scroll-active {
+            background: rgba(124, 58, 237, 0.15);
+            color: var(--violet-light);
+        }
+
+        /* ═══════════════════════════════════════════════════════
+           PRINT STYLESHEET — Clean, Ink-Friendly Output
+           ═══════════════════════════════════════════════════════ */
+        @media print {
+            /* Remove decorative elements */
+            body::before,
+            body::after,
+            .matrix-rain,
+            .terminal-cursor,
+            .kb-hint,
+            .filter-bar,
+            .section-nav,
+            .finding-copy-btn {
+                display: none !important;
+            }
+
+            /* White background, dark text */
+            :root {
+                --bg: #ffffff;
+                --bg-surface: #ffffff;
+                --bg-elevated: #f5f5f5;
+                --bg-inset: #f0f0f0;
+                --text: #111111;
+                --text-secondary: #444444;
+                --text-tertiary: #888888;
+                --border: #dddddd;
+                --border-subtle: #eeeeee;
+                --glass-border: #dddddd;
+                --violet: #5b21b6;
+                --violet-light: #5b21b6;
+                --violet-dim: #5b21b6;
+                --violet-glow: transparent;
+                --amber: #b45309;
+                --amber-glow: transparent;
+                --red: #dc2626;
+                --red-glow: transparent;
+                --green: #16a34a;
+                --green-glow: transparent;
+                --cyan: #0891b2;
+                --orange: #ea580c;
+            }
+
+            body {
+                background: white;
+                color: #111;
+                font-size: 11pt;
+            }
+
+            .container {
+                max-width: 100%;
+                padding: 0;
+            }
+
+            /* Remove animations and glow */
+            * {
+                animation: none !important;
+                transition: none !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+                filter: none !important;
+            }
+
+            .wordmark {
+                -webkit-text-fill-color: #5b21b6;
+                font-size: 2rem;
+            }
+
+            /* Show all findings expanded */
+            .finding-body { display: block !important; }
+            .finding-chevron { display: none !important; }
+
+            /* No page break inside findings */
+            .finding { break-inside: avoid; }
+            .scorecard { break-inside: avoid; }
+            .executive-summary { break-inside: avoid; }
+
+            /* Remove backgrounds that waste ink */
+            .finding,
+            .executive-summary,
+            .priority-actions,
+            .scorecard,
+            .dd-section,
+            .heatmap-section {
+                background: white !important;
+                border: 1px solid #ddd !important;
+            }
+
+            .executive-summary::before,
+            .priority-actions::before,
+            .dd-section::before,
+            .heatmap-section::before {
+                display: none !important;
+            }
+
+            .header::before { display: none !important; }
+
+            /* Radar chart print */
+            .radar-polygon {
+                fill: rgba(91, 33, 182, 0.08) !important;
+                stroke: #5b21b6 !important;
+            }
+
+            .grade-gauge {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .spectrum-seg {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* Page margins */
+            @page {
+                margin: 1.5cm;
+            }
+        }
+
+        /* ─── Responsive additions for new features ─── */
+        @media (max-width: 640px) {
+            .radar-chart { width: 220px; height: 220px; }
+            .radar-label { font-size: 0.5rem; }
+            .filter-bar { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+            .filter-search { min-width: 120px; }
+            .kb-hint { display: none; }
+            .heatmap-bar { width: 50px; }
+        }
     </style>
 </head>
 <body>
+    <!-- Matrix Data Rain Background -->
+    <div class="matrix-rain" aria-hidden="true">
+        <div class="matrix-col">01001011</div>
+        <div class="matrix-col">SPECTRA</div>
+        <div class="matrix-col">11010010</div>
+        <div class="matrix-col">ANALYZE</div>
+        <div class="matrix-col">01110011</div>
+        <div class="matrix-col">SECURE</div>
+        <div class="matrix-col">10101100</div>
+        <div class="matrix-col">QUALITY</div>
+        <div class="matrix-col">00110101</div>
+        <div class="matrix-col">AGENT</div>
+        <div class="matrix-col">11001010</div>
+        <div class="matrix-col">REPORT</div>
+    </div>
+
     <div class="container">
         <!-- Header -->
         <header class="header" id="top">
@@ -1012,7 +2190,7 @@
                 <div class="header-badge">{{ badge_svg | safe }}</div>
                 <h1 class="wordmark">SPECTRA</h1>
                 <div class="repo-line">
-                    <span class="prompt">&gt;</span> analyzing <strong>{{ report.repo_name }}</strong>
+                    <span class="prompt">&gt;</span> analyzing <strong>{{ report.repo_name }}</strong><span class="terminal-cursor" aria-hidden="true"></span>
                 </div>
                 <div class="tagline">the full spectrum of your codebase</div>
             </div>
@@ -1030,7 +2208,7 @@
         </div>
 
         <!-- Sticky Nav -->
-        <nav class="section-nav">
+        <nav class="section-nav" id="section-nav">
             <a href="#summary">Summary</a>
             {% if top_findings %}<a href="#actions">Actions</a>{% endif %}
             <a href="#scores">Scores</a>
@@ -1042,6 +2220,12 @@
             {% endfor %}
             {% if tech_debt and tech_debt.total_hours > 0 %}<a href="#tech-debt">Tech Debt</a>{% endif %}
             {% if dd_compliance %}<a href="#dd-compliance">Compliance</a>{% endif %}
+            {% if investment_readiness %}<a href="#investment-readiness">Investment</a>{% endif %}
+            {% if soc2 %}<a href="#soc2-readiness">SOC 2</a>{% endif %}
+            {% if bus_factor %}<a href="#bus-factor">Bus Factor</a>{% endif %}
+            {% if dependency_risk %}<a href="#dependency-risk">Dep Risk</a>{% endif %}
+            {% if license_compliance %}<a href="#license-compliance">Licenses</a>{% endif %}
+            {% if complexity %}<a href="#complexity">Complexity</a>{% endif %}
         </nav>
 
         {% if report.is_degraded %}
@@ -1051,7 +2235,7 @@
         {% endif %}
 
         <!-- Executive Summary -->
-        <section class="executive-summary" id="summary">
+        <section class="executive-summary scroll-reveal" id="summary">
             <div class="section-label">Executive Summary</div>
             <div class="verdict">{{ summary.verdict }}</div>
 
@@ -1116,7 +2300,7 @@
 
         <!-- Priority Actions -->
         {% if top_findings %}
-        <section id="actions" class="priority-actions">
+        <section id="actions" class="priority-actions scroll-reveal">
             <div class="section-label">What to Fix First</div>
             <ol>
                 {% for finding in top_findings[:5] %}
@@ -1133,7 +2317,7 @@
         {% endif %}
 
         <!-- ScoreCard -->
-        <section class="scorecard" id="scores">
+        <section class="scorecard scroll-reveal" id="scores">
             <div class="overall">
                 {% set score_pct = report.score_card.overall_score %}
                 {% set grade_cls = _grade_class(report.score_card.overall_grade) %}
@@ -1145,8 +2329,38 @@
                      style="background: conic-gradient({{ gauge_color }} {{ (score_pct * 3.6) | round(1) }}deg, var(--bg-elevated) 0deg); --gauge-glow: {{ gauge_glow }};">
                     <div class="grade-gauge-inner">
                         <span class="grade-gauge-letter {{ grade_cls }}">{{ report.score_card.overall_grade }}</span>
-                        <span class="grade-gauge-score">{{ score_pct | round(0) | int }} / 100</span>
+                        <span class="grade-gauge-score"><span class="counter-animate" data-target="{{ score_pct | round(0) | int }}">0</span> / 100</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Radar Chart -->
+            <div class="radar-chart-container">
+                <div class="radar-chart" id="radar-chart">
+                    <div class="radar-grid">
+                        <div class="radar-grid-ring"></div>
+                        <div class="radar-grid-ring"></div>
+                        <div class="radar-grid-ring"></div>
+                        <div class="radar-grid-ring"></div>
+                        <div class="radar-axis"></div>
+                        <div class="radar-axis"></div>
+                        <div class="radar-axis"></div>
+                        <div class="radar-axis"></div>
+                        <div class="radar-axis"></div>
+                        <div class="radar-axis"></div>
+                    </div>
+                    <div class="radar-shape">
+                        <svg viewBox="0 0 280 280">
+                            <polygon class="radar-polygon" id="radar-polygon" points="140,140"></polygon>
+                            <g id="radar-points"></g>
+                        </svg>
+                    </div>
+                    {% for dim in report.score_card.dimensions %}
+                    <div class="radar-label" id="radar-label-{{ loop.index0 }}"
+                         data-dim="{{ _dim_label(dim.dimension) }}" data-score="{{ dim.score | round(0) | int }}">
+                        {{ _dim_label(dim.dimension) }}<span class="radar-label-score">{{ dim.score | round(0) | int }}</span>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
 
@@ -1158,7 +2372,7 @@
                         <div class="dim-bar-fill {{ _bar_class(dim.grade) }}"
                              style="--target-width: {{ dim.score }}%"></div>
                     </div>
-                    <span class="dim-score">{{ dim.score | round(0) | int }}</span>
+                    <span class="dim-score"><span class="counter-animate" data-target="{{ dim.score | round(0) | int }}">0</span></span>
                     <span class="dim-grade {{ _grade_class(dim.grade) }}">{{ dim.grade }}</span>
                 </div>
                 {% endfor %}
@@ -1166,37 +2380,99 @@
 
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-value">{{ report.findings | length }}</div>
+                    <div class="stat-value"><span class="counter-animate" data-target="{{ report.findings | length }}">0</span></div>
                     <div class="stat-label">Findings</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">{{ _critical_count(report.findings) }}</div>
+                    <div class="stat-value"><span class="counter-animate" data-target="{{ _critical_count(report.findings) }}">0</span></div>
                     <div class="stat-label">Critical</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">{{ report.analysis_duration_seconds | round(0) | int }}s</div>
+                    <div class="stat-value"><span class="counter-animate" data-target="{{ report.analysis_duration_seconds | round(0) | int }}" data-suffix="s">0</span></div>
                     <div class="stat-label">Duration</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">${{ "%.2f" | format(report.total_cost_usd) }}</div>
+                    <div class="stat-value">$<span class="counter-animate" data-target="{{ "%.2f" | format(report.total_cost_usd) }}" data-decimals="2">0</span></div>
                     <div class="stat-label">Cost</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">{{ report.agents_used | length }}</div>
+                    <div class="stat-value"><span class="counter-animate" data-target="{{ report.agents_used | length }}">0</span></div>
                     <div class="stat-label">Agents</div>
                 </div>
             </div>
         </section>
 
+        <!-- File Hotspot Heatmap -->
+        {% set file_counts = {} %}
+        {% for finding in report.findings %}
+            {% set fpath = finding.location.file_path %}
+            {% if fpath %}
+                {% if fpath in file_counts %}
+                    {% set _ = file_counts.update({fpath: file_counts[fpath] + 1}) %}
+                {% else %}
+                    {% set _ = file_counts.update({fpath: 1}) %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+        {% set hotspot_files = file_counts.items() | sort(attribute='1', reverse=true) %}
+        {% if hotspot_files | length > 0 %}
+        <section class="heatmap-section scroll-reveal" id="file-hotspots">
+            <div class="section-label">File Hotspot Heatmap</div>
+            {% set max_count = hotspot_files[0][1] if hotspot_files else 1 %}
+            <ul class="heatmap-list">
+                {% for filepath, count in hotspot_files[:15] %}
+                {% set severity_level = 'critical' if count >= 5 else ('high' if count >= 3 else ('medium' if count >= 2 else 'low')) %}
+                <li class="heatmap-item">
+                    <span class="heatmap-count heat-{{ severity_level }}">{{ count }}</span>
+                    <div class="heatmap-bar">
+                        <div class="heatmap-bar-fill" style="width: {{ (count / max_count * 100) | round(0) }}%; background: {{ 'var(--red)' if count >= 5 else ('var(--orange)' if count >= 3 else ('var(--amber)' if count >= 2 else 'var(--cyan)')) }};"></div>
+                    </div>
+                    <span class="heatmap-path" title="{{ filepath }}">{{ filepath }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        <!-- Finding Filter Bar -->
+        <div class="filter-bar" id="filter-bar">
+            <span class="filter-bar-label">Filter</span>
+            <select class="filter-select" id="filter-severity" aria-label="Filter by severity">
+                <option value="all">All Severity</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="info">Info</option>
+            </select>
+            <select class="filter-select" id="filter-dimension" aria-label="Filter by dimension">
+                <option value="all">All Dimensions</option>
+                {% for dimension in dimensions_order %}
+                {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
+                {% if dim_findings %}
+                <option value="{{ dimension }}">{{ _dim_label(dimension) }}</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+            <input type="text" class="filter-search" id="filter-search" placeholder="Search findings... ( / )" aria-label="Search findings">
+            <button class="filter-btn" id="btn-expand-all" title="Expand/collapse all findings">Expand All</button>
+            <span class="filter-count" id="filter-count"></span>
+        </div>
+
         <!-- Findings by Dimension -->
         {% for dimension in dimensions_order %}
         {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
         {% if dim_findings %}
-        <section class="findings-section" id="dim-{{ dimension }}">
+        <section class="findings-section scroll-reveal" id="dim-{{ dimension }}" data-dimension="{{ dimension }}">
             <h2>{{ _dim_label(dimension) }} <span class="dim-count">({{ dim_findings | length }})</span></h2>
 
             {% for finding in _sort_by_severity(dim_findings) %}
-            <div class="finding severity-{{ finding.severity }}" onclick="this.classList.toggle('expanded')">
+            <div class="finding severity-{{ finding.severity }}"
+                 data-severity="{{ finding.severity }}"
+                 data-dimension="{{ dimension }}"
+                 data-title="{{ finding.title }}"
+                 data-location="{{ finding.location.file_path }}"
+                 onclick="this.classList.toggle('expanded')">
                 <div class="finding-header">
                     <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
                     <span class="finding-title">{{ finding.title }}</span>
@@ -1206,6 +2482,7 @@
                     {% if finding.validated_by_critique %}
                     <span class="validated-badge">✓ validated</span>
                     {% endif %}
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -1231,11 +2508,11 @@
 
         <!-- Technical Debt Summary -->
         {% if tech_debt and tech_debt.total_hours > 0 %}
-        <section class="dd-section" id="tech-debt">
+        <section class="dd-section scroll-reveal" id="tech-debt">
             <div class="section-label">Technical Debt Summary</div>
 
             <div class="dd-headline">
-                <span class="dd-headline-num">{{ tech_debt.total_hours }}</span>
+                <span class="dd-headline-num"><span class="counter-animate" data-target="{{ tech_debt.total_hours }}">0</span></span>
                 <span class="dd-headline-unit">estimated hours to remediate</span>
             </div>
             <div class="dd-cost">cost to remediate: ~${{ "{:,.0f}".format(tech_debt.cost_usd) }} at $150/hr avg dev rate</div>
@@ -1286,7 +2563,7 @@
 
         <!-- DD Compliance Mapping -->
         {% if dd_compliance %}
-        <section class="dd-section" id="dd-compliance">
+        <section class="dd-section scroll-reveal" id="dd-compliance">
             <div class="section-label">Due Diligence Compliance Mapping</div>
 
             <div class="dd-subsection-label" style="margin-top: 0;">OWASP Top 10 (2021) Coverage</div>
@@ -1300,6 +2577,19 @@
                 {% endfor %}
             </div>
 
+            {% if dd_compliance.owasp_2024_coverage %}
+            <div class="dd-subsection-label">OWASP Top 10 (2024) Coverage</div>
+            <div class="dd-coverage-stat">{{ dd_compliance.owasp_2024_covered_count }} of {{ dd_compliance.owasp_2024_total }} categories checked</div>
+            <div class="owasp-grid">
+                {% for item in dd_compliance.owasp_2024_coverage %}
+                <div class="owasp-item {{ 'covered' if item.covered else 'uncovered' }}">
+                    <span class="owasp-dot"></span>
+                    {{ item.label }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% if dd_compliance.cwes %}
             <div class="dd-subsection-label">CWE References Found</div>
             <div class="cwe-list">
@@ -1307,6 +2597,328 @@
                 <span class="cwe-tag">CWE-{{ cwe_id }}</span>
                 {% endfor %}
             </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- ═══════════════════════════════════════════════════════
+             DD FRAMEWORKS — Investment, SOC 2, Bus Factor,
+             Dependency Risk, Licenses, Complexity
+             ═══════════════════════════════════════════════════════ -->
+
+        <!-- Investment Readiness Score -->
+        {% if investment_readiness %}
+        <section class="dd-section scroll-reveal {% if investment_readiness.score >= 85 %}dd-green{% elif investment_readiness.score >= 70 %}dd-green{% elif investment_readiness.score >= 50 %}dd-amber{% else %}dd-red{% endif %}" id="investment-readiness">
+            <div class="section-label">Investment Readiness Score</div>
+
+            {% set ir_score = investment_readiness.score %}
+            {% if ir_score >= 85 %}{% set ir_color = 'var(--green)' %}{% set ir_glow = 'var(--green-glow)' %}
+            {% elif ir_score >= 70 %}{% set ir_color = 'var(--cyan)' %}{% set ir_glow = 'rgba(6,182,212,0.2)' %}
+            {% elif ir_score >= 50 %}{% set ir_color = 'var(--amber)' %}{% set ir_glow = 'var(--amber-glow)' %}
+            {% else %}{% set ir_color = 'var(--red)' %}{% set ir_glow = 'var(--red-glow)' %}{% endif %}
+
+            <div class="ir-gauge-wrapper">
+                <div class="ir-gauge"
+                     style="background: conic-gradient({{ ir_color }} {{ (ir_score * 3.6) | round(1) }}deg, var(--bg-elevated) 0deg); --gauge-glow: {{ ir_glow }};">
+                    <div class="ir-gauge-inner">
+                        <span class="ir-gauge-score" style="color: {{ ir_color }};"><span class="counter-animate" data-target="{{ ir_score | round(0) | int }}">0</span></span>
+                        <span class="ir-gauge-label">/ 100</span>
+                    </div>
+                </div>
+                <div class="ir-meta">
+                    <span class="ir-rating-badge ir-rating-{{ investment_readiness.rating }}">{{ investment_readiness.rating | replace('-', ' ') }}</span>
+                    <p style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary);">
+                        {% if ir_score >= 85 %}Strong technical fundamentals. Codebase is ready for investor scrutiny.
+                        {% elif ir_score >= 70 %}Solid foundation with minor gaps. Address key issues before due diligence.
+                        {% elif ir_score >= 50 %}Moderate technical risk. Several areas need attention before fundraising.
+                        {% elif ir_score >= 30 %}Significant technical debt. Substantial work needed before investor review.
+                        {% else %}High technical risk. Major remediation required across multiple dimensions.{% endif %}
+                    </p>
+                </div>
+            </div>
+
+            {% if investment_readiness.components %}
+            <div class="dd-subsection-label" style="margin-top: 0;">Component Breakdown</div>
+            <div class="ir-components">
+                {% set ir_labels = {
+                    'overall_score': 'Overall Score',
+                    'security_posture': 'Security Posture',
+                    'bus_factor': 'Bus Factor',
+                    'dependency_risk': 'Dependency Health',
+                    'complexity': 'Code Complexity',
+                    'license_compliance': 'License Compliance',
+                    'soc2_readiness': 'SOC 2 Readiness',
+                    'critical_findings': 'Critical Findings'
+                } %}
+                {% for key, score in investment_readiness.components.items() %}
+                {% set comp_score = score | round(0) | int %}
+                {% if comp_score >= 80 %}{% set comp_color = 'var(--green)' %}
+                {% elif comp_score >= 60 %}{% set comp_color = 'var(--cyan)' %}
+                {% elif comp_score >= 40 %}{% set comp_color = 'var(--amber)' %}
+                {% else %}{% set comp_color = 'var(--red)' %}{% endif %}
+                <div class="ir-component-row">
+                    <span class="ir-component-label">{{ ir_labels.get(key, key | replace('_', ' ')) }}</span>
+                    <div class="ir-component-bar">
+                        <div class="ir-component-bar-fill" style="width: {{ comp_score }}%; background: {{ comp_color }};"></div>
+                    </div>
+                    <span class="ir-component-score" style="color: {{ comp_color }};">{{ comp_score }}</span>
+                    {% if investment_readiness.weights and key in investment_readiness.weights %}
+                    <span class="ir-component-weight">{{ (investment_readiness.weights[key] * 100) | round(0) | int }}%</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- SOC 2 Readiness -->
+        {% if soc2 %}
+        <section class="dd-section scroll-reveal" id="soc2-readiness">
+            <div class="section-label">SOC 2 Readiness</div>
+
+            <div class="dd-coverage-stat">
+                {{ soc2.total_mapped }} findings mapped across {{ soc2.criteria | length }} trust service criteria
+                <span style="color: var(--text-tertiary);"> &middot; </span>
+                <span style="font-weight: 600;">{{ soc2.coverage_pct | round(1) }}%</span> coverage
+            </div>
+
+            <div class="soc2-grid">
+                {% for criterion in soc2.criteria %}
+                <div class="soc2-criterion">
+                    <div class="soc2-criterion-header">
+                        <span class="soc2-criterion-label">{{ criterion.label }}</span>
+                        {% if criterion.has_critical %}
+                        <span class="soc2-criterion-count soc2-count-crit">{{ criterion.finding_count }} findings</span>
+                        {% elif criterion.finding_count > 0 %}
+                        <span class="soc2-criterion-count soc2-count-warn">{{ criterion.finding_count }} findings</span>
+                        {% else %}
+                        <span class="soc2-criterion-count soc2-count-ok">0 findings</span>
+                        {% endif %}
+                    </div>
+                    {% set sev_counts = criterion.severity_counts %}
+                    {% set crit_total = (sev_counts.critical | default(0)) + (sev_counts.high | default(0)) + (sev_counts.medium | default(0)) + (sev_counts.low | default(0)) + (sev_counts.info | default(0)) %}
+                    {% if crit_total > 0 %}
+                    <div class="dd-bar-track" style="height: 6px;">
+                        {% for sev, color in [("critical", "var(--red)"), ("high", "var(--orange)"), ("medium", "var(--amber)"), ("low", "var(--cyan)"), ("info", "var(--text-tertiary)")] %}
+                        {% set sev_val = sev_counts[sev] | default(0) %}
+                        {% if sev_val > 0 %}
+                        <div class="dd-bar-fill" style="width: {{ (sev_val / crit_total * 100) | round(1) }}%; background: {{ color }}; font-size: 0;"></div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="soc2-severity-row">
+                        {% for sev, color in [("critical", "var(--red)"), ("high", "var(--orange)"), ("medium", "var(--amber)"), ("low", "var(--cyan)")] %}
+                        {% set sev_val = sev_counts[sev] | default(0) %}
+                        {% if sev_val > 0 %}
+                        <span class="soc2-sev-chip" style="background: {{ color }}22; color: {{ color }};">{{ sev }} {{ sev_val }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--green); margin-top: 0.3rem;">No issues detected</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Bus Factor Analysis -->
+        {% if bus_factor %}
+        <section class="dd-section scroll-reveal {% if bus_factor.rating == 'critical' %}dd-red{% elif bus_factor.rating == 'concerning' %}dd-amber{% else %}dd-green{% endif %}" id="bus-factor">
+            <div class="section-label">Bus Factor Analysis</div>
+
+            {% set bf_score = bus_factor.score | default(0) %}
+            {% if bf_score >= 70 %}{% set bf_color = 'var(--green)' %}
+            {% elif bf_score >= 50 %}{% set bf_color = 'var(--cyan)' %}
+            {% elif bf_score >= 30 %}{% set bf_color = 'var(--amber)' %}
+            {% else %}{% set bf_color = 'var(--red)' %}{% endif %}
+
+            <div class="bf-header">
+                <div class="bf-score-display">
+                    <div class="bf-score-num" style="color: {{ bf_color }};"><span class="counter-animate" data-target="{{ bf_score }}">0</span></div>
+                    <div class="bf-score-label">distribution score</div>
+                </div>
+                <div class="ir-rating-badge {% if bus_factor.rating == 'healthy' %}ir-rating-investment-ready{% elif bus_factor.rating == 'moderate' %}ir-rating-near-ready{% elif bus_factor.rating == 'concerning' %}ir-rating-needs-work{% else %}ir-rating-not-ready{% endif %}">
+                    {{ bus_factor.rating | default('unknown') }}
+                </div>
+                <div class="bf-meta-grid">
+                    {% if bus_factor.concentration is defined %}
+                    <div class="bf-meta-item">
+                        <div class="bf-meta-value">{{ bus_factor.concentration }}</div>
+                        <div class="bf-meta-label">Gini Coefficient</div>
+                    </div>
+                    {% endif %}
+                    {% if bus_factor.unique_files is defined %}
+                    <div class="bf-meta-item">
+                        <div class="bf-meta-value">{{ bus_factor.unique_files }}</div>
+                        <div class="bf-meta-label">Unique Files</div>
+                    </div>
+                    {% endif %}
+                    {% if bus_factor.total_issues is defined %}
+                    <div class="bf-meta-item">
+                        <div class="bf-meta-value">{{ bus_factor.total_issues }}</div>
+                        <div class="bf-meta-label">Total Issues</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if bus_factor.hotspots %}
+            <div class="dd-subsection-label" style="margin-top: 0;">Top 10 Hotspot Files</div>
+            {% set max_hotspot = bus_factor.hotspots[0].count if bus_factor.hotspots else 1 %}
+            <ul class="bf-hotspot-list">
+                {% for hotspot in bus_factor.hotspots[:10] %}
+                {% set hs_count = hotspot.count | default(0) %}
+                {% if hs_count >= 5 %}{% set hs_color = 'var(--red)' %}
+                {% elif hs_count >= 3 %}{% set hs_color = 'var(--orange)' %}
+                {% elif hs_count >= 2 %}{% set hs_color = 'var(--amber)' %}
+                {% else %}{% set hs_color = 'var(--cyan)' %}{% endif %}
+                <li class="bf-hotspot-item">
+                    <span class="bf-hotspot-rank">{{ loop.index }}</span>
+                    <span class="bf-hotspot-count" style="color: {{ hs_color }};">{{ hs_count }}</span>
+                    <div class="bf-hotspot-bar">
+                        <div class="bf-hotspot-bar-fill" style="width: {{ (hs_count / max_hotspot * 100) | round(0) }}%; background: {{ hs_color }};"></div>
+                    </div>
+                    <span class="bf-hotspot-path" title="{{ hotspot.file }}">{{ hotspot.file }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- Dependency Risk -->
+        {% if dependency_risk %}
+        <section class="dd-section scroll-reveal {% if dependency_risk.score >= 60 %}dd-red{% elif dependency_risk.score >= 40 %}dd-amber{% else %}dd-green{% endif %}" id="dependency-risk">
+            <div class="section-label">Dependency Risk</div>
+
+            {% set dr_score = dependency_risk.score | default(0) %}
+            {% if dr_score < 20 %}{% set dr_color = 'var(--green)' %}{% set dr_glow = 'var(--green-glow)' %}
+            {% elif dr_score < 40 %}{% set dr_color = 'var(--cyan)' %}{% set dr_glow = 'rgba(6,182,212,0.2)' %}
+            {% elif dr_score < 60 %}{% set dr_color = 'var(--amber)' %}{% set dr_glow = 'var(--amber-glow)' %}
+            {% else %}{% set dr_color = 'var(--red)' %}{% set dr_glow = 'var(--red-glow)' %}{% endif %}
+
+            <div class="dr-header">
+                <div class="dr-gauge"
+                     style="background: conic-gradient({{ dr_color }} {{ (dr_score * 3.6) | round(1) }}deg, var(--bg-elevated) 0deg); --gauge-glow: {{ dr_glow }};">
+                    <div class="dr-gauge-inner">
+                        <span class="dr-gauge-score" style="color: {{ dr_color }};"><span class="counter-animate" data-target="{{ dr_score }}">0</span></span>
+                        <span class="dr-gauge-label">risk</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="ir-rating-badge {% if dependency_risk.rating == 'low' %}ir-rating-investment-ready{% elif dependency_risk.rating == 'moderate' %}ir-rating-near-ready{% elif dependency_risk.rating == 'elevated' %}ir-rating-needs-work{% elif dependency_risk.rating == 'high' %}ir-rating-significant-gaps{% else %}ir-rating-not-ready{% endif %}">
+                        {{ dependency_risk.rating | default('unknown') }} risk
+                    </span>
+                    <div style="margin-top: 0.5rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">
+                        {{ dependency_risk.total_dep_findings | default(0) }} dependency findings analyzed
+                        {% if dependency_risk.severity_penalty is defined and dependency_risk.severity_penalty > 0 %}
+                        <span style="color: var(--text-tertiary);"> &middot; </span>
+                        <span style="color: var(--red);">+{{ dependency_risk.severity_penalty }} severity penalty</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if dependency_risk.risk_signals %}
+            <div class="dd-subsection-label" style="margin-top: 0;">Risk Signals Detected</div>
+            <ul class="dr-signals-list">
+                {% for signal in dependency_risk.risk_signals %}
+                <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">{{ signal.keyword }}</span>
+                    <span class="dr-signal-weight">+{{ signal.weight }} pts</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--green); margin-top: 1rem;">No dependency risk signals detected</div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- License Compliance -->
+        {% if license_compliance %}
+        <section class="dd-section scroll-reveal" id="license-compliance">
+            <div class="section-label">License Compliance</div>
+
+            <div class="dd-coverage-stat">
+                {{ license_compliance.unique_licenses | default(0) }} unique license{{ 's' if license_compliance.unique_licenses != 1 else '' }} detected
+                <span style="color: var(--text-tertiary);"> &middot; </span>
+                {{ license_compliance.total_mentions | default(0) }} total mention{{ 's' if license_compliance.total_mentions != 1 else '' }}
+            </div>
+
+            {% if license_compliance.licenses_found %}
+            <div class="lc-tags">
+                {% set copyleft_licenses = license_compliance.copyleft_risk.copyleft_licenses | default([]) if license_compliance.copyleft_risk is defined else [] %}
+                {% for lic, count in license_compliance.licenses_found.items() %}
+                <span class="lc-tag {% if lic in copyleft_licenses %}lc-tag-copyleft{% endif %}">
+                    {{ lic }}<span class="lc-tag-count">&times;{{ count }}</span>
+                </span>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-tertiary); margin-top: 1rem;">No license references found in findings</div>
+            {% endif %}
+
+            {% if license_compliance.copyleft_risk is defined and license_compliance.copyleft_risk.has_copyleft %}
+            <div class="lc-copyleft-alert">
+                Copyleft Risk Detected — The following licenses may restrict distribution:
+                <div class="lc-copyleft-list">
+                    {% for lic in license_compliance.copyleft_risk.copyleft_licenses %}
+                    <span class="lc-tag lc-tag-copyleft">{{ lic }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- Code Complexity -->
+        {% if complexity %}
+        <section class="dd-section scroll-reveal {% if complexity.risk_level == 'critical' %}dd-red{% elif complexity.risk_level == 'high' %}dd-red{% elif complexity.risk_level == 'moderate' %}dd-amber{% else %}dd-green{% endif %}" id="complexity">
+            <div class="section-label">Code Complexity</div>
+
+            {% set cx_max = complexity.max_complexity | default(0) %}
+            {% if cx_max > 30 %}{% set cx_color = 'var(--red)' %}
+            {% elif cx_max > 20 %}{% set cx_color = 'var(--orange)' %}
+            {% elif cx_max > 10 %}{% set cx_color = 'var(--amber)' %}
+            {% else %}{% set cx_color = 'var(--green)' %}{% endif %}
+
+            <div class="cx-header">
+                <div class="cx-stat-block">
+                    <div class="cx-stat-num" style="color: {{ cx_color }};">{{ cx_max }}</div>
+                    <div class="cx-stat-label">Max Complexity</div>
+                </div>
+                <div class="cx-stat-block">
+                    <div class="cx-stat-num" style="color: var(--text-secondary);">{{ complexity.avg_complexity | default(0) }}</div>
+                    <div class="cx-stat-label">Avg Complexity</div>
+                </div>
+                <div class="cx-stat-block">
+                    <div class="cx-stat-num" style="color: var(--amber);">{{ complexity.high_complexity_count | default(0) }}</div>
+                    <div class="cx-stat-label">High Complexity Files</div>
+                </div>
+                <div>
+                    <span class="ir-rating-badge {% if complexity.risk_level == 'low' %}ir-rating-investment-ready{% elif complexity.risk_level == 'moderate' %}ir-rating-near-ready{% elif complexity.risk_level == 'high' %}ir-rating-significant-gaps{% elif complexity.risk_level == 'critical' %}ir-rating-not-ready{% else %}ir-rating-needs-work{% endif %}">
+                        {{ complexity.risk_level | default('unknown') }} risk
+                    </span>
+                </div>
+            </div>
+
+            {% if complexity.high_complexity_files %}
+            <div class="dd-subsection-label" style="margin-top: 0;">High Complexity Files</div>
+            <ul class="cx-file-list">
+                {% for item in complexity.high_complexity_files %}
+                <li class="cx-file-item">
+                    <span class="cx-file-sev badge-{{ item.severity }}">{{ item.severity }}</span>
+                    <span class="cx-file-title">{{ item.title }}</span>
+                    <span class="cx-file-path" title="{{ item.file }}">{{ item.file }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% elif complexity.risk_level == 'low' or complexity.risk_level == 'unknown' %}
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--green); margin-top: 0.5rem;">No high complexity files detected</div>
             {% endif %}
         </section>
         {% endif %}
@@ -1323,5 +2935,419 @@
             <div class="footer-line" style="opacity: 0.5;">{{ generated_at }}</div>
         </footer>
     </div>
+
+    <!-- Keyboard Shortcut Hints -->
+    <div class="kb-hint" aria-hidden="true">
+        <span class="kb-key">j</span><span class="kb-key">k</span> navigate
+        <span class="kb-key">/</span> search
+        <span class="kb-key">Esc</span> clear
+        <span class="kb-key">Enter</span> expand
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SPECTRA — Premium Interactive JavaScript
+         Filters, Search, Counters, Keyboard Nav, Scroll Spy
+         ═══════════════════════════════════════════════════════ -->
+    <script>
+    (function() {
+        'use strict';
+
+        /* ─── 1. Radar Chart Rendering ─── */
+        function initRadarChart() {
+            var polygon = document.getElementById('radar-polygon');
+            var pointsGroup = document.getElementById('radar-points');
+            var labels = document.querySelectorAll('[id^="radar-label-"]');
+            if (!polygon || !labels.length) return;
+
+            var cx = 140, cy = 140, r = 120;
+            var n = labels.length;
+            var angleStep = (2 * Math.PI) / n;
+            var startAngle = -Math.PI / 2;
+            var points = [];
+
+            for (var i = 0; i < n; i++) {
+                var label = labels[i];
+                var score = parseInt(label.getAttribute('data-score') || '0', 10);
+                var pct = score / 100;
+                var angle = startAngle + (i * angleStep);
+
+                var px = cx + r * pct * Math.cos(angle);
+                var py = cy + r * pct * Math.sin(angle);
+                points.push(px.toFixed(1) + ',' + py.toFixed(1));
+
+                var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', px.toFixed(1));
+                circle.setAttribute('cy', py.toFixed(1));
+                circle.setAttribute('r', '4');
+                circle.setAttribute('class', 'radar-point');
+                pointsGroup.appendChild(circle);
+
+                var lx = cx + (r + 30) * Math.cos(angle);
+                var ly = cy + (r + 30) * Math.sin(angle);
+                var containerRect = document.getElementById('radar-chart');
+                if (containerRect) {
+                    var chartW = containerRect.offsetWidth || 280;
+                    var chartH = containerRect.offsetHeight || 280;
+                    var pctX = (lx / 280) * 100;
+                    var pctY = (ly / 280) * 100;
+                    label.style.left = pctX + '%';
+                    label.style.top = pctY + '%';
+                }
+            }
+
+            polygon.setAttribute('points', points.join(' '));
+        }
+
+        /* ─── 2. Animated Score Counters ─── */
+        function animateCounter(el) {
+            var raw = el.getAttribute('data-target') || '0';
+            var suffix = el.getAttribute('data-suffix') || '';
+            var decimals = parseInt(el.getAttribute('data-decimals') || '0', 10);
+            var target = parseFloat(raw);
+            if (isNaN(target)) { el.textContent = raw; return; }
+
+            var duration = 1200;
+            var start = performance.now();
+
+            function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+            function tick(now) {
+                var elapsed = now - start;
+                var progress = Math.min(elapsed / duration, 1);
+                var val = target * easeOutQuart(progress);
+
+                if (decimals > 0) {
+                    el.textContent = val.toFixed(decimals) + suffix;
+                } else {
+                    el.textContent = Math.round(val) + suffix;
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    if (decimals > 0) {
+                        el.textContent = target.toFixed(decimals) + suffix;
+                    } else {
+                        el.textContent = Math.round(target) + suffix;
+                    }
+                }
+            }
+
+            requestAnimationFrame(tick);
+        }
+
+        function initCounters() {
+            var counters = document.querySelectorAll('.counter-animate');
+            if (!('IntersectionObserver' in window)) {
+                counters.forEach(function(c) {
+                    var t = c.getAttribute('data-target') || '0';
+                    var s = c.getAttribute('data-suffix') || '';
+                    var d = parseInt(c.getAttribute('data-decimals') || '0', 10);
+                    c.textContent = d > 0 ? parseFloat(t).toFixed(d) + s : t + s;
+                });
+                return;
+            }
+
+            var observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        animateCounter(entry.target);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.3 });
+
+            counters.forEach(function(c) { observer.observe(c); });
+        }
+
+        /* ─── 3. Scroll-Triggered Fade-In ─── */
+        function initScrollReveal() {
+            var reveals = document.querySelectorAll('.scroll-reveal');
+            if (!reveals.length) return;
+
+            if (!('IntersectionObserver' in window)) {
+                reveals.forEach(function(el) { el.classList.add('revealed'); });
+                return;
+            }
+
+            var observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+            reveals.forEach(function(el) { observer.observe(el); });
+        }
+
+        /* ─── 4. Finding Filter System ─── */
+        var filterSeverity = document.getElementById('filter-severity');
+        var filterDimension = document.getElementById('filter-dimension');
+        var filterSearch = document.getElementById('filter-search');
+        var filterCountEl = document.getElementById('filter-count');
+
+        function applyFilters() {
+            var sev = filterSeverity ? filterSeverity.value : 'all';
+            var dim = filterDimension ? filterDimension.value : 'all';
+            var query = filterSearch ? filterSearch.value.toLowerCase().trim() : '';
+
+            var findings = document.querySelectorAll('.finding[data-severity]');
+            var visible = 0;
+            var total = findings.length;
+
+            findings.forEach(function(f) {
+                var matchSev = (sev === 'all') || (f.getAttribute('data-severity') === sev);
+                var matchDim = (dim === 'all') || (f.getAttribute('data-dimension') === dim);
+                var matchSearch = true;
+
+                if (query) {
+                    var title = (f.getAttribute('data-title') || '').toLowerCase();
+                    var location = (f.getAttribute('data-location') || '').toLowerCase();
+                    var desc = f.querySelector('.finding-description');
+                    var descText = desc ? desc.textContent.toLowerCase() : '';
+                    var rec = f.querySelector('.finding-recommendation');
+                    var recText = rec ? rec.textContent.toLowerCase() : '';
+                    matchSearch = title.indexOf(query) !== -1 ||
+                                  location.indexOf(query) !== -1 ||
+                                  descText.indexOf(query) !== -1 ||
+                                  recText.indexOf(query) !== -1;
+                }
+
+                if (matchSev && matchDim && matchSearch) {
+                    f.classList.remove('filter-hidden');
+                    visible++;
+                } else {
+                    f.classList.add('filter-hidden');
+                }
+            });
+
+            /* Show/hide empty section messages */
+            var sections = document.querySelectorAll('.findings-section[data-dimension]');
+            sections.forEach(function(sec) {
+                var visibleInSection = sec.querySelectorAll('.finding[data-severity]:not(.filter-hidden)');
+                if (visibleInSection.length === 0 && total > 0 && (sev !== 'all' || dim !== 'all' || query)) {
+                    sec.classList.add('filter-empty');
+                } else {
+                    sec.classList.remove('filter-empty');
+                }
+            });
+
+            if (filterCountEl) {
+                if (sev !== 'all' || dim !== 'all' || query) {
+                    filterCountEl.textContent = visible + ' / ' + total;
+                } else {
+                    filterCountEl.textContent = '';
+                }
+            }
+        }
+
+        if (filterSeverity) filterSeverity.addEventListener('change', applyFilters);
+        if (filterDimension) filterDimension.addEventListener('change', applyFilters);
+        if (filterSearch) filterSearch.addEventListener('input', applyFilters);
+
+        /* ─── 5. Expand/Collapse All ─── */
+        var btnExpandAll = document.getElementById('btn-expand-all');
+        var allExpanded = false;
+
+        if (btnExpandAll) {
+            btnExpandAll.addEventListener('click', function() {
+                var findings = document.querySelectorAll('.finding[data-severity]:not(.filter-hidden)');
+                allExpanded = !allExpanded;
+                findings.forEach(function(f) {
+                    if (allExpanded) {
+                        f.classList.add('expanded');
+                    } else {
+                        f.classList.remove('expanded');
+                    }
+                });
+                btnExpandAll.textContent = allExpanded ? 'Collapse All' : 'Expand All';
+                btnExpandAll.classList.toggle('active', allExpanded);
+            });
+        }
+
+        /* ─── 6. Copy Finding to Clipboard ─── */
+        window.copyFinding = function(btn) {
+            var finding = btn.closest('.finding');
+            if (!finding) return;
+
+            var severity = finding.getAttribute('data-severity') || '';
+            var title = (finding.querySelector('.finding-title') || {}).textContent || '';
+            var location = (finding.querySelector('.finding-location') || {}).textContent || '';
+            var desc = (finding.querySelector('.finding-description') || {}).textContent || '';
+            var rec = (finding.querySelector('.finding-recommendation') || {}).textContent || '';
+
+            var text = [
+                '[' + severity.toUpperCase() + '] ' + title.trim(),
+                'Location: ' + location.trim(),
+                '',
+                desc.trim(),
+                '',
+                rec.trim()
+            ].join('\n');
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    btn.textContent = 'Copied';
+                    btn.classList.add('copied');
+                    setTimeout(function() {
+                        btn.textContent = 'Copy';
+                        btn.classList.remove('copied');
+                    }, 2000);
+                });
+            } else {
+                /* Fallback for older browsers */
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch(e) {}
+                document.body.removeChild(ta);
+                btn.textContent = 'Copied';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            }
+        };
+
+        /* ─── 7. Keyboard Navigation ─── */
+        var kbIndex = -1;
+
+        function getVisibleFindings() {
+            return Array.from(document.querySelectorAll('.finding[data-severity]:not(.filter-hidden)'));
+        }
+
+        function setKbActive(index) {
+            var findings = getVisibleFindings();
+            if (findings.length === 0) return;
+
+            /* Remove previous active */
+            findings.forEach(function(f) { f.classList.remove('kb-active'); });
+
+            /* Clamp index */
+            if (index < 0) index = 0;
+            if (index >= findings.length) index = findings.length - 1;
+            kbIndex = index;
+
+            var target = findings[kbIndex];
+            target.classList.add('kb-active');
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        document.addEventListener('keydown', function(e) {
+            /* Ignore when typing in inputs */
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                if (e.key === 'Escape') {
+                    e.target.blur();
+                    if (filterSearch) {
+                        filterSearch.value = '';
+                        applyFilters();
+                    }
+                }
+                return;
+            }
+
+            switch (e.key) {
+                case 'j':
+                    e.preventDefault();
+                    setKbActive(kbIndex + 1);
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    setKbActive(kbIndex - 1);
+                    break;
+                case '/':
+                    e.preventDefault();
+                    if (filterSearch) filterSearch.focus();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    /* Clear search and filters */
+                    if (filterSearch) filterSearch.value = '';
+                    if (filterSeverity) filterSeverity.value = 'all';
+                    if (filterDimension) filterDimension.value = 'all';
+                    applyFilters();
+                    /* Clear kb active */
+                    document.querySelectorAll('.finding.kb-active').forEach(function(f) {
+                        f.classList.remove('kb-active');
+                    });
+                    kbIndex = -1;
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    var findings = getVisibleFindings();
+                    if (kbIndex >= 0 && kbIndex < findings.length) {
+                        findings[kbIndex].classList.toggle('expanded');
+                    }
+                    break;
+            }
+        });
+
+        /* ─── 8. Smooth Scroll Spy ─── */
+        function initScrollSpy() {
+            var nav = document.getElementById('section-nav');
+            if (!nav) return;
+
+            var links = nav.querySelectorAll('a[href^="#"]');
+            if (!links.length) return;
+
+            var sections = [];
+            links.forEach(function(link) {
+                var id = link.getAttribute('href').slice(1);
+                var section = document.getElementById(id);
+                if (section) {
+                    sections.push({ el: section, link: link });
+                }
+            });
+
+            if (!sections.length) return;
+
+            var ticking = false;
+
+            function updateSpy() {
+                var scrollY = window.scrollY || window.pageYOffset;
+                var offset = 120;
+                var current = null;
+
+                for (var i = sections.length - 1; i >= 0; i--) {
+                    if (sections[i].el.offsetTop - offset <= scrollY) {
+                        current = sections[i];
+                        break;
+                    }
+                }
+
+                links.forEach(function(l) { l.classList.remove('scroll-active'); });
+                if (current) {
+                    current.link.classList.add('scroll-active');
+                }
+                ticking = false;
+            }
+
+            window.addEventListener('scroll', function() {
+                if (!ticking) {
+                    requestAnimationFrame(updateSpy);
+                    ticking = true;
+                }
+            }, { passive: true });
+
+            /* Initial check */
+            updateSpy();
+        }
+
+        /* ─── Initialize Everything ─── */
+        document.addEventListener('DOMContentLoaded', function() {
+            initRadarChart();
+            initCounters();
+            initScrollReveal();
+            initScrollSpy();
+        });
+
+    })();
+    </script>
 </body>
 </html>

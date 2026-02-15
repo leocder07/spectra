@@ -36,6 +36,11 @@ Thumbs.db
 *.log
 firebase-debug.log
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
 # Temp
 *.tmp
 spectra-*/

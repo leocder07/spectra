@@ -44,9 +44,7 @@ def _make_events(
     return [
         SimpleNamespace(
             type="message_start",
-            message=SimpleNamespace(
-                usage=SimpleNamespace(input_tokens=input_tokens)
-            ),
+            message=SimpleNamespace(usage=SimpleNamespace(input_tokens=input_tokens)),
         ),
         SimpleNamespace(
             type="content_block_delta",
@@ -62,9 +60,7 @@ def _make_events(
 @pytest.fixture
 def adapter():
     """Create adapter with mocked client."""
-    with patch(
-        "spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"
-    ) as mock_cls:
+    with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic") as mock_cls:
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
         a = AnthropicAdapter(api_key="test-key")
@@ -140,9 +136,7 @@ class TestAnalyzeWithThinking:
     async def test_returns_text_block(self, adapter):
         a, client = adapter
         resp = _mock_thinking_response("final answer")
-        client.messages.stream = MagicMock(
-            return_value=_FakeThinkingStream(resp)
-        )
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
         result = await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert result == "final answer"
 
@@ -150,9 +144,7 @@ class TestAnalyzeWithThinking:
     async def test_enables_adaptive_thinking(self, adapter):
         a, client = adapter
         resp = _mock_thinking_response()
-        client.messages.stream = MagicMock(
-            return_value=_FakeThinkingStream(resp)
-        )
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         call_kwargs = client.messages.stream.call_args.kwargs
         assert call_kwargs["thinking"] == {"type": "adaptive"}
@@ -163,9 +155,7 @@ class TestAnalyzeWithThinking:
         thinking_only = SimpleNamespace(type="thinking", thinking="hmm")
         usage = SimpleNamespace(input_tokens=50, output_tokens=25)
         resp = SimpleNamespace(content=[thinking_only], usage=usage)
-        client.messages.stream = MagicMock(
-            return_value=_FakeThinkingStream(resp)
-        )
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
         result = await a.analyze_with_thinking("sys", "user", "model", 2000)
         assert result == ""
 
@@ -173,9 +163,7 @@ class TestAnalyzeWithThinking:
     async def test_updates_last_usage(self, adapter):
         a, client = adapter
         resp = _mock_thinking_response(input_tokens=300, output_tokens=150)
-        client.messages.stream = MagicMock(
-            return_value=_FakeThinkingStream(resp)
-        )
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         assert a.last_usage == (300, 150)
 
@@ -187,9 +175,7 @@ class TestErrorHandling:
 
         a, client = adapter
         client.messages.stream = MagicMock(
-            return_value=_FakeStream(
-                [], error=anthropic.APIConnectionError(request=MagicMock())
-            )
+            return_value=_FakeStream([], error=anthropic.APIConnectionError(request=MagicMock()))
         )
         with pytest.raises(SpectraRetryError) as exc_info:
             await a.analyze("sys", "user", "model", 1000)
@@ -223,9 +209,7 @@ class TestErrorHandling:
 
         a, client = adapter
         client.messages.stream = MagicMock(
-            return_value=_FakeThinkingStream(
-                None, error=anthropic.APIConnectionError(request=MagicMock())
-            )
+            return_value=_FakeThinkingStream(None, error=anthropic.APIConnectionError(request=MagicMock()))
         )
         with pytest.raises(SpectraRetryError) as exc_info:
             await a.analyze_with_thinking("sys", "user", "model", 2000)
@@ -265,8 +249,6 @@ class TestClose:
 
 class TestLastUsage:
     def test_initial_usage_is_zero(self):
-        with patch(
-            "spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"
-        ):
+        with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"):
             a = AnthropicAdapter(api_key="test")
             assert a.last_usage == (0, 0)

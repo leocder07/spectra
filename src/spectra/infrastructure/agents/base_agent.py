@@ -49,12 +49,10 @@ class BaseAgent(ABC):
         return self.format_result(findings, raw_output, duration, tokens, dim_score)
 
     @abstractmethod
-    def validate_input(self, user_prompt: str) -> None:
-        ...
+    def validate_input(self, user_prompt: str) -> None: ...
 
     @abstractmethod
-    def build_prompt(self, user_prompt: str) -> str:
-        ...
+    def build_prompt(self, user_prompt: str) -> str: ...
 
     async def execute_llm(self, prompt: str) -> str:
         return await self._gateway.analyze(
@@ -76,21 +74,18 @@ class BaseAgent(ABC):
             return result
         _log.warning(
             "All JSON extraction failed for %s (raw=%d, cleaned=%d)",
-            self._role, len(raw), len(cleaned),
+            self._role,
+            len(raw),
+            len(cleaned),
         )
         raise AgentError(ERRORS["SPEC-005"])
 
     @abstractmethod
-    def validate_output(
-        self, parsed: dict[str, list[dict[str, str | int | float]]]
-    ) -> tuple[Finding, ...]:
-        ...
+    def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]: ...
 
     def _get_tokens_used(self) -> int:
         """Get actual token usage from the gateway's last API call."""
-        usage: tuple[int, int] = getattr(
-            self._gateway, "last_usage", (0, 0)
-        )
+        usage: tuple[int, int] = getattr(self._gateway, "last_usage", (0, 0))
         inp, out = usage
         return inp + out if (inp + out) > 0 else 0
 
@@ -110,9 +105,7 @@ class BaseAgent(ABC):
         dimension_score: float | None = None,
     ) -> AgentOutput:
         """Build an AgentOutput from a completed LLM call."""
-        final_tokens = tokens_used if tokens_used > 0 else max(
-            len(raw_response) // 4, 1
-        )
+        final_tokens = tokens_used if tokens_used > 0 else max(len(raw_response) // 4, 1)
         return AgentOutput(
             agent_role=self._role,
             findings=findings,

@@ -109,9 +109,7 @@ class MetaPrompter(BaseAgent):
             "Based on this file tree, produce your analysis plan."
         )
 
-    def validate_output(
-        self, parsed: dict[str, list[dict[str, str | int | float]]]
-    ) -> tuple[Finding, ...]:
+    def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]:
         required = {"repo_language", "focus_areas", "token_allocation"}
         missing = required - set(parsed.keys())
         if missing:
@@ -119,7 +117,5 @@ class MetaPrompter(BaseAgent):
             raise ValueError(msg)
         return ()
 
-    def get_plan(
-        self, raw_output: str
-    ) -> dict[str, list[dict[str, str | int | float]]]:
+    def get_plan(self, raw_output: str) -> dict[str, list[dict[str, str | int | float]]]:
         return self.parse_output(raw_output)

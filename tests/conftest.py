@@ -72,7 +72,7 @@ def sample_finding_factory():
 
     def _create(
         *,
-        id: str = "TEST-001",
+        id: str = "TEST-001",  # noqa: A002
         dimension: Dimension = "security",
         severity: str = "high",
         title: str = "Test finding",
@@ -163,8 +163,12 @@ def sample_scorecard() -> ScoreCard:
         DimensionScore(dimension="architecture", score=85.0, grade=score_to_grade(85.0), findings_count=3, weight=0.25),
         DimensionScore(dimension="security", score=90.0, grade=score_to_grade(90.0), findings_count=2, weight=0.25),
         DimensionScore(dimension="quality", score=78.0, grade=score_to_grade(78.0), findings_count=5, weight=0.20),
-        DimensionScore(dimension="documentation", score=70.0, grade=score_to_grade(70.0), findings_count=4, weight=0.10),
-        DimensionScore(dimension="maintainability", score=82.0, grade=score_to_grade(82.0), findings_count=3, weight=0.10),
+        DimensionScore(
+            dimension="documentation", score=70.0, grade=score_to_grade(70.0), findings_count=4, weight=0.10
+        ),
+        DimensionScore(
+            dimension="maintainability", score=82.0, grade=score_to_grade(82.0), findings_count=3, weight=0.10
+        ),
         DimensionScore(dimension="performance", score=88.0, grade=score_to_grade(88.0), findings_count=1, weight=0.10),
     )
     overall = sum(d.score * d.weight for d in dimensions)
@@ -190,12 +194,20 @@ def sample_scorecard_factory():
         perf: float = 88.0,
     ) -> ScoreCard:
         dims = (
-            DimensionScore(dimension="architecture", score=arch, grade=score_to_grade(arch), findings_count=3, weight=0.25),
+            DimensionScore(
+                dimension="architecture", score=arch, grade=score_to_grade(arch), findings_count=3, weight=0.25
+            ),
             DimensionScore(dimension="security", score=sec, grade=score_to_grade(sec), findings_count=2, weight=0.25),
             DimensionScore(dimension="quality", score=qual, grade=score_to_grade(qual), findings_count=5, weight=0.20),
-            DimensionScore(dimension="documentation", score=doc, grade=score_to_grade(doc), findings_count=4, weight=0.10),
-            DimensionScore(dimension="maintainability", score=maint, grade=score_to_grade(maint), findings_count=3, weight=0.10),
-            DimensionScore(dimension="performance", score=perf, grade=score_to_grade(perf), findings_count=1, weight=0.10),
+            DimensionScore(
+                dimension="documentation", score=doc, grade=score_to_grade(doc), findings_count=4, weight=0.10
+            ),
+            DimensionScore(
+                dimension="maintainability", score=maint, grade=score_to_grade(maint), findings_count=3, weight=0.10
+            ),
+            DimensionScore(
+                dimension="performance", score=perf, grade=score_to_grade(perf), findings_count=1, weight=0.10
+            ),
         )
         overall = sum(d.score * d.weight for d in dims)
         return ScoreCard(

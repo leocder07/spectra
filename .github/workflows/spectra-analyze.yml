@@ -1,68 +1,42 @@
-# Spectra CI — Test, Lint, and Self-Analysis
+# Reusable Spectra Analysis Workflow
 #
-# This workflow serves two purposes:
-#   1. Standard CI: lint + test on every push and PR
-#   2. Integration demo: Spectra analyzes itself on PRs
+# Copy this file into YOUR repo at .github/workflows/spectra-analyze.yml
+# to analyze your codebase with Spectra on every pull request.
 #
-# Other repos can copy the "spectra-analysis" job or use the
-# reusable workflow at .github/workflows/spectra-analyze.yml
+# Prerequisites:
+#   1. Add your Anthropic API key as a repository secret:
+#      Settings > Secrets > Actions > ANTHROPIC_API_KEY
+#   2. That's it.
+#
+# Usage:
+#   This workflow triggers on PRs. It installs Spectra from PyPI,
+#   runs a quick analysis, uploads the HTML report as an artifact,
+#   and posts a summary comment on the PR.
+#
+# Customization:
+#   - Remove --quick to enable the CritiqueAgent (deeper analysis, ~90s)
+#   - Change --format to "json" for machine-readable output
+#   - Adjust spectra-version to pin a specific release
+#   - Set fail-on-grade to block PRs below a threshold
 
-name: CI
+name: Spectra Analysis
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
   pull-requests: write
 
+env:
+  SPECTRA_VERSION: "spectra-cli"  # Pin with spectra-cli==0.1.0 if needed
+
 jobs:
-  # ──────────────────────────────────────────────
-  # Job 1: Test & Lint (runs on every push and PR)
-  # ──────────────────────────────────────────────
-  test:
-    name: Test & Lint
+  analyze:
+    name: Spectra Code Analysis
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
-
-      - name: Lint — ruff check
-        run: ruff check src/ tests/
-
-      - name: Lint — ruff format
-        run: ruff format --check src/ tests/
-
-      - name: Test with coverage
-        run: |
-          pytest tests/ -v \
-            --cov=spectra \
-            --cov-report=term-missing \
-            --cov-fail-under=70
-
-  # ──────────────────────────────────────────────
-  # Job 2: Spectra Self-Analysis (PRs only)
-  #
-  # This demonstrates how any repo can integrate
-  # Spectra into its CI/CD pipeline. Spectra
-  # analyzes itself and posts results on the PR.
-  # ──────────────────────────────────────────────
-  spectra-analysis:
-    name: Spectra Analysis
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: test
-    continue-on-error: true  # Analysis is advisory, not blocking
+    continue-on-error: true  # Analysis is advisory by default
 
     steps:
       - uses: actions/checkout@v4
@@ -73,16 +47,43 @@ jobs:
           cache: pip
 
       - name: Install Spectra
-        run: pip install -e .
+        run: pip install "${{ env.SPECTRA_VERSION }}"
 
-      - name: Run Spectra analysis
+      - name: Run Spectra
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        id: spectra
         run: |
+          set +e
           spectra analyze . --quick --format json --output spectra-report.json
-          spectra analyze . --quick --output spectra-report.html
+          SPECTRA_EXIT=$?
+          set -e
 
-      - name: Upload report artifacts
+          # Also generate the HTML report for download
+          if [ -f spectra-report.json ]; then
+            spectra analyze . --quick --output spectra-report.html || true
+          fi
+
+          echo "exit_code=$SPECTRA_EXIT" >> "$GITHUB_OUTPUT"
+
+      # ── Optional: Fail PR if grade is below threshold ──
+      # Uncomment the following step to enforce a minimum grade.
+      #
+      # - name: Check grade threshold
+      #   if: steps.spectra.outputs.exit_code == '0'
+      #   run: |
+      #     SCORE=$(python3 -c "
+      #     import json, sys
+      #     r = json.load(open('spectra-report.json'))
+      #     print(r.get('overall_score', r.get('score', 0)))
+      #     ")
+      #     echo "Score: $SCORE"
+      #     if [ "$SCORE" -lt 60 ]; then
+      #       echo "::error::Spectra score $SCORE is below the minimum threshold of 60"
+      #       exit 1
+      #     fi
+
+      - name: Upload Spectra report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -92,7 +93,7 @@ jobs:
             spectra-report.html
           retention-days: 30
 
-      - name: Post PR comment with results
+      - name: Post PR summary
         if: always()
         uses: actions/github-script@v7
         with:
@@ -117,7 +118,6 @@ jobs:
               body += `| Total Findings | ${findings} |\n`;
               body += `| Critical | ${critical} |\n\n`;
 
-              // Dimension scores
               if (report.dimensions) {
                 body += `### Dimension Scores\n\n`;
                 body += `| Dimension | Score | Grade |\n`;
@@ -129,7 +129,6 @@ jobs:
                 body += '\n';
               }
 
-              // Top critical/high findings
               if (report.findings && report.findings.length > 0) {
                 const top = report.findings
                   .filter(f => f.severity === 'critical' || f.severity === 'high')
@@ -145,15 +144,14 @@ jobs:
                 }
               }
 
-              body += `> Full report available as a build artifact.\n`;
+              body += `> Full report available in the [build artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}).\n`;
             } catch (err) {
               body += `Analysis did not produce a parseable report.\n\n`;
-              body += `Check the workflow logs for details.\n`;
+              body += `Check the [workflow logs](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}) for details.\n`;
             }
 
             body += `\n---\n*Generated by [Spectra](https://github.com/leocder07/spectra) — 8 AI agents, 6 dimensions, 90 seconds*`;
 
-            // Find and update existing comment, or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,

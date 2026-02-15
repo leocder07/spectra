@@ -29,10 +29,17 @@ class TestAgentFactory:
         assert isinstance(agent, CritiqueAgent)
         assert agent.role == "critique"
 
-    @pytest.mark.parametrize("role", [
-        "architecture", "security", "quality",
-        "documentation", "dependency", "performance",
-    ])
+    @pytest.mark.parametrize(
+        "role",
+        [
+            "architecture",
+            "security",
+            "quality",
+            "documentation",
+            "dependency",
+            "performance",
+        ],
+    )
     def test_create_specialist(self, factory: AgentFactory, role: str):
         agent = factory.create(role)
         assert isinstance(agent, SpecialistAgent)
@@ -50,6 +57,10 @@ class TestAgentFactory:
         specialists = factory.create_specialists()
         roles = {s.role for s in specialists}
         assert roles == {
-            "architecture", "security", "quality",
-            "documentation", "dependency", "performance",
+            "architecture",
+            "security",
+            "quality",
+            "documentation",
+            "dependency",
+            "performance",
         }

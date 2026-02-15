@@ -1,10 +1,14 @@
 ![CI](https://github.com/leocder07/spectra/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-573_passed-22C55E)
+![Coverage](https://img.shields.io/badge/coverage-90%25-22C55E)
+![Python](https://img.shields.io/badge/python-3.12+-7C3AED)
+![License](https://img.shields.io/badge/license-MIT-F59E0B)
 
 # Spectra
 
 **8 AI agents analyze your entire repository in 90 seconds.**
 
-Spectra deploys 8 AI agents — 1 MetaPrompter (planner) + 6 specialists (parallel) + 1 CritiqueAgent (validator) — to score your codebase across architecture, security, quality, documentation, maintainability, and performance. You get a letter grade, a ranked list of findings, and a single-file HTML report.
+Spectra deploys 8 AI agents — 1 MetaPrompter (planner) + 6 specialists (parallel) + 1 CritiqueAgent (validator) — to score your codebase across architecture, security, quality, documentation, maintainability, and performance. You get a letter grade, a ranked list of findings, and a single-file HTML report ready for investors, auditors, or your next sprint planning.
 
 ---
 
@@ -28,6 +32,20 @@ spectra analyze <repo-url> --format json    # Machine-readable output
 spectra analyze <repo-url> --output my.html # Custom report path
 spectra analyze <repo-url> --verbose        # Debug output
 ```
+
+---
+
+## What Makes Spectra Different
+
+**Multi-agent, not single-prompt.** Most tools send your code to one LLM call and hope for the best. Spectra runs 8 specialized agents — 6 in parallel — each trained on a single dimension. An architecture agent doesn't get distracted by security findings. A security agent doesn't water down its severity ratings to seem balanced.
+
+**Validation built in, not bolted on.** The CritiqueAgent uses Claude Opus 4.6 with extended thinking to validate every finding from every specialist. False positives get removed. Severity ratings get adjusted. You get findings you can trust, not a wall of noise.
+
+**VC-grade due diligence reports.** OWASP Top 10 compliance mapping, SOC 2 Trust Service Criteria coverage, investment readiness scoring, bus factor analysis, and technical debt quantification — the kind of reports that satisfy auditors and investors, not just developers.
+
+**Premium terminal aesthetic.** Dark theme with glassmorphism, animated radar charts, interactive findings with filter/search/keyboard navigation, and file hotspot heatmaps. Reports you actually want to open.
+
+**Clean Architecture, no shortcuts.** 4-layer dependency rule enforced across the entire codebase. Frozen Pydantic models. Zero `Any` types. 573 tests at 90% coverage. The tool that audits your architecture follows strict architecture itself.
 
 ---
 
@@ -56,10 +74,20 @@ spectra analyze <repo-url> --verbose        # Debug output
 
 A self-contained single-file report with:
 
-- Color-coded grades per dimension
-- Every finding with severity, file path, line number, and fix recommendation
-- Findings grouped by dimension and sorted by severity
-- Works offline — no external dependencies
+- **Executive summary** with top strengths and concerns
+- **Spectrum bar visualization** — color-coded grades per dimension
+- **Radar chart** mapping scores across all 6 dimensions
+- **Interactive findings** with severity/dimension filter, text search, and keyboard navigation (`j`/`k` to navigate, `o` to expand, `/` to search)
+- **File hotspot heatmap** — files ranked by finding density
+- **Technical debt quantification** — estimated hours and cost to remediate
+- **OWASP Top 10 compliance mapping** — coverage across all 10 categories
+- **SOC 2 Trust Service Criteria** — findings mapped to security, availability, processing integrity, confidentiality, privacy
+- **Investment Readiness Score** — weighted composite across architecture, security, test coverage, documentation, bus factor, SOC 2 readiness
+- **Bus factor analysis** — contributor concentration and single-point-of-failure hotspots
+- **Dependency risk assessment** — outdated deps, license conflicts, supply chain concerns
+- **Print-friendly output** — clean layout for PDF export and physical review
+
+Works offline. No external dependencies. One HTML file.
 
 ---
 
@@ -70,8 +98,8 @@ Spectra runs a 6-stage pipeline:
 ```
 INGEST ──→ PLAN ──→ ANALYZE ──→ MERGE ──→ CRITIQUE ──→ REPORT
   │          │         │           │          │            │
-  Clone    MetaP   6 specialist  Dedup     Validate     HTML +
-  repo     plans    parallel    + score   findings     ScoreCard
+  Clone    MetaP    6 agents    Dedup     Validate     HTML +
+  repo     plans    parallel   + score   findings     ScoreCard
 ```
 
 ### Stage 1 — Ingest
@@ -107,7 +135,7 @@ Deduplicate findings across agents, cross-reference overlapping issues, and comp
 
 ### Stage 6 — Report
 
-Render the HTML report via Jinja2 and display the terminal ScoreCard.
+Render the HTML report via Jinja2 — radar charts, hotspot heatmaps, due diligence frameworks, interactive findings — and display the terminal ScoreCard.
 
 ---
 
@@ -228,6 +256,75 @@ The HTML report includes every finding with severity, file path, line number, fi
 
 ---
 
+## CI Integration
+
+Spectra fits into any GitHub Actions pipeline. Add automated code analysis to every pull request.
+
+### Quick Setup (3 steps)
+
+1. Copy `.github/workflows/spectra-analyze.yml` into your repo
+2. Add `ANTHROPIC_API_KEY` to your repo secrets (Settings > Secrets > Actions)
+3. Open a pull request — Spectra posts a grade summary as a PR comment
+
+### What Happens on Each PR
+
+```
+PR opened → Spectra installs → Analyzes repo → Posts comment
+                                    │
+                                    ├── Grade table (A+ to F)
+                                    ├── Dimension breakdown
+                                    ├── Top critical findings
+                                    └── HTML report as artifact
+```
+
+### Example Workflow
+
+```yaml
+# .github/workflows/spectra-analyze.yml
+name: Spectra Analysis
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install spectra-cli
+      - run: spectra analyze . --quick --format json --output spectra-report.json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spectra-report
+          path: spectra-report.json
+```
+
+See `.github/workflows/spectra-analyze.yml` in this repo for the full workflow with PR comments and grade thresholds.
+
+### Options
+
+| Flag | Effect |
+|------|--------|
+| `--quick` | Skip CritiqueAgent, ~40s instead of ~90s |
+| `--format json` | Machine-readable output for CI parsing |
+| `--output path` | Custom report file path |
+
+### Grade Gating (Optional)
+
+Uncomment the threshold check in the workflow to block PRs that score below a minimum grade. Set any threshold from 0-100.
+
+---
+
 ## Development
 
 ```bash
@@ -247,6 +344,20 @@ mypy src/
 ```
 
 Requires Python 3.12+ and an `ANTHROPIC_API_KEY`.
+
+---
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| Tests | 573 passed |
+| Coverage | 90% |
+| Agents | 8 (6 parallel specialists + MetaPrompter + CritiqueAgent) |
+| Dimensions | 6 (architecture, security, quality, documentation, maintainability, performance) |
+| Architecture | Clean Architecture, 4 layers, strict dependency rule |
+| Source code | ~2,000 lines |
+| Test code | ~4,300 lines |
 
 ---
 
