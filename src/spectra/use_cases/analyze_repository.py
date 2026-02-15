@@ -934,8 +934,15 @@ def _estimate_score(
 
 
 def _compute_penalty_score(findings: list[Finding]) -> float:
-    """Calculate penalty-based score from findings."""
-    raw_penalty = sum(_PENALTY_MAP.get(f.severity, 0.0) for f in findings)
+    """Confidence-weighted penalty calculation.
+
+    Higher-confidence findings penalize more than uncertain ones.
+    A confidence=0.98 critical counts fully; confidence=0.72 counts ~72%.
+    """
+    raw_penalty = sum(
+        _PENALTY_MAP.get(f.severity, 0.0) * f.confidence
+        for f in findings
+    )
     capped = min(raw_penalty, _MAX_PENALTY)
     return max(0.0, 100.0 - capped)
 

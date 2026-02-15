@@ -273,11 +273,12 @@ class TestEstimateScore:
     def test_critical_penalty(self):
         findings = [_finding("security", "critical")]
         score = _estimate_score(findings)
-        assert score == 85.0  # 100 - 15 = 85
+        # 100 - (15 * 0.8 confidence) = 88.0
+        assert score == 88.0
 
     def test_high_penalty(self):
         findings = [_finding("security", "high")]
-        assert _estimate_score(findings) == 92.0  # 100 - 8 = 92
+        assert _estimate_score(findings) == 93.6  # 100 - (8 * 0.8) = 93.6
 
     def test_info_no_penalty(self):
         findings = [_finding("security", "info")]
@@ -291,8 +292,9 @@ class TestEstimateScore:
 
     def test_blended_with_llm_score(self):
         findings = [_finding("security", "high")]
-        # penalty_score = 92, llm_score = 80 → 0.4*80 + 0.6*92 = 32 + 55.2 = 87.2
-        assert _estimate_score(findings, llm_score=80.0) == 87.2
+        # penalty = 8*0.8=6.4, penalty_score = 93.6, llm = 80
+        # blended = 0.4*80 + 0.6*93.6 = 32 + 56.16 = 88.2
+        assert _estimate_score(findings, llm_score=80.0) == 88.2
 
     def test_cap_at_100(self):
         assert _estimate_score([]) == 85.0
@@ -976,8 +978,8 @@ class TestEstimateScoreEdgeCases:
             _finding("security", "high", line=2),
             _finding("security", "medium", line=3),
         ]
-        # 15 + 8 + 3 = 26 penalty
-        assert _estimate_score(findings) == 74.0
+        # (15+8+3)*0.8 = 20.8 penalty → 100-20.8 = 79.2
+        assert _estimate_score(findings) == 79.2
 
     def test_blended_score_with_no_findings(self):
         # No findings = default 85, but with llm_score
@@ -985,13 +987,15 @@ class TestEstimateScoreEdgeCases:
 
     def test_llm_score_high_penalty_low(self):
         findings = [_finding("security", "low", line=1)]
-        # penalty_score = 99, llm = 100 → 0.4*100 + 0.6*99 = 40 + 59.4 = 99.4
-        assert _estimate_score(findings, llm_score=100.0) == 99.4
+        # penalty = 1*0.8=0.8, penalty_score = 99.2, llm = 100
+        # blended = 0.4*100 + 0.6*99.2 = 40 + 59.52 = 99.5
+        assert _estimate_score(findings, llm_score=100.0) == 99.5
 
     def test_llm_score_boundary_zero(self):
         findings = [_finding("security", "high", line=1)]
-        # penalty = 92, llm = 0 → 0.4*0 + 0.6*92 = 55.2
-        assert _estimate_score(findings, llm_score=0.0) == 55.2
+        # penalty = 8*0.8=6.4, penalty_score = 93.6, llm = 0
+        # blended = 0.4*0 + 0.6*93.6 = 56.16 → 56.2
+        assert _estimate_score(findings, llm_score=0.0) == 56.2
 
 
 # ── _compute_scorecard edge cases ──────────────────────────────
@@ -1062,7 +1066,9 @@ class TestEstimateScoreParametrized:
     )
     def test_individual_severity_penalty(self, sev, penalty):
         findings = [_finding("security", sev, line=1)]
-        expected = round(100.0 - penalty, 1)
+        # Penalties are confidence-weighted (finding confidence is 0.8)
+        confidence = findings[0].confidence
+        expected = round(100.0 - penalty * confidence, 1)
         assert _estimate_score(findings) == expected
 
     def test_all_zero_llm_with_zero_findings(self):
@@ -1071,7 +1077,9 @@ class TestEstimateScoreParametrized:
     def test_blended_formula_exact(self):
         findings = [_finding("security", "medium", line=1)]
         result = _estimate_score(findings, llm_score=50.0)
-        assert result == 78.2
+        # penalty = 3.0 * 0.8 confidence = 2.4, penalty_score = 97.6
+        # blended = 0.4 * 50.0 + 0.6 * 97.6 = 20.0 + 58.56 = 78.6
+        assert result == 78.6
 
 
 # ── Parametrized _validate_repo_url ──────────────────────────

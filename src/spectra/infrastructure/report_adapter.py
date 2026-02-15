@@ -813,6 +813,36 @@ def _ir_rating(score: float) -> str:
     return "not-ready"
 
 
+# ── ROI Calculator ("The $47 Line") ──────────────────────────
+
+_ENGINEER_HOURLY_RATE = 175  # Senior engineer market rate
+_MANUAL_REVIEW_HOURS = 4.0   # Estimated hours for equivalent manual review
+
+
+def _compute_roi(report: AnalysisReport) -> dict[str, object]:
+    """Compute ROI comparison: Spectra cost vs. manual review cost.
+
+    Returns data for the "savings" callout in the report template.
+    """
+    spectra_cost = report.total_cost_usd
+    manual_cost = _ENGINEER_HOURLY_RATE * _MANUAL_REVIEW_HOURS
+    savings = manual_cost - spectra_cost
+    findings_count = len(report.findings)
+    cost_per_finding = (
+        round(spectra_cost / findings_count, 2) if findings_count else 0.0
+    )
+    return {
+        "spectra_cost": round(spectra_cost, 2),
+        "manual_cost": round(manual_cost),
+        "savings": round(savings),
+        "savings_pct": round((savings / manual_cost) * 100) if manual_cost else 0,
+        "cost_per_finding": cost_per_finding,
+        "findings_count": findings_count,
+        "engineer_rate": _ENGINEER_HOURLY_RATE,
+        "manual_hours": _MANUAL_REVIEW_HOURS,
+    }
+
+
 # ── Report Adapter Class ─────────────────────────────────────
 
 
@@ -868,6 +898,7 @@ class ReportAdapter:
             dependency_risk=dd_frameworks["dependency_risk"],
             investment_readiness=dd_frameworks["investment_readiness"],
             badge_svg=self.render_badge(report),
+            roi=_compute_roi(report),
             has_mermaid=has_mermaid,
             csp_nonce=csp_nonce,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
