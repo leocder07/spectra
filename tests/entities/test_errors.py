@@ -287,13 +287,19 @@ class TestErrorCatchability:
         except Exception as e:
             assert isinstance(e, SpectraRetryError)
 
-    @pytest.mark.parametrize("code", ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"])
+    @pytest.mark.parametrize(
+        "code",
+        ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"],
+    )
     def test_all_error_codes_have_message(self, code):
         err = ERRORS[code]
         assert len(err.message) > 0
         assert len(err.code) == 8
 
-    @pytest.mark.parametrize("code", ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"])
+    @pytest.mark.parametrize(
+        "code",
+        ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"],
+    )
     def test_all_errors_are_frozen(self, code):
         err = ERRORS[code]
         with pytest.raises(AttributeError):

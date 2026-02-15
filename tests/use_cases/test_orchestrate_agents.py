@@ -250,9 +250,13 @@ class TestEvaluateResultsEdgeCases:
             RuntimeError("f1"),
             RuntimeError("f2"),
             RuntimeError("f3"),
-            AgentOutput(agent_role="documentation", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(
+                agent_role="documentation", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"
+            ),
             AgentOutput(agent_role="dependency", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
-            AgentOutput(agent_role="performance", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(
+                agent_role="performance", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"
+            ),
         ]
         roles = ["architecture", "security", "quality", "documentation", "dependency", "performance"]
         successes, failed, state = evaluate_results(outputs, roles)
@@ -268,7 +272,9 @@ class TestEvaluateResultsEdgeCases:
         assert state == "degraded"
 
     def test_preserves_order(self):
-        o1 = AgentOutput(agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}")
+        o1 = AgentOutput(
+            agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"
+        )
         o2 = AgentOutput(agent_role="quality", findings=(), tokens_used=200, duration_seconds=2.0, raw_response="{}")
         results = [o1, RuntimeError("fail"), o2]
         roles = ["architecture", "security", "quality"]
