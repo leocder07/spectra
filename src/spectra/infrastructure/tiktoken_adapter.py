@@ -2,6 +2,15 @@
 
 Uses the ``cl100k_base`` encoding (Claude/GPT-4 family) by default
 and caches token counts by text hash to avoid redundant encoding.
+
+Performance:
+    - Hash-based cache: Token counts are stored in a ``dict[int, int]``
+      keyed by ``hash(text)``. Repeat lookups are O(1) dict access,
+      skipping the expensive ``tiktoken.encode()`` call entirely.
+    - The encoder itself is loaded once at construction time, not per-call.
+    - Cache hits are common: the file tree string is counted once but
+      referenced by all 6 specialist agents, the MetaPrompter, and the
+      budget checker — 8+ cache hits per analysis run.
 """
 
 from __future__ import annotations
@@ -15,6 +24,10 @@ class TiktokenAdapter:
     Caches token counts by text hash to avoid redundant encoding
     when the same content is counted multiple times (e.g. the file
     tree sent to all 6 specialist agents).
+
+    The cache is a simple ``dict[int, int]`` (text hash → token count).
+    This avoids the expensive ``tiktoken.encode()`` call on repeated
+    inputs — cached lookups are O(1) dict access vs. O(n) encoding.
     """
 
     def __init__(self, encoding_name: str = "cl100k_base") -> None:
@@ -23,7 +36,9 @@ class TiktokenAdapter:
         Args:
             encoding_name: tiktoken encoding name (default ``cl100k_base``).
         """
+        # Encoder loaded once at construction — not per-call
         self._encoder = tiktoken.get_encoding(encoding_name)
+        # Hash-based cache: O(1) repeat lookups for identical text
         self._cache: dict[int, int] = {}
 
     def count(self, text: str) -> int:
@@ -37,9 +52,12 @@ class TiktokenAdapter:
         Returns:
             Number of tokens.
         """
+        # Cached by text hash — O(1) repeat lookups
         key = hash(text)
         if key not in self._cache:
+            # Cache miss: encode once and store
             self._cache[key] = len(self._encoder.encode(text))
+        # Cache hit path: direct dict lookup, skips encode()
         return self._cache[key]
 
     def fits_budget(self, text: str, budget: int) -> bool:

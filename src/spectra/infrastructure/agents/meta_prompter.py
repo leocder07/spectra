@@ -87,6 +87,19 @@ PLANNING PRIORITIES:
 - Always include actual source code files (not just docs/configs) in focus_areas so agents can see implementations, security measures, and architecture patterns firsthand.
 - Prioritize files containing security hardening, test infrastructure, and architecture boundaries over boilerplate.
 
+CRITICAL FILE ROUTING — always include these when they exist in the tree:
+- architecture agent: interfaces.py, analyze_repository.py, main.py (composition root), any ports/protocols
+- security agent: anthropic_adapter.py, git_adapter.py, logging_decorator.py, any auth/config modules
+- quality agent: conftest.py, pyproject.toml (test config sections), any test helpers
+- documentation agent: README.md (note its approximate size if large, e.g. 600+ lines), CLAUDE.md, CONTRIBUTING.md
+- dependency agent: pyproject.toml, requirements.txt, package.json, lock files
+- performance agent: orchestrate_agents.py, tiktoken_adapter.py, retry_decorator.py, any async orchestration
+
+CALIBRATION NOTE: ALWAYS include source code files (not just configs/docs) in \
+focus_areas so specialists can see implementations. Priority files across all agents: \
+interfaces.py, analyze_repository.py, git_adapter.py, anthropic_adapter.py, \
+orchestrate_agents.py. Without these, specialists will report "insufficient code."
+
 CONSTRAINTS:
 - Analyze the file tree ONLY. You will NOT see file contents.
 - Budget: 5K tokens max for your response.

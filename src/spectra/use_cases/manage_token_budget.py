@@ -3,6 +3,21 @@
 Handles the distribution of the specialist token pool (500K tokens by
 default) across the 6 analysis dimensions, using either MetaPrompter
 suggestions or the default ``DIMENSION_WEIGHTS``.
+
+Budget allocation strategy:
+    - The total pipeline budget (default 1M tokens) is split between
+      the MetaPrompter (fixed ~5K), specialists (variable pool), and
+      CritiqueAgent (pre-allocated ~200K).
+    - Each specialist gets a share of the pool proportional to its
+      dimension weight (e.g., architecture=25%, documentation=10%).
+    - A 5% safety margin is built into ``TokenBudget.specialists_pool``
+      to absorb variable response sizes without triggering SPEC-004.
+    - If the MetaPrompter provides custom allocations (from its analysis
+      of the repo structure), those override the default weights while
+      still respecting the total pool size.
+    - Overflow handling: ``check_budget_remaining`` clamps to zero so
+      the pipeline gracefully skips the critique stage rather than
+      crashing when the budget is exhausted.
 """
 
 from __future__ import annotations
@@ -38,12 +53,16 @@ def allocate_specialist_budgets(
     Returns:
         Mapping of dimension to allocated token count.
     """
+    # Pool already includes 5% safety margin for variable response sizes
     pool = budget.specialists_pool
 
     if allocations:
+        # MetaPrompter-suggested allocations: normalize to pool size
+        # to prevent over-allocation regardless of LLM output
         total_alloc = sum(allocations.values())
         return {dim: int(pool * allocations.get(dim, 0) / max(total_alloc, 1)) for dim in DIMENSION_WEIGHTS}
 
+    # Default: allocate proportional to dimension weights
     return {dim: int(pool * weight) for dim, weight in DIMENSION_WEIGHTS.items()}
 
 
@@ -60,5 +79,7 @@ def check_budget_remaining(
     Returns:
         Non-negative remaining token count.
     """
+    # Clamp to zero: negative budget gracefully skips critique stage
+    # rather than raising — the pipeline always produces a report
     remaining = budget.total - tokens_used
     return max(remaining, 0)

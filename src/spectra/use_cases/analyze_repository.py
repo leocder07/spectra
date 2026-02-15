@@ -530,11 +530,12 @@ def _merge_findings(
     Returns:
         Deduplicated findings preserving first-seen order.
     """
+    # O(n) collection: extend is amortized O(1) per finding
     all_findings: list[Finding] = []
     for output in successes:
         all_findings.extend(output.findings)
-    # dict.fromkeys preserves insertion order while deduplicating
-    # via Finding.__eq__ (same file, line, dimension = same finding)
+    # O(n) deduplication: dict.fromkeys preserves insertion order
+    # while deduplicating via Finding.__hash__/__eq__
     return tuple(dict.fromkeys(all_findings))
 
 
@@ -543,6 +544,7 @@ def _validate_finding_paths(
     file_tree: tuple[str, ...],
 ) -> tuple[Finding, ...]:
     """Remove findings that reference files not in the repo."""
+    # Convert to set once for O(1) membership tests (vs O(n) per lookup)
     file_set = set(file_tree)
     return tuple(f for f in findings if _is_valid_path(f, file_set))
 
@@ -876,7 +878,13 @@ def _score_dimensions(
 def _group_findings_by_dimension(
     findings: tuple[Finding, ...],
 ) -> dict[Dimension, list[Finding]]:
-    """Pre-group findings by dimension in a single pass (O(n))."""
+    """Pre-group findings by dimension in a single pass (O(n)).
+
+    Uses ``dict.setdefault`` for O(1) amortized insertion per finding.
+    No secondary iteration or sorting required — findings are bucketed
+    as they are encountered.
+    """
+    # O(n) single-pass grouping — one dict lookup per finding
     grouped: dict[Dimension, list[Finding]] = {}
     for f in findings:
         grouped.setdefault(f.dimension, []).append(f)

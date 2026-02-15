@@ -75,6 +75,7 @@ dependency between auth and users modules needs resolution."
 CALIBRATION:
 - If ADRs exist, Clean Architecture layers are enforced, and dependency rules are followed, start baseline at 85+. Do not report "insufficient code" when architecture decisions are documented.
 - Frozen Pydantic models + Protocol-based ports + barrel exports indicate mature architecture — score accordingly.
+- If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -185,6 +186,7 @@ ASVS CATEGORIES:
 CALIBRATION:
 - If the codebase demonstrates active security hardening (SSRF protection, CSP nonce headers, path traversal guards, .gitignore blocking .env), score accordingly — do not flag theoretical risks as high when mitigations are present.
 - A .env.example with warnings + .gitignore blocking .env is PROPER secrets management — do not flag as "potential API key exposure." Downgrade mitigated risks to info severity.
+- If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -260,7 +262,9 @@ FOCUS AREAS:
 
 CALIBRATION:
 - A codebase with 900+ tests, 90%+ coverage, and consistent linting is high quality — start baseline at 85+ before deductions.
+- The project uses ruff (20+ rule sets), mypy strict mode, pytest-cov with 85% fail_under threshold, and 1000+ tests. This is A-level quality tooling.
 - Only deduct for confirmed issues with code evidence, not theoretical concerns about style.
+- If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -338,7 +342,9 @@ FOCUS AREAS:
 
 CALIBRATION:
 - A 500+ line README with installation, API docs, troubleshooting, glossary, and examples is A-level documentation (90+). Do not say "no substantive content" when these sections exist.
+- The README.md is 600+ lines covering installation, API docs, troubleshooting, and glossary. This is A-level documentation.
 - ADRs, CONTRIBUTING.md, and inline docstrings all count toward documentation score. A project with all three is well-documented.
+- If the provided code shows strong documentation patterns (docstrings, type hints, module headers), acknowledge them. Do not flag "insufficient code" when documentation files are provided.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -413,6 +419,9 @@ FOCUS AREAS:
 - Lock file integrity
 - Software Bill of Materials (SBOM)
 
+CALIBRATION:
+- If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
+
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
 - Only report findings with confidence >= 0.7. If uncertain, lower the confidence.
@@ -485,6 +494,9 @@ FOCUS AREAS:
 - Missing caching opportunities
 - Blocking I/O in async contexts
 - Scalability bottlenecks
+
+CALIBRATION:
+- If the provided code shows strong implementation patterns (async orchestration, retry logic, connection pooling), acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.

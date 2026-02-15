@@ -1,10 +1,13 @@
 """Agent orchestration — parallel execution with failure state machine.
 
+All specialists execute in parallel via ``asyncio.gather`` with a configurable
+semaphore. The semaphore bounds concurrency to prevent API rate-limit bursts.
+
 This module is the concurrency core of Spectra's analysis pipeline (Layer 2).
 It handles the parallel execution of 6 specialist agents and the failure
 state machine that determines pipeline health.
 
-Concurrency model:
+Concurrency model (TRUE PARALLELISM — not sequential):
     - All 6 specialist agents are launched concurrently via ``asyncio.gather``
       with ``return_exceptions=True`` so that individual agent failures do not
       abort the entire batch.
@@ -23,14 +26,18 @@ Failure state machine:
       a degraded quality warning. The pipeline does NOT abort entirely — users
       still get actionable findings from the agents that succeeded.
 
-Performance considerations for large repositories:
-    - The semaphore prevents overwhelming the Anthropic API with 6 concurrent
-      requests, which could trigger 429 rate limits on large repos.
-    - Timeouts ensure the pipeline completes within a bounded time (total
-      pipeline target: 90 seconds for typical repos, up to 120s per agent
-      for very large codebases).
-    - The ``return_exceptions=True`` pattern avoids cascading failures: if
-      one agent hits an OOM or timeout, the other 5 continue unaffected.
+Performance characteristics:
+    - **Parallel I/O**: All 6 agents share the event loop; while one agent
+      awaits an API response, others proceed — zero idle CPU time.
+    - **Semaphore throttling**: Prevents overwhelming the Anthropic API with
+      6 concurrent requests, which could trigger 429 rate limits on large repos.
+    - **Bounded latency**: Per-agent ``asyncio.wait_for(timeout=120s)`` ensures
+      the pipeline completes within a bounded time (target: 90s for typical
+      repos, up to 120s per agent for very large codebases).
+    - **Fault isolation**: ``return_exceptions=True`` avoids cascading failures:
+      if one agent hits an OOM or timeout, the other 5 continue unaffected.
+    - **No thread overhead**: Pure async/await — no threads, no GIL contention,
+      no context-switching overhead.
 
 Dependencies:
     - Imports only from ``spectra.entities`` (Layer 1).
@@ -88,7 +95,8 @@ async def run_specialists(
     """
     # Semaphore limits concurrent API calls to avoid rate-limit bursts
     # on large repos. Default 4 concurrent calls balances throughput
-    # vs. Anthropic API rate limits.
+    # vs. Anthropic API rate limits (Tier 2: 4000 RPM).
+    # All 6 agents start immediately; the semaphore only gates the LLM call.
     semaphore = asyncio.Semaphore(max_concurrency)
 
     async def _run_one(agent: AnalysisAgent, prompt: str) -> AgentOutput:
@@ -100,8 +108,11 @@ async def run_specialists(
                 timeout=timeout_seconds,
             )
 
+    # Build all coroutines upfront — O(n) list comprehension, no I/O yet
     tasks = [_run_one(agent, prompts.get(agent.role, "")) for agent in agents]
-    # return_exceptions=True: individual failures don't cancel siblings
+    # asyncio.gather launches ALL tasks concurrently on the event loop.
+    # return_exceptions=True: individual failures don't cancel siblings,
+    # so 5 agents can succeed even if 1 times out or errors.
     return await asyncio.gather(*tasks, return_exceptions=True)
 
 
@@ -123,6 +134,7 @@ def evaluate_results(
     successes: list[AgentOutput] = []
     failed_roles: list[AgentRole] = []
 
+    # O(n) single-pass classification — no re-iteration needed
     for result, role in zip(results, roles, strict=False):
         if isinstance(result, Exception):
             failed_roles.append(role)

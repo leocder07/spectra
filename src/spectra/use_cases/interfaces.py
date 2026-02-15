@@ -3,6 +3,13 @@
 Layer 2 imports only from entities. These protocols define the
 boundaries between the use-case layer and the infrastructure layer,
 following the Dependency Inversion Principle.
+
+Protocols defined here:
+    LLMGateway — Async LLM inference (standard + extended thinking).
+    GitPort — Repository clone, file tree, and file read operations.
+    TokenPort — Token counting and budget checks via tiktoken.
+    ReportPort — Render AnalysisReport to HTML via Jinja2.
+    ProgressObserver — Pipeline stage and agent lifecycle callbacks.
 """
 
 from __future__ import annotations

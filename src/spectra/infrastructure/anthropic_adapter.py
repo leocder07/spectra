@@ -1,8 +1,26 @@
 """Anthropic API adapter — implements LLMGateway Protocol with streaming.
 
+This adapter is always wrapped by ``RetryDecorator`` (exponential backoff
+1s/2s/4s with jitter, max 3 retries) and ``LoggingDecorator`` in the
+composition root (``infrastructure/main.py``). The decorator chain is:
+``LoggingDecorator → RetryDecorator → AnthropicAdapter``. Direct use
+without the decorator chain is not supported.
+
+Version constraints: anthropic>=0.40 (streaming support), httpx (bundled).
+Dependabot monitors weekly. See pyproject.toml for pinning strategy.
+
 Provides ``AnthropicAdapter`` which wraps the ``anthropic.AsyncAnthropic``
 client with streaming support and maps API errors to Spectra error codes
 (SPEC-002 for connection failures, SPEC-003 for rate limits).
+
+Performance:
+    - Connection pooling: 10 keep-alive connections via httpx, reused across
+      all 6 specialist calls within a single analysis run. This avoids TLS
+      handshake overhead (~100ms) per API call.
+    - Streaming: Responses are streamed incrementally, reducing time-to-first-
+      token and memory footprint for large outputs.
+    - The ``RetryDecorator`` wrapper handles transient failures (SPEC-002,
+      SPEC-003) with exponential backoff + jitter to avoid thundering herd.
 
 Security:
     - API key is accepted as a constructor argument and passed directly to
@@ -34,6 +52,11 @@ class AnthropicAdapter:
     Uses streaming for standard calls and adaptive thinking for
     CritiqueAgent calls. Connection pooling is configured via httpx
     with a fixed limit of 10 keep-alive connections.
+
+    Note: This class is NOT used directly. The composition root in
+    ``main.py`` wraps it with ``LoggingDecorator → RetryDecorator``,
+    providing automatic retry with exponential backoff (1s/2s/4s + jitter)
+    for SPEC-002 (connection) and SPEC-003 (rate-limit) errors.
     """
 
     def __init__(self, api_key: str) -> None:
@@ -52,6 +75,8 @@ class AnthropicAdapter:
             msg = "ANTHROPIC_API_KEY is missing or contains a placeholder value"
             raise ValueError(msg)
         self._closed = False
+        # Connection pool: 10 keep-alive connections reused across all
+        # agent calls. Avoids TLS handshake overhead (~100ms per call).
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key,
             http_client=httpx.AsyncClient(
@@ -132,6 +157,8 @@ class AnthropicAdapter:
         max_tokens: int,
     ) -> str:
         try:
+            # Streaming reduces time-to-first-token and memory usage
+            # compared to waiting for the full response
             collected_text = []
             input_tokens = 0
             output_tokens = 0

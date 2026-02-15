@@ -5,6 +5,11 @@ composition root (``infrastructure/main.py``) creates a single
 ``AgentFactory`` instance with the decorated LLM gateway, then uses
 it to create all 8 agents without knowing their concrete classes.
 
+The factory is called once per analysis run (not per-agent). Agent objects
+are lightweight — they only store config strings and a reference to the
+shared ``LLMGateway``. No heavy initialization (no model loading, no
+network calls, no file I/O) occurs during agent creation.
+
 Factory dispatch logic:
     - ``"meta_prompter"`` → ``MetaPrompter`` (Sonnet 4.5, file tree only)
     - ``"critique"`` → ``CritiqueAgent`` (Opus 4.6, extended thinking)
@@ -34,7 +39,9 @@ from spectra.use_cases.interfaces import LLMGateway
 class AgentFactory:
     """Creates agent instances configured with the shared LLM gateway.
 
-    Supports creating any of the 8 agents by role name.
+    Supports creating any of the 8 agents by role name. Instantiation is
+    lightweight — agents store only config and a gateway reference. No
+    heavy objects (model weights, connections) are created per-agent.
     """
 
     def __init__(self, gateway: LLMGateway) -> None:
@@ -84,6 +91,9 @@ class AgentFactory:
 
     def create_specialists(self) -> list[BaseAgent]:
         """Create all 6 specialist agents for parallel execution.
+
+        Called once per ``analyze_repository`` invocation. Each agent is
+        a lightweight object (~200 bytes) holding config + gateway ref.
 
         Returns:
             List of specialist agents in canonical order.
