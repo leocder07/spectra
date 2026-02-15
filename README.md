@@ -1,5 +1,5 @@
 ![CI](https://github.com/leocder07/spectra/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-921_passed-22C55E)
+![Tests](https://img.shields.io/badge/tests-1087_passed-22C55E)
 ![Coverage](https://img.shields.io/badge/coverage-91%25-22C55E)
 ![Python](https://img.shields.io/badge/python-3.12+-7C3AED)
 ![License](https://img.shields.io/badge/license-MIT-F59E0B)
@@ -183,7 +183,7 @@ jobs:
 
 | Metric | Value |
 |--------|-------|
-| Tests | 921 passed |
+| Tests | 1087 passed |
 | Coverage | 91% |
 | Agents | 8 (6 parallel specialists + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 (architecture, security, quality, documentation, maintainability, performance) |
