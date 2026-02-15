@@ -582,7 +582,7 @@ class TestNamedConstants:
         assert EXCELLENT_SCORE == 90.0
 
     def test_default_dimension_score_value(self):
-        assert DEFAULT_DIMENSION_SCORE == 85.0
+        assert DEFAULT_DIMENSION_SCORE == 70.0
 
     def test_min_confidence_value(self):
         assert MIN_CONFIDENCE == 0.7

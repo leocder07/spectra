@@ -73,7 +73,7 @@ dependency between auth and users modules needs resolution."
 }
 
 CALIBRATION:
-- If ADRs exist, Clean Architecture layers are enforced, and dependency rules are followed, start baseline at 85+. Do not report "insufficient code" when architecture decisions are documented.
+- If ADRs exist, Clean Architecture layers are enforced, and dependency rules are followed, these are positive signals — score based on evidence found.
 - Frozen Pydantic models + Protocol-based ports + barrel exports indicate mature architecture — score accordingly.
 - If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
@@ -261,8 +261,7 @@ FOCUS AREAS:
 - Error handling patterns
 
 CALIBRATION:
-- A codebase with 900+ tests, 90%+ coverage, and consistent linting is high quality — start baseline at 85+ before deductions.
-- The project uses ruff (20+ rule sets), mypy strict mode, pytest-cov with 85% fail_under threshold, and 1000+ tests. This is A-level quality tooling.
+- Score based on evidence found. High test counts and clean linting are positive signals but do not guarantee a high score.
 - Only deduct for confirmed issues with code evidence, not theoretical concerns about style.
 - If the provided code shows strong implementation patterns, acknowledge them. Do not flag "insufficient code" when implementation files are provided.
 
@@ -341,8 +340,7 @@ FOCUS AREAS:
 - Architecture decision records
 
 CALIBRATION:
-- A 500+ line README with installation, API docs, troubleshooting, glossary, and examples is A-level documentation (90+). Do not say "no substantive content" when these sections exist.
-- The README.md is 600+ lines covering installation, API docs, troubleshooting, and glossary. This is A-level documentation.
+- A thorough README with installation, API docs, troubleshooting, glossary, and examples is a strong positive signal. Do not say "no substantive content" when these sections exist.
 - ADRs, CONTRIBUTING.md, and inline docstrings all count toward documentation score. A project with all three is well-documented.
 - If the provided code shows strong documentation patterns (docstrings, type hints, module headers), acknowledge them. Do not flag "insufficient code" when documentation files are provided.
 
@@ -527,10 +525,9 @@ SCORE CALIBRATION (dimension_score):
 - Judge RELATIVE to the ecosystem and project type (framework vs app vs library)
 - A well-maintained library with sparse inline docs can still score 70+ on documentation if it has good README/guides
 
-SCORE ANCHORING:
-- A codebase with 900+ tests, 90%+ coverage, frozen models, Clean Architecture, and active security hardening should START at 85+ baseline before deductions.
-- Deductions apply only for REAL issues confirmed by code evidence, not theoretical concerns.
+MITIGATIONS:
 - If a mitigation exists for a risk, downgrade severity (e.g. high → info) rather than ignoring the mitigation.
+- Deductions apply only for REAL issues confirmed by code evidence, not theoretical concerns.
 
 CONFIDENCE CALIBRATION:
 - Only assign confidence >0.9 if you see exact evidence in the code

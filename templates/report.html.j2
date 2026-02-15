@@ -87,7 +87,7 @@
             inset: 0;
             z-index: 0;
             pointer-events: none;
-            opacity: 0.025;
+            opacity: 0.01;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
             background-size: 256px 256px;
         }
@@ -474,12 +474,12 @@
             justify-content: center;
             margin: 0 auto 0.75rem;
             position: relative;
-            animation: gaugeGlow 3s ease-in-out infinite;
+            animation: gaugeGlow 1s ease-out forwards;
         }
 
         @keyframes gaugeGlow {
-            0%, 100% { filter: drop-shadow(0 0 20px var(--gauge-glow)); }
-            50% { filter: drop-shadow(0 0 35px var(--gauge-glow)); }
+            0% { filter: drop-shadow(0 0 20px var(--gauge-glow)); }
+            100% { filter: drop-shadow(0 0 28px var(--gauge-glow)); }
         }
 
         .grade-gauge-inner {
@@ -942,6 +942,47 @@
             margin-bottom: 0.5rem;
         }
 
+        .dd-empty-note {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            background: var(--bg-elevated);
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-top: 0.5rem;
+        }
+
+        /* ─── Strengths Section ─── */
+        .strengths-section {
+            background: var(--bg-surface);
+            border: 1px solid rgba(34, 197, 94, 0.15);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .strength-list {
+            list-style: none;
+            padding: 0;
+            margin: 0.75rem 0 0 0;
+        }
+
+        .strength-list li {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding: 0.35rem 0;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        .strength-check {
+            color: var(--green);
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
         @media (max-width: 640px) {
             .dd-grid { grid-template-columns: 1fr; }
             .owasp-grid { grid-template-columns: 1fr; }
@@ -963,7 +1004,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            animation: gaugeGlow 3s ease-in-out infinite;
+            animation: gaugeGlow 1s ease-out forwards;
         }
 
         .ir-gauge-inner {
@@ -1247,7 +1288,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            animation: gaugeGlow 3s ease-in-out infinite;
+            animation: gaugeGlow 1s ease-out forwards;
         }
 
         .dr-gauge-inner {
@@ -1509,48 +1550,13 @@
            Scanlines, Glow, Radar, Heatmap, Filters, Counters
            ═══════════════════════════════════════════════════════ */
 
-        /* ─── 1. CRT Scanline Overlay ─── */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0, 0, 0, 0.03) 2px,
-                rgba(0, 0, 0, 0.03) 4px
-            );
-            opacity: 0.6;
-        }
+        /* ─── 1. (CRT scanlines removed — clean design) ─── */
 
-        /* ─── 2. Terminal Cursor Blink ─── */
-        .terminal-cursor {
-            display: inline-block;
-            width: 8px;
-            height: 1.1em;
-            background: var(--violet-light);
-            margin-left: 4px;
-            vertical-align: text-bottom;
-            animation: cursorBlink 1s step-end infinite;
-        }
-
-        @keyframes cursorBlink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
+        /* ─── 2. (Terminal cursor removed — clean design) ─── */
 
         /* ─── 3. Neon Glow Effects ─── */
         .wordmark {
             text-shadow: 0 0 40px var(--violet-glow), 0 0 80px rgba(124, 58, 237, 0.15);
-            animation: wordmarkPulse 4s ease-in-out infinite;
-        }
-
-        @keyframes wordmarkPulse {
-            0%, 100% { filter: drop-shadow(0 0 30px var(--violet-glow)) brightness(1); }
-            50% { filter: drop-shadow(0 0 50px rgba(124, 58, 237, 0.4)) brightness(1.05); }
         }
 
         .grade-gauge {
@@ -1561,46 +1567,7 @@
             text-shadow: 0 0 20px currentColor;
         }
 
-        /* ─── 4. Matrix-Style Data Rain (CSS-only, performant) ─── */
-        .matrix-rain {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
-            opacity: 0.04;
-        }
-
-        .matrix-col {
-            position: absolute;
-            top: -100%;
-            font-family: var(--font-mono);
-            font-size: 14px;
-            line-height: 1.2;
-            color: var(--violet-light);
-            writing-mode: vertical-rl;
-            text-orientation: upright;
-            animation: matrixFall linear infinite;
-            will-change: transform;
-        }
-
-        @keyframes matrixFall {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(calc(100vh + 100%)); }
-        }
-
-        .matrix-col:nth-child(1) { left: 3%; animation-duration: 18s; animation-delay: 0s; font-size: 11px; }
-        .matrix-col:nth-child(2) { left: 10%; animation-duration: 22s; animation-delay: -5s; font-size: 13px; }
-        .matrix-col:nth-child(3) { left: 18%; animation-duration: 16s; animation-delay: -3s; font-size: 10px; }
-        .matrix-col:nth-child(4) { left: 25%; animation-duration: 25s; animation-delay: -8s; font-size: 12px; }
-        .matrix-col:nth-child(5) { left: 33%; animation-duration: 19s; animation-delay: -2s; font-size: 11px; }
-        .matrix-col:nth-child(6) { left: 42%; animation-duration: 21s; animation-delay: -12s; font-size: 14px; }
-        .matrix-col:nth-child(7) { left: 50%; animation-duration: 17s; animation-delay: -7s; font-size: 10px; }
-        .matrix-col:nth-child(8) { left: 58%; animation-duration: 24s; animation-delay: -4s; font-size: 13px; }
-        .matrix-col:nth-child(9) { left: 67%; animation-duration: 20s; animation-delay: -10s; font-size: 11px; }
-        .matrix-col:nth-child(10) { left: 75%; animation-duration: 15s; animation-delay: -1s; font-size: 12px; }
-        .matrix-col:nth-child(11) { left: 83%; animation-duration: 23s; animation-delay: -6s; font-size: 10px; }
-        .matrix-col:nth-child(12) { left: 92%; animation-duration: 18s; animation-delay: -9s; font-size: 14px; }
+        /* ─── 4. (Matrix rain removed — data-forward design) ─── */
 
         /* ─── 5. Code Block Styling ─── */
         .finding-description code,
@@ -1712,12 +1679,6 @@
             stroke: var(--violet);
             stroke-width: 2;
             filter: drop-shadow(0 0 6px var(--violet-glow));
-            animation: radarPulse 3s ease-in-out infinite;
-        }
-
-        @keyframes radarPulse {
-            0%, 100% { fill: rgba(124, 58, 237, 0.12); }
-            50% { fill: rgba(124, 58, 237, 0.18); }
         }
 
         .radar-point {
@@ -2046,8 +2007,7 @@
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
             }
-            .matrix-rain { display: none !important; }
-            body::after { display: none !important; }
+            body::before { display: none !important; }
             .scroll-reveal { opacity: 1 !important; transform: none !important; }
             .dim-bar-fill { animation: none !important; }
         }
@@ -2058,9 +2018,6 @@
         @media print {
             /* Remove decorative elements */
             body::before,
-            body::after,
-            .matrix-rain,
-            .terminal-cursor,
             .kb-hint,
             .filter-bar,
             .section-nav,
@@ -2182,22 +2139,6 @@
     </style>
 </head>
 <body>
-    <!-- Matrix Data Rain Background -->
-    <div class="matrix-rain" aria-hidden="true">
-        <div class="matrix-col">01001011</div>
-        <div class="matrix-col">SPECTRA</div>
-        <div class="matrix-col">11010010</div>
-        <div class="matrix-col">ANALYZE</div>
-        <div class="matrix-col">01110011</div>
-        <div class="matrix-col">SECURE</div>
-        <div class="matrix-col">10101100</div>
-        <div class="matrix-col">QUALITY</div>
-        <div class="matrix-col">00110101</div>
-        <div class="matrix-col">AGENT</div>
-        <div class="matrix-col">11001010</div>
-        <div class="matrix-col">REPORT</div>
-    </div>
-
     <div class="container">
         <!-- Header -->
         <header class="header" id="top">
@@ -2205,7 +2146,7 @@
                 <div class="header-badge">{{ badge_svg | safe }}</div>
                 <h1 class="wordmark">SPECTRA</h1>
                 <div class="repo-line">
-                    <span class="prompt">&gt;</span> analyzing <strong>{{ report.repo_name }}</strong><span class="terminal-cursor" aria-hidden="true"></span>
+                    <span class="prompt">&gt;</span> analyzing <strong>{{ report.repo_name }}</strong>
                 </div>
                 <div class="tagline">the full spectrum of your codebase</div>
             </div>
@@ -2474,9 +2415,24 @@
             <span class="filter-count" id="filter-count"></span>
         </div>
 
+        <!-- Strengths Section -->
+        {% if strengths %}
+        <section class="strengths-section scroll-reveal" id="strengths">
+            <div class="section-label" style="color: var(--green);">Strengths</div>
+            <ul class="strength-list">
+                {% for s in strengths %}
+                <li>
+                    <span class="strength-check">&#10003;</span>
+                    <span><strong>{{ s.title }}</strong> &mdash; {{ s.description }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
         <!-- Findings by Dimension -->
         {% for dimension in dimensions_order %}
-        {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
+        {% set dim_findings = filtered_findings | selectattr('dimension', 'equalto', dimension) | list if filtered_findings is defined else report.findings | selectattr('dimension', 'equalto', dimension) | list %}
         {% if dim_findings %}
         <section class="findings-section scroll-reveal" id="dim-{{ dimension }}" data-dimension="{{ dimension }}">
             <h2>{{ _dim_label(dimension) }} <span class="dim-count">({{ dim_findings | length }})</span></h2>
@@ -2584,6 +2540,9 @@
 
             <div class="dd-subsection-label" style="margin-top: 0;">OWASP Top 10 (2021) Coverage</div>
             <div class="dd-coverage-stat">{{ dd_compliance.owasp_covered_count }} of {{ dd_compliance.owasp_total }} categories checked</div>
+            {% if dd_compliance.owasp_covered_count == 0 %}
+            <p class="dd-empty-note">OWASP mapping requires security findings with explicit category references. Run with full code content to populate this section.</p>
+            {% endif %}
             <div class="owasp-grid">
                 {% for item in dd_compliance.owasp_coverage %}
                 <div class="owasp-item {{ 'covered' if item.covered else 'uncovered' }}">
@@ -2698,6 +2657,9 @@
                 <span style="color: var(--text-tertiary);"> &middot; </span>
                 <span style="font-weight: 600;">{{ soc2.coverage_pct | round(1) }}%</span> coverage
             </div>
+            {% if soc2.coverage_pct < 10 %}
+            <p class="dd-empty-note">SOC 2 mapping requires findings with explicit trust-service-criteria keywords. Coverage below 10% typically means the analysis did not surface criteria-specific language.</p>
+            {% endif %}
 
             <div class="soc2-grid">
                 {% for criterion in soc2.criteria %}

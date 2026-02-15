@@ -268,7 +268,7 @@ class TestAnalyzeRepository:
 
 class TestEstimateScore:
     def test_no_findings(self):
-        assert _estimate_score([]) == 85.0
+        assert _estimate_score([]) == 70.0
 
     def test_critical_penalty(self):
         findings = [_finding("security", "critical")]
@@ -297,7 +297,7 @@ class TestEstimateScore:
         assert _estimate_score(findings, llm_score=80.0) == 88.2
 
     def test_cap_at_100(self):
-        assert _estimate_score([]) == 85.0
+        assert _estimate_score([]) == 70.0
 
 
 # ── _compute_scorecard ──────────────────────────────────────────
@@ -982,8 +982,8 @@ class TestEstimateScoreEdgeCases:
         assert _estimate_score(findings) == 79.2
 
     def test_blended_score_with_no_findings(self):
-        # No findings = default 85, but with llm_score
-        assert _estimate_score([], llm_score=90.0) == 85.0  # no findings returns default
+        # No findings = default 70, but with llm_score
+        assert _estimate_score([], llm_score=90.0) == 70.0  # no findings returns default
 
     def test_llm_score_high_penalty_low(self):
         findings = [_finding("security", "low", line=1)]
@@ -1039,7 +1039,7 @@ class TestEstimateScoreParametrized:
             (25, 45.0, 100.0),
             (50, 45.0, 100.0),
             (75, 45.0, 100.0),
-            (100, 85.0, 100.0),
+            (100, 70.0, 100.0),
         ],
     )
     def test_score_range_with_varying_criticals(self, score, expected_min, expected_max):
@@ -1072,7 +1072,7 @@ class TestEstimateScoreParametrized:
         assert _estimate_score(findings) == expected
 
     def test_all_zero_llm_with_zero_findings(self):
-        assert _estimate_score([]) == 85.0
+        assert _estimate_score([]) == 70.0
 
     def test_blended_formula_exact(self):
         findings = [_finding("security", "medium", line=1)]

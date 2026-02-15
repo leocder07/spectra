@@ -45,6 +45,7 @@ from spectra.infrastructure.report_adapter import (
     _safe_avg,
     _safe_pct,
     _security_posture_score,
+    _separate_strengths,
     _severity_distribution,
     _soc2_mapping,
     _sort_by_severity,
@@ -1943,3 +1944,91 @@ class TestScoreToGradeExtraBoundaries:
     )
     def test_all_grade_boundaries(self, score, expected):
         assert score_to_grade(score) == expected
+
+
+# ── Separate Strengths ───────────────────────────────────────
+
+
+class TestSeparateStrengths:
+    def test_empty_findings(self):
+        strengths, issues = _separate_strengths(())
+        assert strengths == []
+        assert issues == []
+
+    def test_info_with_positive_keyword_is_strength(self):
+        finding = _make_finding(
+            sev="info",
+            desc="Code is well-structured and follows patterns",
+            line=1,
+        )
+        strengths, issues = _separate_strengths((finding,))
+        assert len(strengths) == 1
+        assert len(issues) == 0
+
+    def test_info_without_positive_keyword_is_issue(self):
+        finding = _make_finding(
+            sev="info",
+            desc="Some neutral observation here",
+            line=1,
+        )
+        strengths, issues = _separate_strengths((finding,))
+        assert len(strengths) == 0
+        assert len(issues) == 1
+
+    def test_non_info_with_positive_keyword_is_issue(self):
+        finding = _make_finding(
+            sev="high",
+            desc="Not well-structured despite claims",
+            line=1,
+        )
+        strengths, issues = _separate_strengths((finding,))
+        assert len(strengths) == 0
+        assert len(issues) == 1
+
+    def test_mixed_findings_separated(self):
+        findings = (
+            _make_finding(sev="info", desc="well-organized module structure", line=1),
+            _make_finding(sev="high", desc="SQL injection vulnerability", line=2),
+            _make_finding(sev="info", desc="good separation of concerns", line=3),
+            _make_finding(sev="critical", desc="hardcoded credentials", line=4),
+        )
+        strengths, issues = _separate_strengths(findings)
+        assert len(strengths) == 2
+        assert len(issues) == 2
+
+    def test_comprehensive_keyword_detected(self):
+        finding = _make_finding(
+            sev="info",
+            desc="comprehensive test coverage",
+            line=1,
+        )
+        strengths, issues = _separate_strengths((finding,))
+        assert len(strengths) == 1
+
+    def test_properly_keyword_detected(self):
+        finding = _make_finding(
+            sev="info",
+            desc="properly configured error handling",
+            line=1,
+        )
+        strengths, issues = _separate_strengths((finding,))
+        assert len(strengths) == 1
+
+
+# ── Badge score rounding ──────────────────────────────────────
+
+
+class TestBadgeScoreRounding:
+    def test_badge_rounds_instead_of_truncates(self):
+        adapter = ReportAdapter()
+        report = _minimal_report(score=83.7)
+        badge = adapter.render_badge(report)
+        # round(83.7) = 84, int(83.7) would be 83
+        assert "84" in badge
+
+    def test_badge_rounds_down_when_below_half(self):
+        adapter = ReportAdapter()
+        report = _minimal_report(score=83.2)
+        badge = adapter.render_badge(report)
+        # round(83.2) = 83
+        assert "83" in badge

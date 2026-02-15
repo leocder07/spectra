@@ -23,7 +23,7 @@ PASSING_SCORE: float = 60.0
 EXCELLENT_SCORE: float = 90.0
 """Threshold for an excellent dimension score."""
 
-DEFAULT_DIMENSION_SCORE: float = 85.0
+DEFAULT_DIMENSION_SCORE: float = 70.0
 """Score assigned to a dimension with zero findings."""
 
 MIN_CONFIDENCE: float = 0.7

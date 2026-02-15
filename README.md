@@ -6,7 +6,7 @@
 
 # Spectra
 
-**8 AI agents analyze your entire repository in 90 seconds.**
+**8 AI agents analyze your entire repository in 90-180 seconds.**
 
 ---
 
@@ -14,7 +14,7 @@
 
 In the age of AI-generated code, review is the bottleneck. Teams ship faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
 
-**Spectra deploys 8 AI agents to give you the full spectrum in 90 seconds.**
+**Spectra deploys 8 AI agents to give you the full spectrum in 90-180 seconds.**
 
 ---
 

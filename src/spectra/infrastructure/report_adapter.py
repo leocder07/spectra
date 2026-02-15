@@ -73,6 +73,19 @@ _SEVERITY_ORDER: dict[str, int] = {
     "info": 4,
 }
 
+_STRENGTH_KEYWORDS: tuple[str, ...] = (
+    "well-structured",
+    "positive signal",
+    "well-organized",
+    "properly",
+    "comprehensive",
+    "good separation",
+    "well-designed",
+    "well-documented",
+    "follows best",
+    "clean",
+)
+
 _SPECTRUM_COLOR: dict[str, str] = {
     "grade-a": "#22C55E",
     "grade-b": "#06B6D4",
@@ -349,6 +362,29 @@ _DEP_RISK_KEYWORDS: dict[str, int] = {
 
 
 # ── Existing Tech Debt / Compliance Functions ────────────────
+
+
+def _separate_strengths(
+    findings: tuple[Finding, ...],
+) -> tuple[list[Finding], list[Finding]]:
+    """Split findings into strengths and actual issues.
+
+    Returns:
+        A tuple of (strengths, issues) where strengths are info-severity
+        findings with positive language, and issues are everything else.
+    """
+    strengths: list[Finding] = []
+    issues: list[Finding] = []
+    for f in findings:
+        text = f"{f.title} {f.description}".lower()
+        is_positive = f.severity == "info" and any(
+            kw in text for kw in _STRENGTH_KEYWORDS
+        )
+        if is_positive:
+            strengths.append(f)
+        else:
+            issues.append(f)
+    return strengths, issues
 
 
 def _tech_debt_summary(
@@ -884,12 +920,17 @@ class ReportAdapter:
         has_mermaid = any("```mermaid" in f.description for f in report.findings)
         dd_frameworks = self._build_dd_frameworks(report)
         csp_nonce = secrets.token_urlsafe(32)
+        finding_strengths, finding_issues = _separate_strengths(
+            report.findings,
+        )
         html = template.render(
             report=report,
             summary=_build_executive_summary(report),
             spectrum_segments=_build_spectrum_segments(report),
             top_findings=_top_findings(report.findings),
             tech_debt=_tech_debt_summary(report.findings),
+            strengths=finding_strengths,
+            filtered_findings=finding_issues,
             dd_compliance=dd_frameworks["dd_compliance"],
             soc2=dd_frameworks["soc2"],
             bus_factor=dd_frameworks["bus_factor"],
@@ -945,7 +986,7 @@ class ReportAdapter:
             SVG markup string (shields.io style).
         """
         grade = report.score_card.overall_grade
-        score = int(report.score_card.overall_score)
+        score = round(report.score_card.overall_score)
         grade_color = _BADGE_COLOR.get(grade[0], "6B7280")
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="160"'

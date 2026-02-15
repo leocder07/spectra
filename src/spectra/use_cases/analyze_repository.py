@@ -907,6 +907,15 @@ _PENALTY_MAP: dict[str, float] = {
 _MAX_PENALTY: float = 55.0
 
 
+def _has_insufficient_data(findings: list[Finding]) -> bool:
+    """Detect if any finding admits insufficient code was provided."""
+    for f in findings:
+        text = f"{f.title} {f.description}".lower()
+        if "insufficient" in text and ("code" in text or "content" in text):
+            return True
+    return False
+
+
 def _estimate_score(
     findings: list[Finding],
     llm_score: float | None = None,
@@ -917,6 +926,10 @@ def _estimate_score(
     penalty-based score 60% to anchor on evidence while respecting
     the LLM's broader context awareness.
 
+    When a finding admits "insufficient code/content", the LLM score
+    is capped at 50 to prevent self-inflated scores when the agent
+    could not properly analyze the code.
+
     Args:
         findings: Findings for a single dimension.
         llm_score: Optional LLM-assigned score (0-100).
@@ -926,6 +939,10 @@ def _estimate_score(
     """
     if not findings:
         return DEFAULT_DIMENSION_SCORE
+    if _has_insufficient_data(findings):
+        penalty_score = _compute_penalty_score(findings)
+        capped_llm = min(llm_score or 50.0, 50.0)
+        return round(0.4 * capped_llm + 0.6 * penalty_score, 1)
     penalty_score = _compute_penalty_score(findings)
     if llm_score is not None:
         # 40/60 blend: trust evidence more than LLM self-assessment
