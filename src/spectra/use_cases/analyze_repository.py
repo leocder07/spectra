@@ -191,7 +191,7 @@ async def _resolve_source_files(
     state: _PipelineState,
 ) -> None:
     """Read source files via git_port if not already provided."""
-    if state.source_files is not None:
+    if state.source_files:
         return
     if ctx.git_port is None:
         return
@@ -956,10 +956,7 @@ def _compute_penalty_score(findings: list[Finding]) -> float:
     Higher-confidence findings penalize more than uncertain ones.
     A confidence=0.98 critical counts fully; confidence=0.72 counts ~72%.
     """
-    raw_penalty = sum(
-        _PENALTY_MAP.get(f.severity, 0.0) * f.confidence
-        for f in findings
-    )
+    raw_penalty = sum(_PENALTY_MAP.get(f.severity, 0.0) * f.confidence for f in findings)
     capped = min(raw_penalty, _MAX_PENALTY)
     return max(0.0, 100.0 - capped)
 

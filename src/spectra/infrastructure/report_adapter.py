@@ -4,7 +4,7 @@ Transforms an ``AnalysisReport`` into a self-contained HTML file with:
 - Executive summary and spectrum bar
 - Per-dimension score breakdown
 - Severity-sorted findings list
-- VC due diligence frameworks (OWASP, SOC 2, bus factor, etc.)
+- VC due diligence frameworks (OWASP, SOC 2, issue concentration, etc.)
 - Investment readiness score
 """
 
@@ -377,9 +377,7 @@ def _separate_strengths(
     issues: list[Finding] = []
     for f in findings:
         text = f"{f.title} {f.description}".lower()
-        is_positive = f.severity == "info" and any(
-            kw in text for kw in _STRENGTH_KEYWORDS
-        )
+        is_positive = f.severity == "info" and any(kw in text for kw in _STRENGTH_KEYWORDS)
         if is_positive:
             strengths.append(f)
         else:
@@ -504,7 +502,7 @@ def _safe_pct(numerator: int, denominator: int) -> float:
     return round((numerator / denominator) * 100, 1)
 
 
-# ── Bus Factor Analysis ──────────────────────────────────────
+# ── Issue Concentration Analysis ─────────────────────────────
 
 
 def _compute_file_concentration(
@@ -517,10 +515,10 @@ def _compute_file_concentration(
     return [{"file": path, "count": count} for path, count in file_counts.most_common(10)]
 
 
-def _compute_bus_factor(
+def _compute_issue_concentration(
     findings: tuple[Finding, ...],
 ) -> dict[str, object]:
-    """Estimate bus factor from findings distribution across files."""
+    """Compute issue concentration from findings distribution across files."""
     if not findings:
         return {"score": 100, "rating": "healthy", "hotspots": []}
 
@@ -531,7 +529,7 @@ def _compute_bus_factor(
     total = sum(file_counts.values())
     hotspots = _compute_file_concentration(findings)
     concentration = _gini_coefficient(list(file_counts.values()))
-    rating = _bus_factor_rating(concentration)
+    rating = _concentration_rating(concentration)
     score = max(0, round(100 - (concentration * 100)))
 
     return {
@@ -555,7 +553,7 @@ def _gini_coefficient(values: list[int]) -> float:
     return (2 * cumulative) / (n * total) - (n + 1) / n
 
 
-def _bus_factor_rating(concentration: float) -> str:
+def _concentration_rating(concentration: float) -> str:
     """Map Gini concentration to a human-readable risk rating."""
     if concentration < 0.3:
         return "healthy"
@@ -739,7 +737,7 @@ def _dep_risk_rating(score: int) -> str:
 _IR_WEIGHTS: dict[str, float] = {
     "overall_score": 0.25,
     "security_posture": 0.20,
-    "bus_factor": 0.10,
+    "issue_concentration": 0.10,
     "dependency_risk": 0.10,
     "complexity": 0.10,
     "license_compliance": 0.10,
@@ -750,7 +748,7 @@ _IR_WEIGHTS: dict[str, float] = {
 
 def _investment_readiness_score(
     report: AnalysisReport,
-    bus_factor: dict[str, object],
+    issue_concentration: dict[str, object],
     dep_risk: dict[str, object],
     complexity: dict[str, object],
     license_data: dict[str, object],
@@ -759,7 +757,7 @@ def _investment_readiness_score(
     """Compute investment readiness from all DD metrics (0-100)."""
     components = _ir_component_scores(
         report,
-        bus_factor,
+        issue_concentration,
         dep_risk,
         complexity,
         license_data,
@@ -777,7 +775,7 @@ def _investment_readiness_score(
 
 def _ir_component_scores(
     report: AnalysisReport,
-    bus_factor: dict[str, object],
+    issue_concentration: dict[str, object],
     dep_risk: dict[str, object],
     complexity: dict[str, object],
     license_data: dict[str, object],
@@ -794,7 +792,7 @@ def _ir_component_scores(
     return {
         "overall_score": report.score_card.overall_score,
         "security_posture": sec_score,
-        "bus_factor": float(bus_factor.get("score", 50)),
+        "issue_concentration": float(issue_concentration.get("score", 50)),
         "dependency_risk": dep_score,
         "complexity": cmplx,
         "license_compliance": lic,
@@ -852,7 +850,7 @@ def _ir_rating(score: float) -> str:
 # ── ROI Calculator ("The $47 Line") ──────────────────────────
 
 _ENGINEER_HOURLY_RATE = 175  # Senior engineer market rate
-_MANUAL_REVIEW_HOURS = 4.0   # Estimated hours for equivalent manual review
+_MANUAL_REVIEW_HOURS = 4.0  # Estimated hours for equivalent manual review
 
 
 def _compute_roi(report: AnalysisReport) -> dict[str, object]:
@@ -864,9 +862,7 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
     manual_cost = _ENGINEER_HOURLY_RATE * _MANUAL_REVIEW_HOURS
     savings = manual_cost - spectra_cost
     findings_count = len(report.findings)
-    cost_per_finding = (
-        round(spectra_cost / findings_count, 2) if findings_count else 0.0
-    )
+    cost_per_finding = round(spectra_cost / findings_count, 2) if findings_count else 0.0
     return {
         "spectra_cost": round(spectra_cost, 2),
         "manual_cost": round(manual_cost),
@@ -933,7 +929,7 @@ class ReportAdapter:
             filtered_findings=finding_issues,
             dd_compliance=dd_frameworks["dd_compliance"],
             soc2=dd_frameworks["soc2"],
-            bus_factor=dd_frameworks["bus_factor"],
+            issue_concentration=dd_frameworks["issue_concentration"],
             license_compliance=dd_frameworks["license_compliance"],
             complexity=dd_frameworks["complexity"],
             dependency_risk=dd_frameworks["dependency_risk"],
@@ -954,13 +950,13 @@ class ReportAdapter:
         """Compute all VC due diligence framework data."""
         dd_compliance = _dd_compliance_mapping(report.findings)
         soc2 = _soc2_mapping(report.findings)
-        bus_factor = _compute_bus_factor(report.findings)
+        issue_concentration = _compute_issue_concentration(report.findings)
         license_data = _license_compliance(report.findings)
         complexity = _complexity_indicators(report.findings)
         dep_risk = _dependency_risk_score(report.findings)
         ir_score = _investment_readiness_score(
             report,
-            bus_factor,
+            issue_concentration,
             dep_risk,
             complexity,
             license_data,
@@ -969,7 +965,7 @@ class ReportAdapter:
         return {
             "dd_compliance": dd_compliance,
             "soc2": soc2,
-            "bus_factor": bus_factor,
+            "issue_concentration": issue_concentration,
             "license_compliance": license_data,
             "complexity": complexity,
             "dependency_risk": dep_risk,

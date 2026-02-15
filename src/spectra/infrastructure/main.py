@@ -50,6 +50,7 @@ from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
+from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import analyze_repository
 
 
@@ -124,6 +125,9 @@ async def _run_analysis(
         file_tree = await git.get_file_tree(clone_dir)
         observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
 
+        # Pre-read key source files by heuristic for specialist agents
+        source_files = await _read_key_source_files(git, clone_dir, file_tree)
+
         repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
         codebase = Codebase(
             repo_url=repo_url,
@@ -160,6 +164,8 @@ async def _run_analysis(
             meta_prompter=meta_prompter,
             specialists=specialists,
             critique_agent=critique_agent,
+            source_files=source_files,
+            git_port=git,
             observer=observer,
         )
 
@@ -172,7 +178,8 @@ async def _run_analysis(
             elif output_format == "sarif":
                 sarif = _build_sarif(report)
                 Path(output_path).write_text(
-                    json.dumps(sarif, indent=2), encoding="utf-8",
+                    json.dumps(sarif, indent=2),
+                    encoding="utf-8",
                 )
             else:
                 report_renderer.render(report, output_path)
@@ -185,6 +192,83 @@ async def _run_analysis(
     finally:
         shutil.rmtree(clone_dir, ignore_errors=True)
         await adapter.close()
+
+
+# ── Heuristic source file reader ─────────────────────────────
+
+_SOURCE_EXTENSIONS = frozenset(
+    {
+        ".py",
+        ".ts",
+        ".js",
+        ".tsx",
+        ".jsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".rb",
+    }
+)
+_ENTRY_STEMS = frozenset(
+    {
+        "main",
+        "app",
+        "index",
+        "server",
+        "cli",
+        "__main__",
+    }
+)
+_CONFIG_NAMES = frozenset(
+    {
+        "pyproject.toml",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+    }
+)
+_SOURCE_PREFIXES = ("src/", "lib/", "app/", "pkg/", "cmd/")
+_MAX_HEURISTIC_FILES = 20
+_MAX_HEURISTIC_TOKENS = 100_000
+
+
+async def _read_key_source_files(
+    git_port: GitAdapter,
+    clone_dir: str,
+    file_tree: list[str],
+) -> dict[str, str]:
+    """Read up to 20 key source files by heuristic, capped at 100K tokens."""
+    counter = TiktokenAdapter()
+    ranked = _prioritize_source_files(file_tree)
+    result: dict[str, str] = {}
+    total_tokens = 0
+    for path in ranked[:_MAX_HEURISTIC_FILES]:
+        try:
+            content = await git_port.read_file(clone_dir, path)
+            tokens = counter.count(content)
+        except Exception:  # noqa: BLE001, S112
+            continue
+        if total_tokens + tokens > _MAX_HEURISTIC_TOKENS:
+            break
+        result[path] = content
+        total_tokens += tokens
+    return result
+
+
+def _prioritize_source_files(file_tree: list[str]) -> list[str]:
+    """Rank files: entry points > config > src/ source > other source."""
+    tiers: tuple[list[str], ...] = ([], [], [], [])
+    for path in file_tree:
+        p = Path(path)
+        if p.stem in _ENTRY_STEMS and p.suffix in _SOURCE_EXTENSIONS:
+            tiers[0].append(path)
+        elif p.name in _CONFIG_NAMES:
+            tiers[1].append(path)
+        elif any(path.startswith(d) for d in _SOURCE_PREFIXES) and p.suffix in _SOURCE_EXTENSIONS:
+            tiers[2].append(path)
+        elif p.suffix in _SOURCE_EXTENSIONS:
+            tiers[3].append(path)
+    return [f for tier in tiers for f in tier]
 
 
 _SARIF_SEVERITY: dict[str, str] = {
@@ -207,38 +291,44 @@ def _build_sarif(report: AnalysisReport) -> dict:
     """
     results = []
     for f in report.findings:
-        results.append({
-            "ruleId": f"spectra/{f.dimension}/{f.id}",
-            "level": _SARIF_SEVERITY.get(f.severity, "note"),
-            "message": {"text": f"{f.title}: {f.description}"},
-            "locations": [{
-                "physicalLocation": {
-                    "artifactLocation": {"uri": f.location.file_path},
-                    "region": {"startLine": max(1, f.location.line_start)},
+        results.append(
+            {
+                "ruleId": f"spectra/{f.dimension}/{f.id}",
+                "level": _SARIF_SEVERITY.get(f.severity, "note"),
+                "message": {"text": f"{f.title}: {f.description}"},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": f.location.file_path},
+                            "region": {"startLine": max(1, f.location.line_start)},
+                        },
+                    }
+                ],
+                "properties": {
+                    "severity": f.severity,
+                    "dimension": f.dimension,
+                    "recommendation": f.recommendation,
+                    "estimatedHours": f.estimated_hours,
                 },
-            }],
-            "properties": {
-                "severity": f.severity,
-                "dimension": f.dimension,
-                "recommendation": f.recommendation,
-                "estimatedHours": f.estimated_hours,
-            },
-        })
+            }
+        )
 
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
         "version": "2.1.0",
-        "runs": [{
-            "tool": {
-                "driver": {
-                    "name": "Spectra",
-                    "version": "0.1.0",
-                    "informationUri": "https://github.com/leocder07/spectra",
-                    "rules": [],
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "Spectra",
+                        "version": "0.1.0",
+                        "informationUri": "https://github.com/leocder07/spectra",
+                        "rules": [],
+                    },
                 },
-            },
-            "results": results,
-        }],
+                "results": results,
+            }
+        ],
     }
 
 

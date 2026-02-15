@@ -70,7 +70,7 @@ _BANNER = """\
   ╚═╗╠═╝║╣ ║   ║ ╠╦╝╠═╣
   ╚═╝╩  ╚═╝╚═╝ ╩ ╩╚═╩ ╩[/]
 [dim #a78bfa]  ░▒▓ the full spectrum of your codebase ▓▒░[/]
-[dim #52525b]  8 agents · 6 dimensions · 90 seconds[/]
+[dim #52525b]  8 agents · 6 dimensions · 90-180 seconds[/]
 """
 
 _PIPELINE_INFO = """\
@@ -220,16 +220,10 @@ def analyze(
     if min_score > 0:
         sc = getattr(report, "score_card", None)
         if sc and sc.overall_score < min_score:
-            console.print(
-                f"\n[{RED}]✗[/] Quality gate FAILED: "
-                f"{sc.overall_score:.0f} < {min_score:.0f} threshold"
-            )
+            console.print(f"\n[{RED}]✗[/] Quality gate FAILED: {sc.overall_score:.0f} < {min_score:.0f} threshold")
             raise typer.Exit(code=1)
         if sc:
-            console.print(
-                f"  [{GREEN}]✓[/] Quality gate passed: "
-                f"{sc.overall_score:.0f} >= {min_score:.0f}"
-            )
+            console.print(f"  [{GREEN}]✓[/] Quality gate passed: {sc.overall_score:.0f} >= {min_score:.0f}")
 
 
 def _print_summary(

@@ -76,6 +76,7 @@ class Finding(BaseModel, frozen=True):
     confidence: float = Field(ge=0.0, le=1.0)
     validated_by_critique: bool = False
     estimated_hours: float = 0.0
+    code_snippet: str = ""
 
     def __hash__(self) -> int:
         """Hash by (file_path, line_start, dimension) for deduplication."""

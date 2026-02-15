@@ -953,6 +953,16 @@
             margin-top: 0.5rem;
         }
 
+        .dd-disclaimer {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            margin-top: 0.75rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+            opacity: 0.7;
+        }
+
         /* ─── Strengths Section ─── */
         .strengths-section {
             background: var(--bg-surface);
@@ -1164,7 +1174,7 @@
             border-radius: 3px;
         }
 
-        /* ─── DD Framework: Bus Factor ─── */
+        /* ─── DD Framework: Issue Concentration ─── */
         .bf-header {
             display: flex;
             align-items: center;
@@ -2178,7 +2188,7 @@
             {% if dd_compliance %}<a href="#dd-compliance">Compliance</a>{% endif %}
             {% if investment_readiness %}<a href="#investment-readiness">Investment</a>{% endif %}
             {% if soc2 %}<a href="#soc2-readiness">SOC 2</a>{% endif %}
-            {% if bus_factor %}<a href="#bus-factor">Bus Factor</a>{% endif %}
+            {% if issue_concentration %}<a href="#issue-concentration">Issue Concentration</a>{% endif %}
             {% if dependency_risk %}<a href="#dependency-risk">Dep Risk</a>{% endif %}
             {% if license_compliance %}<a href="#license-compliance">Licenses</a>{% endif %}
             {% if complexity %}<a href="#complexity">Complexity</a>{% endif %}
@@ -2462,6 +2472,9 @@
                 </div>
                 <div class="finding-body">
                     <div class="finding-description">{{ finding.description }}</div>
+                    {% if finding.code_snippet %}
+                    <pre class="finding-snippet"><code>{{ finding.code_snippet }}</code></pre>
+                    {% endif %}
                     <div class="finding-recommendation">
                         <strong>Recommendation:</strong> {{ finding.recommendation }}
                     </div>
@@ -2573,11 +2586,12 @@
                 {% endfor %}
             </div>
             {% endif %}
+            <p class="dd-disclaimer">AI-assisted screening based on finding text. Not a substitute for professional penetration testing.</p>
         </section>
         {% endif %}
 
         <!-- ═══════════════════════════════════════════════════════
-             DD FRAMEWORKS — Investment, SOC 2, Bus Factor,
+             DD FRAMEWORKS — Investment, SOC 2, Issue Concentration,
              Dependency Risk, Licenses, Complexity
              ═══════════════════════════════════════════════════════ -->
 
@@ -2618,7 +2632,7 @@
                 {% set ir_labels = {
                     'overall_score': 'Overall Score',
                     'security_posture': 'Security Posture',
-                    'bus_factor': 'Bus Factor',
+                    'issue_concentration': 'Issue Concentration',
                     'dependency_risk': 'Dependency Health',
                     'complexity': 'Code Complexity',
                     'license_compliance': 'License Compliance',
@@ -2644,6 +2658,7 @@
                 {% endfor %}
             </div>
             {% endif %}
+            <p class="dd-disclaimer">AI-estimated composite score. Consult qualified advisors for investment decisions.</p>
         </section>
         {% endif %}
 
@@ -2699,15 +2714,16 @@
                 </div>
                 {% endfor %}
             </div>
+            <p class="dd-disclaimer">Keyword-based mapping to Trust Service Criteria. Not a formal SOC 2 audit.</p>
         </section>
         {% endif %}
 
-        <!-- Bus Factor Analysis -->
-        {% if bus_factor %}
-        <section class="dd-section scroll-reveal {% if bus_factor.rating == 'critical' %}dd-red{% elif bus_factor.rating == 'concerning' %}dd-amber{% else %}dd-green{% endif %}" id="bus-factor">
-            <div class="section-label">Bus Factor Analysis</div>
+        <!-- Issue Concentration Analysis -->
+        {% if issue_concentration %}
+        <section class="dd-section scroll-reveal {% if issue_concentration.rating == 'critical' %}dd-red{% elif issue_concentration.rating == 'concerning' %}dd-amber{% else %}dd-green{% endif %}" id="issue-concentration">
+            <div class="section-label">Issue Concentration</div>
 
-            {% set bf_score = bus_factor.score | default(0) %}
+            {% set bf_score = issue_concentration.score | default(0) %}
             {% if bf_score >= 70 %}{% set bf_color = 'var(--green)' %}
             {% elif bf_score >= 50 %}{% set bf_color = 'var(--cyan)' %}
             {% elif bf_score >= 30 %}{% set bf_color = 'var(--amber)' %}
@@ -2718,36 +2734,36 @@
                     <div class="bf-score-num" style="color: {{ bf_color }};"><span class="counter-animate" data-target="{{ bf_score }}">0</span></div>
                     <div class="bf-score-label">distribution score</div>
                 </div>
-                <div class="ir-rating-badge {% if bus_factor.rating == 'healthy' %}ir-rating-investment-ready{% elif bus_factor.rating == 'moderate' %}ir-rating-near-ready{% elif bus_factor.rating == 'concerning' %}ir-rating-needs-work{% else %}ir-rating-not-ready{% endif %}">
-                    {{ bus_factor.rating | default('unknown') }}
+                <div class="ir-rating-badge {% if issue_concentration.rating == 'healthy' %}ir-rating-investment-ready{% elif issue_concentration.rating == 'moderate' %}ir-rating-near-ready{% elif issue_concentration.rating == 'concerning' %}ir-rating-needs-work{% else %}ir-rating-not-ready{% endif %}">
+                    {{ issue_concentration.rating | default('unknown') }}
                 </div>
                 <div class="bf-meta-grid">
-                    {% if bus_factor.concentration is defined %}
+                    {% if issue_concentration.concentration is defined %}
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">{{ bus_factor.concentration }}</div>
+                        <div class="bf-meta-value">{{ issue_concentration.concentration }}</div>
                         <div class="bf-meta-label">Gini Coefficient</div>
                     </div>
                     {% endif %}
-                    {% if bus_factor.unique_files is defined %}
+                    {% if issue_concentration.unique_files is defined %}
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">{{ bus_factor.unique_files }}</div>
+                        <div class="bf-meta-value">{{ issue_concentration.unique_files }}</div>
                         <div class="bf-meta-label">Unique Files</div>
                     </div>
                     {% endif %}
-                    {% if bus_factor.total_issues is defined %}
+                    {% if issue_concentration.total_issues is defined %}
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">{{ bus_factor.total_issues }}</div>
+                        <div class="bf-meta-value">{{ issue_concentration.total_issues }}</div>
                         <div class="bf-meta-label">Total Issues</div>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            {% if bus_factor.hotspots %}
+            {% if issue_concentration.hotspots %}
             <div class="dd-subsection-label" style="margin-top: 0;">Top 10 Hotspot Files</div>
-            {% set max_hotspot = bus_factor.hotspots[0].count if bus_factor.hotspots else 1 %}
+            {% set max_hotspot = issue_concentration.hotspots[0].count if issue_concentration.hotspots else 1 %}
             <ul class="bf-hotspot-list">
-                {% for hotspot in bus_factor.hotspots[:10] %}
+                {% for hotspot in issue_concentration.hotspots[:10] %}
                 {% set hs_count = hotspot.count | default(0) %}
                 {% if hs_count >= 5 %}{% set hs_color = 'var(--red)' %}
                 {% elif hs_count >= 3 %}{% set hs_color = 'var(--orange)' %}
@@ -2764,6 +2780,7 @@
                 {% endfor %}
             </ul>
             {% endif %}
+            <p class="dd-disclaimer">Measures finding distribution across files. For contributor-based bus factor analysis, use git blame tools.</p>
         </section>
         {% endif %}
 

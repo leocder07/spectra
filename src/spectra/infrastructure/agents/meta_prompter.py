@@ -87,7 +87,10 @@ PLANNING PRIORITIES:
 - Always include actual source code files (not just docs/configs) in focus_areas so agents can see implementations, security measures, and architecture patterns firsthand.
 - Prioritize files containing security hardening, test infrastructure, and architecture boundaries over boilerplate.
 
-CRITICAL FILE ROUTING — always include these when they exist in the tree:
+CRITICAL FILE ROUTING — You MUST include at least 10 source code files in focus_areas. \
+Prioritize entry points (main.*, app.*, index.*), security-sensitive files (auth, config, \
+secrets), and core business logic. DO NOT only list config/doc files. \
+Always include these when they exist in the tree:
 - architecture agent: interfaces.py, analyze_repository.py, main.py (composition root), any ports/protocols
 - security agent: anthropic_adapter.py, git_adapter.py, logging_decorator.py, any auth/config modules
 - quality agent: conftest.py, pyproject.toml (test config sections), any test helpers

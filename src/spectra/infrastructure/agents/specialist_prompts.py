@@ -36,7 +36,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>"
     }
   ],
   "dimension_score": 0-100,
@@ -58,6 +59,7 @@ EXAMPLE OUTPUT:
       "description": "auth/service.py imports from users/repository.py \
 which imports from auth/service.py, creating a circular dependency \
 that prevents independent testing.",
+      "code_snippet": "line 3: from users.repository import UserRepo  # circular",
       "file_path": "src/auth/service.py",
       "line_start": 3,
       "line_end": 3,
@@ -106,6 +108,7 @@ OUTPUT FORMAT (JSON):
       "recommendation": "...",
       "confidence": 0.0-1.0,
       "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>",
       "asvs_requirement": "V5.1.1 (optional — include when applicable)"
     }
   ],
@@ -128,6 +131,7 @@ EXAMPLE OUTPUT:
       "description": "Database password is hardcoded as a string literal \
 instead of loaded from environment variables. CWE-798: Use of Hard-coded \
 Credentials. OWASP A07:2021 Identification and Authentication Failures.",
+      "code_snippet": "line 12: DB_PASSWORD = 'admin123'  # hardcoded credential",
       "file_path": "src/config/database.py",
       "line_start": 12,
       "line_end": 12,
@@ -217,7 +221,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>"
     }
   ],
   "dimension_score": 0-100,
@@ -238,6 +243,7 @@ EXAMPLE OUTPUT:
       "severity": "medium",
       "description": "process_order() is 94 lines with 12 branches. \
 High cyclomatic complexity makes this function hard to test and maintain.",
+      "code_snippet": "line 45: def process_order(order, user, cart, promo=None):  # 94 lines, complexity 12",
       "file_path": "src/orders/processor.py",
       "line_start": 45,
       "line_end": 139,
@@ -294,7 +300,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>"
     }
   ],
   "dimension_score": 0-100,
@@ -316,6 +323,7 @@ EXAMPLE OUTPUT:
       "description": "The client.py module exports 5 public functions \
 but none have docstrings. Users of this API have no inline reference \
 for parameters or return types.",
+      "code_snippet": "line 15: def fetch_users(endpoint, token):  # no docstring",
       "file_path": "src/api/client.py",
       "line_start": 1,
       "line_end": 120,
@@ -373,7 +381,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>"
     }
   ],
   "dimension_score": 0-100,
@@ -395,6 +404,7 @@ EXAMPLE OUTPUT:
       "description": "requests 2.25.1 is pinned in requirements.txt. \
 This version is affected by CVE-2023-32681 (unintended credential leak \
 on redirects). Current stable is 2.31+.",
+      "code_snippet": "line 8: requests==2.25.1  # CVE-2023-32681",
       "file_path": "requirements.txt",
       "line_start": 8,
       "line_end": 8,
@@ -449,7 +459,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "code_snippet": "line N: <relevant code>"
     }
   ],
   "dimension_score": 0-100,
@@ -471,6 +482,7 @@ EXAMPLE OUTPUT:
       "description": "get_users() fetches all users then calls \
 get_profile(user_id) in a loop, producing N+1 database queries. \
 With 1000 users this generates 1001 queries.",
+      "code_snippet": "line 36: for user in users:\\nline 37:     profile = get_profile(user.id)  # N+1 query",
       "file_path": "src/routes/users.py",
       "line_start": 34,
       "line_end": 40,
@@ -510,6 +522,9 @@ CONSTRAINTS:
 
 
 _SHARED_GUIDANCE = """
+
+CODE SNIPPETS:
+- When you have access to source code, include a brief code_snippet field showing the relevant 1-3 lines. Use the format 'line N: <code>'. If no source code is available, set code_snippet to an empty string.
 
 FINDING COUNT:
 - Target 5-15 findings per dimension. Focus on the MOST impactful issues.

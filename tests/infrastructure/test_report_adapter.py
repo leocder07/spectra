@@ -21,11 +21,11 @@ from spectra.infrastructure.report_adapter import (
     _bar_class,
     _build_executive_summary,
     _build_spectrum_segments,
-    _bus_factor_rating,
+    _concentration_rating,
     _complexity_component_score,
     _complexity_indicators,
     _complexity_risk_level,
-    _compute_bus_factor,
+    _compute_issue_concentration,
     _compute_file_concentration,
     _critical_count,
     _critical_findings_score,
@@ -914,26 +914,26 @@ class TestMatchesSoc2Criterion:
         assert _matches_soc2_criterion(finding, criterion) is True
 
 
-# ── Bus Factor ────────────────────────────────────────────────
+# ── Issue Concentration ────────────────────────────────────────────────
 
 
-class TestComputeBusFactor:
+class TestComputeIssueConcentration:
     def test_empty_findings(self):
-        result = _compute_bus_factor(())
+        result = _compute_issue_concentration(())
         assert result["score"] == 100
         assert result["rating"] == "healthy"
         assert result["hotspots"] == []
 
     def test_single_finding(self):
         finding = _make_finding(line=1)
-        result = _compute_bus_factor((finding,))
+        result = _compute_issue_concentration((finding,))
         assert "score" in result
         assert "rating" in result
         assert "hotspots" in result
 
     def test_findings_in_one_file_scores_lower(self):
         findings = tuple(_make_finding(line=i) for i in range(10))
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         # All in one file = concentrated = lower score
         assert result["score"] <= 100
 
@@ -953,13 +953,13 @@ class TestComputeBusFactor:
             )
             for i in range(10)
         )
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         # Evenly distributed should have high score
         assert result["score"] >= 80
 
     def test_has_concentration_key(self):
         finding = _make_finding(line=1)
-        result = _compute_bus_factor((finding,))
+        result = _compute_issue_concentration((finding,))
         assert "concentration" in result
 
     def test_has_unique_files_key(self):
@@ -967,7 +967,7 @@ class TestComputeBusFactor:
             _make_finding(line=1),
             _make_finding(line=2),
         )
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         assert result["unique_files"] == 1  # all in src/main.py
 
     def test_hotspots_limited_to_ten(self):
@@ -986,7 +986,7 @@ class TestComputeBusFactor:
             )
             for i in range(20)
         )
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         assert len(result["hotspots"]) <= 10
 
 
@@ -1025,28 +1025,28 @@ class TestGiniCoefficient:
         assert isinstance(result, float)
 
 
-# ── Bus Factor Rating ────────────────────────────────────────
+# ── Concentration Rating ────────────────────────────────────────
 
 
-class TestBusFactorRating:
+class TestConcentrationRating:
     def test_healthy(self):
-        assert _bus_factor_rating(0.1) == "healthy"
-        assert _bus_factor_rating(0.29) == "healthy"
+        assert _concentration_rating(0.1) == "healthy"
+        assert _concentration_rating(0.29) == "healthy"
 
     def test_moderate(self):
-        assert _bus_factor_rating(0.3) == "moderate"
-        assert _bus_factor_rating(0.49) == "moderate"
+        assert _concentration_rating(0.3) == "moderate"
+        assert _concentration_rating(0.49) == "moderate"
 
     def test_concerning(self):
-        assert _bus_factor_rating(0.5) == "concerning"
-        assert _bus_factor_rating(0.69) == "concerning"
+        assert _concentration_rating(0.5) == "concerning"
+        assert _concentration_rating(0.69) == "concerning"
 
     def test_critical(self):
-        assert _bus_factor_rating(0.7) == "critical"
-        assert _bus_factor_rating(1.0) == "critical"
+        assert _concentration_rating(0.7) == "critical"
+        assert _concentration_rating(1.0) == "critical"
 
     def test_zero(self):
-        assert _bus_factor_rating(0.0) == "healthy"
+        assert _concentration_rating(0.0) == "healthy"
 
 
 # ── File Concentration ────────────────────────────────────────
@@ -1508,7 +1508,7 @@ class TestInvestmentReadinessScore:
     def _default_report(self) -> AnalysisReport:
         return _minimal_report(score=85.0)
 
-    def _default_bus_factor(self) -> dict:
+    def _default_issue_concentration(self) -> dict:
         return {"score": 80, "rating": "healthy"}
 
     def _default_dep_risk(self) -> dict:
@@ -1526,7 +1526,7 @@ class TestInvestmentReadinessScore:
     def test_returns_score(self):
         result = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             self._default_license(),
@@ -1538,7 +1538,7 @@ class TestInvestmentReadinessScore:
     def test_returns_rating(self):
         result = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             self._default_license(),
@@ -1555,7 +1555,7 @@ class TestInvestmentReadinessScore:
     def test_returns_components(self):
         result = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             self._default_license(),
@@ -1568,7 +1568,7 @@ class TestInvestmentReadinessScore:
     def test_returns_weights(self):
         result = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             self._default_license(),
@@ -1604,7 +1604,7 @@ class TestInvestmentReadinessScore:
     def test_copyleft_reduces_license_score(self):
         no_copyleft = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             {"copyleft_risk": {"has_copyleft": False}},
@@ -1612,7 +1612,7 @@ class TestInvestmentReadinessScore:
         )
         with_copyleft = _investment_readiness_score(
             self._default_report(),
-            self._default_bus_factor(),
+            self._default_issue_concentration(),
             self._default_dep_risk(),
             self._default_complexity(),
             {"copyleft_risk": {"has_copyleft": True}},
@@ -1835,18 +1835,18 @@ class TestSoc2ZeroFindings:
 class TestBusFactorSingleFile:
     def test_all_findings_same_file_high_concentration(self):
         findings = tuple(_make_finding(sev="high", line=i) for i in range(20))
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         assert result["unique_files"] == 1
         assert result["concentration"] >= 0.0
 
     def test_single_file_rating(self):
         findings = tuple(_make_finding(sev="critical", line=i) for i in range(10))
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         assert result["rating"] in {"healthy", "moderate", "concerning", "critical"}
 
     def test_single_file_hotspots_has_one_entry(self):
         findings = tuple(_make_finding(sev="high", line=i) for i in range(5))
-        result = _compute_bus_factor(findings)
+        result = _compute_issue_concentration(findings)
         assert len(result["hotspots"]) == 1
         assert result["hotspots"][0]["file"] == "src/main.py"
 

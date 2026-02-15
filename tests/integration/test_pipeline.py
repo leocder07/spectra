@@ -291,7 +291,7 @@ class TestDDFrameworkIntegration:
         result = adapter._build_dd_frameworks(report)
         assert "dd_compliance" in result
         assert "soc2" in result
-        assert "bus_factor" in result
+        assert "issue_concentration" in result
         assert "license_compliance" in result
         assert "complexity" in result
         assert "dependency_risk" in result
@@ -301,7 +301,7 @@ class TestDDFrameworkIntegration:
         adapter = ReportAdapter()
         report = _minimal_report(findings=())
         result = adapter._build_dd_frameworks(report)
-        assert result["bus_factor"]["score"] == 100
+        assert result["issue_concentration"]["score"] == 100
         assert result["dependency_risk"]["score"] == 0
 
     def test_build_dd_frameworks_with_complex_findings(self):
