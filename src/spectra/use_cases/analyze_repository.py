@@ -455,7 +455,7 @@ def _notify_agent_results(
     roles: list[AgentRole],
 ) -> None:
     """Notify observer of each agent's success or failure."""
-    for result, role in zip(results, roles, strict=False):
+    for result, role in zip(results, roles, strict=True):
         if isinstance(result, Exception):
             _notify(observer, "on_agent_failure", role, str(result))
         else:
@@ -672,13 +672,19 @@ def _apply_severity_adjustments(
 
 
 def _build_severity_map(critique: dict) -> dict[str, str]:
-    """Build finding_id -> adjusted_severity mapping."""
+    """Build finding_id -> adjusted_severity mapping.
+
+    Accepts both ``finding_id`` and ``id`` keys to handle variations
+    in CritiqueAgent output format.
+    """
     result: dict[str, str] = {}
     for adj in critique.get("severity_adjustments", []):
-        if isinstance(adj, dict) and "finding_id" in adj:
-            new_sev = adj.get("adjusted_severity", "")
-            if new_sev:
-                result[adj["finding_id"]] = new_sev
+        if not isinstance(adj, dict):
+            continue
+        fid = adj.get("finding_id") or adj.get("id", "")
+        new_sev = adj.get("adjusted_severity", "")
+        if fid and new_sev:
+            result[fid] = new_sev
     return result
 
 

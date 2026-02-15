@@ -135,7 +135,7 @@ def evaluate_results(
     failed_roles: list[AgentRole] = []
 
     # O(n) single-pass classification — no re-iteration needed
-    for result, role in zip(results, roles, strict=False):
+    for result, role in zip(results, roles, strict=True):
         if isinstance(result, Exception):
             failed_roles.append(role)
         else:

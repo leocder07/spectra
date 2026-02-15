@@ -185,6 +185,11 @@ class AnthropicAdapter:
             raise SpectraRetryError(ERRORS["SPEC-002"]) from exc
         except anthropic.RateLimitError as exc:
             raise SpectraRetryError(ERRORS["SPEC-003"]) from exc
+        except anthropic.AuthenticationError as exc:
+            msg = "Invalid API key — check ANTHROPIC_API_KEY"
+            raise ValueError(msg) from exc
+        except anthropic.InternalServerError as exc:
+            raise SpectraRetryError(ERRORS["SPEC-002"]) from exc
 
     async def _call_with_thinking(
         self,
