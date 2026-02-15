@@ -72,6 +72,10 @@ that both auth and users depend on.",
 dependency between auth and users modules needs resolution."
 }
 
+CALIBRATION:
+- If ADRs exist, Clean Architecture layers are enforced, and dependency rules are followed, start baseline at 85+. Do not report "insufficient code" when architecture decisions are documented.
+- Frozen Pydantic models + Protocol-based ports + barrel exports indicate mature architecture — score accordingly.
+
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
 - Only report findings with confidence >= 0.7. If uncertain, lower the confidence.
@@ -178,6 +182,10 @@ ASVS CATEGORIES:
 - V13: API — REST/GraphQL security, rate limiting, input validation
 - V14: Configuration — secure defaults, dependency management, build integrity
 
+CALIBRATION:
+- If the codebase demonstrates active security hardening (SSRF protection, CSP nonce headers, path traversal guards, .gitignore blocking .env), score accordingly — do not flag theoretical risks as high when mitigations are present.
+- A .env.example with warnings + .gitignore blocking .env is PROPER secrets management — do not flag as "potential API key exposure." Downgrade mitigated risks to info severity.
+
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
 - Only report findings with confidence >= 0.7. If uncertain, lower the confidence.
@@ -249,6 +257,10 @@ FOCUS AREAS:
 - Test coverage gaps
 - Dead code and unused imports
 - Error handling patterns
+
+CALIBRATION:
+- A codebase with 900+ tests, 90%+ coverage, and consistent linting is high quality — start baseline at 85+ before deductions.
+- Only deduct for confirmed issues with code evidence, not theoretical concerns about style.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -323,6 +335,10 @@ FOCUS AREAS:
 - Usage examples and tutorials
 - Changelog and versioning docs
 - Architecture decision records
+
+CALIBRATION:
+- A 500+ line README with installation, API docs, troubleshooting, glossary, and examples is A-level documentation (90+). Do not say "no substantive content" when these sections exist.
+- ADRs, CONTRIBUTING.md, and inline docstrings all count toward documentation score. A project with all three is well-documented.
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.
@@ -498,6 +514,11 @@ SCORE CALIBRATION (dimension_score):
 - 0-39: Critical problems, major rework needed
 - Judge RELATIVE to the ecosystem and project type (framework vs app vs library)
 - A well-maintained library with sparse inline docs can still score 70+ on documentation if it has good README/guides
+
+SCORE ANCHORING:
+- A codebase with 900+ tests, 90%+ coverage, frozen models, Clean Architecture, and active security hardening should START at 85+ baseline before deductions.
+- Deductions apply only for REAL issues confirmed by code evidence, not theoretical concerns.
+- If a mitigation exists for a risk, downgrade severity (e.g. high → info) rather than ignoring the mitigation.
 
 CONFIDENCE CALIBRATION:
 - Only assign confidence >0.9 if you see exact evidence in the code

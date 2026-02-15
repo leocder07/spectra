@@ -8,19 +8,26 @@
         :root {
             --violet: #7C3AED;
             --violet-light: #8B5CF6;
+            --violet-glow: rgba(124, 58, 237, 0.25);
             --amber: #F59E0B;
+            --amber-glow: rgba(245, 158, 11, 0.15);
             --red: #EF4444;
             --green: #22C55E;
             --cyan: #06B6D4;
             --gray: #6B7280;
             --gray-light: #9CA3AF;
             --gray-dark: #374151;
-            --bg: #0F172A;
-            --bg-card: #1E293B;
-            --bg-card-alt: #283548;
+            --bg: #0B1120;
+            --bg-card: #151D2E;
+            --bg-card-alt: #1A2438;
+            --bg-card-hover: #1E293B;
             --text: #F1F5F9;
             --text-muted: #94A3B8;
-            --border: #334155;
+            --border: #1E293B;
+            --border-light: #334155;
+            --gold: #FFD700;
+            --silver: #C0C0C0;
+            --bronze: #CD7F32;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -30,168 +37,303 @@
             background: var(--bg);
             color: var(--text);
             line-height: 1.6;
-            padding: 2rem;
             min-height: 100vh;
         }
 
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, var(--violet-glow), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 100%, var(--amber-glow), transparent);
+            pointer-events: none;
+            z-index: 0;
         }
 
-        /* Header */
+        .container {
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ─── Header ─── */
         .header {
             text-align: center;
             margin-bottom: 2.5rem;
-            padding-bottom: 1.5rem;
-            border-bottom: 2px solid var(--violet);
+            padding-bottom: 2rem;
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--violet), var(--amber), transparent);
         }
 
         .header h1 {
-            font-size: 2.5rem;
+            font-size: 2.8rem;
             font-weight: 900;
-            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 40%, var(--amber) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            letter-spacing: 0.08em;
-            margin-bottom: 0.25rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.4rem;
         }
 
         .header .subtitle {
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             color: var(--text-muted);
+            font-weight: 400;
         }
 
         .header .meta {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: var(--gray);
-            margin-top: 0.5rem;
+            margin-top: 0.6rem;
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
         }
 
-        /* Stats bar */
+        /* ─── Stats Bar ─── */
         .stats-bar {
             display: flex;
             justify-content: center;
-            gap: 2rem;
-            margin-bottom: 2rem;
+            gap: 3rem;
+            margin-bottom: 2.5rem;
             flex-wrap: wrap;
         }
 
         .stat {
             text-align: center;
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            min-width: 100px;
         }
 
         .stat-value {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             font-weight: 800;
             font-family: 'SF Mono', 'Fira Code', monospace;
             color: var(--violet-light);
         }
 
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
 
-        /* Main table */
-        .leaderboard-table {
+        /* ─── Podium Cards ─── */
+        .podium {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .podium-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem 1.5rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .podium-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .podium-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .podium-card.rank-1 { border-color: rgba(255, 215, 0, 0.3); }
+        .podium-card.rank-1::before { background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+        .podium-card.rank-1:hover { border-color: rgba(255, 215, 0, 0.5); }
+
+        .podium-card.rank-2 { border-color: rgba(192, 192, 192, 0.25); }
+        .podium-card.rank-2::before { background: linear-gradient(90deg, transparent, var(--silver), transparent); }
+        .podium-card.rank-2:hover { border-color: rgba(192, 192, 192, 0.4); }
+
+        .podium-card.rank-3 { border-color: rgba(205, 127, 50, 0.25); }
+        .podium-card.rank-3::before { background: linear-gradient(90deg, transparent, var(--bronze), transparent); }
+        .podium-card.rank-3:hover { border-color: rgba(205, 127, 50, 0.4); }
+
+        .medal {
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .podium-repo {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.15rem;
+        }
+
+        .podium-lang {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: var(--bg-card-alt);
+            padding: 0.1rem 0.6rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', monospace;
+            display: inline-block;
+            margin-bottom: 0.75rem;
+        }
+
+        .podium-grade {
+            font-size: 2.4rem;
+            font-weight: 900;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            line-height: 1;
+        }
+
+        .podium-score {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'SF Mono', monospace;
+            margin-top: 0.2rem;
+        }
+
+        .podium-meta {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'SF Mono', monospace;
+        }
+
+        .podium-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* ─── Dimension Table ─── */
+        .dimension-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--violet-light);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 3px;
+            height: 16px;
+            background: var(--violet);
+            border-radius: 2px;
+        }
+
+        .dim-table {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            margin-bottom: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
         }
 
-        .leaderboard-table thead th {
-            background: var(--bg-card);
+        .dim-table thead th {
+            background: var(--bg-card-alt);
             color: var(--text-muted);
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            padding: 0.75rem 1rem;
-            border-bottom: 2px solid var(--violet);
+            padding: 0.7rem 0.75rem;
             text-align: center;
-            white-space: nowrap;
+            border-bottom: 1px solid var(--border-light);
         }
 
-        .leaderboard-table thead th:first-child {
+        .dim-table thead th:first-child {
             text-align: left;
-            border-radius: 8px 0 0 0;
+            padding-left: 1.25rem;
         }
 
-        .leaderboard-table thead th:last-child {
-            border-radius: 0 8px 0 0;
-        }
-
-        .leaderboard-table tbody tr {
+        .dim-table tbody tr {
             transition: background 0.15s;
         }
 
-        .leaderboard-table tbody tr:hover {
-            background: var(--bg-card-alt);
+        .dim-table tbody tr:hover {
+            background: var(--bg-card-hover);
         }
 
-        .leaderboard-table tbody td {
-            padding: 0.9rem 1rem;
+        .dim-table tbody tr:not(:last-child) td {
             border-bottom: 1px solid var(--border);
+        }
+
+        .dim-table tbody td {
+            padding: 0.7rem 0.75rem;
             text-align: center;
             font-family: 'SF Mono', 'Fira Code', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
-        .leaderboard-table tbody td:first-child {
+        .dim-table tbody td:first-child {
             text-align: left;
+            padding-left: 1.25rem;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-weight: 600;
         }
 
-        /* Rank column */
-        .rank {
-            font-size: 1.2rem;
-            font-weight: 800;
-            color: var(--gray);
-            width: 2rem;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .rank-1 { color: var(--amber); }
-        .rank-2 { color: var(--gray-light); }
-        .rank-3 { color: #CD7F32; }
-
-        .repo-name {
+        .repo-cell {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.6rem;
         }
 
-        .repo-link {
-            color: var(--text);
-            text-decoration: none;
-        }
-
-        .repo-link:hover {
-            color: var(--violet-light);
-        }
-
-        .repo-lang {
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            background: var(--bg-card);
-            padding: 0.15rem 0.5rem;
-            border-radius: 4px;
-            font-family: 'SF Mono', monospace;
-        }
-
-        /* Grade styling */
-        .overall-cell {
+        .rank-badge {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
             font-weight: 800;
-            font-size: 1rem;
+            flex-shrink: 0;
         }
+
+        .rank-badge-1 { background: rgba(255, 215, 0, 0.15); color: var(--gold); }
+        .rank-badge-2 { background: rgba(192, 192, 192, 0.15); color: var(--silver); }
+        .rank-badge-3 { background: rgba(205, 127, 50, 0.15); color: var(--bronze); }
 
         .score-cell {
             position: relative;
@@ -202,9 +344,31 @@
         }
 
         .score-grade {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             display: block;
-            margin-top: 0.1rem;
+            opacity: 0.7;
+        }
+
+        /* Best-in-class indicator */
+        .best-in-class {
+            position: relative;
+        }
+
+        .best-in-class::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 2px;
+            background: var(--green);
+            border-radius: 1px;
+        }
+
+        .overall-cell {
+            font-weight: 800;
+            font-size: 0.95rem;
         }
 
         /* Grade colors */
@@ -214,166 +378,228 @@
         .grade-d { color: #F97316; }
         .grade-f { color: var(--red); }
 
-        /* Best-in-class highlight */
-        .best-in-class {
-            position: relative;
-        }
-
-        .best-in-class::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 2px;
-            background: var(--green);
-            border-radius: 1px;
-        }
-
-        /* Worst-in-class */
-        .worst-in-class {
-            position: relative;
-        }
-
-        .worst-in-class::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 2px;
-            background: var(--red);
-            border-radius: 1px;
-        }
-
-        /* Findings column */
-        .findings-count {
-            color: var(--text-muted);
-        }
-
-        /* Dimension leader cards */
-        .dimension-leaders {
+        /* ─── Dimension Leader Cards ─── */
+        .dim-leaders {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 2.5rem;
         }
 
-        .dim-leader-card {
+        .dim-leader {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
+            border-radius: 10px;
+            padding: 0.9rem 0.75rem;
             text-align: center;
+            transition: border-color 0.2s;
         }
 
-        .dim-leader-card .dim-name {
+        .dim-leader:hover {
+            border-color: var(--border-light);
+        }
+
+        .dim-leader .dl-name {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .dim-leader .dl-repo {
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 0.15rem;
+        }
+
+        .dim-leader .dl-score {
+            font-family: 'SF Mono', monospace;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* ─── Spectrum Bars ─── */
+        .spectrum-section {
+            margin-bottom: 2.5rem;
+        }
+
+        .bar-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem 2rem;
+        }
+
+        .bar-group {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+        }
+
+        .bar-group-title {
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.06em;
             color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-
-        .dim-leader-card .leader-name {
-            font-weight: 700;
-            font-size: 0.95rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .dim-leader-card .leader-score {
-            font-family: 'SF Mono', monospace;
+            margin-bottom: 0.75rem;
             font-weight: 600;
         }
 
-        /* Spectrum bars */
-        .spectrum-section {
-            margin-bottom: 2rem;
-        }
-
-        .spectrum-section h2 {
-            font-size: 1rem;
-            color: var(--violet-light);
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .spectrum-row {
+        .bar-row {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 0.75rem;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
         }
 
-        .spectrum-label {
-            width: 100px;
-            font-size: 0.8rem;
+        .bar-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .bar-label {
+            width: 60px;
+            font-size: 0.7rem;
             color: var(--text-muted);
             text-align: right;
             flex-shrink: 0;
         }
 
-        .spectrum-bars {
+        .bar-track {
             flex: 1;
-            display: flex;
-            gap: 4px;
-            align-items: flex-end;
-            height: 24px;
-        }
-
-        .spectrum-bar {
-            flex: 1;
-            border-radius: 3px 3px 0 0;
-            transition: height 0.3s;
+            height: 8px;
+            background: var(--bg-card-alt);
+            border-radius: 4px;
+            overflow: hidden;
             position: relative;
         }
 
-        .spectrum-bar:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: calc(100% + 6px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            padding: 0.2rem 0.5rem;
+        .bar-fill {
+            height: 100%;
             border-radius: 4px;
-            font-size: 0.7rem;
-            white-space: nowrap;
-            z-index: 10;
+            transition: width 0.6s ease;
         }
 
-        /* Footer */
+        .bar-value {
+            width: 32px;
+            font-size: 0.75rem;
+            font-family: 'SF Mono', monospace;
+            font-weight: 600;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* Bar colors per repo */
+        .fill-flask { background: linear-gradient(90deg, var(--green), #34D399); }
+        .fill-fastapi { background: linear-gradient(90deg, var(--cyan), #22D3EE); }
+        .fill-spectra { background: linear-gradient(90deg, var(--violet), var(--violet-light)); }
+
+        .bar-legend {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        /* ─── Insights ─── */
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .insight-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: border-color 0.2s;
+        }
+
+        .insight-card:hover {
+            border-color: var(--border-light);
+        }
+
+        .insight-tag {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .insight-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .insight-body {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* ─── Footer ─── */
         .footer {
             text-align: center;
-            padding-top: 1.5rem;
+            padding-top: 2rem;
+            margin-top: 1rem;
             border-top: 1px solid var(--border);
             color: var(--gray);
             font-size: 0.8rem;
         }
 
-        .footer a {
-            color: var(--violet-light);
-            text-decoration: none;
+        .footer strong {
+            background: linear-gradient(135deg, var(--violet), var(--amber));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .footer a:hover {
-            text-decoration: underline;
+        .footer .timestamp {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.72rem;
+            color: var(--gray);
+            margin-top: 0.3rem;
         }
 
-        /* Responsive */
+        /* ─── Responsive ─── */
+        @media (max-width: 900px) {
+            .dim-leaders { grid-template-columns: repeat(3, 1fr); }
+            .bar-grid { grid-template-columns: 1fr; }
+        }
+
         @media (max-width: 768px) {
-            body { padding: 1rem; }
-            .header h1 { font-size: 1.8rem; }
-            .leaderboard-table { font-size: 0.8rem; }
-            .leaderboard-table tbody td,
-            .leaderboard-table thead th { padding: 0.5rem; }
-            .stats-bar { gap: 1rem; }
+            .container { padding: 1.25rem 1rem; }
+            .header h1 { font-size: 2rem; }
+            .podium { grid-template-columns: 1fr; gap: 1rem; }
+            .stats-bar { gap: 0.75rem; }
+            .stat { min-width: 80px; padding: 0.5rem 1rem; }
+            .dim-leaders { grid-template-columns: repeat(2, 1fr); }
+            .dim-table { font-size: 0.78rem; }
+            .dim-table tbody td,
+            .dim-table thead th { padding: 0.5rem 0.4rem; }
+            .insights-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 480px) {
+            .dim-leaders { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -384,381 +610,407 @@
         <div class="header">
             <h1>SPECTRA LEADERBOARD</h1>
             <div class="subtitle">How do popular frameworks compare?</div>
-            <div class="meta">5 repos analyzed &middot; 6 dimensions &middot; 8 AI agents each</div>
+            <div class="meta">3 repos analyzed &middot; 6 dimensions &middot; 8 AI agents each</div>
         </div>
 
-        <!-- Stats bar -->
+        <!-- Stats Bar -->
         <div class="stats-bar">
             <div class="stat">
-                <div class="stat-value">5</div>
+                <div class="stat-value">3</div>
                 <div class="stat-label">Repos Analyzed</div>
             </div>
             <div class="stat">
-                <div class="stat-value">232</div>
+                <div class="stat-value">90</div>
                 <div class="stat-label">Total Findings</div>
             </div>
             <div class="stat">
-                <div class="stat-value">A-</div>
+                <div class="stat-value">B+</div>
                 <div class="stat-label">Highest Grade</div>
             </div>
             <div class="stat">
-                <div class="stat-value">C-</div>
-                <div class="stat-label">Lowest Grade</div>
+                <div class="stat-value">$3.86</div>
+                <div class="stat-label">Total Cost</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">534s</div>
+                <div class="stat-label">Total Time</div>
             </div>
         </div>
 
-        <!-- Main leaderboard table -->
-        <table class="leaderboard-table">
-            <thead>
-                <tr>
-                    <th style="width: 22%">Repository</th>
-                    <th style="width: 10%">Overall</th>
-                    <th>Arch</th>
-                    <th>Security</th>
-                    <th>Quality</th>
-                    <th>Docs</th>
-                    <th>Maint</th>
-                    <th>Perf</th>
-                    <th>Findings</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- #1 Django -->
-                <tr>
-                    <td>
-                        <div class="repo-name">
-                            <span class="rank rank-1">1</span>
-                            <span>
-                                <span class="repo-link">django/django</span>
-                                <span class="repo-lang">Python</span>
-                            </span>
-                        </div>
-                    </td>
-                    <td class="overall-cell grade-a">A- <span style="font-size:0.75rem;color:var(--text-muted)">(89)</span></td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">92</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">94</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">81</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">93</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">86</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">81</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="findings-count">38</td>
-                </tr>
-                <!-- #2 Flask -->
-                <tr>
-                    <td>
-                        <div class="repo-name">
-                            <span class="rank rank-2">2</span>
-                            <span>
-                                <span class="repo-link">pallets/flask</span>
-                                <span class="repo-lang">Python</span>
-                            </span>
-                        </div>
-                    </td>
-                    <td class="overall-cell grade-b">B+ <span style="font-size:0.75rem;color:var(--text-muted)">(85)</span></td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">85</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">81</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">88</span>
-                        <span class="score-grade grade-a">A-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">86</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-a">90</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell best-in-class">
-                        <span class="score-num grade-b">87</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="findings-count">42</td>
-                </tr>
-                <!-- #3 FastAPI -->
-                <tr>
-                    <td>
-                        <div class="repo-name">
-                            <span class="rank rank-3">3</span>
-                            <span>
-                                <span class="repo-link">tiangolo/fastapi</span>
-                                <span class="repo-lang">Python</span>
-                            </span>
-                        </div>
-                    </td>
-                    <td class="overall-cell grade-b">B <span style="font-size:0.75rem;color:var(--text-muted)">(81)</span></td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">87</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">79</span>
-                        <span class="score-grade grade-b">B-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-c">70</span>
-                        <span class="score-grade grade-c">C</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-a">93</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">82</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">83</span>
-                        <span class="score-grade grade-b">B</span>
-                    </td>
-                    <td class="findings-count">48</td>
-                </tr>
-                <!-- #4 Express -->
-                <tr>
-                    <td>
-                        <div class="repo-name">
-                            <span class="rank">4</span>
-                            <span>
-                                <span class="repo-link">expressjs/express</span>
-                                <span class="repo-lang">JavaScript</span>
-                            </span>
-                        </div>
-                    </td>
-                    <td class="overall-cell grade-c">C+ <span style="font-size:0.75rem;color:var(--text-muted)">(75)</span></td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">86</span>
-                        <span class="score-grade grade-b">B+</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-c">69</span>
-                        <span class="score-grade grade-c">C-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-c">71</span>
-                        <span class="score-grade grade-c">C</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-d">59</span>
-                        <span class="score-grade grade-d">D-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-a">90</span>
-                        <span class="score-grade grade-a">A</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-c">71</span>
-                        <span class="score-grade grade-c">C</span>
-                    </td>
-                    <td class="findings-count">50</td>
-                </tr>
-                <!-- #5 Spectra (self) -->
-                <tr>
-                    <td>
-                        <div class="repo-name">
-                            <span class="rank">5</span>
-                            <span>
-                                <span class="repo-link">spectra (self)</span>
-                                <span class="repo-lang">Python</span>
-                            </span>
-                        </div>
-                    </td>
-                    <td class="overall-cell grade-c">C- <span style="font-size:0.75rem;color:var(--text-muted)">(69)</span></td>
-                    <td class="score-cell">
-                        <span class="score-num grade-b">80</span>
-                        <span class="score-grade grade-b">B-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-d">59</span>
-                        <span class="score-grade grade-d">D-</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-c">74</span>
-                        <span class="score-grade grade-c">C+</span>
-                    </td>
-                    <td class="score-cell">
-                        <span class="score-num grade-d">62</span>
-                        <span class="score-grade grade-d">D</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-d">65</span>
-                        <span class="score-grade grade-d">D+</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-c">68</span>
-                        <span class="score-grade grade-c">C-</span>
-                    </td>
-                    <td class="score-cell worst-in-class">
-                        <span class="score-num grade-d">62</span>
-                        <span class="score-grade grade-d">D</span>
-                    </td>
-                    <td class="findings-count">54</td>
-                </tr>
-            </tbody>
-        </table>
+        <!-- Podium Cards -->
+        <div class="podium">
+            <!-- #1 Flask -->
+            <div class="podium-card rank-1">
+                <span class="medal">&#129351;</span>
+                <div class="podium-repo">pallets/flask</div>
+                <div class="podium-lang">Python</div>
+                <div class="podium-grade grade-b">B+</div>
+                <div class="podium-score">86 / 100</div>
+                <div class="podium-meta">
+                    <span>53 findings</span>
+                    <span>273s</span>
+                    <span>$2.11</span>
+                </div>
+            </div>
+            <!-- #2 FastAPI -->
+            <div class="podium-card rank-2">
+                <span class="medal">&#129352;</span>
+                <div class="podium-repo">tiangolo/fastapi</div>
+                <div class="podium-lang">Python</div>
+                <div class="podium-grade grade-b">B</div>
+                <div class="podium-score">82 / 100</div>
+                <div class="podium-meta">
+                    <span>19 findings</span>
+                    <span>81s</span>
+                    <span>$0.81</span>
+                </div>
+            </div>
+            <!-- #3 Spectra -->
+            <div class="podium-card rank-3">
+                <span class="medal">&#129353;</span>
+                <div class="podium-repo">leocder07/spectra</div>
+                <div class="podium-lang">Python</div>
+                <div class="podium-grade grade-b">B-</div>
+                <div class="podium-score">78 / 100</div>
+                <div class="podium-meta">
+                    <span>18 findings</span>
+                    <span>180s</span>
+                    <span>$0.94</span>
+                </div>
+            </div>
+        </div>
 
         <!-- Dimension Leaders -->
-        <div class="spectrum-section">
-            <h2>Dimension Leaders</h2>
-            <div class="dimension-leaders">
-                <div class="dim-leader-card">
-                    <div class="dim-name">Architecture</div>
-                    <div class="leader-name">Flask</div>
-                    <div class="leader-score grade-a">91 &middot; A</div>
-                </div>
-                <div class="dim-leader-card">
-                    <div class="dim-name">Security</div>
-                    <div class="leader-name">Flask</div>
-                    <div class="leader-score grade-b">83 &middot; B+</div>
-                </div>
-                <div class="dim-leader-card">
-                    <div class="dim-name">Quality</div>
-                    <div class="leader-name">Flask</div>
-                    <div class="leader-score grade-a">90 &middot; A</div>
-                </div>
-                <div class="dim-leader-card">
-                    <div class="dim-name">Documentation</div>
-                    <div class="leader-name">Flask</div>
-                    <div class="leader-score grade-b">86 &middot; B+</div>
-                </div>
-                <div class="dim-leader-card">
-                    <div class="dim-name">Maintainability</div>
-                    <div class="leader-name">Express</div>
-                    <div class="leader-score grade-a">92 &middot; A</div>
-                </div>
-                <div class="dim-leader-card">
-                    <div class="dim-name">Performance</div>
-                    <div class="leader-name">Flask</div>
-                    <div class="leader-score grade-b">83 &middot; B</div>
-                </div>
+        <div class="section-title">Dimension Leaders</div>
+        <div class="dim-leaders">
+            <div class="dim-leader">
+                <div class="dl-name">Architecture</div>
+                <div class="dl-repo">FastAPI</div>
+                <div class="dl-score grade-a">87 &middot; A-</div>
+            </div>
+            <div class="dim-leader">
+                <div class="dl-name">Security</div>
+                <div class="dl-repo">FastAPI</div>
+                <div class="dl-score grade-b">85 &middot; B+</div>
+            </div>
+            <div class="dim-leader">
+                <div class="dl-name">Quality</div>
+                <div class="dl-repo">Flask</div>
+                <div class="dl-score grade-a">87 &middot; A-</div>
+            </div>
+            <div class="dim-leader">
+                <div class="dl-name">Documentation</div>
+                <div class="dl-repo">Flask</div>
+                <div class="dl-score grade-a">87 &middot; A-</div>
+            </div>
+            <div class="dim-leader">
+                <div class="dl-name">Maintainability</div>
+                <div class="dl-repo">Flask</div>
+                <div class="dl-score grade-a">96 &middot; A+</div>
+            </div>
+            <div class="dim-leader">
+                <div class="dl-name">Performance</div>
+                <div class="dl-repo">Flask</div>
+                <div class="dl-score grade-a">88 &middot; A-</div>
             </div>
         </div>
 
-        <!-- Spectrum Bars — visual comparison per dimension -->
+        <!-- Full Dimension Breakdown Table -->
+        <div class="dimension-section">
+            <div class="section-title">Full Dimension Breakdown</div>
+            <table class="dim-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%">Repository</th>
+                        <th style="width: 10%">Overall</th>
+                        <th>Arch</th>
+                        <th>Security</th>
+                        <th>Quality</th>
+                        <th>Docs</th>
+                        <th>Maint</th>
+                        <th>Perf</th>
+                        <th>Findings</th>
+                        <th>Time</th>
+                        <th>Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- #1 Flask -->
+                    <tr>
+                        <td>
+                            <div class="repo-cell">
+                                <div class="rank-badge rank-badge-1">1</div>
+                                <span>pallets/flask</span>
+                            </div>
+                        </td>
+                        <td class="overall-cell grade-b">B+ <span style="font-size:0.7rem;color:var(--text-muted)">(86)</span></td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">86</span>
+                            <span class="score-grade">B+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">81</span>
+                            <span class="score-grade">B</span>
+                        </td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-a">87</span>
+                            <span class="score-grade">A-</span>
+                        </td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-a">87</span>
+                            <span class="score-grade">A-</span>
+                        </td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-a">96</span>
+                            <span class="score-grade">A+</span>
+                        </td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-a">88</span>
+                            <span class="score-grade">A-</span>
+                        </td>
+                        <td style="color:var(--text-muted)">53</td>
+                        <td style="color:var(--text-muted)">273s</td>
+                        <td style="color:var(--text-muted)">$2.11</td>
+                    </tr>
+                    <!-- #2 FastAPI -->
+                    <tr>
+                        <td>
+                            <div class="repo-cell">
+                                <div class="rank-badge rank-badge-2">2</div>
+                                <span>tiangolo/fastapi</span>
+                            </div>
+                        </td>
+                        <td class="overall-cell grade-b">B <span style="font-size:0.7rem;color:var(--text-muted)">(82)</span></td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-a">87</span>
+                            <span class="score-grade">A-</span>
+                        </td>
+                        <td class="score-cell best-in-class">
+                            <span class="score-num grade-b">85</span>
+                            <span class="score-grade">B+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">86</span>
+                            <span class="score-grade">B+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-d">63</span>
+                            <span class="score-grade">D+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">85</span>
+                            <span class="score-grade">B+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-c">74</span>
+                            <span class="score-grade">C+</span>
+                        </td>
+                        <td style="color:var(--text-muted)">19</td>
+                        <td style="color:var(--text-muted)">81s</td>
+                        <td style="color:var(--text-muted)">$0.81</td>
+                    </tr>
+                    <!-- #3 Spectra -->
+                    <tr>
+                        <td>
+                            <div class="repo-cell">
+                                <div class="rank-badge rank-badge-3">3</div>
+                                <span>leocder07/spectra</span>
+                            </div>
+                        </td>
+                        <td class="overall-cell grade-b">B- <span style="font-size:0.7rem;color:var(--text-muted)">(78)</span></td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">80</span>
+                            <span class="score-grade">B</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">78</span>
+                            <span class="score-grade">B-</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-c">76</span>
+                            <span class="score-grade">C+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-c">73</span>
+                            <span class="score-grade">C+</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">80</span>
+                            <span class="score-grade">B</span>
+                        </td>
+                        <td class="score-cell">
+                            <span class="score-num grade-b">79</span>
+                            <span class="score-grade">B-</span>
+                        </td>
+                        <td style="color:var(--text-muted)">18</td>
+                        <td style="color:var(--text-muted)">180s</td>
+                        <td style="color:var(--text-muted)">$0.94</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Score Comparison Bars -->
         <div class="spectrum-section">
-            <h2>Score Comparison</h2>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Architecture</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(91% * 0.24);background:var(--green)" data-tooltip="Flask: 91 A"></div>
-                    <div class="spectrum-bar" style="height:calc(89% * 0.24);background:var(--cyan)" data-tooltip="Express: 89 A-"></div>
-                    <div class="spectrum-bar" style="height:calc(84% * 0.24);background:var(--cyan)" data-tooltip="Spectra: 84 B+"></div>
+            <div class="section-title">Score Comparison</div>
+            <div class="bar-grid">
+                <!-- Architecture -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Architecture (25%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:86%"></div></div>
+                        <div class="bar-value grade-b">86</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:87%"></div></div>
+                        <div class="bar-value grade-a">87</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:80%"></div></div>
+                        <div class="bar-value grade-b">80</div>
+                    </div>
+                </div>
+                <!-- Security -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Security (25%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:81%"></div></div>
+                        <div class="bar-value grade-b">81</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:85%"></div></div>
+                        <div class="bar-value grade-b">85</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:78%"></div></div>
+                        <div class="bar-value grade-b">78</div>
+                    </div>
+                </div>
+                <!-- Quality -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Quality (20%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:87%"></div></div>
+                        <div class="bar-value grade-a">87</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:86%"></div></div>
+                        <div class="bar-value grade-b">86</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:76%"></div></div>
+                        <div class="bar-value grade-c">76</div>
+                    </div>
+                </div>
+                <!-- Documentation -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Documentation (10%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:87%"></div></div>
+                        <div class="bar-value grade-a">87</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:63%"></div></div>
+                        <div class="bar-value grade-d">63</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:73%"></div></div>
+                        <div class="bar-value grade-c">73</div>
+                    </div>
+                </div>
+                <!-- Maintainability -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Maintainability (10%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:96%"></div></div>
+                        <div class="bar-value grade-a">96</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:85%"></div></div>
+                        <div class="bar-value grade-b">85</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:80%"></div></div>
+                        <div class="bar-value grade-b">80</div>
+                    </div>
+                </div>
+                <!-- Performance -->
+                <div class="bar-group">
+                    <div class="bar-group-title">Performance (10%)</div>
+                    <div class="bar-row">
+                        <div class="bar-label">Flask</div>
+                        <div class="bar-track"><div class="bar-fill fill-flask" style="width:88%"></div></div>
+                        <div class="bar-value grade-a">88</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">FastAPI</div>
+                        <div class="bar-track"><div class="bar-fill fill-fastapi" style="width:74%"></div></div>
+                        <div class="bar-value grade-c">74</div>
+                    </div>
+                    <div class="bar-row">
+                        <div class="bar-label">Spectra</div>
+                        <div class="bar-track"><div class="bar-fill fill-spectra" style="width:79%"></div></div>
+                        <div class="bar-value grade-b">79</div>
+                    </div>
                 </div>
             </div>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Security</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(83% * 0.24);background:var(--cyan)" data-tooltip="Flask: 83 B+"></div>
-                    <div class="spectrum-bar" style="height:calc(67% * 0.24);background:#F97316" data-tooltip="Express: 67 D+"></div>
-                    <div class="spectrum-bar" style="height:calc(67% * 0.24);background:var(--amber)" data-tooltip="Spectra: 67 C-"></div>
+            <div class="bar-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:linear-gradient(90deg, var(--green), #34D399)"></div> Flask
                 </div>
-            </div>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Quality</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(90% * 0.24);background:var(--green)" data-tooltip="Flask: 90 A"></div>
-                    <div class="spectrum-bar" style="height:calc(87% * 0.24);background:var(--cyan)" data-tooltip="Express: 87 B+"></div>
-                    <div class="spectrum-bar" style="height:calc(62% * 0.24);background:#F97316" data-tooltip="Spectra: 62 D"></div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:linear-gradient(90deg, var(--cyan), #22D3EE)"></div> FastAPI
                 </div>
-            </div>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Documentation</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(86% * 0.24);background:var(--cyan)" data-tooltip="Flask: 86 B+"></div>
-                    <div class="spectrum-bar" style="height:calc(68% * 0.24);background:var(--amber)" data-tooltip="Express: 68 C-"></div>
-                    <div class="spectrum-bar" style="height:calc(65% * 0.24);background:#F97316" data-tooltip="Spectra: 65 D+"></div>
-                </div>
-            </div>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Maintainability</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(87% * 0.24);background:var(--green)" data-tooltip="Flask: 87 A-"></div>
-                    <div class="spectrum-bar" style="height:calc(92% * 0.24);background:var(--green)" data-tooltip="Express: 92 A"></div>
-                    <div class="spectrum-bar" style="height:calc(68% * 0.24);background:var(--amber)" data-tooltip="Spectra: 68 C-"></div>
-                </div>
-            </div>
-
-            <div class="spectrum-row">
-                <div class="spectrum-label">Performance</div>
-                <div class="spectrum-bars">
-                    <div class="spectrum-bar" style="height:calc(83% * 0.24);background:var(--cyan)" data-tooltip="Flask: 83 B"></div>
-                    <div class="spectrum-bar" style="height:calc(76% * 0.24);background:var(--amber)" data-tooltip="Express: 76 C+"></div>
-                    <div class="spectrum-bar" style="height:calc(62% * 0.24);background:#F97316" data-tooltip="Spectra: 62 D"></div>
-                </div>
-            </div>
-
-            <div style="display:flex;gap:1.5rem;justify-content:center;margin-top:0.75rem;">
-                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
-                    <div style="width:12px;height:12px;border-radius:2px;background:var(--green)"></div> Flask
-                </div>
-                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
-                    <div style="width:12px;height:12px;border-radius:2px;background:var(--cyan)"></div> Express
-                </div>
-                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
-                    <div style="width:12px;height:12px;border-radius:2px;background:var(--amber)"></div> Spectra
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:linear-gradient(90deg, var(--violet), var(--violet-light))"></div> Spectra
                 </div>
             </div>
         </div>
 
         <!-- Key Insights -->
-        <div class="spectrum-section">
-            <h2>Key Insights</h2>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
-                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
-                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);margin-bottom:0.5rem;font-weight:700">Strongest Overall</div>
-                    <div style="font-weight:700;margin-bottom:0.25rem">Flask leads in 5 of 6 dimensions</div>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">Mature Python framework with strong architecture (91), quality (90), and documentation (86). Only trails Express in maintainability.</div>
-                </div>
-                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
-                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--amber);margin-bottom:0.5rem;font-weight:700">Common Weakness</div>
-                    <div style="font-weight:700;margin-bottom:0.25rem">Security is the weakest dimension across all repos</div>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">Even the top scorer (Flask, 83) has room to improve. Express and Spectra both scored 67 — the lowest individual scores on the board.</div>
-                </div>
-                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
-                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--violet-light);margin-bottom:0.5rem;font-weight:700">Biggest Spread</div>
-                    <div style="font-weight:700;margin-bottom:0.25rem">Quality scores range from 62 to 90 (28-point gap)</div>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">The widest dimension gap. Flask's test coverage and code hygiene far outpace the others. Spectra's D grade here is the most actionable fix.</div>
-                </div>
-                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
-                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--cyan);margin-bottom:0.5rem;font-weight:700">Hidden Champion</div>
-                    <div style="font-weight:700;margin-bottom:0.25rem">Express leads in Maintainability with 92 (A)</div>
-                    <div style="font-size:0.85rem;color:var(--text-muted)">Despite a lower overall grade, Express has the single highest dimension score on the board — a testament to its mature dependency management.</div>
-                </div>
+        <div class="section-title">Key Insights</div>
+        <div class="insights-grid">
+            <div class="insight-card">
+                <div class="insight-tag" style="color:var(--green)">Strongest Overall</div>
+                <div class="insight-title">Flask leads in 4 of 6 dimensions</div>
+                <div class="insight-body">Mature Python framework with standout maintainability (96, A+) and strong quality (87), documentation (87), and performance (88). Only trails FastAPI in architecture and security.</div>
+            </div>
+            <div class="insight-card">
+                <div class="insight-tag" style="color:var(--cyan)">Surprise Leader</div>
+                <div class="insight-title">FastAPI tops Architecture and Security</div>
+                <div class="insight-body">Despite a lower overall score, FastAPI leads both heavyweight dimensions (25% weight each) with 87 in architecture and 85 in security. Modern type hints and Pydantic validation pay off.</div>
+            </div>
+            <div class="insight-card">
+                <div class="insight-tag" style="color:var(--amber)">Biggest Gap</div>
+                <div class="insight-title">Documentation ranges from 63 to 87 (24-point spread)</div>
+                <div class="insight-body">FastAPI's D+ (63) in documentation stands out against Flask's A- (87). Spectra sits in the middle at C+ (73). This is the widest variation across any dimension.</div>
+            </div>
+            <div class="insight-card">
+                <div class="insight-tag" style="color:var(--violet-light)">Self-Analysis</div>
+                <div class="insight-title">Spectra rates itself B- (78) with balanced scores</div>
+                <div class="insight-body">Spectra's self-analysis shows the most even spread across dimensions (73-80), with no standout highs or lows. Architecture (80) and maintainability (80) lead; quality (76) and docs (73) trail.</div>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
             <p>Generated by <strong>Spectra</strong> &mdash; 8 AI agents analyze your entire repository in 90 seconds</p>
-            <p style="margin-top:0.3rem">Scores from Claude Opus 4.6 analysis &middot; Temperature 0.0 for reproducibility</p>
+            <p class="timestamp">Claude Opus 4.6 &middot; Temperature 0.0 &middot; 2026-02-16T12:00:00Z</p>
         </div>
 
     </div>

@@ -68,6 +68,11 @@ GUARDRAILS:
 - When rejecting, provide a specific reason tied to evidence in the code.
 - When adjusting severity, cite the criteria that justify the change.
 
+FALSE POSITIVE HUNTING:
+- Aggressively reject findings that flag "potential" issues when the code demonstrates active mitigations (e.g., SSRF guards, CSP headers, .gitignore blocking secrets).
+- Downgrade severity when a finding describes a theoretical risk but the codebase shows evidence of the exact mitigation already in place.
+- If a specialist flags documentation as poor but the README exceeds 500 lines with API docs, reject the finding.
+
 Use your extended thinking to reason through EACH finding before deciding.
 Target: <5% false positive rate in validated findings."""
 

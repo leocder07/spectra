@@ -361,3 +361,143 @@ class TestCLIEdgeCases:
             set_analyzer_factory(factory)
             result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
             assert code in result.output
+
+
+# ── URL validation edge cases ───────────────────────────────
+
+
+class TestCLIUrlValidation:
+    def test_empty_url(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", ""])
+        assert result.exit_code == 1
+        assert "empty" in result.output.lower() or "URL" in result.output
+
+    def test_http_not_https(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "http://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "HTTPS" in result.output
+
+    def test_url_with_fragment(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo#readme"],
+        )
+        # Fragments in URL should be accepted (valid HTTPS URL)
+        assert result.exit_code == 0
+
+    def test_url_with_query_string(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo?tab=code"],
+        )
+        assert result.exit_code == 0
+
+    def test_ssh_url_rejected(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "git@github.com:test/repo.git"],
+        )
+        assert result.exit_code == 1
+
+    def test_plain_text_rejected(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "not-a-url-at-all"])
+        assert result.exit_code == 1
+
+    def test_ftp_url_rejected(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "ftp://example.com/repo"])
+        assert result.exit_code == 1
+
+
+# ── Format edge cases ───────────────────────────────────────
+
+
+class TestCLIFormatEdgeCases:
+    def test_format_yaml_invalid(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--format", "yaml"],
+        )
+        assert result.exit_code == 1
+        assert "Invalid format" in result.output
+
+    def test_format_empty_string(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--format", ""],
+        )
+        assert result.exit_code == 1
+
+    def test_format_uppercase_html(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--format", "HTML"],
+        )
+        # Uppercase should be rejected (case-sensitive)
+        assert result.exit_code == 1
+
+    def test_format_markdown_invalid(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--format", "markdown"],
+        )
+        assert result.exit_code == 1
+
+
+# ── Verbose mode ─────────────────────────────────────────────
+
+
+class TestCLIVerbose:
+    def test_verbose_on_unexpected_error(self):
+        factory = AsyncMock(side_effect=RuntimeError("kaboom"))
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--verbose"],
+        )
+        assert result.exit_code == 1
+        assert "kaboom" in result.output
+
+    def test_verbose_flag_accepted(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--verbose"],
+        )
+        assert result.exit_code == 0
+
+
+# ── Degraded report display ──────────────────────────────────
+
+
+class TestCLIDegradedReport:
+    def test_degraded_report_still_displays(self):
+        report = _fake_report()
+        report.is_degraded = True
+        report.degraded_dimensions = ("architecture", "security")
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0

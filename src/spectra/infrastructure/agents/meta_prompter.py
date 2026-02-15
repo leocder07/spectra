@@ -83,6 +83,10 @@ GUARDRAILS:
 and conventions only.
 - Do not guess at framework specifics beyond what the file tree reveals.
 
+PLANNING PRIORITIES:
+- Always include actual source code files (not just docs/configs) in focus_areas so agents can see implementations, security measures, and architecture patterns firsthand.
+- Prioritize files containing security hardening, test infrastructure, and architecture boundaries over boilerplate.
+
 CONSTRAINTS:
 - Analyze the file tree ONLY. You will NOT see file contents.
 - Budget: 5K tokens max for your response.

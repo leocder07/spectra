@@ -208,3 +208,60 @@ class TestCritiqueAgentRun:
     async def test_run_with_empty_input_raises(self, agent: CritiqueAgent):
         with pytest.raises(ValueError):
             await agent.run("")
+
+
+# ── Malformed JSON responses ─────────────────────────────────
+
+
+class TestCritiqueMalformedResponse:
+    def test_parse_output_with_truncated_json(self, agent: CritiqueAgent):
+        with pytest.raises(AgentError):
+            agent.parse_output('{"validated_findings": [')
+
+    def test_parse_output_with_plain_text(self, agent: CritiqueAgent):
+        with pytest.raises(AgentError):
+            agent.parse_output("I cannot analyze these findings because reasons")
+
+    def test_parse_output_with_empty_string(self, agent: CritiqueAgent):
+        with pytest.raises(AgentError):
+            agent.parse_output("")
+
+    def test_parse_output_with_nested_code_fence(self, agent: CritiqueAgent):
+        raw = '```json\n```json\n{"validated_findings": [], "rejected_findings": []}\n```\n```'
+        # Should handle or fail gracefully
+        try:
+            result = agent.parse_output(raw)
+            assert isinstance(result, dict)
+        except AgentError:
+            pass  # also acceptable
+
+    def test_parse_output_with_html_in_response(self, agent: CritiqueAgent):
+        with pytest.raises(AgentError):
+            agent.parse_output("<html><body>Error</body></html>")
+
+    def test_validate_output_non_dict(self, agent: CritiqueAgent):
+        with pytest.raises((ValueError, TypeError, AttributeError)):
+            agent.validate_output([])
+
+    def test_validate_output_none(self, agent: CritiqueAgent):
+        with pytest.raises((ValueError, TypeError, AttributeError)):
+            agent.validate_output(None)
+
+    def test_get_critique_result_with_array_json(self, agent: CritiqueAgent):
+        # Array JSON is handled gracefully (returns empty/default), not an error
+        result = agent.get_critique_result('[{"id": "x"}]')
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_run_with_gateway_empty_response(self, mock_gateway: AsyncMock):
+        mock_gateway.analyze_with_thinking.return_value = ""
+        agent = CritiqueAgent(gateway=mock_gateway)
+        with pytest.raises((AgentError, ValueError)):
+            await agent.run('[{"id": "sec-001"}]')
+
+    @pytest.mark.asyncio
+    async def test_run_with_gateway_invalid_json(self, mock_gateway: AsyncMock):
+        mock_gateway.analyze_with_thinking.return_value = "not json at all"
+        agent = CritiqueAgent(gateway=mock_gateway)
+        with pytest.raises(AgentError):
+            await agent.run('[{"id": "sec-001"}]')

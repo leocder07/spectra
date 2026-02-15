@@ -252,3 +252,107 @@ class TestLastUsage:
         with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"):
             a = AnthropicAdapter(api_key="test")
             assert a.last_usage == (0, 0)
+
+
+# ── Empty / malformed response edge cases ────────────────────
+
+
+class TestEmptyResponse:
+    @pytest.mark.asyncio
+    async def test_no_content_blocks_returns_empty(self, adapter):
+        a, client = adapter
+        events = [
+            SimpleNamespace(
+                type="message_start",
+                message=SimpleNamespace(usage=SimpleNamespace(input_tokens=10)),
+            ),
+            SimpleNamespace(
+                type="message_delta",
+                usage=SimpleNamespace(output_tokens=0),
+            ),
+        ]
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        result = await a.analyze("sys", "user", "model", 1000)
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_empty_text_delta(self, adapter):
+        a, client = adapter
+        events = _make_events(text="")
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        result = await a.analyze("sys", "user", "model", 1000)
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_response(self, adapter):
+        a, client = adapter
+        events = _make_events(text="   \n  ")
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        result = await a.analyze("sys", "user", "model", 1000)
+        assert result.strip() == ""
+
+    @pytest.mark.asyncio
+    async def test_zero_input_tokens(self, adapter):
+        a, client = adapter
+        events = _make_events(input_tokens=0, output_tokens=0)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        await a.analyze("sys", "user", "model", 1000)
+        assert a.last_usage == (0, 0)
+
+
+class TestThinkingEmptyResponse:
+    @pytest.mark.asyncio
+    async def test_no_text_blocks_returns_empty(self, adapter):
+        a, client = adapter
+        thinking_only = SimpleNamespace(type="thinking", thinking="deep thought")
+        usage = SimpleNamespace(input_tokens=50, output_tokens=25)
+        resp = SimpleNamespace(content=[thinking_only], usage=usage)
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
+        result = await a.analyze_with_thinking("sys", "user", "model", 2000)
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_empty_content_list(self, adapter):
+        a, client = adapter
+        usage = SimpleNamespace(input_tokens=0, output_tokens=0)
+        resp = SimpleNamespace(content=[], usage=usage)
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
+        result = await a.analyze_with_thinking("sys", "user", "model", 2000)
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_text_block_empty_string(self, adapter):
+        a, client = adapter
+        text_block = SimpleNamespace(type="text", text="")
+        usage = SimpleNamespace(input_tokens=10, output_tokens=5)
+        resp = SimpleNamespace(content=[text_block], usage=usage)
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
+        result = await a.analyze_with_thinking("sys", "user", "model", 2000)
+        assert result == ""
+
+
+class TestMultipleContentBlocks:
+    @pytest.mark.asyncio
+    async def test_multiple_text_deltas_concatenated(self, adapter):
+        a, client = adapter
+        events = [
+            SimpleNamespace(
+                type="message_start",
+                message=SimpleNamespace(usage=SimpleNamespace(input_tokens=50)),
+            ),
+            SimpleNamespace(
+                type="content_block_delta",
+                delta=SimpleNamespace(text="hello "),
+            ),
+            SimpleNamespace(
+                type="content_block_delta",
+                delta=SimpleNamespace(text="world"),
+            ),
+            SimpleNamespace(
+                type="message_delta",
+                usage=SimpleNamespace(output_tokens=10),
+            ),
+        ]
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        result = await a.analyze("sys", "user", "model", 1000)
+        assert result == "hello world"

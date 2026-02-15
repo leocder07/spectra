@@ -5,6 +5,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from spectra.adapters.brand import build_verdict
 from spectra.entities.models import (
     AnalysisReport,
@@ -1768,3 +1770,176 @@ class TestOWASP2024Coverage:
         finding = _make_finding(desc="A03 injection vulnerability", line=1)
         result = _dd_compliance_mapping((finding,))
         assert result["owasp_2024_covered_count"] >= 1
+
+
+# ── Parametrized Gini Coefficient ────────────────────────────
+
+import pytest  # noqa: E811 — re-import for parametrize visibility
+
+
+class TestGiniCoefficientParametrized:
+    @pytest.mark.parametrize(
+        ("values", "expected_min", "expected_max"),
+        [
+            ([], 0.0, 0.0),
+            ([1], -0.01, 0.01),
+            ([1, 1], -0.01, 0.01),
+            ([1, 100], 0.3, 1.0),
+            ([50, 50, 50], -0.01, 0.01),
+            ([0, 0, 0, 100], 0.5, 1.0),
+            ([10, 10, 10, 10, 10], -0.01, 0.01),
+            ([1, 2, 3, 4, 5], 0.1, 0.5),
+        ],
+    )
+    def test_gini_range(self, values, expected_min, expected_max):
+        result = _gini_coefficient(values)
+        assert expected_min <= result <= expected_max
+
+    def test_gini_returns_float(self):
+        assert isinstance(_gini_coefficient([1, 2, 3]), float)
+
+    def test_gini_all_same_large(self):
+        result = _gini_coefficient([42] * 100)
+        assert abs(result) < 0.01
+
+    def test_gini_extreme_inequality(self):
+        result = _gini_coefficient([0] * 99 + [1000])
+        assert result > 0.9
+
+
+# ── SOC2 with all zero findings ─────────────────────────────
+
+
+class TestSoc2ZeroFindings:
+    def test_all_criteria_zero_finding_count(self):
+        result = _soc2_mapping(())
+        for c in result["criteria"]:
+            assert c["finding_count"] == 0
+            assert c["has_critical"] is False
+            for k, v in c["severity_counts"].items():
+                assert v == 0
+
+    def test_coverage_pct_is_zero(self):
+        result = _soc2_mapping(())
+        assert result["coverage_pct"] == 0.0
+
+    def test_total_mapped_is_zero(self):
+        result = _soc2_mapping(())
+        assert result["total_mapped"] == 0
+
+
+# ── Bus factor with 1 file having all findings ──────────────
+
+
+class TestBusFactorSingleFile:
+    def test_all_findings_same_file_high_concentration(self):
+        findings = tuple(_make_finding(sev="high", line=i) for i in range(20))
+        result = _compute_bus_factor(findings)
+        assert result["unique_files"] == 1
+        assert result["concentration"] >= 0.0
+
+    def test_single_file_rating(self):
+        findings = tuple(_make_finding(sev="critical", line=i) for i in range(10))
+        result = _compute_bus_factor(findings)
+        assert result["rating"] in {"healthy", "moderate", "concerning", "critical"}
+
+    def test_single_file_hotspots_has_one_entry(self):
+        findings = tuple(_make_finding(sev="high", line=i) for i in range(5))
+        result = _compute_bus_factor(findings)
+        assert len(result["hotspots"]) == 1
+        assert result["hotspots"][0]["file"] == "src/main.py"
+
+
+# ── Investment readiness with perfect scores ─────────────────
+
+
+class TestInvestmentReadinessPerfect:
+    def test_perfect_score_is_investment_ready(self):
+        report = _minimal_report(score=100.0)
+        result = _investment_readiness_score(
+            report,
+            {"score": 100},
+            {"score": 0},
+            {"risk_level": "low"},
+            {"copyleft_risk": {"has_copyleft": False}},
+            {"coverage_pct": 100.0},
+        )
+        assert result["rating"] == "investment-ready"
+        assert result["score"] >= 85
+
+    def test_perfect_all_components_high(self):
+        report = _minimal_report(score=100.0)
+        result = _investment_readiness_score(
+            report,
+            {"score": 100},
+            {"score": 0},
+            {"risk_level": "low"},
+            {"copyleft_risk": {"has_copyleft": False}},
+            {"coverage_pct": 100.0},
+        )
+        assert result["components"]["overall_score"] >= 90
+        assert result["components"]["security_posture"] >= 70
+
+
+# ── Complexity with no numeric scores found ──────────────────
+
+
+class TestComplexityNoNumericScores:
+    def test_no_numeric_scores_unknown_risk(self):
+        result = _complexity_indicators(())
+        assert result["risk_level"] == "unknown"
+        assert result["mentioned_scores"] == []
+        assert result["max_complexity"] == 0
+        assert result["avg_complexity"] == 0.0
+
+    def test_text_only_findings_no_scores(self):
+        finding = _make_finding(desc="This function is too long", line=1)
+        result = _complexity_indicators((finding,))
+        # No numeric complexity found, but "high complexity" keywords not present
+        assert result["max_complexity"] == 0
+
+    def test_high_complexity_keyword_without_number(self):
+        finding = _make_finding(desc="high complexity detected in module", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["high_complexity_count"] >= 1
+        assert result["mentioned_scores"] == [] or result["max_complexity"] == 0
+
+
+# ── Score to grade extra boundary values ─────────────────────
+
+
+class TestScoreToGradeExtraBoundaries:
+    @pytest.mark.parametrize(
+        ("score", "expected"),
+        [
+            (0.0, "F"),
+            (56.0, "F"),
+            (56.9, "F"),
+            (57.0, "D-"),
+            (59.9, "D-"),
+            (60.0, "D"),
+            (62.9, "D"),
+            (63.0, "D+"),
+            (66.9, "D+"),
+            (67.0, "C-"),
+            (69.9, "C-"),
+            (70.0, "C"),
+            (72.9, "C"),
+            (73.0, "C+"),
+            (76.9, "C+"),
+            (77.0, "B-"),
+            (79.9, "B-"),
+            (80.0, "B"),
+            (82.9, "B"),
+            (83.0, "B+"),
+            (86.9, "B+"),
+            (87.0, "A-"),
+            (89.9, "A-"),
+            (90.0, "A"),
+            (94.9, "A"),
+            (95.0, "A+"),
+            (100.0, "A+"),
+        ],
+    )
+    def test_all_grade_boundaries(self, score, expected):
+        assert score_to_grade(score) == expected

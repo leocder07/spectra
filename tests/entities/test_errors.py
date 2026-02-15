@@ -210,3 +210,91 @@ class TestStripCodeFence:
         result = strip_code_fence(raw)
         # Should return something, even if partial
         assert len(result) > 0
+
+
+# ── strip_code_fence edge cases ──────────────────────────────
+
+
+class TestStripCodeFenceEdgeCases:
+    def test_only_backticks(self):
+        result = strip_code_fence("```\n```")
+        assert isinstance(result, str)
+
+    def test_triple_backtick_no_newline(self):
+        with pytest.raises(IndexError):
+            strip_code_fence("```json{}```")
+
+    def test_deeply_nested_json(self):
+        nested = '{"a": {"b": {"c": {"d": 1}}}}'
+        result = strip_code_fence(nested)
+        assert "d" in result
+
+    def test_json_array_top_level(self):
+        raw = '[{"id": 1}, {"id": 2}]'
+        result = strip_code_fence(raw)
+        assert "id" in result
+
+    def test_json_with_unicode(self):
+        raw = '{"name": "\u00e9\u00e8\u00ea"}'
+        result = strip_code_fence(raw)
+        assert "\u00e9" in result
+
+    def test_whitespace_only(self):
+        result = strip_code_fence("   \n  \t  ")
+        assert isinstance(result, str)
+
+
+# ── SpectraError edge cases ──────────────────────────────────
+
+
+class TestSpectraErrorEdgeCases:
+    def test_non_retryable_zero_retries(self):
+        err = SpectraError(code="X-001", message="test", retryable=False)
+        assert err.max_retries == 0
+
+    def test_retryable_default_retries_still_zero(self):
+        err = SpectraError(code="X-002", message="test", retryable=True)
+        assert err.max_retries == 0
+
+    def test_custom_max_retries(self):
+        err = SpectraError(code="X-003", message="test", retryable=True, max_retries=5)
+        assert err.max_retries == 5
+
+    def test_error_str_representation(self):
+        err = SpectraError(code="X-004", message="something broke", retryable=False)
+        assert "something broke" in str(err) or "X-004" in str(err)
+
+
+# ── Error subclasses can be caught ────────────────────────────
+
+
+class TestErrorCatchability:
+    def test_git_error_caught_as_exception(self):
+        try:
+            raise GitError(ERRORS["SPEC-001"])
+        except Exception as e:
+            assert isinstance(e, GitError)
+
+    def test_agent_error_caught_as_exception(self):
+        try:
+            raise AgentError(ERRORS["SPEC-005"])
+        except Exception as e:
+            assert isinstance(e, AgentError)
+
+    def test_retry_error_caught_as_exception(self):
+        try:
+            raise SpectraRetryError(ERRORS["SPEC-002"])
+        except Exception as e:
+            assert isinstance(e, SpectraRetryError)
+
+    @pytest.mark.parametrize("code", ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"])
+    def test_all_error_codes_have_message(self, code):
+        err = ERRORS[code]
+        assert len(err.message) > 0
+        assert len(err.code) == 8
+
+    @pytest.mark.parametrize("code", ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"])
+    def test_all_errors_are_frozen(self, code):
+        err = ERRORS[code]
+        with pytest.raises(AttributeError):
+            err.code = "CHANGED"

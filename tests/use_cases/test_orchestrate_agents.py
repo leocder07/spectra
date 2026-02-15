@@ -160,3 +160,119 @@ class TestEvaluateResults:
         assert len(successes) == 0
         assert len(failed) == 0
         assert state == "merging"
+
+
+# ── run_specialists edge cases ────────────────────────────────
+
+
+class TestRunSpecialistsEdgeCases:
+    @pytest.mark.asyncio
+    async def test_all_agents_fail(self):
+        agents = [
+            _make_agent("architecture", error=RuntimeError("fail1")),
+            _make_agent("security", error=ValueError("fail2")),
+            _make_agent("quality", error=TypeError("fail3")),
+        ]
+        prompts = {"architecture": "x", "security": "y", "quality": "z"}
+        results = await run_specialists(agents, prompts)
+        assert len(results) == 3
+        assert all(isinstance(r, Exception) for r in results)
+
+    @pytest.mark.asyncio
+    async def test_concurrency_limit_respected(self):
+        roles = ["architecture", "security", "quality", "documentation", "dependency", "performance"]
+        agents = [_make_agent(r) for r in roles]
+        prompts = {r: f"prompt_{r}" for r in roles}
+        results = await run_specialists(agents, prompts, max_concurrency=2)
+        assert len(results) == 6
+        assert all(isinstance(r, AgentOutput) for r in results)
+
+    @pytest.mark.asyncio
+    async def test_mixed_success_and_timeout(self):
+        fast_agent = _make_agent("architecture")
+        slow_agent = AsyncMock()
+        slow_agent.role = "security"
+
+        async def slow_run(prompt: str) -> AgentOutput:
+            await asyncio.sleep(10)
+            return AgentOutput(
+                agent_role="security",
+                findings=(),
+                tokens_used=0,
+                duration_seconds=10.0,
+                raw_response="{}",
+            )
+
+        slow_agent.run.side_effect = slow_run
+        results = await run_specialists(
+            [fast_agent, slow_agent],
+            {"architecture": "x", "security": "y"},
+            timeout_seconds=0.1,
+        )
+        assert isinstance(results[0], AgentOutput)
+        assert isinstance(results[1], asyncio.TimeoutError)
+
+    @pytest.mark.asyncio
+    async def test_single_agent(self):
+        agent = _make_agent("security")
+        results = await run_specialists([agent], {"security": "check"})
+        assert len(results) == 1
+        assert isinstance(results[0], AgentOutput)
+
+
+# ── evaluate_results edge cases ──────────────────────────────
+
+
+class TestEvaluateResultsEdgeCases:
+    def test_exactly_two_failures_is_degraded(self):
+        results = [RuntimeError("f1"), RuntimeError("f2")]
+        roles = ["architecture", "security"]
+        _, failed, state = evaluate_results(results, roles)
+        assert len(failed) == 2
+        assert state == "degraded"
+
+    def test_exactly_one_failure_is_merging(self):
+        output = AgentOutput(
+            agent_role="quality",
+            findings=(),
+            tokens_used=100,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        results = [RuntimeError("f1"), output]
+        roles = ["architecture", "quality"]
+        _, failed, state = evaluate_results(results, roles)
+        assert len(failed) == 1
+        assert state == "merging"
+
+    def test_six_agents_three_fail(self):
+        outputs = [
+            RuntimeError("f1"),
+            RuntimeError("f2"),
+            RuntimeError("f3"),
+            AgentOutput(agent_role="documentation", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(agent_role="dependency", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+            AgentOutput(agent_role="performance", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}"),
+        ]
+        roles = ["architecture", "security", "quality", "documentation", "dependency", "performance"]
+        successes, failed, state = evaluate_results(outputs, roles)
+        assert len(successes) == 3
+        assert len(failed) == 3
+        assert state == "degraded"
+
+    def test_timeout_error_counted_as_failure(self):
+        results = [asyncio.TimeoutError(), asyncio.TimeoutError()]
+        roles = ["architecture", "security"]
+        _, failed, state = evaluate_results(results, roles)
+        assert len(failed) == 2
+        assert state == "degraded"
+
+    def test_preserves_order(self):
+        o1 = AgentOutput(agent_role="architecture", findings=(), tokens_used=100, duration_seconds=1.0, raw_response="{}")
+        o2 = AgentOutput(agent_role="quality", findings=(), tokens_used=200, duration_seconds=2.0, raw_response="{}")
+        results = [o1, RuntimeError("fail"), o2]
+        roles = ["architecture", "security", "quality"]
+        successes, failed, state = evaluate_results(results, roles)
+        assert successes[0].agent_role == "architecture"
+        assert successes[1].agent_role == "quality"
+        assert failed == ["security"]

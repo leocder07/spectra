@@ -116,3 +116,76 @@ class TestCheckBudgetRemaining:
         budget = TokenBudget()
         remaining = check_budget_remaining(budget, 0)
         assert remaining == 800_000
+
+
+# ── Edge cases for allocate_specialist_budgets ────────────────
+
+
+class TestAllocateBudgetEdgeCases:
+    def test_none_allocations_uses_defaults(self):
+        budget = TokenBudget()
+        alloc = allocate_specialist_budgets(budget, allocations=None)
+        assert len(alloc) == 6
+        assert alloc["architecture"] == int(500_000 * 0.25)
+
+    def test_empty_allocations_uses_defaults(self):
+        budget = TokenBudget()
+        alloc = allocate_specialist_budgets(budget, allocations={})
+        assert len(alloc) == 6
+
+    def test_all_zero_allocations(self):
+        budget = TokenBudget()
+        custom = {
+            "architecture": 0,
+            "security": 0,
+            "quality": 0,
+            "documentation": 0,
+            "maintainability": 0,
+            "performance": 0,
+        }
+        alloc = allocate_specialist_budgets(budget, allocations=custom)
+        assert all(v == 0 for v in alloc.values())
+
+    def test_single_dimension_gets_full_pool(self):
+        budget = TokenBudget()
+        custom = {"architecture": 1}
+        alloc = allocate_specialist_budgets(budget, allocations=custom)
+        assert alloc["architecture"] == 500_000
+
+    def test_very_small_pool(self):
+        budget = TokenBudget(specialists_pool=6)
+        alloc = allocate_specialist_budgets(budget)
+        total = sum(alloc.values())
+        assert total <= 6
+
+    def test_allocations_proportional(self):
+        budget = TokenBudget()
+        custom = {"architecture": 3, "security": 1}
+        alloc = allocate_specialist_budgets(budget, allocations=custom)
+        assert alloc["architecture"] == int(500_000 * 3 / 4)
+        assert alloc["security"] == int(500_000 * 1 / 4)
+
+
+# ── Edge cases for check_budget_remaining ────────────────────
+
+
+class TestCheckBudgetRemainingEdgeCases:
+    def test_negative_used_not_realistic_but_handled(self):
+        budget = TokenBudget()
+        remaining = check_budget_remaining(budget, -100)
+        assert remaining == 800_100
+
+    def test_exactly_one_token_left(self):
+        budget = TokenBudget()
+        remaining = check_budget_remaining(budget, 799_999)
+        assert remaining == 1
+
+    def test_massive_overuse(self):
+        budget = TokenBudget()
+        remaining = check_budget_remaining(budget, 10_000_000)
+        assert remaining == 0
+
+    def test_custom_budget_remaining(self):
+        budget = TokenBudget(total=100)
+        remaining = check_budget_remaining(budget, 50)
+        assert remaining == 50

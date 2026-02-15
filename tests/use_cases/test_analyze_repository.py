@@ -1022,3 +1022,116 @@ class TestComputeScorecardEdgeCases:
         sec_dim = next(d for d in card.dimensions if d.dimension == "security")
         # Should blend llm_score with penalty score
         assert sec_dim.score > 0
+
+
+# ── Parametrized _estimate_score ─────────────────────────────
+
+
+class TestEstimateScoreParametrized:
+    @pytest.mark.parametrize(
+        ("score", "expected_min", "expected_max"),
+        [
+            (0, 45.0, 45.0),
+            (25, 45.0, 100.0),
+            (50, 45.0, 100.0),
+            (75, 45.0, 100.0),
+            (100, 85.0, 100.0),
+        ],
+    )
+    def test_score_range_with_varying_criticals(self, score, expected_min, expected_max):
+        n_critical = max(0, (100 - score) // 10)
+        findings = [_finding("security", "critical", line=i) for i in range(n_critical)]
+        result = _estimate_score(findings)
+        assert expected_min <= result <= expected_max
+
+    @pytest.mark.parametrize("llm_score", [0, 25, 50, 75, 100])
+    def test_blended_with_various_llm_scores(self, llm_score):
+        findings = [_finding("security", "high", line=1)]
+        result = _estimate_score(findings, llm_score=float(llm_score))
+        assert 0.0 <= result <= 100.0
+
+    @pytest.mark.parametrize(
+        "sev,penalty",
+        [
+            ("critical", 15.0),
+            ("high", 8.0),
+            ("medium", 3.0),
+            ("low", 1.0),
+            ("info", 0.0),
+        ],
+    )
+    def test_individual_severity_penalty(self, sev, penalty):
+        findings = [_finding("security", sev, line=1)]
+        expected = round(100.0 - penalty, 1)
+        assert _estimate_score(findings) == expected
+
+    def test_all_zero_llm_with_zero_findings(self):
+        assert _estimate_score([]) == 85.0
+
+    def test_blended_formula_exact(self):
+        findings = [_finding("security", "medium", line=1)]
+        result = _estimate_score(findings, llm_score=50.0)
+        assert result == 78.2
+
+
+# ── Parametrized _validate_repo_url ──────────────────────────
+
+
+class TestValidateRepoUrlParametrized:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/user/repo",
+            "https://github.com/user/repo.git",
+            "https://gitlab.com/org/project",
+            "https://bitbucket.org/user/repo",
+            "https://github.com/user/my-repo-123",
+            "https://github.com/user/repo/tree/main",
+        ],
+    )
+    def test_valid_urls(self, url):
+        from spectra.adapters.cli_controller import _validate_repo_url
+
+        assert _validate_repo_url(url) is None
+
+    @pytest.mark.parametrize(
+        ("url", "expected_fragment"),
+        [
+            ("", "empty"),
+            ("   ", "empty"),
+            ("http://github.com/user/repo", "HTTPS"),
+            ("ftp://example.com/repo", "HTTPS"),
+            ("git@github.com:user/repo.git", "HTTPS"),
+            ("ssh://github.com/user/repo", "HTTPS"),
+            ("not-a-url", "HTTPS"),
+            ("https://", "Invalid URL"),
+            ("https:// spaces.com/repo", "Invalid URL"),
+        ],
+    )
+    def test_invalid_urls(self, url, expected_fragment):
+        from spectra.adapters.cli_controller import _validate_repo_url
+
+        result = _validate_repo_url(url)
+        assert result is not None
+        assert expected_fragment.lower() in result.lower()
+
+    def test_url_exceeds_max_length(self):
+        from spectra.adapters.cli_controller import _validate_repo_url
+
+        long_url = "https://github.com/" + "a" * 2048
+        result = _validate_repo_url(long_url)
+        assert result is not None
+        assert "2048" in result
+
+    def test_url_at_max_length(self):
+        from spectra.adapters.cli_controller import _validate_repo_url
+
+        url = "https://github.com/" + "a" * (2048 - len("https://github.com/"))
+        result = _validate_repo_url(url)
+        assert result is None
+
+    def test_url_with_special_chars(self):
+        from spectra.adapters.cli_controller import _validate_repo_url
+
+        result = _validate_repo_url("https://github.com/user/repo-name_v2.0")
+        assert result is None
