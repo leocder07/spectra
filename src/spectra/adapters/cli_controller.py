@@ -73,6 +73,15 @@ _BANNER = """\
 [dim #52525b]  8 agents · 6 dimensions · 90 seconds[/]
 """
 
+_PIPELINE_INFO = """\
+[dim #52525b]  ┌─ pipeline ───────────────────────────────────┐[/]
+[dim #52525b]  │[/] [#F59E0B]1[/] MetaPrompter    [dim]sonnet-4.5  planner  [/] [dim #52525b]│[/]
+[dim #52525b]  │[/] [#F59E0B]6[/] Specialists     [dim]opus-4.6    parallel [/] [dim #52525b]│[/]
+[dim #52525b]  │[/] [#F59E0B]1[/] CritiqueAgent   [dim]opus-4.6    thinking [/] [dim #52525b]│[/]
+[dim #52525b]  │[/] [dim]  arch · sec · qual · doc · dep · perf  [/] [dim #52525b]│[/]
+[dim #52525b]  └──────────────────────────────────────────────┘[/]\
+"""
+
 _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 
 # Injected by the composition root before CLI runs
@@ -166,8 +175,12 @@ def analyze(
     _print_banner()
     repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
     console.print(f"  [{AMBER}]target:[/] {repo_name}  [dim]({repo_url})[/]")
-    if quick:
-        console.print(f"  [{AMBER}]mode:[/]   quick scan [dim](no critique)[/]")
+    mode_label = "quick scan [dim](no critique)[/]" if quick else "full analysis [dim](8 agents)[/]"
+    console.print(f"  [{AMBER}]mode:[/]   {mode_label}")
+    console.print(f"  [{AMBER}]output:[/] {output}  [dim]({fmt})[/]")
+    console.print()
+    if not quick:
+        console.print(_PIPELINE_INFO)
     console.print()
 
     try:

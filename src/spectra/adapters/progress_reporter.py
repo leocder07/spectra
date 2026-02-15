@@ -2,7 +2,8 @@
 
 Displays pipeline stage transitions and parallel agent progress using
 Rich Progress bars, panels, and box-drawing characters for a premium
-hacker/terminal aesthetic.
+hacker/terminal aesthetic.  Shows model names, token counts, and costs
+in real-time as LLM calls complete.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
+from spectra.adapters.brand import AMBER, CYAN, GREEN, RED, VIOLET
 from spectra.entities.enums import AgentRole
 
 # ── Theme ────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ SPECTRA_THEME = Theme(
     }
 )
 
-# ── Agent display names ─────────────────────────────────────────────────
+# ── Agent display names and models ──────────────────────────────────────
 
 AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
     "meta_prompter": "MetaPrompter",
@@ -51,6 +52,28 @@ AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
     "critique": "CritiqueAgent",
 }
 
+AGENT_MODELS: dict[AgentRole, str] = {
+    "meta_prompter": "claude-sonnet-4-5",
+    "architecture": "claude-opus-4-6",
+    "security": "claude-opus-4-6",
+    "quality": "claude-opus-4-6",
+    "documentation": "claude-opus-4-6",
+    "dependency": "claude-opus-4-6",
+    "performance": "claude-opus-4-6",
+    "critique": "claude-opus-4-6",
+}
+
+AGENT_DESCRIPTIONS: dict[AgentRole, str] = {
+    "meta_prompter": "file tree planner",
+    "architecture": "layer & pattern analysis",
+    "security": "OWASP, CVE, injection scan",
+    "quality": "test coverage & complexity",
+    "documentation": "docstring & readme audit",
+    "dependency": "supply chain & licenses",
+    "performance": "hotspots & async patterns",
+    "critique": "extended thinking validation",
+}
+
 # ── Stage aesthetics ────────────────────────────────────────────────────
 
 _STAGE_TAGS: dict[str, str] = {
@@ -60,6 +83,7 @@ _STAGE_TAGS: dict[str, str] = {
     "MERGE": "LINK",
     "CRITIQUE": "EVAL",
     "REPORT": "EMIT",
+    "llm_call": "LLM_",
 }
 
 _STAGE_BARS: dict[str, str] = {
@@ -69,6 +93,7 @@ _STAGE_BARS: dict[str, str] = {
     "LINK": "\u2593\u2593\u2593\u2593\u2593\u2593\u2591\u2591\u2591\u2591",
     "EVAL": "\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2591\u2591",
     "EMIT": "\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593",
+    "LLM_": "\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593",
 }
 
 # ── Specialist agents shown in the ANALYZE tree ─────────────────────────
@@ -131,8 +156,18 @@ class RichProgressReporter:
 
     def on_stage_complete(self, stage: str, message: str) -> None:
         """Display stage completion with timing."""
-        elapsed = self._elapsed_for(stage)
         tag = _STAGE_TAGS.get(stage, stage[:4].upper())
+
+        # LLM call metadata — show as a distinct line with model/tokens info
+        if stage == "llm_call":
+            self._console.print(
+                f"[bold {GREEN}][{tag}][/] "
+                f"[{GREEN}]\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593\u2593[/] "
+                f"[{CYAN}]{message}[/]"
+            )
+            return
+
+        elapsed = self._elapsed_for(stage)
         time_str = f" [{elapsed:.1f}s]" if elapsed > 0 else ""
         self._console.print(
             f"[{GREEN}][{tag}][/] "
@@ -273,6 +308,7 @@ class RichProgressReporter:
         table.add_column("bar", no_wrap=True, justify="left")
         table.add_column("pct", no_wrap=True, justify="right")
         table.add_column("time", no_wrap=True, justify="right")
+        table.add_column("info", no_wrap=True, justify="left")
 
         roles = [r for r in _SPECIALIST_ROLES if r in self._finished_agents or r in self._failed_agents]
         # Include non-specialist agents that were tracked
@@ -300,7 +336,11 @@ class RichProgressReporter:
                 pct_txt = Text(f"{pct:>3.0f}%", style=AMBER)
                 time_txt = Text(f"{dur:.1f}s", style="dim")
 
-            table.add_row(tree_txt, bar_txt, pct_txt, time_txt)
+            # Add model/description info column
+            desc = AGENT_DESCRIPTIONS.get(role, "")
+
+            info_txt = Text(f"{desc}", style="dim") if desc else Text("")
+            table.add_row(tree_txt, bar_txt, pct_txt, time_txt, info_txt)
 
         title = Text(" ANALYZE ", style=f"bold {AMBER} on {VIOLET}")
         panel = Panel(
