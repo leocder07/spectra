@@ -1,0 +1,2382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — django</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* [7] Widen container */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        /* [5] Gradient Wordmark */
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .grade-gauge-score {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* [6] Animate Score Bars */
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* [1] Collapsible Findings */
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Spectrum Bar */
+        .spectrum-bar {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0 1.5rem;
+            height: 36px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spectrum-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .spectrum-seg:hover { opacity: 0.85; }
+
+        /* Inline Badge */
+        .header-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .header-inner {
+            position: relative;
+        }
+
+        /* Priority Actions */
+        .priority-actions {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .priority-actions h2 {
+            font-size: 1.1rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .priority-actions ol {
+            list-style: none;
+            counter-reset: actions;
+            padding: 0;
+        }
+
+        .priority-actions li {
+            counter-increment: actions;
+            padding: 0.75rem 0 0.75rem 2.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-actions li:last-child {
+            border-bottom: none;
+        }
+
+        .priority-actions li::before {
+            content: counter(actions);
+            position: absolute;
+            left: 0;
+            top: 0.75rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--violet);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .action-location {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .action-rec {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="top">
+            <div class="header-inner">
+                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#22C55E"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">A 90/100</text></svg></div>
+                <h1>SPECTRA</h1>
+                <div class="repo-name">django</div>
+                <div class="tagline">The full spectrum of your codebase</div>
+            </div>
+        </header>
+
+        <!-- Spectrum Bar -->
+        <div class="spectrum-bar">
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #22C55E;">
+                Architecture 94 A
+            </div>
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #22C55E;">
+                Security 95 A+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 20.0%; background: #06B6D4;">
+                Quality 82 B
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                Documentation 97 A+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                Maintainability 88 A-
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #06B6D4;">
+                Performance 80 B
+            </div>
+            
+        </div>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#actions">Actions</a>
+            <a href="#scores">Scores</a>
+            
+            
+            
+            <a href="#dim-architecture">Architecture</a>
+            
+            
+            
+            
+            <a href="#dim-security">Security</a>
+            
+            
+            
+            
+            <a href="#dim-quality">Quality</a>
+            
+            
+            
+            
+            <a href="#dim-documentation">Documentation</a>
+            
+            
+            
+            
+            <a href="#dim-maintainability">Maintainability</a>
+            
+            
+            
+            
+            <a href="#dim-performance">Performance</a>
+            
+            
+        </nav>
+
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary" id="summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores A (91/100) — strong documentation with performance gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-a">A+ (97)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-a">A+ (96)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-a">A (94)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-b">B (81)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-b">B (83)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-a">A- (88)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <!-- [4] Severity Distribution Bar -->
+            
+            
+            
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    
+                    
+                    
+                    
+                    
+                    
+                    <div class="seg seg-medium" style="width: 21.0%">
+                        13
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-low" style="width: 29.0%">
+                        18
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-info" style="width: 50.0%">
+                        31
+                    </div>
+                    
+                    
+                </div>
+                <div class="severity-bar-legend">
+                    
+                    
+                    
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--amber)"></span>
+                        medium (13)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--cyan)"></span>
+                        low (18)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--gray)"></span>
+                        info (31)
+                    </span>
+                    
+                    
+                </div>
+            </div>
+            
+
+            <div class="quick-stats">
+                62 findings · 6 agents · 131s analysis · Total tech debt: ~288h
+            </div>
+        </section>
+
+        <!-- Priority Actions -->
+        
+        <section id="actions" class="priority-actions">
+            <h2>What to Fix First</h2>
+            <ol>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>ORM query compilation has deep module nesting and complexity</strong>
+                    <span class="action-location">django/db/models/sql/compiler.py</span>
+                    <p class="action-rec">This is inherent complexity for a full-featured ORM. Consider documenting the internal dependency graph between ORM submodules more explicitly for contributors. The existing separation into sql/, fields/, and functions/ subpackages is already good.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>django/contrib/admin/options.py is a known god-class file</strong>
+                    <span class="action-location">django/contrib/admin/options.py</span>
+                    <p class="action-rec">This is a known architectural characteristic of Django&#39;s admin. For any new contributions, consider extracting view methods into mixins or separate modules. The file&#39;s complexity is managed through extensive test coverage in tests/admin_views/.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>django/db/models/sql/query.py likely has very high complexity</strong>
+                    <span class="action-location">django/db/models/sql/query.py</span>
+                    <p class="action-rec">The complexity here is largely inherent to the problem domain. Ensure new query features are added with corresponding tests in tests/queries/ and that methods are documented with clear docstrings explaining SQL generation logic.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>django/db/models/sql/compiler.py has concentrated compilation logic</strong>
+                    <span class="action-location">django/db/models/sql/compiler.py</span>
+                    <p class="action-rec">Backend-specific compilation logic should continue to be delegated to backend-specific compiler subclasses (e.g., django/db/backends/postgresql/compiler.py, django/db/backends/mysql/compiler.py). Ensure new SQL generation paths have test coverage across all supported backends.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>django/db/migrations/autodetector.py is inherently complex</strong>
+                    <span class="action-location">django/db/migrations/autodetector.py</span>
+                    <p class="action-rec">The autodetector has extensive test coverage in tests/migrations/test_autodetector.py. When adding new detectable changes, ensure each detection method is focused on a single type of change and has corresponding test cases for edge cases.</p>
+                </li>
+                
+            </ol>
+        </section>
+        
+
+        <!-- ScoreCard -->
+        <section class="scorecard" id="scores">
+            <div class="overall">
+                <!-- [2] Circular Grade Gauge -->
+                
+                
+                
+                
+                <div class="grade-gauge"
+                     style="background: conic-gradient(var(--green) 326.2deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter grade-a">A</span>
+                        <span class="grade-gauge-score">91 / 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 94.4%"></div>
+                    </div>
+                    <span class="dim-score">94</span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 95.6%"></div>
+                    </div>
+                    <span class="dim-score">96</span>
+                    <span class="dim-grade grade-a">A+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 82.6%"></div>
+                    </div>
+                    <span class="dim-score">83</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 97.2%"></div>
+                    </div>
+                    <span class="dim-score">97</span>
+                    <span class="dim-grade grade-a">A+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 88.0%"></div>
+                    </div>
+                    <span class="dim-score">88</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 80.8%"></div>
+                    </div>
+                    <span class="dim-score">81</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">62</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">131s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$24.12</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section" id="dim-architecture">
+            <h2>Architecture (15)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">ORM query compilation has deep module nesting and complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/sql/compiler.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/db/models/ package is the most complex subsystem with deep nesting: models/sql/ (compiler.py, query.py, where.py, subqueries.py), models/fields/ (related.py, related_descriptors.py, related_lookups.py, reverse_related.py, composite.py, generated.py, json.py, tuple_lookups.py), models/functions/ (7 submodules). While each file has a clear purpose, the sheer number of interconnected modules in the ORM layer creates high coupling within this subsystem. The expressions.py, lookups.py, query.py, and sql/compiler.py form a tightly coupled core.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is inherent complexity for a full-featured ORM. Consider documenting the internal dependency graph between ORM submodules more explicitly for contributors. The existing separation into sql/, fields/, and functions/ subpackages is already good.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">contrib/admin is disproportionately large compared to other contrib apps</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/admin/options.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/contrib/admin/ package is significantly larger than any other contrib app, containing options.py (the massive ModelAdmin), sites.py, filters.py, helpers.py, widgets.py, views/main.py, checks.py, decorators.py, plus extensive static assets (JS, CSS, images), templates, and templatetags. While this is a feature-rich admin interface, the options.py file in particular is known to be one of the largest files in Django, handling list display, form generation, inline editing, actions, and permissions in a single class hierarchy.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider whether ModelAdmin could benefit from further decomposition using mixins or composition patterns to separate list view logic, form handling, inline management, and permission checking into more focused modules. This is a long-standing design choice, however, and the current approach provides a familiar API.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">GIS contrib app mirrors core DB architecture at significant scale</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/gis/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/contrib/gis/ package is essentially a parallel framework that mirrors much of Django&#39;s core architecture: its own db/backends/ (postgis, spatialite, mysql, oracle), db/models/ (fields, functions, lookups, aggregates), forms/, gdal/ (with prototypes/), geos/ (with prototypes/), serializers/, management/commands/, sitemaps/, and utils/. While this is necessary for GIS functionality, it creates a large surface area that must stay synchronized with core Django changes.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The parallel architecture is a reasonable design choice given the complexity of spatial databases. Ensure that GIS backend changes are always tested against core backend changes. The existing test infrastructure (tests/gis_tests/) appears comprehensive.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Forms system has dual template support (Django + Jinja2)</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/forms/templates/django/forms/widgets/input.html
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/forms/ package maintains parallel template directories: templates/django/forms/ and jinja2/django/forms/, each containing identical widget templates, form layouts, and error templates. While this enables both template engines, it creates a maintenance burden where every template change must be replicated in both directories. There are approximately 40+ template files duplicated across both directories.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider whether a template generation or shared template approach could reduce duplication. Alternatively, ensure CI checks verify that both template sets remain in sync.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Exemplary layered architecture with clear separation of concerns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Django&#39;s core architecture follows a well-defined layered pattern: django/db (data layer) → django/forms (validation/binding) → django/views (request handling) → django/template (presentation) → django/http (request/response). Each layer has clear responsibilities and dependencies flow in the correct direction. The django/core package provides cross-cutting utilities (cache, mail, files, management, serializers) that are properly isolated.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-designed plugin architecture via apps registry</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/apps/registry.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/apps/ package (registry.py, config.py) provides a robust plugin system. Each contrib app follows a consistent pattern: __init__.py, apps.py (AppConfig), models.py, admin.py, views.py, urls.py, migrations/, locale/. This consistency across admin, auth, contenttypes, sessions, staticfiles, etc. demonstrates excellent architectural discipline for a framework of this scale.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Database backend abstraction follows strategy pattern correctly</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/backends/base/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/db/backends/ hierarchy demonstrates excellent use of the strategy pattern. A base/ package defines abstract interfaces (base.py, features.py, operations.py, schema.py, introspection.py, creation.py, client.py, validation.py), and each backend (postgresql, mysql, sqlite3, oracle) provides concrete implementations. The django/contrib/gis/db/backends/ mirrors this structure for spatial databases, extending without modifying the core.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Template engine abstraction supports multiple backends cleanly</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/template/backends/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/template/backends/ package provides a clean abstraction layer with base.py defining the interface, and django.py, jinja2.py, and dummy.py providing implementations. The template system properly separates concerns: base.py (parsing), engine.py (configuration), loader.py (template discovery), loaders/ (filesystem, app_directories, cached, locmem), context.py (variable resolution), and library.py (tag/filter registration).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Middleware pipeline architecture is well-structured</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/handlers/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/middleware/ package provides a clean set of independent middleware components (cache, csrf, security, common, locale, gzip, clickjacking, http, csp) that follow the middleware protocol. The django/core/handlers/ package (base.py, wsgi.py, asgi.py, exception.py) properly manages the middleware chain for both WSGI and ASGI. The deprecation.py utility in django/utils/ provides the MiddlewareMixin for backward compatibility.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The dual WSGI/ASGI support with shared middleware infrastructure is well-designed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">New tasks subsystem follows established patterns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/tasks/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/tasks/ package is a newer addition that follows Django&#39;s established architectural patterns: a base.py defining the task interface, backends/ with base.py (abstract), dummy.py, and immediate.py implementations, plus checks.py, exceptions.py, and signals.py. This mirrors the pattern used by cache backends, email backends, and session backends.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Good adherence to existing architectural patterns for new subsystems.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">File storage abstraction properly decomposed</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/files/storage/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/core/files/storage/ package demonstrates good decomposition: __init__.py (public API), base.py (Storage base class), filesystem.py (FileSystemStorage), handler.py (storage handler/registry), memory.py (InMemoryStorage), and mixins.py. This is a well-structured evolution from what was previously a single storage.py file.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Configuration system uses lazy settings pattern effectively</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/conf/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/conf/__init__.py implements a LazySettings pattern that defers settings loading until first access, with global_settings.py providing defaults. The app_template/ and project_template/ directories provide scaffolding. The conf/urls/ package properly separates URL configuration utilities (i18n.py, static.py) from the main URL resolution in django/urls/.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The lazy settings pattern is a well-known Django design choice.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive check framework for system validation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/checks/registry.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/core/checks/ package provides a well-organized system check framework with separate modules for different concerns: security/ (base, csrf, sessions), caches, database, files, model_checks, templates, translation, urls, async_checks, and commands. The registry.py provides a clean registration mechanism. This enables both Django and third-party apps to register validation checks.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The check framework is well-designed and extensible.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Migration system has well-separated concerns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/migrations/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/db/migrations/ package demonstrates excellent separation: autodetector.py (change detection), executor.py (migration execution), graph.py (dependency resolution), loader.py (migration discovery), migration.py (migration definition), operations/ (base, fields, models, special), optimizer.py (migration optimization), questioner.py (interactive prompts), recorder.py (applied migration tracking), serializer.py (value serialization), state.py (project state), and writer.py (migration file generation).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The migration system&#39;s architecture is one of Django&#39;s strongest subsystems.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Test suite mirrors source architecture comprehensively</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/runtests.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The tests/ directory contains over 200 test packages that comprehensively cover every aspect of the framework. Test organization mirrors the source structure (e.g., tests/backends/ for django/db/backends/, tests/admin_views/ for admin, tests/migrations/ for migrations). The test infrastructure includes its own models, URLs, views, templates, and fixtures per test package, enabling isolated testing.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The test architecture is exemplary for a framework of this scale.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~56h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-security">
+            <h2>Security (4)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Static file serving view lacks production safeguards beyond DEBUG check</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/views/static.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/views/static.py serve() function is intended only for development use and checks show_indexes parameter for directory listing. While it does document that it should not be used in production, the function itself doesn&#39;t enforce this beyond documentation. The django/conf/urls/static.py helper does check settings.DEBUG before adding URL patterns, which is the primary safeguard. CWE-548: Exposure of Information Through Directory Listing.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The existing DEBUG check in django/conf/urls/static.py is the correct approach. Consider adding a runtime warning in the serve() view itself when DEBUG is False to catch cases where developers wire it up manually.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Global settings define security-sensitive defaults that require explicit opt-in</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/conf/global_settings.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In django/conf/global_settings.py, several security headers default to permissive values: SECURE_SSL_REDIRECT defaults to False, SECURE_HSTS_SECONDS defaults to 0, SESSION_COOKIE_SECURE defaults to False, CSRF_COOKIE_SECURE defaults to False. While Django&#39;s check framework (security checks W004, W008, W012, W016, etc.) warns about these, the defaults prioritize development convenience over security. OWASP A05:2021 Security Misconfiguration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is by design for development ergonomics. The existing security check framework adequately warns about these. Consider enhancing the deployment checklist documentation or adding a &#39;production&#39; settings template.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Default SECRET_KEY in project template is a placeholder</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/conf/project_template/project_name/settings.py-tpl
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project template at django/conf/project_template/project_name/settings.py-tpl generates a SECRET_KEY directly in the settings file. While Django&#39;s startproject command generates a random key, the pattern encourages storing secrets in source code rather than environment variables. CWE-798: Use of Hard-coded Credentials. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider updating the project template to load SECRET_KEY from environment variables by default (e.g., os.environ[&#39;SECRET_KEY&#39;]) with a comment explaining the importance, rather than embedding it directly in the settings file.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive security middleware and check framework in place</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/middleware/security.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Django implements a robust security architecture including: CSRF protection (django/middleware/csrf.py), clickjacking protection (django/middleware/clickjacking.py), CSP middleware (django/middleware/csp.py), security middleware with HSTS/SSL redirect (django/middleware/security.py), comprehensive password hashing with multiple algorithms (django/contrib/auth/hashers.py), cryptographic signing (django/core/signing.py), constant-time comparison utilities (django/utils/crypto.py), and an extensive security check framework (django/core/checks/security/). The framework also auto-escapes template output to prevent XSS and uses parameterized queries to prevent SQL injection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining the existing security infrastructure. The security check framework at django/core/checks/security/ provides excellent deployment-time validation.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~4h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-quality">
+            <h2>Quality (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">django/contrib/admin/options.py is a known god-class file</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/admin/options.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The admin options.py file contains ModelAdmin, InlineModelAdmin, and related classes. This file is historically one of the largest in Django, typically exceeding 2000 lines with high cyclomatic complexity across methods like changeform_view, changelist_view, and add_view. The concentration of view logic, form handling, permission checks, and template rendering in a single file makes it difficult to maintain and test individual behaviors.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a known architectural characteristic of Django&#39;s admin. For any new contributions, consider extracting view methods into mixins or separate modules. The file&#39;s complexity is managed through extensive test coverage in tests/admin_views/.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">django/db/models/sql/query.py likely has very high complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/sql/query.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The SQL query compilation module is the core of Django&#39;s ORM query generation. This file historically contains the Query class with numerous methods for building SQL queries, handling joins, aggregations, subqueries, and annotations. The inherent complexity of SQL generation leads to long methods with many branches.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The complexity here is largely inherent to the problem domain. Ensure new query features are added with corresponding tests in tests/queries/ and that methods are documented with clear docstrings explaining SQL generation logic.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">django/db/models/sql/compiler.py has concentrated compilation logic</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~20.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/sql/compiler.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The SQL compiler module handles the translation of Query objects into database-specific SQL. Methods like as_sql(), get_select(), get_from_clause() tend to be long and complex with many conditional branches for different database backends and query types.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Backend-specific compilation logic should continue to be delegated to backend-specific compiler subclasses (e.g., django/db/backends/postgresql/compiler.py, django/db/backends/mysql/compiler.py). Ensure new SQL generation paths have test coverage across all supported backends.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">django/db/migrations/autodetector.py is inherently complex</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~20.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/migrations/autodetector.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The migration autodetector must compare two complete model states and generate appropriate migration operations. This involves detecting field additions, removals, renames, relationship changes, index changes, and constraint changes. The file typically has very high cyclomatic complexity due to the many types of changes it must detect.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The autodetector has extensive test coverage in tests/migrations/test_autodetector.py. When adding new detectable changes, ensure each detection method is focused on a single type of change and has corresponding test cases for edge cases.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">django/db/models/query.py QuerySet class is very large</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/query.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The QuerySet class is the primary public API for Django&#39;s ORM and contains dozens of methods (filter, exclude, annotate, aggregate, select_related, prefetch_related, values, etc.). While each method is generally well-focused, the class itself is very large, making it a maintenance challenge.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The QuerySet&#39;s size is a consequence of its role as the primary ORM interface. Methods are generally well-tested via tests/queries/, tests/prefetch_related/, tests/select_related/, etc. Consider using mixins for logically grouped functionality in future refactors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">django/db/models/base.py Model metaclass and base have high complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~20.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The Model base class and its metaclass handle field registration, validation, saving, deletion, and serialization. The __init__, save(), full_clean(), and Meta processing logic involve many conditional paths for handling inheritance, proxy models, deferred fields, and composite primary keys.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is core framework code with extensive test coverage. The addition of composite primary key support (django/db/models/fields/composite.py) adds complexity. Ensure new model features maintain backward compatibility and have tests covering all inheritance patterns.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">django/forms/fields.py and django/forms/widgets.py contain many similar field/widget classes</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/forms/fields.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The forms module contains many field and widget classes that follow similar patterns (clean, validate, widget rendering). While each class is individually simple, there is structural repetition across field types (CharField, IntegerField, FloatField, DecimalField, etc.) that could potentially be reduced through more aggressive use of mixins.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The current structure prioritizes readability and explicit behavior over DRY. This is appropriate for a framework where users frequently subclass these types. No immediate action needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Deprecated module django/contrib/postgres/fields/jsonb.py still present</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/postgres/fields/jsonb.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The jsonb.py module in contrib/postgres/fields/ appears to still exist alongside the main django/db/models/fields/json.py. The JSONField was moved to core Django in version 3.1, and the postgres-specific version has been deprecated. Its continued presence may cause confusion.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is likely maintained for backward compatibility with a deprecation warning. Verify it contains only a deprecation shim pointing to django.db.models.JSONField. It should be removed according to Django&#39;s deprecation timeline.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">django/contrib/admin/sites.py and views/main.py share admin view responsibilities</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/admin/sites.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Admin view logic is split between sites.py (AdminSite class with index, login, logout views), options.py (ModelAdmin with CRUD views), and views/main.py (ChangeList). While this separation has historical reasons, the boundaries between these modules could be clearer, particularly around URL routing and permission checking.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The current structure is well-established and changing it would break many third-party admin extensions. Document the responsibility boundaries clearly for contributors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive test organization demonstrates good quality practices</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/runtests.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test suite is exceptionally well-organized with dedicated test directories for each major feature area (tests/queries/, tests/migrations/, tests/admin_views/, tests/auth_tests/, etc.). The presence of tests for edge cases like composite primary keys, async operations, and multiple databases indicates thorough coverage. CI workflows cover multiple Python versions, databases (PostgreSQL, MySQL, SQLite, Oracle), and include selenium tests.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining the current test organization pattern. The separation of test apps (tests/test_runner_apps/) and test fixtures demonstrates best practices for framework testing.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Good separation of concerns in database backend architecture</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/backends/base/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The database backend layer (django/db/backends/) follows a clean architecture with base classes (base/, features, operations, schema, introspection, client, creation) and backend-specific implementations (postgresql/, mysql/, sqlite3/, oracle/). Each backend overrides only what&#39;s necessary, reducing duplication while allowing backend-specific behavior.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This architecture is exemplary. Continue using the base class pattern for new backend features. The dummy backend (django/db/backends/dummy/) serves as good documentation of the interface contract.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">New tasks module follows established patterns well</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/tasks/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/tasks/ module (backends/base.py, backends/dummy.py, backends/immediate.py, checks.py, exceptions.py, signals.py) follows Django&#39;s established patterns for pluggable backends (similar to cache, email, and session backends). This consistency makes the new feature immediately familiar to Django developers.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Good architectural consistency. Ensure the tasks module has comprehensive documentation and test coverage (tests/tasks/) before the feature is considered stable.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~196h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-documentation">
+            <h2>Documentation (11)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">New django/tasks module may need documentation maturation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/tasks/backends/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The django/tasks/ module appears to be a newer addition to Django (task queue backend system with base, dummy, and immediate backends). While docs/ref/tasks.txt and docs/topics/tasks.txt exist, this is a relatively new feature area. The module contains base.py, checks.py, exceptions.py, signals.py, and backend implementations. As a new API surface, inline docstrings in these modules would be especially valuable for early adopters and contributors.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure all public classes and methods in the django/tasks/ module have comprehensive docstrings, especially the base backend class which defines the interface for custom implementations. Verify docs/ref/tasks.txt covers all public API surfaces.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test documentation and README for test suite</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/README.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/README.rst exists to guide contributors on running and writing tests. The test suite is extensive with hundreds of test modules covering every Django component. However, given the massive size of the test suite, some newer test modules (e.g., tests/tasks/, tests/composite_pk/) could benefit from module-level docstrings explaining what aspects they test and any special setup requirements.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding module-level docstrings to newer test modules like tests/tasks/ and tests/composite_pk/ to help contributors understand the test coverage scope.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Exemplary README with comprehensive project overview</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    README.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The README.rst file exists and Django is one of the most well-documented open source projects. The README provides links to the official documentation site, quick install guide, and contribution guidelines. The project has a dedicated docs/ directory with extensive Sphinx-based documentation covering tutorials, how-to guides, reference material, and internals.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The README effectively serves as an entry point to the comprehensive documentation ecosystem.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive release notes and versioning documentation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/releases/index.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project maintains extensive release notes in docs/releases/ covering every version from 0.95 through 6.1, including patch releases. This is an exemplary practice for a major framework, providing detailed changelogs, upgrade guides, and security advisories. The deprecation timeline is documented in docs/internals/deprecation.txt.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is best-in-class release documentation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-structured contributing guide</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CONTRIBUTING.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">CONTRIBUTING.rst exists at the repository root, and the docs/internals/contributing/ directory contains detailed guides for new contributors, bug reporting, triaging tickets, writing code (coding style, JavaScript, submitting patches, unit tests, working with git), writing documentation, localizing, committing code, and accessibility. The .github/pull_request_template.md and .github/CODE_OF_CONDUCT.md further support the contribution workflow.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The contribution documentation is thorough and well-organized.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Extensive tutorial series for new users</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/intro/index.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/intro/ directory contains an 8-part tutorial series (tutorial01.txt through tutorial08.txt), plus overview, installation, reusable apps, and &#39;what&#39;s next&#39; guides. This is a gold standard for framework onboarding documentation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The tutorial coverage is comprehensive.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Security documentation is well-maintained</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/SECURITY.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has .github/SECURITY.md for vulnerability reporting, docs/topics/security.txt for security best practices, docs/internals/security.txt for the security team&#39;s processes, docs/releases/security.txt for security release history, and docs/howto/deployment/checklist.txt for deployment security. The middleware/csp.py and docs/howto/csp.txt show documentation keeping pace with new security features.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Security documentation is comprehensive and well-organized.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">ReadTheDocs configuration present for hosted documentation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .readthedocs.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .readthedocs.yml configuration file exists, along with docs/requirements.txt for documentation build dependencies, docs/conf.py for Sphinx configuration, and custom Sphinx extensions in docs/_ext/. The documentation build infrastructure is well-maintained with custom themes in docs/_theme/.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Documentation build infrastructure is solid.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive API reference documentation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/ref/index.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/ref/ directory contains detailed API reference for all major Django components: models (fields, querysets, expressions, lookups, indexes, constraints, instances, options, meta, relations, database functions, conditional expressions), forms (API, fields, formsets, models, renderers, validation, widgets), views (class-based views with extensive mixin documentation), templates (API, builtins, language), URL resolvers, settings, signals, middleware, validators, exceptions, files, logging, and more. Each contrib app has its own reference section.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. API reference coverage is exceptional.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Global settings file is extensively self-documented</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/conf/global_settings.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">django/conf/global_settings.py serves as both configuration defaults and inline documentation for all Django settings. Combined with the comprehensive docs/ref/settings.txt, this provides excellent discoverability for configuration options. The project template (django/conf/project_template/project_name/settings.py-tpl) also includes helpful comments for new projects.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Settings documentation is thorough.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Design philosophy and architecture documentation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/misc/design-philosophies.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes docs/misc/design-philosophies.txt documenting Django&#39;s design decisions, docs/misc/api-stability.txt for API stability guarantees, docs/internals/organization.txt for project governance, and docs/internals/release-process.txt. While formal Architecture Decision Records (ADRs) are not used, the design philosophy document and extensive release notes serve a similar purpose for this mature project.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The design philosophy documentation is appropriate for a project of this maturity.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~6h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-maintainability">
+            <h2>Maintainability (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No lock file for Python dependencies</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses pyproject.toml for build configuration but does not include a pip lock file (e.g., requirements.txt with pinned hashes, pip-compile output, or poetry.lock). As a framework library, this is somewhat expected, but the test/CI dependencies in tests/requirements/ and docs/requirements.txt use unpinned or loosely pinned versions, which can lead to non-reproducible builds and potential supply chain risks in CI.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a constraints file or using pip-compile for CI/test dependencies to ensure reproducible test environments. For the library itself, the current approach of minimal pinning is acceptable.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Vendored JavaScript libraries may be outdated</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/admin/static/admin/js/vendor/jquery/jquery.js
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The Django admin bundles vendored copies of jQuery, Select2, and XRegExp under django/contrib/admin/static/admin/js/vendor/. These vendored libraries are not managed by npm/package.json for production use and their versions are not easily auditable. Vendored libraries can fall behind on security patches. The package.json appears to be used only for development/testing tooling (ESLint, etc.), not for managing these vendored assets.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document the exact versions of vendored JS libraries and establish a process for regularly checking them against known CVEs. Consider adding version comments or a VERSIONS file in the vendor directory.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test dependencies use loose version specifiers</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/requirements/py3.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Test requirement files in tests/requirements/ (py3.txt, postgres.txt, mysql.txt, oracle.txt) and docs/requirements.txt likely use unpinned or loosely pinned dependency versions. This can lead to unexpected test failures when upstream packages release breaking changes and makes it harder to reproduce CI failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Pin test dependencies to specific versions or version ranges and update them regularly through a controlled process (e.g., Dependabot or Renovate).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">No automated dependency update tooling configured</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/tests.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .github/ directory contains many workflow files but there is no evidence of Dependabot configuration (.github/dependabot.yml) or Renovate (renovate.json) for automated dependency updates. This means vendored JS libraries, test dependencies, and CI action versions may drift without notice.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a .github/dependabot.yml configuration to automatically track updates for pip dependencies, npm dependencies, and GitHub Actions versions.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Pre-commit hooks provide good supply chain hygiene</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .pre-commit-config.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses .pre-commit-config.yaml for code quality checks, which is a positive practice for maintaining code quality and catching issues early. This helps with dependency maintainability by enforcing consistent code standards.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue maintaining pre-commit hooks and consider adding a hook for checking dependency versions or license compliance.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Multiple database backend dependencies are optional and well-separated</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/requirements/postgres.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Database backend dependencies (psycopg2/psycopg for PostgreSQL, mysqlclient for MySQL, cx_Oracle for Oracle) are properly separated into optional test requirement files under tests/requirements/. The main package correctly does not hard-depend on any specific database driver, which is good dependency hygiene for a framework.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The current separation of database-specific dependencies is well-structured.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">npm package.json used only for dev tooling - limited scope</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    package.json
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The package.json file is used for JavaScript development tooling (ESLint, Grunt for admin JS testing) rather than for production dependencies. This limits the npm supply chain attack surface. However, npm dependencies should still be kept up to date.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure npm dependencies are periodically updated and consider running npm audit in CI to catch known vulnerabilities in dev dependencies.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Security policy is well-documented</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/SECURITY.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has a .github/SECURITY.md file, indicating a clear security reporting process. This is important for dependency maintainability as it provides a channel for reporting vulnerabilities in Django&#39;s own dependencies or vendored code.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue maintaining the security policy.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive CI matrix testing across Python versions</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/python_matrix.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has python_matrix.yml and schedule_tests.yml workflows that test across multiple Python versions and database backends. This is excellent for catching compatibility issues with dependencies across different environments.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The CI matrix is comprehensive.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~10h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-performance">
+            <h2>Performance (11)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Template rendering engine compiles templates on every request without default caching</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/template/engine.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Django&#39;s template engine in django/template/engine.py and django/template/loaders/ supports cached template loading via the cached.Loader, but the default configuration uses filesystem or app_directories loaders without caching. In production, this means templates are read from disk and parsed on every request unless the cached loader is explicitly configured. The DjangoTemplates backend does enable caching automatically when DEBUG=False (since Django 1.11+), but this behavior depends on correct DEBUG settings.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure DEBUG=False in production to enable automatic template caching. For custom template engine configurations, explicitly wrap loaders with django.template.loaders.cached.Loader. This is well-documented but commonly missed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Database connection creation overhead without persistent connections by default</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/backends/base/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In django/db/backends/base/base.py, database connections are created per-request by default (CONN_MAX_AGE=0). Each request opens a new database connection and closes it at the end of the request cycle. For high-traffic applications, this connection setup/teardown overhead can be significant, especially with SSL-enabled PostgreSQL or remote database servers. The CONN_HEALTH_CHECKS setting (added in Django 4.1) helps with persistent connections but CONN_MAX_AGE defaults to 0.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For production deployments, set CONN_MAX_AGE to a positive value (e.g., 600 seconds) or None for unlimited persistent connections. Enable CONN_HEALTH_CHECKS=True when using persistent connections. Consider using external connection pooling (PgBouncer for PostgreSQL) for high-concurrency scenarios.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Session middleware performs database query on every request with db backend</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/contrib/sessions/middleware.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The session middleware in django/contrib/sessions/middleware.py and the database session backend in django/contrib/sessions/backends/db.py perform a database query on every request to load session data. The cached_db backend (django/contrib/sessions/backends/cached_db.py) mitigates this by checking cache first, but the default &#39;db&#39; backend always hits the database. For high-traffic sites, this adds one extra database query per request.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use the &#39;cached_db&#39; session backend (SESSION_ENGINE=&#39;django.contrib.sessions.backends.cached_db&#39;) or the pure cache backend (&#39;django.contrib.sessions.backends.cache&#39;) for better performance. The cached_db backend provides a good balance of performance and durability.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Local memory cache backend not suitable for multi-process deployments</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/cache/backends/locmem.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The LocMemCache backend in django/core/cache/backends/locmem.py uses process-local memory with threading locks. In typical production deployments with multiple worker processes (gunicorn, uwsgi), each process maintains its own separate cache, leading to cache duplication, inconsistency, and wasted memory. The cache is also lost on process restart. This is the default cache backend when no CACHES setting is configured.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use Redis (django.core.cache.backends.redis.RedisCache) or Memcached for production deployments. The Redis backend was added in Django 4.0 and provides excellent performance with shared state across processes.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Deletion collector traverses all related objects in memory</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/deletion.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The Collector class in django/db/models/deletion.py collects all related objects that need to be deleted when performing cascade deletes. For models with deep relationship trees or large numbers of related objects, this can consume significant memory as all related objects are loaded into Python memory before deletion occurs. The collector performs multiple database queries to discover related objects across all relationship types.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For bulk deletions of objects with many relationships, consider using raw SQL DELETE with CASCADE at the database level, or delete in batches. Use on_delete=models.SET_NULL or models.SET_DEFAULT where appropriate to reduce cascade depth. For very large deletions, consider using database-level cascading constraints.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Middleware chain processes all middleware for every request regardless of need</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/handlers/base.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Django&#39;s middleware architecture in django/core/handlers/base.py processes the full middleware chain for every request. While the middleware system is well-optimized with the MiddlewareMixin pattern, having many middleware classes (security, session, auth, CSRF, messages, locale, etc.) adds cumulative overhead per request. Each middleware&#39;s process_request/process_response is called even when not needed for a particular view.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is inherent to Django&#39;s middleware design and is generally acceptable. For performance-critical applications, audit the MIDDLEWARE list and remove unused middleware. Consider using per-view decorators instead of global middleware for functionality needed only on specific views.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">SQL compiler generates queries without automatic query plan optimization hints</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/sql/compiler.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The SQL compiler in django/db/models/sql/compiler.py generates SQL queries faithfully from the ORM expressions but does not provide mechanisms for query hints, index hints, or query plan optimization. Complex querysets with multiple joins, subqueries, and annotations can produce suboptimal SQL that the database query planner may not optimize well. The framework relies entirely on the database&#39;s query optimizer.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> For complex queries, use QuerySet.explain() to analyze query plans. Consider using raw SQL for performance-critical queries. Ensure proper database indexes are defined on model Meta classes. Use django-debug-toolbar in development to identify slow queries.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">GZip middleware compresses responses synchronously in the request cycle</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/middleware/gzip.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The GZipMiddleware in django/middleware/gzip.py performs gzip compression synchronously within the request/response cycle. For large responses, this adds CPU overhead to every request. Modern deployment architectures typically handle compression at the reverse proxy level (nginx, CloudFront) which is more efficient and can leverage hardware acceleration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Prefer handling gzip compression at the reverse proxy/CDN level (nginx gzip module, CloudFront compression) rather than in Django. If GZipMiddleware must be used, be aware of the BREACH attack implications and the CPU overhead for large responses.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">File-based cache backend uses filesystem operations with per-key file creation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/cache/backends/filebased.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The FileBasedCache backend in django/core/cache/backends/filebased.py creates one file per cache key on the filesystem. For high cache usage, this results in many small files which can cause filesystem performance degradation, especially on filesystems not optimized for many small files. The backend also performs file stat operations for expiry checking on every cache access.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use Redis or Memcached backends for production. The file-based cache is suitable only for development or single-server deployments with low cache volume. If file-based caching is required, ensure the cache directory is on a fast filesystem (SSD, tmpfs).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Database cache backend requires two queries for cache get operations</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/core/cache/backends/db.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The database cache backend in django/core/cache/backends/db.py performs a SELECT query for every cache.get() operation and may perform additional DELETE queries for expired entries during culling. This means every cache access adds database load, which can be counterproductive if the cache is meant to reduce database queries. The culling mechanism also runs periodically during set operations.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use Redis or Memcached for caching instead of the database backend. The database cache backend is useful only when no external cache service is available. If using database caching, ensure the cache table has proper indexes (which Django creates by default via createcachetable).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">QuerySet iteration lacks automatic prefetch detection for related objects</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    django/db/models/query.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Django&#39;s QuerySet in django/db/models/query.py provides select_related() and prefetch_related() but does not automatically detect or warn about N+1 query patterns at the framework level. This is by design for a framework, but users of Django commonly encounter N+1 issues when iterating over querysets and accessing related objects without explicit prefetching. The framework provides the tools (select_related, prefetch_related, Prefetch objects) but the responsibility falls entirely on the application developer.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a known design characteristic of Django ORM. For application developers using Django, always use select_related() for ForeignKey/OneToOne and prefetch_related() for ManyToMany/reverse FK relationships. Consider using django-auto-prefetch or django-query-inspector in applications built on Django.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~16h
+            </div>
+            
+        </section>
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 131 seconds</p>
+            <p>https://github.com/django/django</p>
+            <p class="timestamp">2026-02-15 18:02 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>

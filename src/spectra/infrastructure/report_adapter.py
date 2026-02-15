@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -160,6 +161,78 @@ def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
     }
 
 
+_DEV_RATE_USD = 150  # Average hourly dev rate for cost estimation
+
+# OWASP Top 10 (2021) identifiers
+_OWASP_CATEGORIES: dict[str, str] = {
+    "A01": "A01:2021 Broken Access Control",
+    "A02": "A02:2021 Cryptographic Failures",
+    "A03": "A03:2021 Injection",
+    "A04": "A04:2021 Insecure Design",
+    "A05": "A05:2021 Security Misconfiguration",
+    "A06": "A06:2021 Vulnerable and Outdated Components",
+    "A07": "A07:2021 Identification and Auth Failures",
+    "A08": "A08:2021 Software and Data Integrity Failures",
+    "A09": "A09:2021 Security Logging and Monitoring Failures",
+    "A10": "A10:2021 Server-Side Request Forgery",
+}
+
+_OWASP_RE = re.compile(r"A0[1-9]|A10", re.IGNORECASE)
+_CWE_RE = re.compile(r"CWE-(\d+)")
+
+
+def _tech_debt_summary(
+    findings: tuple[Finding, ...],
+) -> dict[str, object]:
+    """Aggregate tech debt data for the report template."""
+    total_hours = sum(f.estimated_hours for f in findings)
+    by_dimension: dict[str, float] = {}
+    by_severity: dict[str, float] = {}
+    for f in findings:
+        by_dimension[f.dimension] = (
+            by_dimension.get(f.dimension, 0.0) + f.estimated_hours
+        )
+        by_severity[f.severity] = (
+            by_severity.get(f.severity, 0.0) + f.estimated_hours
+        )
+    return {
+        "total_hours": round(total_hours, 1),
+        "cost_usd": round(total_hours * _DEV_RATE_USD),
+        "by_dimension": by_dimension,
+        "by_severity": by_severity,
+    }
+
+
+def _dd_compliance_mapping(
+    findings: tuple[Finding, ...],
+) -> dict[str, object]:
+    """Extract OWASP and CWE references from finding descriptions."""
+    owasp_found: set[str] = set()
+    cwes_found: set[str] = set()
+    for f in findings:
+        text = f"{f.description} {f.recommendation}"
+        owasp_found.update(_OWASP_RE.findall(text))
+        cwes_found.update(_CWE_RE.findall(text))
+
+    owasp_coverage: list[dict[str, str | bool]] = []
+    for code, label in _OWASP_CATEGORIES.items():
+        covered = code.upper() in {o.upper() for o in owasp_found}
+        owasp_coverage.append({
+            "code": code,
+            "label": label,
+            "covered": covered,
+        })
+
+    return {
+        "owasp_coverage": owasp_coverage,
+        "owasp_covered_count": sum(
+            1 for o in owasp_coverage if o["covered"]
+        ),
+        "owasp_total": len(_OWASP_CATEGORIES),
+        "cwes": sorted(cwes_found, key=lambda x: int(x)),
+    }
+
+
 class ReportAdapter:
     """Renders analysis reports to HTML via Jinja2."""
 
@@ -185,6 +258,8 @@ class ReportAdapter:
             summary=_build_executive_summary(report),
             spectrum_segments=_build_spectrum_segments(report),
             top_findings=_top_findings(report.findings),
+            tech_debt=_tech_debt_summary(report.findings),
+            dd_compliance=_dd_compliance_mapping(report.findings),
             badge_svg=self.render_badge(report),
             has_mermaid=has_mermaid,
             generated_at=datetime.now(UTC).strftime(

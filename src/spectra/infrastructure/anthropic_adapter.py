@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 import anthropic
 
 from spectra.entities.errors import ERRORS, SpectraRetryError
+
+_log = logging.getLogger("spectra.adapter")
 
 
 class AnthropicAdapter:
@@ -88,7 +92,24 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
     ) -> str:
-        """Streaming call with adaptive thinking — uses .stream() + .get_final_message()."""
+        """Streaming call with adaptive thinking."""
+        response = await self._stream_thinking(
+            system_prompt, user_prompt, model, max_tokens,
+        )
+        self._last_usage = (
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        )
+        return _extract_text_blocks(response)
+
+    async def _stream_thinking(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        max_tokens: int,
+    ) -> anthropic.types.Message:
+        """Send a thinking-enabled streaming request."""
         try:
             async with self._client.messages.stream(
                 model=model,
@@ -97,35 +118,24 @@ class AnthropicAdapter:
                 messages=[{"role": "user", "content": user_prompt}],
                 thinking={"type": "adaptive"},
             ) as stream:
-                response = await stream.get_final_message()
+                return await stream.get_final_message()
         except anthropic.APIConnectionError as exc:
             raise SpectraRetryError(ERRORS["SPEC-002"]) from exc
         except anthropic.RateLimitError as exc:
             raise SpectraRetryError(ERRORS["SPEC-003"]) from exc
-        except anthropic.BadRequestError as exc:
-            # 400 errors are not retryable — raise directly with details
-            import logging
-            logging.getLogger("spectra").error(
-                "BadRequestError in thinking call: %s", exc
-            )
+        except anthropic.BadRequestError:
+            _log.exception("BadRequestError in thinking call")
             raise
 
-        self._last_usage = (
-            response.usage.input_tokens,
-            response.usage.output_tokens,
-        )
-        # Extract text blocks (skip thinking blocks)
-        import logging
-        _log = logging.getLogger("spectra.adapter")
-        text_parts = []
-        for block in response.content:
-            _log.debug("Response block: type=%s", block.type)
-            if block.type == "text":
-                text_parts.append(block.text)
-        result = "".join(text_parts)
-        if not result.strip():
-            _log.warning(
-                "Thinking call returned empty text. Blocks: %s",
-                [(b.type, len(getattr(b, "text", "") or getattr(b, "thinking", "") or "")) for b in response.content],
-            )
-        return result
+
+def _extract_text_blocks(response: anthropic.types.Message) -> str:
+    """Extract text content from response, skipping thinking blocks."""
+    text_parts = []
+    for block in response.content:
+        _log.debug("Response block: type=%s", block.type)
+        if block.type == "text":
+            text_parts.append(block.text)
+    result = "".join(text_parts)
+    if not result.strip():
+        _log.warning("Thinking call returned empty text")
+    return result

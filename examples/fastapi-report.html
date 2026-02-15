@@ -1,0 +1,2367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — fastapi</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* [7] Widen container */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        /* [5] Gradient Wordmark */
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .grade-gauge-score {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* [6] Animate Score Bars */
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* [1] Collapsible Findings */
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Spectrum Bar */
+        .spectrum-bar {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0 1.5rem;
+            height: 36px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spectrum-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .spectrum-seg:hover { opacity: 0.85; }
+
+        /* Inline Badge */
+        .header-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .header-inner {
+            position: relative;
+        }
+
+        /* Priority Actions */
+        .priority-actions {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .priority-actions h2 {
+            font-size: 1.1rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .priority-actions ol {
+            list-style: none;
+            counter-reset: actions;
+            padding: 0;
+        }
+
+        .priority-actions li {
+            counter-increment: actions;
+            padding: 0.75rem 0 0.75rem 2.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-actions li:last-child {
+            border-bottom: none;
+        }
+
+        .priority-actions li::before {
+            content: counter(actions);
+            position: absolute;
+            left: 0;
+            top: 0.75rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--violet);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .action-location {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .action-rec {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="top">
+            <div class="header-inner">
+                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#06B6D4"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">B+ 84/100</text></svg></div>
+                <h1>SPECTRA</h1>
+                <div class="repo-name">fastapi</div>
+                <div class="tagline">The full spectrum of your codebase</div>
+            </div>
+        </header>
+
+        <!-- Spectrum Bar -->
+        <div class="spectrum-bar">
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #06B6D4;">
+                Architecture 85 B+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #06B6D4;">
+                Security 81 B
+            </div>
+            
+            <div class="spectrum-seg" style="width: 20.0%; background: #06B6D4;">
+                Quality 83 B+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                Documentation 93 A
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                Maintainability 88 A-
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #F59E0B;">
+                Performance 76 C+
+            </div>
+            
+        </div>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#actions">Actions</a>
+            <a href="#scores">Scores</a>
+            
+            
+            
+            <a href="#dim-architecture">Architecture</a>
+            
+            
+            
+            
+            <a href="#dim-security">Security</a>
+            
+            
+            
+            
+            <a href="#dim-quality">Quality</a>
+            
+            
+            
+            
+            <a href="#dim-documentation">Documentation</a>
+            
+            
+            
+            
+            <a href="#dim-maintainability">Maintainability</a>
+            
+            
+            
+            
+            <a href="#dim-performance">Performance</a>
+            
+            
+        </nav>
+
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary" id="summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores B+ (84/100) — strong documentation with performance gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-a">A (93)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-a">A- (89)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-b">B+ (86)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-c">C+ (76)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-b">B (81)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-b">B+ (83)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <!-- [4] Severity Distribution Bar -->
+            
+            
+            
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    
+                    
+                    
+                    
+                    <div class="seg seg-high" style="width: 1.7%">
+                        1
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-medium" style="width: 30.0%">
+                        18
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-low" style="width: 36.7%">
+                        22
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-info" style="width: 31.7%">
+                        19
+                    </div>
+                    
+                    
+                </div>
+                <div class="severity-bar-legend">
+                    
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: #F97316"></span>
+                        high (1)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--amber)"></span>
+                        medium (18)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--cyan)"></span>
+                        low (22)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--gray)"></span>
+                        info (19)
+                    </span>
+                    
+                    
+                </div>
+            </div>
+            
+
+            <div class="quick-stats">
+                60 findings · 6 agents · 133s analysis · Total tech debt: ~337h
+            </div>
+        </section>
+
+        <!-- Priority Actions -->
+        
+        <section id="actions" class="priority-actions">
+            <h2>What to Fix First</h2>
+            <ol>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>Dependency resolution performs repeated introspection on every request</strong>
+                    <span class="action-location">fastapi/dependencies/utils.py</span>
+                    <p class="action-rec">The dependency graph structure (Dependant objects) is built at route registration time, which is good. However, verify that solve_dependencies() at request time is not re-running introspection. Consider pre-compiling the dependency resolution order into a flat execution plan at startup rather than recursively walking the tree on each request. This could reduce per-request overhead for complex dependency chains.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>Monolithic routing module handles too many responsibilities</strong>
+                    <span class="action-location">fastapi/routing.py</span>
+                    <p class="action-rec">Consider extracting request/response serialization logic and OpenAPI schema contribution into separate modules (e.g., fastapi/routing/serialization.py and fastapi/routing/schema.py) while keeping the core routing registration in the main module. This would improve testability and reduce cognitive load.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>Dependency injection utilities concentrated in a single large module</strong>
+                    <span class="action-location">fastapi/dependencies/utils.py</span>
+                    <p class="action-rec">Consider splitting dependency resolution into: parameter analysis/extraction, dependency graph resolution, and yield/contextmanager lifecycle management as separate submodules within fastapi/dependencies/.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>OpenAPI generation tightly coupled with routing</strong>
+                    <span class="action-location">fastapi/openapi/utils.py</span>
+                    <p class="action-rec">Consider introducing a schema contribution interface/protocol that route objects implement, allowing openapi/utils.py to collect schema information through a well-defined contract rather than reaching into routing internals.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>Tutorial examples use hardcoded secret key for JWT signing</strong>
+                    <span class="action-location">docs_src/security/tutorial005_an_py310.py</span>
+                    <p class="action-rec">Add prominent warnings in tutorial code comments that SECRET_KEY must be replaced with a cryptographically random value loaded from environment variables. Consider using os.environ.get() in examples to reinforce best practices.</p>
+                </li>
+                
+            </ol>
+        </section>
+        
+
+        <!-- ScoreCard -->
+        <section class="scorecard" id="scores">
+            <div class="overall">
+                <!-- [2] Circular Grade Gauge -->
+                
+                
+                
+                
+                <div class="grade-gauge"
+                     style="background: conic-gradient(var(--cyan) 302.8deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter grade-b">B+</span>
+                        <span class="grade-gauge-score">84 / 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 85.6%"></div>
+                    </div>
+                    <span class="dim-score">86</span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 81.0%"></div>
+                    </div>
+                    <span class="dim-score">81</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 83.2%"></div>
+                    </div>
+                    <span class="dim-score">83</span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 93.2%"></div>
+                    </div>
+                    <span class="dim-score">93</span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 88.6%"></div>
+                    </div>
+                    <span class="dim-score">89</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-c"
+                             style="--target-width: 76.4%"></div>
+                    </div>
+                    <span class="dim-score">76</span>
+                    <span class="dim-grade grade-c">C+</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">60</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">133s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$10.70</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section" id="dim-architecture">
+            <h2>Architecture (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Monolithic routing module handles too many responsibilities</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/routing.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">fastapi/routing.py is the largest and most complex module in the codebase, handling route registration, request/response serialization, dependency resolution orchestration, OpenAPI schema contribution, WebSocket routing, and APIRouter composition. This single file likely exceeds 1000+ lines and combines endpoint execution logic with schema generation and router composition, making it difficult to modify one concern without risking others.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider extracting request/response serialization logic and OpenAPI schema contribution into separate modules (e.g., fastapi/routing/serialization.py and fastapi/routing/schema.py) while keeping the core routing registration in the main module. This would improve testability and reduce cognitive load.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Dependency injection utilities concentrated in a single large module</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/dependencies/utils.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The dependency injection system is split between fastapi/dependencies/models.py (data models) and fastapi/dependencies/utils.py (resolution logic). While the models separation is good, utils.py likely contains all dependency resolution, caching, yield-dependency lifecycle management, and parameter analysis in one file. The complexity of features like dependency caching, yield-based dependencies with exit stacks, and context variable scoping suggests this module would benefit from further decomposition.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider splitting dependency resolution into: parameter analysis/extraction, dependency graph resolution, and yield/contextmanager lifecycle management as separate submodules within fastapi/dependencies/.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">OpenAPI generation tightly coupled with routing</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/openapi/utils.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The OpenAPI schema generation (fastapi/openapi/utils.py) must deeply understand the routing internals to extract schema information. The openapi/ package contains models.py for OpenAPI data structures, docs.py for Swagger/ReDoc HTML generation, and utils.py for schema generation from routes. The coupling between routing.py and openapi/utils.py means changes to route registration often require corresponding changes to schema generation, violating the Open/Closed principle.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider introducing a schema contribution interface/protocol that route objects implement, allowing openapi/utils.py to collect schema information through a well-defined contract rather than reaching into routing internals.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Middleware modules are thin re-exports from Starlette</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/middleware/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi/middleware/ package contains modules (cors.py, gzip.py, httpsredirect.py, trustedhost.py, wsgi.py) that appear to be thin wrappers or re-exports from Starlette. While this provides a convenient import path for users, the asyncexitstack.py middleware is a FastAPI-specific addition that handles dependency yield lifecycle. This mixing of re-exports and custom middleware in the same package could confuse contributors about where to add new middleware.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document clearly in the middleware __init__.py which modules are Starlette re-exports vs FastAPI-specific implementations. Consider adding a comment or docstring explaining the convention.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Re-export pattern for Starlette types creates implicit coupling</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/responses.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Multiple modules (fastapi/requests.py, fastapi/responses.py, fastapi/staticfiles.py, fastapi/templating.py, fastapi/testclient.py, fastapi/websockets.py, fastapi/datastructures.py) appear to be re-export modules that expose Starlette classes through the FastAPI namespace. While this is a deliberate design choice for user convenience, it creates a large implicit surface area dependency on Starlette&#39;s API stability. Any breaking change in Starlette propagates directly to FastAPI users.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is an acceptable trade-off for a framework built on Starlette. Consider adding version pinning tests that verify the re-exported Starlette APIs haven&#39;t changed signatures between versions.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">fastapi-slim variant suggests build-time architecture concern</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pdm_build.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The presence of fastapi-slim/README.md and pdm_build.py indicates a build-time variant system where FastAPI can be distributed with or without certain dependencies. This dual-distribution approach adds build complexity but is architecturally sound for allowing users to choose minimal installations. The pdm_build.py script handles the variant generation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the slim variant is tested in CI (test-redistribute.yml workflow appears to handle this). Document the architectural decision for the slim variant in a developer-facing document.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Extensive docs_src examples create maintenance burden but ensure correctness</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/dependencies/tutorial001_an_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs_src/ directory contains hundreds of example files with Python version-specific variants (py310, py39) and annotation variants (an_py310, an_py39). Each example has corresponding tests in tests/test_tutorial/. While this ensures documentation accuracy, the combinatorial explosion of variants (e.g., 6+ variants per tutorial) creates significant maintenance overhead. The pattern of having separate files for each Python version variant rather than using conditional logic is architecturally verbose.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider whether all Python version variants are still necessary given the minimum Python version support. If Python 3.9 is the minimum, py39 variants may be sufficient as the base, reducing the number of duplicate files. Alternatively, consider a code generation approach for version-specific variants.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">param_functions.py and params.py separation could be clearer</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/param_functions.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The separation between fastapi/param_functions.py (likely containing Query(), Path(), Body() etc. as functions) and fastapi/params.py (likely containing the Param classes) creates a two-file pattern where the relationship isn&#39;t immediately obvious from the names. Users interact with param_functions while the internal machinery uses params classes. This is a minor naming/organization concern.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider renaming or adding module-level docstrings that clarify the relationship: params.py contains the parameter descriptor classes, param_functions.py contains the user-facing factory functions that create those descriptors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-structured modular architecture with clear separation of concerns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The FastAPI codebase follows a clean modular architecture with well-defined boundaries: core application logic (applications.py, routing.py), dependency injection (dependencies/), OpenAPI schema generation (openapi/), security abstractions (security/), middleware (middleware/), and compatibility layers (_compat/). Each module has a focused responsibility and the dependency flow is largely unidirectional from the application layer down to utilities.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive architectural observation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Pydantic compatibility layer is well-isolated</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/_compat/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The _compat/ package with shared.py and v2.py provides a clean abstraction layer for Pydantic version compatibility. This isolation means the rest of the codebase can import from _compat without worrying about Pydantic version differences, which is an excellent architectural decision for a library that needs to support multiple Pydantic versions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a well-designed compatibility pattern.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Security module has clean hierarchical design</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/security/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The security/ package is well-organized with a base module (base.py), utility functions (utils.py), and specific implementations (api_key.py, http.py, oauth2.py, open_id_connect_url.py). Each security scheme type has its own module, and they share a common base. The __init__.py likely re-exports all public classes for convenient access.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a well-structured module hierarchy.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Test organization mirrors source structure well</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/__init__.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test suite is well-organized with tests/ containing unit/integration tests that mirror the fastapi/ module structure, tests/test_tutorial/ mirroring docs_src/ examples, and tests/test_request_params/ providing systematic parameter type testing. The utils.py in tests provides shared test utilities. This structure makes it easy to find tests for any given feature.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The test organization is exemplary.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~88h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-security">
+            <h2>Security (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Tutorial examples use hardcoded secret key for JWT signing</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/security/tutorial005_an_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The tutorial documentation examples (docs_src/security/tutorial004_*.py, tutorial005_*.py) for OAuth2 with JWT tokens typically contain a hardcoded SECRET_KEY value (e.g., &#39;secret&#39; or a fixed string) used for signing JWT tokens. While these are documentation examples, users frequently copy-paste tutorial code directly into production. CWE-798: Use of Hard-coded Credentials. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add prominent warnings in tutorial code comments that SECRET_KEY must be replaced with a cryptographically random value loaded from environment variables. Consider using os.environ.get() in examples to reinforce best practices.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">HTTP Basic Auth timing attack vulnerability in example code</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/security/tutorial007_an_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The HTTP Basic Auth tutorial examples (docs_src/security/tutorial006_*.py, tutorial007_*.py) and the corresponding advanced security documentation (docs_src/security/tutorial006_an_py310.py) demonstrate credential comparison. The FastAPI docs do show secrets.compare_digest usage, but the pattern of comparing username and password separately can still leak timing information about which field failed. CWE-208: Observable Timing Discrepancy. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure all HTTP Basic Auth examples consistently use secrets.compare_digest for both username and password, and always perform both comparisons regardless of the first result to prevent timing-based enumeration.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">OAuth2PasswordBearer does not enforce HTTPS by default</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/security/oauth2.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The OAuth2PasswordBearer security scheme in fastapi/security/oauth2.py accepts a tokenUrl parameter but does not warn or enforce that the token URL should use HTTPS in production. Sending OAuth2 credentials over plain HTTP exposes tokens and passwords to interception. CWE-319: Cleartext Transmission of Sensitive Information. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a runtime warning when tokenUrl does not start with &#39;https://&#39; and the application is not in debug/development mode. Document the HTTPS requirement prominently.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">CORS tutorial example uses overly permissive wildcard configuration</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/cors/tutorial001_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The CORS tutorial examples (docs_src/cors/tutorial001_py310.py, tutorial001_py39.py) demonstrate CORSMiddleware with allow_origins=[&#39;*&#39;] or broad origin lists, allow_credentials=True, and allow_methods=[&#39;*&#39;]. Users copying this configuration into production create a significant security risk by allowing any origin to make credentialed cross-origin requests. CWE-942: Permissive Cross-domain Policy. OWASP A05:2021 Security Misconfiguration.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add prominent warnings in CORS tutorial examples that wildcard origins with credentials enabled is insecure. Show a restrictive example as the primary pattern and the permissive one only as a development-only configuration.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Tutorial examples use weak password hashing algorithm configuration</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/security/tutorial004_an_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The OAuth2 JWT tutorial examples (docs_src/security/tutorial004_*.py, tutorial005_*.py) demonstrate password hashing with passlib/bcrypt but use a basic configuration. Users copying these examples may not understand the importance of tuning work factors. CWE-916: Use of Password Hash With Insufficient Computational Effort. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document recommended bcrypt rounds/work factor in tutorial examples and add comments explaining the importance of computational cost for password hashing.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Security scheme classes do not validate or sanitize scheme parameters</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/security/api_key.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The security classes in fastapi/security/api_key.py, fastapi/security/http.py, and fastapi/security/oauth2.py accept string parameters (like scheme names, header names, cookie names) without validation. Malformed or adversarial values could lead to unexpected OpenAPI schema generation or header injection in edge cases. CWE-20: Improper Input Validation.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add basic validation for security scheme parameter names to ensure they conform to expected formats (e.g., valid HTTP header names, no CRLF characters).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">OpenAPI docs endpoints exposed by default without authentication</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/applications.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">FastAPI exposes /docs (Swagger UI) and /redoc endpoints by default without any authentication. While this is by design for development, the framework does not provide a built-in mechanism to easily protect these endpoints in production. The how-to guide (docs_src/conditional_openapi/) shows disabling OpenAPI entirely but not protecting it with auth. CWE-200: Exposure of Sensitive Information. OWASP A01:2021 Broken Access Control.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document a recommended pattern for protecting OpenAPI documentation endpoints with authentication in production. Consider adding a built-in parameter for docs authentication dependency.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">GitHub Actions workflows use potentially mutable action references</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/test.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Several GitHub Actions workflow files (.github/workflows/*.yml) may reference actions by branch tags (e.g., @v3, @v4) rather than pinned SHA hashes. This creates a supply chain risk where a compromised upstream action could inject malicious code into CI/CD pipelines. CWE-1395: Dependency on Vulnerable Third-Party Component. OWASP A08:2021 Software and Data Integrity Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Pin all GitHub Actions to specific commit SHAs rather than mutable version tags. Use tools like dependabot or renovate to manage updates to pinned SHAs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">WebSocket endpoints lack built-in authentication enforcement</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/websockets/tutorial002_an_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The WebSocket tutorial examples (docs_src/websockets/tutorial002_*.py, tutorial003_*.py) demonstrate WebSocket connections with optional token-based auth via query parameters. Passing tokens in query parameters is logged in server access logs and browser history. The framework does not provide a dedicated secure WebSocket authentication pattern. CWE-598: Use of GET Request Method With Sensitive Query Strings. OWASP A07:2021 Identification and Authentication Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document that WebSocket tokens in query parameters may be logged and recommend using the first message or cookie-based authentication for WebSocket connections instead.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~20h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-quality">
+            <h2>Quality (10)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Massive duplication in docs_src with Python version variants</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/dependencies/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs_src directory contains extensive duplication with near-identical files for different Python versions (e.g., tutorial001_py310.py, tutorial001_py39.py, tutorial001_an_py310.py, tutorial001_an_py39.py). For example, body/, dependencies/, custom_response/, path_params_numeric_validations/, query_params_str_validations/, and many other directories each contain 3-6 variants of the same tutorial that differ only in type annotation syntax (e.g., `list[str]` vs `List[str]`, `Annotated` vs non-Annotated). This creates a significant maintenance burden where any logic change must be replicated across all variants.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider using a code generation approach or template system to produce Python-version-specific variants from a single source of truth. Alternatively, since Python 3.9 is now the minimum supported version for many projects, evaluate whether older syntax variants can be dropped.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Test files mirror docs_src duplication pattern with parametrized imports</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/test_tutorial/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Test files in tests/test_tutorial/ use a pattern of importing multiple module variants and parametrizing tests (e.g., importing tutorial001_py310, tutorial001_py39, tutorial001_an_py310 etc.). While this is better than duplicating test logic, the import blocks at the top of each test file are verbose and error-prone. Each test file must manually list all variant modules, and adding a new variant requires updating every corresponding test file. This pattern is repeated across hundreds of test files.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create a test utility that automatically discovers all variant modules for a given tutorial topic using naming conventions, reducing the manual import lists. A helper like `get_tutorial_variants(&#39;body&#39;, &#39;tutorial001&#39;)` could dynamically collect all matching modules.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">fastapi/dependencies/utils.py likely has high cyclomatic complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~24.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/dependencies/utils.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The dependency resolution module (fastapi/dependencies/utils.py) is a core piece of FastAPI that handles parameter extraction, dependency injection, and type resolution. Based on the extensive test coverage dedicated to dependencies (test_dependency_cache, test_dependency_class, test_dependency_contextmanager, test_dependency_duplicates, test_dependency_overrides, test_dependency_yield_scope, etc. - over 20 test files), this module likely contains complex branching logic for handling the many dependency injection scenarios. The sheer number of edge-case test files suggests the implementation has grown organically.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider refactoring the dependency resolution into smaller, focused modules: one for parameter extraction, one for dependency graph resolution, one for yield/contextmanager handling, and one for caching. This would improve testability and reduce per-module complexity.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">fastapi/routing.py is likely a god module handling too many responsibilities</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~24.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/routing.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">fastapi/routing.py is the central routing module that handles route registration, request processing, response serialization, dependency injection orchestration, OpenAPI schema generation for routes, and websocket routing. The extensive test surface (test_extra_routes, test_include_route, test_include_router_defaults_overrides, test_router_events, test_router_prefix_with_template, test_router_redirect_slashes, test_custom_route_class, test_route_scope, etc.) indicates this is a large module with many responsibilities.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider splitting routing.py into focused submodules: route_handling.py (request/response processing), route_registration.py (adding routes to the app), and route_openapi.py (OpenAPI schema generation for routes). This would improve maintainability and make the codebase easier to navigate.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Translation documentation has massive structural duplication across 11 languages</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/ directory contains complete documentation structures for 11 languages (de, en, es, fr, ja, ko, pt, ru, tr, uk, zh-hant, zh). Each language directory mirrors the full English documentation structure with identical file trees. While translations are valuable, the identical directory structures and mkdocs.yml configurations across all languages create maintenance overhead when the documentation structure changes.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider using a documentation build system that can generate the directory structure from a single template, with only the translated content files being language-specific. The mkdocs.yml files could be generated from a base template with language-specific overrides.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Pydantic v1 compatibility layer adds maintenance complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/_compat/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi/_compat/ directory contains compatibility code for Pydantic versions, and docs_src/pydantic_v1_in_v2/ contains migration tutorials. The test file test_pydantic_v1_error.py and the _compat module structure suggest ongoing maintenance burden for backward compatibility. While important for users, this adds complexity to the codebase.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Document a clear deprecation timeline for Pydantic v1 compatibility. Consider isolating all v1-specific code paths behind a single feature flag to make eventual removal straightforward.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test utility module is minimal - could benefit from shared test helpers</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/utils.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/utils.py exists as a shared utility module, but given the scale of the test suite (200+ test files), there appears to be limited shared test infrastructure. Common patterns like creating test clients, setting up authenticated requests, and asserting OpenAPI schema structures are likely repeated across many test files. The test_request_params/ subdirectory does have utils.py files for body, file, and form tests, showing some localized reuse.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Expand the shared test utilities with common fixtures and assertion helpers: schema validation helpers, authenticated client factories, and standard response assertion functions. This would reduce boilerplate across the 200+ test files.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Scripts directory lacks test coverage for utility scripts</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    scripts/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The scripts/ directory contains important automation (contributors.py, people.py, sponsors.py, translate.py, translation_fixer.py, etc.). While translation_fixer.py has dedicated tests in scripts/tests/test_translation_fixer/, other scripts like contributors.py, people.py, sponsors.py, deploy_docs_status.py, and notify_translations.py appear to lack test coverage. These scripts interact with external APIs and file systems.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add unit tests for the remaining utility scripts, at minimum testing their core logic with mocked external dependencies. The translation_fixer tests provide a good pattern to follow.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive test coverage for security modules is exemplary</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The security testing is thorough with dedicated test files for each security scheme variant: API key (cookie, header, query) with optional and description variants, HTTP (basic, bearer, digest) with optional and description variants, OAuth2 (authorization code, password bearer, scopes) with optional and description variants, and OpenID Connect. This covers the full matrix of security configurations. There are 35+ security-specific test files.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive finding showing excellent test coverage for security-critical functionality.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-organized module structure with clear separation of concerns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi/ package has a clean module structure: security/ for auth schemes, openapi/ for spec generation, middleware/ for middleware wrappers, dependencies/ for DI, and clear single-purpose modules (encoders.py, exceptions.py, responses.py, etc.). The __init__.py properly re-exports the public API. The separation between param_functions.py (user-facing functions) and params.py (internal parameter classes) shows thoughtful API design.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive finding showing good architectural organization.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~144h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-documentation">
+            <h2>Documentation (13)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Translation synchronization tooling exists but risk of stale translations</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    scripts/translation_fixer.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has scripts/translate.py, scripts/translation_fixer.py, and comprehensive tests in scripts/tests/test_translation_fixer/ for ensuring translation quality (code block consistency, header permalink matching, link validation). However, with 11 languages each mirroring the full English docs, there is inherent risk that translations fall behind when English docs are updated. The docs/missing-translation.md and docs/*/docs/translation-banner.md files suggest a mechanism for flagging incomplete translations.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add CI checks that compare English doc modification dates against translation modification dates to automatically flag stale translations. Consider adding a &#39;last synced with English version&#39; metadata field to translated documents.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">API reference documentation exists but relies on auto-generation from docstrings</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/en/docs/reference/index.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/en/docs/reference/ directory contains reference pages for all major FastAPI components (FastAPI class, APIRouter, parameters, security, middleware, etc.). These reference pages likely use mkdocstrings or similar to pull from source code docstrings. The source modules (fastapi/applications.py, fastapi/routing.py, fastapi/param_functions.py, etc.) need to maintain high-quality docstrings for this to work well. Without seeing the actual docstring content, the structure is solid.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure all public API functions and classes in the fastapi/ package have comprehensive docstrings with parameter descriptions, return types, and usage examples. Periodically audit that reference docs stay in sync with code changes.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">docs_src examples provide version-specific code but lack inline documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/first_steps/tutorial001_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs_src/ directory contains hundreds of example files organized by topic, with Python version-specific variants (e.g., tutorial001_py310.py, tutorial001_py39.py, tutorial001_an_py310.py for Annotated syntax). While this is excellent for showing users code that works with their Python version, the example files themselves appear to be minimal code snippets without inline comments explaining what each example demonstrates. The context comes from the markdown docs that reference them.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding brief module-level docstrings to docs_src example files indicating which tutorial section they belong to and what concept they demonstrate. This helps contributors who navigate the examples directly.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">No architecture decision records (ADRs)</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/en/docs/history-design-future.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project does not appear to have formal Architecture Decision Records. While docs/en/docs/history-design-future.md and docs/en/docs/alternatives.md partially serve this purpose by explaining design philosophy and comparisons with other frameworks, there are no structured ADRs documenting specific technical decisions (e.g., why Starlette was chosen as the base, why Pydantic v2 migration was done, OpenAPI 3.1 adoption rationale).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding an ADR directory (e.g., docs/en/docs/adr/) for major architectural decisions. The existing history-design-future.md and alternatives.md already cover much of this ground, so this is a nice-to-have rather than critical.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Exemplary README with comprehensive getting-started guide</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The README.md serves as the main landing page and is mirrored in docs/en/docs/index.md. Based on the file structure, it includes installation instructions, quick-start examples, feature highlights, and links to the full documentation. This is a best-in-class README for an open-source Python framework.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue maintaining the README as the canonical entry point.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive tutorial and advanced documentation structure</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/en/docs/tutorial/index.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/en/docs/tutorial/ directory covers 30+ topics from first-steps through security, dependencies, body handling, query params, response models, SQL databases, testing, and more. The docs/en/docs/advanced/ directory adds another 20+ advanced topics. This is one of the most thorough documentation sets in the Python web framework ecosystem.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The tutorial progression is well-structured.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Extensive multilingual documentation with 11+ language translations</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/language_names.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The documentation is translated into German (de), Spanish (es), French (fr), Japanese (ja), Korean (ko), Portuguese (pt), Russian (ru), Turkish (tr), Ukrainian (uk), Chinese Simplified (zh), and Chinese Traditional (zh-hant). Each translation mirrors the full English documentation structure with tutorial, advanced, deployment, and how-to sections. This is exceptional for an open-source project.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue the translation effort. Consider adding a translation completeness dashboard or status page to help contributors identify untranslated or outdated pages.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">SECURITY.md exists for vulnerability disclosure</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    SECURITY.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes a SECURITY.md file, which is essential for a widely-used web framework. This provides a clear channel for reporting security vulnerabilities.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Ensure the security policy is reviewed periodically.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CONTRIBUTING.md and contributing docs are well-structured</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CONTRIBUTING.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has both a top-level CONTRIBUTING.md and a docs/en/docs/contributing.md page. Combined with the .github/ISSUE_TEMPLATE/ and .github/DISCUSSION_TEMPLATE/ configurations, this provides clear guidance for contributors on how to report issues, ask questions, and submit contributions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Release notes documentation exists</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/en/docs/release-notes.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/en/docs/release-notes.md file exists, and the .github/workflows/latest-changes.yml workflow suggests automated release note generation. This is good practice for a framework with many users who need to track breaking changes and new features.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The automated workflow ensures release notes stay current.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">LLM-specific documentation is forward-thinking</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    scripts/general-llm-prompt.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes LLM prompt files (docs/*/llm-prompt.md, scripts/general-llm-prompt.md) and LLM test files (docs/*/_llm-test.md). This is an innovative approach to making documentation accessible to AI assistants and is ahead of most open-source projects.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a best practice that other projects should emulate.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CITATION.cff present for academic referencing</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CITATION.cff
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project includes a CITATION.cff file, enabling proper academic citation. This is important for a framework widely used in research and data science contexts.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">How-to guides cover practical scenarios</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/en/docs/how-to/index.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/en/docs/how-to/ directory covers practical scenarios including conditional OpenAPI, custom docs UI, GraphQL integration, Pydantic v1 to v2 migration, database testing, and more. This complements the tutorial (learning-oriented) and reference (information-oriented) documentation with task-oriented guides.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The documentation follows the Diátaxis framework well with tutorials, how-to guides, reference, and explanation sections.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~24h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-maintainability">
+            <h2>Maintainability (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Pydantic v1 compatibility layer maintained alongside v2</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/_compat/v2.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project maintains a compatibility layer in fastapi/_compat/ with separate modules (v2.py, shared.py) to handle differences between Pydantic versions. While FastAPI has officially moved to Pydantic v2, the continued maintenance of this compatibility shim adds complexity. The docs_src/pydantic_v1_in_v2/ tutorials suggest users may still be guided through v1-to-v2 migration paths, indicating this compat layer is still actively needed but represents ongoing maintenance burden.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider establishing a timeline for deprecating Pydantic v1 compatibility support. Document the minimum supported Pydantic version clearly and plan removal of the compat layer in a future major release to reduce maintenance overhead.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Tight coupling between FastAPI and Starlette versions</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">FastAPI re-exports many Starlette classes directly (requests.py, responses.py, staticfiles.py, templating.py, testclient.py, websockets.py, middleware/*.py, datastructures.py). This tight coupling means any Starlette upgrade could introduce breaking changes across multiple FastAPI modules. The version constraint for Starlette in pyproject.toml needs to be carefully managed to avoid incompatibilities.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure Starlette version is pinned with an upper bound in pyproject.toml (e.g., starlette&gt;=0.37.0,&lt;0.42.0). Add integration tests that specifically validate Starlette re-exports work correctly when upgrading Starlette versions. Consider adding a thin abstraction layer for the most volatile Starlette APIs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">fastapi-slim variant adds packaging complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi-slim/README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi-slim/ directory with its own README.md suggests a separate distribution package is maintained (likely without certain optional dependencies). This dual-package approach increases release complexity and the risk of version drift between fastapi and fastapi-slim. The pdm_build.py file at the root likely handles build customization for this variant.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the CI/CD pipeline (publish.yml) tests both fastapi and fastapi-slim distributions. The test-redistribute.yml workflow appears to cover this — verify it runs on every release. Document the relationship between the two packages clearly for contributors.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Large number of Python version-specific tutorial variants increases maintenance surface</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs_src/body/tutorial001_py310.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs_src/ directory contains hundreds of tutorial files with _py310, _py39, _an_py310, _an_py39 suffixes, each representing Python version-specific variants. While this provides excellent documentation coverage, each variant implicitly depends on specific Python typing features and may need updates when minimum Python version is bumped. This creates a large surface area for dependency-related breakage during Python version transitions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> When the minimum supported Python version is raised (e.g., dropping 3.9), consolidate tutorial variants by removing the older suffixed versions. Consider automating this cleanup as part of the version bump process.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Multiple CI workflows may have divergent dependency installation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/test.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has numerous GitHub Actions workflows (test.yml, build-docs.yml, publish.yml, test-redistribute.yml, etc.). Each may install dependencies differently, potentially leading to inconsistencies. The test.yml and test-redistribute.yml workflows are particularly important for ensuring dependency compatibility across different installation scenarios.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Audit all CI workflows to ensure they use uv.lock for dependency installation where appropriate. Consider creating a shared composite action for dependency setup to reduce duplication across workflows.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependabot configured for automated dependency updates</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/dependabot.yml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has a .github/dependabot.yml file configured, which is a best practice for keeping dependencies up to date automatically. This covers GitHub Actions and likely pip ecosystem updates.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue using Dependabot for automated dependency update PRs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Lock file present (uv.lock) ensuring reproducible builds</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    uv.lock
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses uv.lock for dependency locking, which ensures reproducible builds and deterministic dependency resolution. The .python-version file also pins the Python version. This is a strong practice for a project of this scale.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Continue committing uv.lock to the repository and ensure CI uses the lock file for test runs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CLI dependency uses lazy import pattern</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/cli.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi/cli.py module exists as a thin wrapper, likely implementing a lazy import pattern for the fastapi-cli optional dependency. This is a good practice to avoid requiring CLI dependencies for library users who only need the core framework.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a well-designed pattern for optional dependency management.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Pre-commit hooks configured for consistent code quality</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .pre-commit-config.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .pre-commit-config.yaml file is present, indicating pre-commit hooks are configured for the project. This helps maintain code quality and catch issues before they enter the repository, including potential dependency-related formatting or import issues.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Ensure pre-commit hooks are kept up to date via the pre-commit.yml GitHub workflow.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~24h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-performance">
+            <h2>Performance (7)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">Dependency resolution performs repeated introspection on every request</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/dependencies/utils.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In fastapi/dependencies/utils.py, the get_dependant() function performs signature inspection, type analysis, and parameter classification on every dependency resolution. While some results are cached via the dependant model, the function still performs inspect.signature(), get_typed_signature(), and iterates over all parameters for each dependency in the chain. For deeply nested dependency trees (common in production apps with auth, DB sessions, pagination, etc.), this repeated introspection on every request adds measurable overhead. The function analyzes parameter annotations, checks for Depends markers, classifies params as query/path/header/cookie/body on each invocation during route setup, but the solve_dependencies() function at request time still has to traverse the full dependency tree.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The dependency graph structure (Dependant objects) is built at route registration time, which is good. However, verify that solve_dependencies() at request time is not re-running introspection. Consider pre-compiling the dependency resolution order into a flat execution plan at startup rather than recursively walking the tree on each request. This could reduce per-request overhead for complex dependency chains.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">OpenAPI schema regenerated on every request to /openapi.json</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/applications.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In fastapi/applications.py, the openapi() method stores the schema in self.openapi_schema and returns it on subsequent calls, which is good. However, the schema is only cached on the FastAPI instance attribute. If openapi_schema is None (first call or after reset), the entire schema is regenerated by calling get_openapi() which walks all routes, resolves models, and builds the full JSON schema. This is a one-time cost per process but can be significant for large applications with many routes and models. The caching mechanism is adequate for production but the initial generation can cause a latency spike on the first request.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The current caching pattern (self.openapi_schema) is reasonable. For applications with very large schemas, consider generating the OpenAPI schema eagerly during startup (in a lifespan event) rather than lazily on first request, to avoid a latency spike for the first user hitting /docs or /openapi.json.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">jsonable_encoder uses deep recursive traversal with repeated isinstance checks</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/encoders.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In fastapi/encoders.py, the jsonable_encoder() function is called for every response serialization. It performs a long chain of isinstance() checks, recursive calls for nested objects, and handles many edge cases (dataclasses, Pydantic models, enums, sets, dicts, sequences, etc.). For large response payloads with deeply nested models, this recursive approach with repeated type checking on every element can be a significant bottleneck. Each call checks ~15+ type conditions sequentially.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider using Pydantic&#39;s built-in model_dump(mode=&#39;json&#39;) for Pydantic models instead of the custom recursive encoder, as Pydantic v2&#39;s Rust-based serialization is significantly faster. For non-Pydantic types, consider building a type-dispatch dictionary instead of sequential isinstance checks. Also consider adding a fast-path for common simple types (str, int, float, bool, None) at the top of the function.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Sync endpoint handlers run in threadpool via run_in_threadpool</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/routing.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In fastapi/routing.py, non-async endpoint functions are wrapped to run via run_in_threadpool() (from starlette). This means every request to a sync endpoint incurs thread pool scheduling overhead. While this is necessary to avoid blocking the event loop, it adds latency (~0.1-0.5ms per call) and limits concurrency to the thread pool size. Many FastAPI tutorial examples use sync def endpoints, which means users following tutorials will have suboptimal performance by default.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a known design trade-off in FastAPI/Starlette. Document more prominently that async def endpoints avoid threadpool overhead. For I/O-bound endpoints, always prefer async def with async libraries. Consider adding a performance note in the tutorial documentation about the cost of sync vs async endpoints.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No benchmark tests for critical hot paths</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/benchmarks/test_general_performance.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The tests/benchmarks/ directory exists but the benchmark coverage appears limited. Critical performance paths like dependency resolution, response serialization, request parsing with many parameters, and deeply nested model validation lack dedicated benchmarks. Without benchmarks, performance regressions can be introduced unknowingly across releases.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add benchmark tests for: (1) dependency resolution with deep chains (5-10 levels), (2) response serialization with large nested models, (3) request parsing with many query/header/cookie parameters, (4) OpenAPI schema generation for apps with 100+ routes. Use pytest-benchmark or similar tooling and track results in CI to catch regressions.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">contextvar-based dependency scope tracking adds per-request overhead</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/concurrency.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In fastapi/concurrency.py, the contextmanager_in_threadpool function wraps context managers for use in async contexts. Combined with the dependency injection system&#39;s use of AsyncExitStack for dependencies with yield, each request creates and manages an exit stack, context variables, and potentially multiple context manager entries. For simple endpoints with few dependencies this is negligible, but for endpoints with many yield-based dependencies, the overhead accumulates.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is largely inherent to the dependency injection design. For performance-critical paths, minimize the number of yield-based dependencies. Consider using regular (non-yield) dependencies where cleanup is not needed. The overhead is typically small compared to actual I/O operations.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Pydantic v1/v2 compatibility layer adds indirection overhead</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    fastapi/_compat/v2.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The fastapi/_compat/ module provides a compatibility layer between Pydantic v1 and v2. Every model operation (validation, serialization, schema generation) goes through this compatibility layer, adding function call overhead. While individual calls are cheap, the cumulative effect across many parameters, dependencies, and response models on every request adds up. Functions like _model_dump(), _validate(), and schema generation helpers all have this extra indirection.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Since Pydantic v1 support will eventually be dropped, this is a temporary cost. For now, the indirection is minimal (single function call). No immediate action needed, but plan to remove the compatibility layer when Pydantic v1 support is dropped to eliminate the indirection.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~36h
+            </div>
+            
+        </section>
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 133 seconds</p>
+            <p>https://github.com/tiangolo/fastapi</p>
+            <p class="timestamp">2026-02-15 18:02 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>

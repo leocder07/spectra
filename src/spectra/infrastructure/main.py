@@ -1,8 +1,13 @@
-"""Composition root — wires all dependencies and exposes the CLI entry point."""
+"""Composition root — wires all dependencies and exposes the CLI entry point.
+
+This is the outermost layer: it imports from all inner layers and wires
+the decorator chain (Logging → Retry → Anthropic) and agent factory.
+"""
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -101,7 +106,6 @@ async def _run_analysis(
             else:
                 report_renderer.render(report, output_path)
         except Exception as exc:
-            import logging
             logging.getLogger("spectra").error("Report render failed: %s", exc)
             raise ReportError(ERRORS["SPEC-009"]) from exc
         observer.on_stage_complete("REPORT", "Report generated")

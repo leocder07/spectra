@@ -15,7 +15,10 @@
     "agents/qa-1.md"
   ],
   "commands": [
-    "commands/analyze.md"
+    "commands/analyze.md",
+    "commands/leaderboard.md",
+    "commands/compare.md",
+    "commands/self-review.md"
   ],
   "hooks": "hooks/hooks.json"
 }

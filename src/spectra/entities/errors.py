@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -56,12 +57,14 @@ class SpectraRetryError(Exception):
         super().__init__(f"{error.code}: {error.message}")
 
 
+_JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.DOTALL)
+
+
 def strip_code_fence(raw: str) -> str:
     """Extract JSON from LLM output, handling code fences and surrounding text."""
-    import re
     cleaned = raw.strip()
     # Case 1: extract content from ```json ... ``` blocks
-    json_blocks = re.findall(r"```(?:json)?\s*\n(.*?)```", cleaned, re.DOTALL)
+    json_blocks = _JSON_BLOCK_RE.findall(cleaned)
     for block in json_blocks:
         block = block.strip()
         if block.startswith("{"):

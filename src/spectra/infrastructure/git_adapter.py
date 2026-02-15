@@ -19,6 +19,12 @@ class GitAdapter:
     """Async wrapper around GitPython implementing the GitPort protocol."""
 
     async def clone(self, repo_url: str, target_dir: str) -> None:
+        """Clone a repository with security hardening.
+
+        Security: URL scheme is validated to https/http only.
+        allow_unsafe_options is required by GitPython for --config;
+        the options themselves are safe (disable hooks, skip submodules).
+        """
         if not repo_url.startswith(("https://", "http://")):
             raise GitError(ERRORS["SPEC-001"])
         loop = asyncio.get_running_loop()

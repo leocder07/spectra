@@ -1,4 +1,11 @@
-"""Agent infrastructure — BaseAgent, factory, and specialist agents."""
+"""Agent infrastructure — BaseAgent, factory, and specialist agents.
+
+Pipeline flow:
+  MetaPrompter (Sonnet) → 6 SpecialistAgents (Opus, parallel) → CritiqueAgent (Opus, extended thinking)
+
+All agents follow the BaseAgent Template Method lifecycle:
+  validate_input → build_prompt → execute_llm → parse_output → validate_output → format_result
+"""
 
 from spectra.infrastructure.agents.agent_factory import AgentFactory
 from spectra.infrastructure.agents.base_agent import AgentError, BaseAgent

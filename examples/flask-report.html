@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:;">
+    <title>Spectra Report — flask</title>
+    
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* [7] Widen container */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        /* [5] Gradient Wordmark */
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .repo-name {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .tagline {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+        }
+
+        /* [3] Sticky Section Navigation */
+        .section-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 0;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .section-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.3rem 0.75rem;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .section-nav a:hover {
+            background: var(--bg-card-alt);
+            color: var(--violet-light);
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .executive-summary h2 {
+            font-size: 0.85rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .verdict {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-col h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .strengths h3 { color: var(--green); }
+        .concerns h3 { color: var(--amber); }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
+        }
+
+        .summary-dim { color: var(--text); }
+
+        .summary-score { font-weight: 600; }
+
+        .critical-alert {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--red);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        /* [4] Severity Distribution Bar */
+        .severity-bar-container {
+            margin-bottom: 1rem;
+        }
+
+        .severity-bar-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .severity-bar {
+            display: flex;
+            height: 24px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+        }
+
+        .severity-bar .seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+            min-width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .seg-critical { background: var(--red); }
+        .seg-high { background: #F97316; }
+        .seg-medium { background: var(--amber); color: #1E293B !important; }
+        .seg-low { background: var(--cyan); color: #1E293B !important; }
+        .seg-info { background: var(--gray); }
+
+        .severity-bar-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+
+        .quick-stats {
+            text-align: center;
+            color: var(--gray-light);
+            font-size: 0.85rem;
+        }
+
+        /* ScoreCard */
+        .scorecard {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .overall {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* [2] Circular Grade Gauge */
+        .grade-gauge {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            position: relative;
+        }
+
+        .grade-gauge-letter {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .grade-gauge-score {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .dimensions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .dim-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card-alt);
+            border-radius: 8px;
+        }
+
+        .dim-label {
+            min-width: 120px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .dim-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        /* [6] Animate Score Bars */
+        .dim-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0;
+            animation: fillBar 1s ease-out forwards;
+        }
+
+        @keyframes fillBar {
+            from { width: 0; }
+            to { width: var(--target-width); }
+        }
+
+        .dim-score {
+            font-weight: 700;
+            min-width: 28px;
+            text-align: right;
+        }
+
+        .dim-grade {
+            font-weight: 800;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d, .grade-f { color: var(--red); }
+
+        .bar-a { background: var(--green); }
+        .bar-b { background: var(--cyan); }
+        .bar-c { background: var(--amber); }
+        .bar-d, .bar-f { background: var(--red); }
+
+        /* Stats strip */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Degraded banner */
+        .degraded-banner {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 2rem;
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* Findings */
+        .findings-section {
+            margin-bottom: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.3rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* [1] Collapsible Findings */
+        .finding {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+        }
+
+        .finding.severity-critical { border-left-color: var(--red); }
+        .finding.severity-high { border-left-color: #F97316; }
+        .finding.severity-medium { border-left-color: var(--amber); }
+        .finding.severity-low { border-left-color: var(--cyan); }
+        .finding.severity-info { border-left-color: var(--gray); }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .finding-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .finding-chevron {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: var(--gray-light);
+            transition: transform 0.2s;
+        }
+
+        .finding.expanded .finding-chevron {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-critical { background: var(--red); color: white; }
+        .badge-high { background: #F97316; color: white; }
+        .badge-medium { background: var(--amber); color: #1E293B; }
+        .badge-low { background: var(--cyan); color: #1E293B; }
+        .badge-info { background: var(--gray); color: white; }
+
+        .finding-location {
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.4rem;
+        }
+
+        .finding-body {
+            display: none;
+            margin-top: 0.75rem;
+        }
+
+        .finding.expanded .finding-body {
+            display: block;
+        }
+
+        .finding-description {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-recommendation {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(124, 58, 237, 0.1);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .finding-recommendation strong {
+            color: var(--violet-light);
+        }
+
+        /* Validated badge */
+        .validated-badge {
+            font-size: 0.7rem;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer .timestamp {
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--gray-dark);
+        }
+
+        /* Spectrum Bar */
+        .spectrum-bar {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 1rem 0 1.5rem;
+            height: 36px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spectrum-seg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
+
+        .spectrum-seg:hover { opacity: 0.85; }
+
+        /* Inline Badge */
+        .header-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+
+        .header-inner {
+            position: relative;
+        }
+
+        /* Priority Actions */
+        .priority-actions {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--violet);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .priority-actions h2 {
+            font-size: 1.1rem;
+            color: var(--violet-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .priority-actions ol {
+            list-style: none;
+            counter-reset: actions;
+            padding: 0;
+        }
+
+        .priority-actions li {
+            counter-increment: actions;
+            padding: 0.75rem 0 0.75rem 2.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .priority-actions li:last-child {
+            border-bottom: none;
+        }
+
+        .priority-actions li::before {
+            content: counter(actions);
+            position: absolute;
+            left: 0;
+            top: 0.75rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--violet);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .action-location {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gray-light);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            margin-top: 0.25rem;
+        }
+
+        .action-rec {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            .scorecard { padding: 1rem; }
+            .executive-summary { padding: 1rem; }
+            .dimensions { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .stats { gap: 1rem; }
+            .section-nav { gap: 0.25rem; }
+            .section-nav a { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header" id="top">
+            <div class="header-inner">
+                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#22C55E"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">A- 87/100</text></svg></div>
+                <h1>SPECTRA</h1>
+                <div class="repo-name">flask</div>
+                <div class="tagline">The full spectrum of your codebase</div>
+            </div>
+        </header>
+
+        <!-- Spectrum Bar -->
+        <div class="spectrum-bar">
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #22C55E;">
+                Architecture 91 A
+            </div>
+            
+            <div class="spectrum-seg" style="width: 25.0%; background: #06B6D4;">
+                Security 83 B+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 20.0%; background: #22C55E;">
+                Quality 90 A
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #06B6D4;">
+                Documentation 86 B+
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                Maintainability 87 A-
+            </div>
+            
+            <div class="spectrum-seg" style="width: 10.0%; background: #06B6D4;">
+                Performance 82 B
+            </div>
+            
+        </div>
+
+        <!-- [3] Sticky Section Navigation -->
+        <nav class="section-nav">
+            <a href="#summary">Summary</a>
+            <a href="#actions">Actions</a>
+            <a href="#scores">Scores</a>
+            
+            
+            
+            <a href="#dim-architecture">Architecture</a>
+            
+            
+            
+            
+            <a href="#dim-security">Security</a>
+            
+            
+            
+            
+            <a href="#dim-quality">Quality</a>
+            
+            
+            
+            
+            <a href="#dim-documentation">Documentation</a>
+            
+            
+            
+            
+            <a href="#dim-maintainability">Maintainability</a>
+            
+            
+            
+            
+            <a href="#dim-performance">Performance</a>
+            
+            
+        </nav>
+
+        
+
+        <!-- Executive Summary -->
+        <section class="executive-summary" id="summary">
+            <h2>Executive Summary</h2>
+            <div class="verdict">Your codebase scores A- (87/100) — strong architecture with performance gaps</div>
+
+            <div class="summary-grid">
+                <div class="summary-col strengths">
+                    <h3>Top Strengths</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Architecture</span>
+                        <span class="summary-score grade-a">A (91)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-a">A (90)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Maintainability</span>
+                        <span class="summary-score grade-a">A- (87)</span>
+                    </div>
+                    
+                </div>
+
+                <div class="summary-col concerns">
+                    <h3>Key Concerns</h3>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Performance</span>
+                        <span class="summary-score grade-b">B (83)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Security</span>
+                        <span class="summary-score grade-b">B+ (83)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-b">B+ (86)</span>
+                    </div>
+                    
+                </div>
+            </div>
+
+            
+
+            <!-- [4] Severity Distribution Bar -->
+            
+            
+            
+            <div class="severity-bar-container">
+                <div class="severity-bar-label">Severity Distribution</div>
+                <div class="severity-bar">
+                    
+                    
+                    
+                    
+                    <div class="seg seg-high" style="width: 1.7%">
+                        1
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-medium" style="width: 20.3%">
+                        12
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-low" style="width: 37.3%">
+                        22
+                    </div>
+                    
+                    
+                    
+                    <div class="seg seg-info" style="width: 40.7%">
+                        24
+                    </div>
+                    
+                    
+                </div>
+                <div class="severity-bar-legend">
+                    
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: #F97316"></span>
+                        high (1)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--amber)"></span>
+                        medium (12)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--cyan)"></span>
+                        low (22)
+                    </span>
+                    
+                    
+                    
+                    <span class="legend-item">
+                        <span class="legend-dot" style="background: var(--gray)"></span>
+                        info (24)
+                    </span>
+                    
+                    
+                </div>
+            </div>
+            
+
+            <div class="quick-stats">
+                59 findings · 6 agents · 127s analysis · Total tech debt: ~164h
+            </div>
+        </section>
+
+        <!-- Priority Actions -->
+        
+        <section id="actions" class="priority-actions">
+            <h2>What to Fix First</h2>
+            <ol>
+                
+                <li>
+                    <span class="badge badge-high">high</span>
+                    <strong>No runtime warning when SECRET_KEY is default or weak</strong>
+                    <span class="action-location">src/flask/config.py</span>
+                    <p class="action-rec">Add a runtime warning (not error, to avoid breaking changes) when SECRET_KEY is set to a value shorter than a recommended minimum (e.g., 16 bytes of entropy) and the application is not in debug mode. Flask already warns about missing SECRET_KEY in some paths, but strength validation would improve security posture.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>God class tendency in Flask app.py</strong>
+                    <span class="action-location">src/flask/app.py:1</span>
+                    <p class="action-rec">This is somewhat inherent to Flask&#39;s design philosophy of simplicity. For a framework of this maturity, this is acceptable but worth noting. Consider whether any further decomposition (e.g., extracting a RequestDispatcher or ContextManager mixin) would improve maintainability without breaking the public API.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>SecureCookieSessionInterface does not set Secure flag by default</strong>
+                    <span class="action-location">src/flask/sessions.py</span>
+                    <p class="action-rec">This is a framework design choice for development convenience, but consider documenting more prominently that SESSION_COOKIE_SECURE should be True in production. Consider adding a warning when DEBUG=False and SESSION_COOKIE_SECURE is not set.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>Large monolithic app.py with high complexity</strong>
+                    <span class="action-location">src/flask/app.py:1</span>
+                    <p class="action-rec">This is a well-established framework pattern and the sansio split already helps. Consider documenting the architectural split between sansio/app.py and app.py more explicitly for contributors. No immediate refactoring needed given the maturity of the project.</p>
+                </li>
+                
+                <li>
+                    <span class="badge badge-medium">medium</span>
+                    <strong>test_basic.py is an extremely large test file</strong>
+                    <span class="action-location">tests/test_basic.py:1</span>
+                    <p class="action-rec">Consider splitting test_basic.py into more focused test modules such as test_static_files.py, test_url_building.py, test_error_handling.py, and test_response.py. This would improve test discoverability and make it easier to run targeted test suites.</p>
+                </li>
+                
+            </ol>
+        </section>
+        
+
+        <!-- ScoreCard -->
+        <section class="scorecard" id="scores">
+            <div class="overall">
+                <!-- [2] Circular Grade Gauge -->
+                
+                
+                
+                
+                <div class="grade-gauge"
+                     style="background: conic-gradient(var(--green) 314.3deg, var(--border) 0deg);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <span class="grade-gauge-letter grade-a">A-</span>
+                        <span class="grade-gauge-score">87 / 100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dimensions">
+                
+                <div class="dim-row">
+                    <span class="dim-label">Architecture</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 91.0%"></div>
+                    </div>
+                    <span class="dim-score">91</span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Security</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 83.4%"></div>
+                    </div>
+                    <span class="dim-score">83</span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 90.4%"></div>
+                    </div>
+                    <span class="dim-score">90</span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 86.2%"></div>
+                    </div>
+                    <span class="dim-score">86</span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 87.4%"></div>
+                    </div>
+                    <span class="dim-score">87</span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <!-- [6] Animate Score Bars via CSS custom property -->
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 82.8%"></div>
+                    </div>
+                    <span class="dim-score">83</span>
+                    <span class="dim-grade grade-b">B</span>
+                </div>
+                
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value">59</div>
+                    <div class="stat-label">Findings</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">127s</div>
+                    <div class="stat-label">Duration</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">$1.25</div>
+                    <div class="stat-label">Cost</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">6</div>
+                    <div class="stat-label">Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Findings by Dimension -->
+        
+        
+        
+        <section class="findings-section" id="dim-architecture">
+            <h2>Architecture (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">God class tendency in Flask app.py</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~40.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/app.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `Flask` class in `src/flask/app.py` inherits from `sansio/app.py::App` which itself inherits from `Scaffold`. Together these form a very large class surface area. The `Flask` class handles WSGI dispatching, context management, request/response processing, error handling, server running, CLI integration, and more. While the sansio split helps, the combined class still has an enormous number of methods and responsibilities. The `App` base in sansio likely contains routing, config, URL rules, template configuration, error handler registration, and blueprint registration — all in one class.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is somewhat inherent to Flask&#39;s design philosophy of simplicity. For a framework of this maturity, this is acceptable but worth noting. Consider whether any further decomposition (e.g., extracting a RequestDispatcher or ContextManager mixin) would improve maintainability without breaking the public API.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Context management architecture is well-structured but tightly coupled</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/ctx.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The context system in `src/flask/ctx.py` implements `AppContext` and `RequestContext` as separate classes with proper push/pop lifecycle management. The `globals.py` module provides proxy objects (`current_app`, `request`, `session`, `g`) using Werkzeug&#39;s `LocalProxy` and `LocalStack`. However, the context pushing/popping logic in `ctx.py` is tightly coupled to the `Flask` app class — `RequestContext` directly references and manipulates the app&#39;s `_got_first_request` flag and calls `app.ensure_sync()` for teardown functions. This coupling makes it difficult to test context behavior independently.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider defining a minimal interface/protocol that contexts expect from the app object, rather than depending on the full Flask class. This would improve testability and make the context system more self-contained.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Scaffold base class creates deep inheritance chain</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/scaffold.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The inheritance hierarchy is: `Scaffold` (sansio/scaffold.py) → `App` (sansio/app.py) → `Flask` (app.py), and separately `Scaffold` → `Blueprint` (sansio/blueprints.py) → `Blueprint` (blueprints.py). While `Scaffold` provides shared functionality (static files, templates, URL rules, decorators), this three-level inheritance makes it harder to understand where a particular method is defined or overridden. Developers must check three files to trace method resolution for the Flask class.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The current design is a reasonable trade-off for code reuse between App and Blueprint. Document the inheritance hierarchy clearly in developer-facing docs. Consider adding a class diagram to the sansio README.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Circular import risk between helpers.py and app.py via globals</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/helpers.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/helpers.py` module imports from `globals.py` (to access `current_app`, `request`) and provides utility functions like `url_for`, `flash`, `get_flashed_messages`, `send_file`, etc. The `app.py` module also imports from `helpers.py`. While Python handles this through deferred imports and the indirection of proxy objects, the bidirectional dependency between helpers and the app module creates a conceptual coupling. The `globals.py` module acts as a mediator, which is good, but `helpers.py` effectively depends on the app being in a pushed context.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> The current approach works due to proxy objects resolving at runtime rather than import time. This is an acceptable pattern for Flask&#39;s architecture. Ensure new helper functions continue to use the proxy pattern rather than direct imports.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Testing module couples test utilities with Flask internals</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/testing.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/testing.py` module provides `FlaskClient` and `FlaskCliRunner` which are tightly coupled to Flask&#39;s context management internals. `FlaskClient` overrides Werkzeug&#39;s `Client` to push/pop contexts during requests, directly manipulating `_cv_request` and session handling. While this coupling is necessary for the testing utilities to work correctly, it means changes to the context system require coordinated changes in testing.py.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider defining a testing-oriented interface on the context classes that testing.py can use, rather than reaching into internal context variables directly. This would make the testing module more resilient to internal refactoring.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-implemented Sans-IO separation pattern</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/app.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask implements a clean sans-IO separation via the `src/flask/sansio/` package. The `sansio/app.py` contains `App` as a base class with protocol-agnostic logic (routing, config, error handler registration, URL building), while `src/flask/app.py` contains `Flask(App)` which adds WSGI-specific behavior (request handling, context pushing, `wsgi_app()`, `run()`). Similarly, `sansio/scaffold.py` provides the base `Scaffold` class for shared functionality between App and Blueprint, and `sansio/blueprints.py` provides `Blueprint` base. This is a strong architectural pattern that enables potential future ASGI support and improves testability.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a positive finding. The pattern is well-executed and should be maintained as the project evolves.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Clean global proxy pattern using Werkzeug LocalProxy</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/globals.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/globals.py` module cleanly defines the thread-local context stacks (`_cv_app` and `_cv_request` as `ContextVar` instances) and the proxy objects (`current_app`, `request`, `session`, `g`). The use of `contextvars.ContextVar` (rather than older `threading.local`) is modern and supports async properly. The separation between the context variables and the proxy accessors is clean.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a positive architectural finding. The migration from threading.local to contextvars is well-executed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Blueprint architecture has proper deferred registration pattern</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/blueprints.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The blueprint system uses a deferred action pattern where `src/flask/sansio/blueprints.py` defines `Blueprint` with a `deferred_functions` list. Operations like `add_url_rule`, `before_request`, etc. are recorded as lambdas/callables and only executed when `register()` is called on the app. This allows blueprints to be defined independently and registered on multiple apps. The `BlueprintSetupState` class in `sansio/blueprints.py` encapsulates the registration context. The WSGI-specific `Blueprint` in `src/flask/blueprints.py` extends this with minimal additions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a well-designed pattern. The thin WSGI layer on top of the sansio blueprint base is clean.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">View class architecture supports both function and class-based views</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/views.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/views.py` module provides `View` and `MethodView` classes. `View` uses `as_view()` class method to convert a class into a view function compatible with Flask&#39;s routing. `MethodView` dispatches based on HTTP method names (get, post, etc.). The `as_view` method properly handles `init_every_request` flag and decorators. This is a clean adapter pattern that bridges OOP views with Flask&#39;s function-based routing.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Well-designed pattern. No changes needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">JSON module has clean provider abstraction</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/json/provider.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/json/` package separates concerns well: `provider.py` defines `JSONProvider` as an abstract base and `DefaultJSONProvider` as the concrete implementation, `tag.py` provides tagged JSON serialization for session data, and `__init__.py` provides convenience functions. The provider pattern allows users to swap JSON implementations (e.g., orjson) by subclassing `JSONProvider` and setting `app.json_provider_class`. This is a clean strategy pattern.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Well-architected. The provider pattern is a good example of the Open/Closed Principle.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Wrapper classes provide minimal but appropriate extension points</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/wrappers.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/wrappers.py` module defines `Request` and `Response` classes that extend Werkzeug&#39;s `Request` and `Response`. Flask&#39;s `Request` adds `max_content_length` and `max_form_memory_size` properties that read from the app config via the context, and a `on_json_loading_failed` method. The `Response` class adds `max_cookie_size` from config. These are thin wrappers that add Flask-specific behavior without duplicating Werkzeug functionality.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Clean design. The thin wrapper approach correctly leverages Werkzeug&#39;s implementation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Public API surface well-controlled via __init__.py</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/__init__.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The `src/flask/__init__.py` serves as the public API surface, re-exporting key classes and functions from internal modules. This provides a stable public interface while allowing internal reorganization. Users import from `flask` directly rather than from submodules, which is the standard pattern for Python libraries.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Maintain this pattern. Consider adding `__all__` if not already present to make the public API even more explicit.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~55h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-security">
+            <h2>Security (6)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-high" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-high">high</span>
+                    <span class="finding-title">No runtime warning when SECRET_KEY is default or weak</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/config.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask&#39;s session signing depends entirely on SECRET_KEY, but the framework does not validate the strength of the key at runtime. If a developer sets a weak or short SECRET_KEY, session cookies can be brute-forced. The config.py module loads SECRET_KEY without any entropy or length checks. CWE-326: Inadequate Encryption Strength. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a runtime warning (not error, to avoid breaking changes) when SECRET_KEY is set to a value shorter than a recommended minimum (e.g., 16 bytes of entropy) and the application is not in debug mode. Flask already warns about missing SECRET_KEY in some paths, but strength validation would improve security posture.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">SecureCookieSessionInterface does not set Secure flag by default</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sessions.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/sessions.py, the SecureCookieSessionInterface.get_cookie_attrs() method sets the &#39;secure&#39; cookie attribute based on SESSION_COOKIE_SECURE config, which defaults to False. This means session cookies are transmitted over unencrypted HTTP by default, exposing them to network-level interception. CWE-614: Sensitive Cookie in HTTPS Session Without &#39;Secure&#39; Attribute. OWASP A02:2021 Cryptographic Failures.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a framework design choice for development convenience, but consider documenting more prominently that SESSION_COOKIE_SECURE should be True in production. Consider adding a warning when DEBUG=False and SESSION_COOKIE_SECURE is not set.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Tutorial example stores plaintext password hash algorithm choice in code without upgrade path</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/tutorial/flaskr/auth.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In examples/tutorial/flaskr/auth.py, the tutorial uses werkzeug.security.generate_password_hash and check_password_hash, which is correct. However, the tutorial does not demonstrate a password hash upgrade mechanism. While this is an example/tutorial, it serves as a template that many developers copy directly. CWE-916: Use of Password Hash With Insufficient Computational Effort (potential future concern).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a note in the tutorial about periodically upgrading hash parameters and implementing hash migration on login. This is a documentation improvement rather than a code fix.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test .env file contains environment variable values in repository</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/test_apps/.env
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The file tests/test_apps/.env and tests/test_apps/.flaskenv contain environment variable settings committed to the repository. While these are test fixtures and not production secrets, this pattern could be copied by developers who then accidentally commit real secrets. CWE-798: Use of Hard-coded Credentials (low risk as test-only).</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a comment in the .env file clarifying it is for testing only. Consider renaming to .env.test to make the purpose clearer.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">send_from_directory relies on werkzeug&#39;s safe_join for path traversal prevention</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/helpers.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/helpers.py, send_from_directory delegates path safety to werkzeug.utils.send_from_directory which uses safe_join internally. This correctly prevents path traversal attacks (CWE-22). The implementation does not add custom path validation that could introduce bypasses.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. The delegation to werkzeug&#39;s battle-tested path traversal prevention is the correct approach.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">GitHub Actions workflows use pinned action versions (good practice)</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/tests.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The CI/CD workflows in .github/workflows/ use version-pinned actions, which helps prevent supply chain attacks via compromised GitHub Actions. This mitigates CWE-1395: Dependency on Vulnerable Third-Party Component in the CI/CD pipeline.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue pinning action versions. Consider using SHA-pinned references for even stronger supply chain security.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~10h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-quality">
+            <h2>Quality (10)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Large monolithic app.py with high complexity</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/app.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">src/flask/app.py is the central module of the framework and contains the Flask class with numerous methods spanning request handling, error handling, URL routing, template rendering, and application lifecycle management. While this is somewhat inherent to the framework&#39;s design, the single-class approach concentrates significant complexity. The sansio/app.py base class helps but the combined surface area is very large.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a well-established framework pattern and the sansio split already helps. Consider documenting the architectural split between sansio/app.py and app.py more explicitly for contributors. No immediate refactoring needed given the maturity of the project.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">test_basic.py is an extremely large test file</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/test_basic.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/test_basic.py appears to be a catch-all test file covering a very wide range of Flask functionality including request handling, response creation, error handling, static files, URL building, and more. Large test files make it harder to identify which area of functionality is being tested and can slow down targeted test runs.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider splitting test_basic.py into more focused test modules such as test_static_files.py, test_url_building.py, test_error_handling.py, and test_response.py. This would improve test discoverability and make it easier to run targeted test suites.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Async support testing may have limited coverage</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/test_async.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/test_async.py exists as a dedicated test file for async/await support, which is good. However, async support in Flask is relatively newer and the async code paths in the main application (decorated with ensure_sync patterns) may not have the same depth of edge-case testing as the synchronous paths covered extensively in test_basic.py and other test files.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure async test coverage includes error handling paths, context preservation across await boundaries, teardown callbacks in async views, and async blueprint registration. Mirror key synchronous test scenarios with async equivalents.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Test fixtures could benefit from more modular conftest organization</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/conftest.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tests/conftest.py serves as the single conftest for the entire test suite. As the test suite grows, having a single conftest can become unwieldy. The examples/tutorial/tests/conftest.py shows good fixture patterns but the main test suite could benefit from sub-directory conftest files for different test categories.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> If the test suite continues to grow, consider organizing tests into subdirectories (e.g., tests/core/, tests/cli/, tests/blueprints/) with their own conftest.py files containing domain-specific fixtures.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Good use of type checking validation tests</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/type_check/typing_app_decorators.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The tests/type_check/ directory contains dedicated type checking test files (typing_app_decorators.py, typing_error_handler.py, typing_route.py) that validate Flask&#39;s type annotations work correctly with static type checkers. This is a strong quality practice for a library that exposes a public API with type hints.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue expanding type check tests as new API surfaces are added. Consider adding type check tests for blueprint decorators, testing client methods, and JSON provider interfaces.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-structured pre-commit and CI quality tooling</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .pre-commit-config.yaml:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses .pre-commit-config.yaml for automated code quality checks and has comprehensive GitHub Actions workflows (tests.yaml, pre-commit.yaml, publish.yaml, lock.yaml). This ensures consistent code quality enforcement across contributions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a positive quality indicator.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Sansio architecture provides good separation of concerns</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/app.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The src/flask/sansio/ package separates I/O-independent logic (app.py, blueprints.py, scaffold.py) from the WSGI-dependent implementation. This is an excellent architectural pattern that improves testability and could enable future ASGI support. The README.md in the sansio directory documents this design decision.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a strong architectural pattern.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">JSON module split between __init__.py, provider.py, and tag.py is clean</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/json/__init__.py:1
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The src/flask/json/ package is well-organized with clear separation: __init__.py for public API/convenience functions, provider.py for the JSON provider abstraction, and tag.py for tagged JSON serialization of complex types. This makes the JSON subsystem extensible and maintainable.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Good modular design.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive test coverage across framework features</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    tests/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The test suite covers a wide range of framework features with dedicated test files: test_appctx.py, test_reqctx.py, test_blueprints.py, test_cli.py, test_config.py, test_helpers.py, test_json.py, test_json_tag.py, test_logging.py, test_regression.py, test_session_interface.py, test_signals.py, test_templating.py, test_testing.py, test_views.py, test_user_error_handler.py, and more. This indicates mature test infrastructure.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. Excellent test organization and coverage breadth.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Example applications serve as integration tests and documentation</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/tutorial/tests/
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/ directory contains three well-structured example applications (tutorial, javascript, celery) each with their own test suites. The tutorial example has particularly thorough tests (test_auth.py, test_blog.py, test_db.py, test_factory.py) that serve as both integration tests and documentation for users.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a strong practice for framework projects.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~24h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-documentation">
+            <h2>Documentation (12)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">sansio subpackage has minimal README documentation</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The src/flask/sansio/ directory contains a README.md, but the sansio (sans-I/O) architecture is a significant internal design decision that deserves thorough explanation. The sansio package contains core app logic (app.py, blueprints.py, scaffold.py) separated from I/O concerns, but this architectural pattern may not be well-documented for contributors.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Expand the sansio README to explain the architectural motivation, how the sansio layer relates to the main flask package, and guidelines for contributors on when code should go in sansio vs the main package. Consider also adding an Architecture Decision Record (ADR) in the docs.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Deprecated deployment docs (eventlet, gevent) may cause confusion</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~3.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/deploying/eventlet.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/deploying/ directory includes guides for eventlet and gevent alongside the docs/gevent.rst file. Given the evolving Python async ecosystem and known issues with eventlet maintenance, these guides may contain outdated recommendations. Having both docs/deploying/eventlet.rst, docs/deploying/gevent.rst, and a separate docs/gevent.rst could be confusing.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Review the eventlet and gevent deployment guides for accuracy. Clarify the relationship between docs/gevent.rst and docs/deploying/gevent.rst. Consider adding deprecation notices or recommendations toward modern async alternatives where appropriate.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">jQuery pattern documentation may be outdated</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/patterns/jquery.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">docs/patterns/jquery.rst exists as a pattern document. jQuery usage has declined significantly in modern web development. While the JavaScript example (examples/javascript/) includes jQuery templates, this pattern may mislead newcomers into using outdated frontend approaches.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider deprecating or updating the jQuery pattern documentation. Add a note directing users to modern alternatives (fetch API, htmx, Alpine.js). The docs/patterns/javascript.rst likely covers fetch already, so consider consolidating and marking jQuery as legacy.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">README.md is minimal and relies heavily on external links</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The README.md for a project of Flask&#39;s stature is likely quite brief, serving primarily as a pointer to the full documentation on readthedocs. While this is a common pattern for well-established projects with dedicated doc sites, the README could benefit from a slightly more comprehensive quick-start section for developers who discover the project on GitHub/PyPI.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a minimal &#39;Hello World&#39; code example directly in the README so developers can see Flask&#39;s API at a glance without navigating to external docs. Many popular frameworks include a 5-line example in the README.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">No Architecture Decision Records (ADRs)</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/design.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask has made several significant architectural decisions over its lifetime (sansio refactoring, async support, blueprint nesting, app/request context design) but there are no formal ADRs documenting the rationale behind these decisions. The docs/design.rst file exists but likely covers high-level philosophy rather than specific technical decisions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding an &#39;Architecture Decisions&#39; section to the documentation or a docs/adr/ directory documenting key decisions like the sansio refactoring, async support approach, and context locals design. This helps new contributors understand why things are the way they are.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example applications have inconsistent documentation formats</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/celery/README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples directory contains three example applications (celery, javascript, tutorial) with inconsistent README formats: examples/celery/README.md uses Markdown, while examples/javascript/README.rst and examples/tutorial/README.rst use reStructuredText. This inconsistency, while minor, reflects a lack of standardization.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Standardize example READMEs to use the same format. Since the main project docs use reStructuredText, consider converting the celery README.md to README.rst for consistency, or vice versa if the project is moving toward Markdown.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">MongoEngine pattern may be outdated or niche</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/patterns/mongoengine.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">docs/patterns/mongoengine.rst documents a pattern for using MongoEngine with Flask. MongoEngine has seen declining usage and maintenance activity. Including it as a first-class pattern alongside SQLAlchemy and SQLite may give it undue prominence.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Review whether the MongoEngine pattern is still relevant and well-maintained. Consider adding a note about its maintenance status or replacing it with a more popular MongoDB ODM pattern (e.g., PyMongo or Motor for async).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Contributing guide exists but may lack development workflow details</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/contributing.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">docs/contributing.rst exists alongside a .devcontainer configuration, but the contributing documentation should clearly reference the devcontainer setup as an option for new contributors. The .devcontainer/on-create-command.sh suggests automated setup, which should be documented.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the contributing guide mentions the devcontainer option for development setup. Document the relationship between the devcontainer configuration and the manual setup process described in contributing.rst.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Type stubs marker present but typing documentation may be sparse</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/py.typed
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask includes src/flask/py.typed marker and tests/type_check/ with typing test files (typing_app_decorators.py, typing_error_handler.py, typing_route.py), indicating type annotation support. However, there is no dedicated documentation page for typing/type hints usage in Flask applications, which is increasingly important for the Python ecosystem.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding a documentation page about Flask&#39;s type annotation support, covering how to properly type Flask views, error handlers, and decorators. Reference the typing module (src/flask/typing.py) and provide examples of well-typed Flask applications.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive documentation suite with extensive topic coverage</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/index.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask has an exceptionally well-organized documentation structure covering quickstart, tutorials, patterns, deployment, API reference, configuration, testing, signals, templating, blueprints, CLI, async/await, security, and more. The docs/ directory contains 80+ .rst files organized into logical sections including a full tutorial, deployment guides, and design patterns.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining this high standard of documentation organization.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive tutorial with full example application</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/tutorial/index.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask provides an excellent tutorial section (docs/tutorial/) with 12+ pages covering factory pattern, database, views, templates, static files, installation, testing, and deployment. This is backed by a complete working example in examples/tutorial/ with full test coverage. This is a gold standard for framework tutorials.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is exemplary documentation practice. Continue maintaining the tutorial in sync with the example application code.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CHANGES.rst changelog is well-maintained</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CHANGES.rst
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask maintains a CHANGES.rst file for version history, referenced from docs/changes.rst. This is a well-established practice for the project and provides users with clear upgrade paths and feature discovery.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining the changelog. Consider whether adopting Keep a Changelog format would improve readability.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~22h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-maintainability">
+            <h2>Maintainability (10)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">No automated dependency update tool configuration detected</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/tests.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">No Dependabot configuration (.github/dependabot.yml) or Renovate configuration (renovate.json) was found in the repository file listing. While the project uses uv.lock for pinning, automated dependency update PRs help catch security patches and compatibility issues early. For a high-profile project like Flask, this is a notable gap.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add a .github/dependabot.yml or renovate.json configuration to automatically propose dependency updates, especially for GitHub Actions workflow pinned versions and Python dependencies.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Core dependency on Werkzeug requires careful version coordination</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Flask has a tight coupling with Werkzeug (same Pallets organization). The version constraints in pyproject.toml for Werkzeug, Jinja2, itsdangerous, click, and blinker need to be carefully managed since these are all Pallets projects that release in coordination. Any version constraint that is too loose could allow incompatible combinations; too tight could block users from getting security fixes.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure pyproject.toml uses compatible release constraints (e.g., `&gt;=3.0,&lt;4`) for Pallets ecosystem dependencies. Regularly test against the latest versions of Werkzeug, Jinja2, itsdangerous, click, and blinker in CI.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Example celery project uses unpinned requirements.txt</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/celery/requirements.txt
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The examples/celery/ directory contains both a pyproject.toml and a requirements.txt. The requirements.txt likely contains unpinned or loosely pinned dependencies, which could lead to broken examples for users who follow the tutorial when transitive dependencies release breaking changes.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Either remove the redundant requirements.txt in favor of pyproject.toml, or ensure both files are kept in sync. Consider pinning at least major versions in example projects to prevent user confusion.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Multiple example projects with independent dependency definitions</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    examples/tutorial/pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Three example projects (celery, javascript, tutorial) each maintain their own pyproject.toml with independent dependency specifications. These are not managed by the root uv.lock and could drift out of sync with the main Flask version or each other, potentially causing broken examples.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider adding CI checks that install and test example projects against the current Flask development version. This ensures examples remain functional as Flask evolves.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">GitHub Actions workflow dependency management</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/publish.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Multiple GitHub Actions workflows are present (lock.yaml, pre-commit.yaml, publish.yaml, tests.yaml). These workflows reference third-party actions which should be pinned to specific SHA commits rather than tags to prevent supply chain attacks. Without seeing the file contents, this is a common risk area.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure all GitHub Actions are pinned to full SHA hashes (e.g., `actions/checkout@abcdef123...`) rather than version tags. Consider using StepSecurity&#39;s harden-runner or similar tools.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Well-structured dependency management with uv lock file</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    uv.lock
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses uv.lock for reproducible dependency resolution alongside pyproject.toml. This is a modern, well-maintained approach to Python dependency management. The presence of uv.lock ensures deterministic builds across environments.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue using uv.lock. Ensure CI workflows validate lock file freshness (e.g., `uv lock --check`).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Pre-commit hooks configured for automated code quality</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .pre-commit-config.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project uses .pre-commit-config.yaml with a corresponding GitHub Actions workflow (.github/workflows/pre-commit.yaml). This is a positive maintainability signal, ensuring consistent code quality checks including dependency-related linting.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a best practice.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Lock workflow for stale issues/PRs is a positive maintenance signal</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .github/workflows/lock.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .github/workflows/lock.yaml workflow automatically locks stale issues and pull requests, reducing maintenance burden and keeping the issue tracker clean. This is a good practice for high-traffic open source projects.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dev container configuration supports contributor onboarding</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .devcontainer/devcontainer.json
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .devcontainer/ directory with devcontainer.json and on-create-command.sh provides a standardized development environment. This reduces dependency-related &#39;works on my machine&#39; issues and improves maintainability by ensuring all contributors use consistent tooling.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is a best practice for open source projects.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">ReadTheDocs configuration present for documentation builds</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    .readthedocs.yaml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The .readthedocs.yaml file ensures documentation builds are reproducible with specific dependency versions. This is important for maintainability as documentation build dependencies (Sphinx, theme packages) can break with updates.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure the ReadTheDocs configuration pins documentation build dependencies or references the lock file.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~12h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section" id="dim-performance">
+            <h2>Performance (9)</h2>
+
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Async views run in thread executor with per-call overhead</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/app.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/app.py, the `ensure_sync` method wraps every async view function through `async_to_sync` on each call. While this is necessary for WSGI compatibility, the wrapping happens at registration time but the actual thread pool execution happens per-request. Flask&#39;s async support documentation explicitly warns about the performance overhead of running async views under WSGI, as each async view invocation spawns a thread. There is no option to configure the executor or pool size, and no connection to an event loop that could batch concurrent async operations.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a known design trade-off in Flask. For users needing high-performance async, the recommendation is to use an ASGI server with an async framework. Consider documenting executor pool size tuning or allowing users to provide a custom executor. For the framework itself, ensure `ensure_sync` wrapping happens once at registration, not per-request.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Context push/pop on every request involves multiple LocalStack operations</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~16.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/ctx.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/ctx.py, `RequestContext.push()` performs multiple operations: pushes app context (which itself pushes to a LocalStack), pushes request context to another LocalStack, matches the URL, and triggers `_cv_tokens` tracking. Each LocalStack operation involves ContextVar.get() and ContextVar.set() calls. For the common case of a simple request, this is 2 context var gets, 2 context var sets on push, and 2 more on pop. While ContextVars are fast, this is the hot path for every single request.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is well-designed for correctness and thread-safety. The ContextVar approach (replacing the older threading.local) is already the optimal choice. The overhead is minimal per-request. No action needed unless profiling shows this as a bottleneck in a specific deployment.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-medium" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-medium">medium</span>
+                    <span class="finding-title">Session interface opens/saves session on every request regardless of usage</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~8.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sessions.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/sessions.py, `SecureCookieSessionInterface.open_session()` is called on every request to decode the session cookie, and `save_session()` is called on every response to potentially re-encode it. For applications that don&#39;t use sessions on most endpoints (e.g., API servers), this is wasted work. The session is always deserialized from the signed cookie even if no view function accesses it.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider implementing lazy session loading — only deserialize the session cookie when `session` is first accessed. This would require making the session object a lazy proxy that triggers deserialization on first attribute access. This is a common optimization in other frameworks (e.g., Django&#39;s lazy session).
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Full exception handler chain iterated on every request dispatch</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~4.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/app.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/app.py, the `full_dispatch_request` method calls `try_trigger_before_request_funcs`, then the view, then `process_response` which iterates through all `after_request` functions. The `handle_exception` path walks through error handlers registered on both the app and all blueprints. While this is standard framework behavior, the error handler lookup in `sansio/app.py` `_find_error_handler` iterates through exception class MRO for each registered handler dictionary, which could be slow with deep exception hierarchies and many registered handlers.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider caching the error handler resolution for a given exception type after first lookup. A dictionary mapping exception types to their resolved handlers would avoid repeated MRO traversal.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">JSON provider instantiated per-app but serialization options rebuilt per call</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~1.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/json/provider.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/json/provider.py, the `DefaultJSONProvider` class defines `dumps` and `loads` as methods that pass keyword arguments (like `default`, `cls`, `sort_keys`) on every call to `json.dumps`/`json.loads`. The `default` method performs isinstance checks against `datetime`, `date`, `uuid.UUID`, and `Decimal` on every object that needs serialization. For responses with many such objects, this chain of isinstance checks adds up.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is a minor concern for a framework. For high-throughput JSON serialization, users should consider orjson or msgspec as drop-in replacements via custom JSON providers. The current design correctly allows this extensibility. Consider mentioning faster JSON libraries in documentation.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Template rendering dispatches signals even when no receivers connected</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/templating.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/templating.py, `_render` always calls `before_render_template.send()` and `template_rendered.send()` around every template render. The blinker library&#39;s `send()` method does check for receivers, but the function call overhead and context assembly (creating the template/context arguments) still occurs on every render even when no signal handlers are registered. In high-throughput applications rendering many templates, this adds measurable overhead.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider guarding signal sends with `if signal.receivers:` checks before calling `.send()`. This avoids the overhead of assembling arguments and making the function call when no receivers are connected. Alternatively, this could be a micro-optimization that&#39;s not worth the code complexity for a framework.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">TaggedJSONSerializer uses linear isinstance chain for tag matching</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~2.0h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/json/tag.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/json/tag.py, `TaggedJSONSerializer.tag()` iterates through all registered tags and calls `tag.check(value)` for each one until a match is found. With the default 10+ tags, this means up to 10 isinstance checks per value in the session data. For deeply nested session data with many values, this becomes O(n*t) where n is the number of values and t is the number of tags.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider building a type-to-tag lookup dictionary for O(1) dispatch on exact type matches, falling back to the linear scan only for subclass checks. This would speed up the common case significantly.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-low" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Blueprint deferred registration accumulates setup functions in lists</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/sansio/blueprints.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/sansio/blueprints.py, every decorator call on a Blueprint (route, before_request, etc.) appends a deferred function to `self.deferred_functions`. When the blueprint is registered on the app, all these functions are executed. For applications with many blueprints each having many routes, the registration phase iterates through all deferred functions sequentially. Additionally, if a blueprint is registered multiple times (with different url_prefix), all deferred functions run again.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> This is startup-only overhead and is well-designed for the use case. No performance concern for runtime. For extremely large applications with hundreds of blueprints, consider lazy blueprint registration, but this is an edge case.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [1] Collapsible Findings -->
+            <div class="finding severity-info" onclick="this.classList.toggle('expanded')">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Config object inherits from dict but adds overhead with from_file/from_object methods</span>
+                    
+                    <span class="validated-badge" style="color: var(--amber);">~0.5h</span>
+                    
+                    
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/flask/config.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">In src/flask/config.py, `Config.from_object()` iterates over all attributes of the given object using `dir()` and filters for uppercase names. For objects with many attributes (e.g., large config modules), `dir()` can be slow as it traverses the entire MRO. However, this is only called at startup, not per-request.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> No action needed. This is startup-only code and the performance impact is negligible.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div style="text-align: right; padding: 0.5rem 0; font-size: 0.85rem; color: var(--amber); font-weight: 600;">
+                Estimated effort: ~40h
+            </div>
+            
+        </section>
+        
+        
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Generated by <a href="https://github.com/spectra-cli/spectra">Spectra</a> — 8 AI agents, 6 dimensions, 127 seconds</p>
+            <p>https://github.com/pallets/flask</p>
+            <p class="timestamp">2026-02-15 18:01 UTC</p>
+        </footer>
+    </div>
+</body>
+</html>

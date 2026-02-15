@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectra Leaderboard — Framework Comparison</title>
+    <style>
+        :root {
+            --violet: #7C3AED;
+            --violet-light: #8B5CF6;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --green: #22C55E;
+            --cyan: #06B6D4;
+            --gray: #6B7280;
+            --gray-light: #9CA3AF;
+            --gray-dark: #374151;
+            --bg: #0F172A;
+            --bg-card: #1E293B;
+            --bg-card-alt: #283548;
+            --text: #F1F5F9;
+            --text-muted: #94A3B8;
+            --border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--violet);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--violet) 0%, var(--violet-light) 50%, var(--amber) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+        }
+
+        .header .meta {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-top: 0.5rem;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            color: var(--violet-light);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* Main table */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-bottom: 2rem;
+        }
+
+        .leaderboard-table thead th {
+            background: var(--bg-card);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--violet);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .leaderboard-table thead th:first-child {
+            text-align: left;
+            border-radius: 8px 0 0 0;
+        }
+
+        .leaderboard-table thead th:last-child {
+            border-radius: 0 8px 0 0;
+        }
+
+        .leaderboard-table tbody tr {
+            transition: background 0.15s;
+        }
+
+        .leaderboard-table tbody tr:hover {
+            background: var(--bg-card-alt);
+        }
+
+        .leaderboard-table tbody td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+        }
+
+        .leaderboard-table tbody td:first-child {
+            text-align: left;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-weight: 600;
+        }
+
+        /* Rank column */
+        .rank {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--gray);
+            width: 2rem;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .rank-1 { color: var(--amber); }
+        .rank-2 { color: var(--gray-light); }
+        .rank-3 { color: #CD7F32; }
+
+        .repo-name {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .repo-link {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .repo-link:hover {
+            color: var(--violet-light);
+        }
+
+        .repo-lang {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', monospace;
+        }
+
+        /* Grade styling */
+        .overall-cell {
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        .score-cell {
+            position: relative;
+        }
+
+        .score-num {
+            font-weight: 600;
+        }
+
+        .score-grade {
+            font-size: 0.7rem;
+            display: block;
+            margin-top: 0.1rem;
+        }
+
+        /* Grade colors */
+        .grade-a { color: var(--green); }
+        .grade-b { color: var(--cyan); }
+        .grade-c { color: var(--amber); }
+        .grade-d { color: #F97316; }
+        .grade-f { color: var(--red); }
+
+        /* Best-in-class highlight */
+        .best-in-class {
+            position: relative;
+        }
+
+        .best-in-class::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: var(--green);
+            border-radius: 1px;
+        }
+
+        /* Worst-in-class */
+        .worst-in-class {
+            position: relative;
+        }
+
+        .worst-in-class::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: var(--red);
+            border-radius: 1px;
+        }
+
+        /* Findings column */
+        .findings-count {
+            color: var(--text-muted);
+        }
+
+        /* Dimension leader cards */
+        .dimension-leaders {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .dim-leader-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .dim-leader-card .dim-name {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .dim-leader-card .leader-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .dim-leader-card .leader-score {
+            font-family: 'SF Mono', monospace;
+            font-weight: 600;
+        }
+
+        /* Spectrum bars */
+        .spectrum-section {
+            margin-bottom: 2rem;
+        }
+
+        .spectrum-section h2 {
+            font-size: 1rem;
+            color: var(--violet-light);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .spectrum-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .spectrum-label {
+            width: 100px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .spectrum-bars {
+            flex: 1;
+            display: flex;
+            gap: 4px;
+            align-items: flex-end;
+            height: 24px;
+        }
+
+        .spectrum-bar {
+            flex: 1;
+            border-radius: 3px 3px 0 0;
+            transition: height 0.3s;
+            position: relative;
+        }
+
+        .spectrum-bar:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            color: var(--gray);
+            font-size: 0.8rem;
+        }
+
+        .footer a {
+            color: var(--violet-light);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .header h1 { font-size: 1.8rem; }
+            .leaderboard-table { font-size: 0.8rem; }
+            .leaderboard-table tbody td,
+            .leaderboard-table thead th { padding: 0.5rem; }
+            .stats-bar { gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <div class="header">
+            <h1>SPECTRA LEADERBOARD</h1>
+            <div class="subtitle">How do popular frameworks compare?</div>
+            <div class="meta">3 repos analyzed &middot; 6 dimensions &middot; 8 AI agents each</div>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value">3</div>
+                <div class="stat-label">Repos Analyzed</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">159</div>
+                <div class="stat-label">Total Findings</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">A-</div>
+                <div class="stat-label">Highest Grade</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">C-</div>
+                <div class="stat-label">Lowest Grade</div>
+            </div>
+        </div>
+
+        <!-- Main leaderboard table -->
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th style="width: 22%">Repository</th>
+                    <th style="width: 10%">Overall</th>
+                    <th>Arch</th>
+                    <th>Security</th>
+                    <th>Quality</th>
+                    <th>Docs</th>
+                    <th>Maint</th>
+                    <th>Perf</th>
+                    <th>Findings</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- #1 Flask -->
+                <tr>
+                    <td>
+                        <div class="repo-name">
+                            <span class="rank rank-1">1</span>
+                            <span>
+                                <span class="repo-link">pallets/flask</span>
+                                <span class="repo-lang">Python</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="overall-cell grade-a">A- <span style="font-size:0.75rem;color:var(--text-muted)">(87)</span></td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">91</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-b">83</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">90</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-b">86</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-a">87</span>
+                        <span class="score-grade grade-a">A-</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-b">83</span>
+                        <span class="score-grade grade-b">B</span>
+                    </td>
+                    <td class="findings-count">59</td>
+                </tr>
+                <!-- #2 Express -->
+                <tr>
+                    <td>
+                        <div class="repo-name">
+                            <span class="rank rank-2">2</span>
+                            <span>
+                                <span class="repo-link">expressjs/express</span>
+                                <span class="repo-lang">JavaScript</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="overall-cell grade-b">B- <span style="font-size:0.75rem;color:var(--text-muted)">(80)</span></td>
+                    <td class="score-cell">
+                        <span class="score-num grade-a">89</span>
+                        <span class="score-grade grade-a">A-</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-d">67</span>
+                        <span class="score-grade grade-d">D+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">87</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-c">68</span>
+                        <span class="score-grade grade-c">C-</span>
+                    </td>
+                    <td class="score-cell best-in-class">
+                        <span class="score-num grade-a">92</span>
+                        <span class="score-grade grade-a">A</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-c">76</span>
+                        <span class="score-grade grade-c">C+</span>
+                    </td>
+                    <td class="findings-count">46</td>
+                </tr>
+                <!-- #3 Spectra -->
+                <tr>
+                    <td>
+                        <div class="repo-name">
+                            <span class="rank rank-3">3</span>
+                            <span>
+                                <span class="repo-link">spectra</span>
+                                <span class="repo-lang">Python</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="overall-cell grade-c">C- <span style="font-size:0.75rem;color:var(--text-muted)">(70)</span></td>
+                    <td class="score-cell">
+                        <span class="score-num grade-b">84</span>
+                        <span class="score-grade grade-b">B+</span>
+                    </td>
+                    <td class="score-cell">
+                        <span class="score-num grade-c">67</span>
+                        <span class="score-grade grade-c">C-</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-d">62</span>
+                        <span class="score-grade grade-d">D</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-d">65</span>
+                        <span class="score-grade grade-d">D+</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-c">68</span>
+                        <span class="score-grade grade-c">C-</span>
+                    </td>
+                    <td class="score-cell worst-in-class">
+                        <span class="score-num grade-d">62</span>
+                        <span class="score-grade grade-d">D</span>
+                    </td>
+                    <td class="findings-count">54</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Dimension Leaders -->
+        <div class="spectrum-section">
+            <h2>Dimension Leaders</h2>
+            <div class="dimension-leaders">
+                <div class="dim-leader-card">
+                    <div class="dim-name">Architecture</div>
+                    <div class="leader-name">Flask</div>
+                    <div class="leader-score grade-a">91 &middot; A</div>
+                </div>
+                <div class="dim-leader-card">
+                    <div class="dim-name">Security</div>
+                    <div class="leader-name">Flask</div>
+                    <div class="leader-score grade-b">83 &middot; B+</div>
+                </div>
+                <div class="dim-leader-card">
+                    <div class="dim-name">Quality</div>
+                    <div class="leader-name">Flask</div>
+                    <div class="leader-score grade-a">90 &middot; A</div>
+                </div>
+                <div class="dim-leader-card">
+                    <div class="dim-name">Documentation</div>
+                    <div class="leader-name">Flask</div>
+                    <div class="leader-score grade-b">86 &middot; B+</div>
+                </div>
+                <div class="dim-leader-card">
+                    <div class="dim-name">Maintainability</div>
+                    <div class="leader-name">Express</div>
+                    <div class="leader-score grade-a">92 &middot; A</div>
+                </div>
+                <div class="dim-leader-card">
+                    <div class="dim-name">Performance</div>
+                    <div class="leader-name">Flask</div>
+                    <div class="leader-score grade-b">83 &middot; B</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spectrum Bars — visual comparison per dimension -->
+        <div class="spectrum-section">
+            <h2>Score Comparison</h2>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Architecture</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(91% * 0.24);background:var(--green)" data-tooltip="Flask: 91 A"></div>
+                    <div class="spectrum-bar" style="height:calc(89% * 0.24);background:var(--cyan)" data-tooltip="Express: 89 A-"></div>
+                    <div class="spectrum-bar" style="height:calc(84% * 0.24);background:var(--cyan)" data-tooltip="Spectra: 84 B+"></div>
+                </div>
+            </div>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Security</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(83% * 0.24);background:var(--cyan)" data-tooltip="Flask: 83 B+"></div>
+                    <div class="spectrum-bar" style="height:calc(67% * 0.24);background:#F97316" data-tooltip="Express: 67 D+"></div>
+                    <div class="spectrum-bar" style="height:calc(67% * 0.24);background:var(--amber)" data-tooltip="Spectra: 67 C-"></div>
+                </div>
+            </div>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Quality</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(90% * 0.24);background:var(--green)" data-tooltip="Flask: 90 A"></div>
+                    <div class="spectrum-bar" style="height:calc(87% * 0.24);background:var(--cyan)" data-tooltip="Express: 87 B+"></div>
+                    <div class="spectrum-bar" style="height:calc(62% * 0.24);background:#F97316" data-tooltip="Spectra: 62 D"></div>
+                </div>
+            </div>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Documentation</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(86% * 0.24);background:var(--cyan)" data-tooltip="Flask: 86 B+"></div>
+                    <div class="spectrum-bar" style="height:calc(68% * 0.24);background:var(--amber)" data-tooltip="Express: 68 C-"></div>
+                    <div class="spectrum-bar" style="height:calc(65% * 0.24);background:#F97316" data-tooltip="Spectra: 65 D+"></div>
+                </div>
+            </div>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Maintainability</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(87% * 0.24);background:var(--green)" data-tooltip="Flask: 87 A-"></div>
+                    <div class="spectrum-bar" style="height:calc(92% * 0.24);background:var(--green)" data-tooltip="Express: 92 A"></div>
+                    <div class="spectrum-bar" style="height:calc(68% * 0.24);background:var(--amber)" data-tooltip="Spectra: 68 C-"></div>
+                </div>
+            </div>
+
+            <div class="spectrum-row">
+                <div class="spectrum-label">Performance</div>
+                <div class="spectrum-bars">
+                    <div class="spectrum-bar" style="height:calc(83% * 0.24);background:var(--cyan)" data-tooltip="Flask: 83 B"></div>
+                    <div class="spectrum-bar" style="height:calc(76% * 0.24);background:var(--amber)" data-tooltip="Express: 76 C+"></div>
+                    <div class="spectrum-bar" style="height:calc(62% * 0.24);background:#F97316" data-tooltip="Spectra: 62 D"></div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:1.5rem;justify-content:center;margin-top:0.75rem;">
+                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
+                    <div style="width:12px;height:12px;border-radius:2px;background:var(--green)"></div> Flask
+                </div>
+                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
+                    <div style="width:12px;height:12px;border-radius:2px;background:var(--cyan)"></div> Express
+                </div>
+                <div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted)">
+                    <div style="width:12px;height:12px;border-radius:2px;background:var(--amber)"></div> Spectra
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Insights -->
+        <div class="spectrum-section">
+            <h2>Key Insights</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;">
+                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);margin-bottom:0.5rem;font-weight:700">Strongest Overall</div>
+                    <div style="font-weight:700;margin-bottom:0.25rem">Flask leads in 5 of 6 dimensions</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">Mature Python framework with strong architecture (91), quality (90), and documentation (86). Only trails Express in maintainability.</div>
+                </div>
+                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--amber);margin-bottom:0.5rem;font-weight:700">Common Weakness</div>
+                    <div style="font-weight:700;margin-bottom:0.25rem">Security is the weakest dimension across all repos</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">Even the top scorer (Flask, 83) has room to improve. Express and Spectra both scored 67 — the lowest individual scores on the board.</div>
+                </div>
+                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--violet-light);margin-bottom:0.5rem;font-weight:700">Biggest Spread</div>
+                    <div style="font-weight:700;margin-bottom:0.25rem">Quality scores range from 62 to 90 (28-point gap)</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">The widest dimension gap. Flask's test coverage and code hygiene far outpace the others. Spectra's D grade here is the most actionable fix.</div>
+                </div>
+                <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+                    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--cyan);margin-bottom:0.5rem;font-weight:700">Hidden Champion</div>
+                    <div style="font-weight:700;margin-bottom:0.25rem">Express leads in Maintainability with 92 (A)</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted)">Despite a lower overall grade, Express has the single highest dimension score on the board — a testament to its mature dependency management.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Generated by <strong>Spectra</strong> &mdash; 8 AI agents analyze your entire repository in 90 seconds</p>
+            <p style="margin-top:0.3rem">Scores from Claude Opus 4.6 analysis &middot; Temperature 0.0 for reproducibility</p>
+        </div>
+
+    </div>
+</body>
+</html>

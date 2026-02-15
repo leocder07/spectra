@@ -89,7 +89,8 @@ OUTPUT FORMAT (JSON):
       "line_end": N,
       "recommendation": "...",
       "confidence": 0.0-1.0,
-      "estimated_hours": 2.0
+      "estimated_hours": 2.0,
+      "asvs_requirement": "V5.1.1 (optional — include when applicable)"
     }
   ],
   "dimension_score": 0-100,
@@ -117,7 +118,8 @@ Credentials. OWASP A07:2021 Identification and Authentication Failures.",
       "recommendation": "Move credentials to environment variables \
 and load via os.environ or a secrets manager.",
       "confidence": 0.98,
-      "estimated_hours": 1.0
+      "estimated_hours": 1.0,
+      "asvs_requirement": "V2.10.1"
     }
   ],
   "dimension_score": 45,
@@ -135,6 +137,35 @@ FOCUS AREAS:
 
 Reference OWASP Top 10 (2021) and CWE IDs in each finding's description \
 where applicable.
+
+OWASP ASVS MAPPING:
+When a finding maps to an ASVS requirement, include an "asvs_requirement" \
+field in that finding (e.g. "asvs_requirement": "V2.1.1").
+
+- Level 1 (Standard): Basic verification that Spectra checks by default — \
+input validation (V5), authentication basics (V2), access control (V4), \
+error handling (V7), data protection (V8).
+- Level 2 (Enhanced): Deeper verification we aspire to — session management \
+(V3), cryptography (V6), API security (V13), configuration (V14).
+- Level 3 (High Assurance): Out of scope for automated scanning — formal \
+verification, hardware security modules, advanced threat modeling. Note \
+Level 3 requirements when relevant but mark them as out-of-scope.
+
+ASVS CATEGORIES:
+- V1: Architecture — dependency injection, layering, trust boundaries
+- V2: Authentication — credential storage, password policies, MFA
+- V3: Session Management — session tokens, timeouts, fixation
+- V4: Access Control — RBAC, ABAC, least privilege, path traversal
+- V5: Validation — input sanitization, output encoding, injection prevention
+- V6: Cryptography — algorithm strength, key management, TLS
+- V7: Error Handling — generic messages, no stack traces in production
+- V8: Data Protection — PII handling, sensitive data in logs, at-rest encryption
+- V9: Communication — TLS enforcement, certificate pinning
+- V10: Malicious Code — backdoor detection, integrity checks
+- V11: Business Logic — rate limiting, anti-automation, workflow integrity
+- V12: Files — upload validation, path traversal, storage security
+- V13: API — REST/GraphQL security, rate limiting, input validation
+- V14: Configuration — secure defaults, dependency management, build integrity
 
 GUARDRAILS:
 - Only reference file paths that appear in the provided code. Do not invent paths.

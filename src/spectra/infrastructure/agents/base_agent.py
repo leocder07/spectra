@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from abc import ABC, abstractmethod
 
@@ -10,6 +11,8 @@ from spectra.entities.enums import AgentRole
 from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
 from spectra.entities.models import AgentOutput, Finding
 from spectra.use_cases.interfaces import LLMGateway
+
+_log = logging.getLogger("spectra.parse")
 
 
 class BaseAgent(ABC):
@@ -62,29 +65,18 @@ class BaseAgent(ABC):
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:
-        import logging
-        _log = logging.getLogger("spectra.parse")
+        """Parse JSON from raw LLM output, with fallback extraction."""
         cleaned = strip_code_fence(raw)
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError as e:
-            _log.debug(
-                "JSON parse failed for %s: %s | First 300 chars: %s",
-                self._role, e, cleaned[:300]
-            )
-        # Fallback: try to find JSON object in the text
-        for start in range(len(cleaned)):
-            if cleaned[start] == "{":
-                for end in range(len(cleaned) - 1, start, -1):
-                    if cleaned[end] == "}":
-                        try:
-                            return json.loads(cleaned[start : end + 1])
-                        except json.JSONDecodeError:
-                            break
-                break
+            _log.debug("JSON parse failed for %s: %s", self._role, e)
+        result = _extract_json_object(cleaned)
+        if result is not None:
+            return result
         _log.warning(
-            "All JSON extraction failed for %s. Raw length: %d, Cleaned length: %d, First 200: %s",
-            self._role, len(raw), len(cleaned), cleaned[:200]
+            "All JSON extraction failed for %s (raw=%d, cleaned=%d)",
+            self._role, len(raw), len(cleaned),
         )
         raise AgentError(ERRORS["SPEC-005"])
 
@@ -117,7 +109,7 @@ class BaseAgent(ABC):
         tokens_used: int = 0,
         dimension_score: float | None = None,
     ) -> AgentOutput:
-        # Use actual API tokens when available, else rough approximation
+        """Build an AgentOutput from a completed LLM call."""
         final_tokens = tokens_used if tokens_used > 0 else max(
             len(raw_response) // 4, 1
         )
@@ -129,3 +121,19 @@ class BaseAgent(ABC):
             raw_response=raw_response,
             dimension_score=dimension_score,
         )
+
+
+def _extract_json_object(
+    text: str,
+) -> dict[str, list[dict[str, str | int | float]]] | None:
+    """Fallback: find the outermost JSON object in text."""
+    start = text.find("{")
+    if start == -1:
+        return None
+    end = text.rfind("}")
+    if end <= start:
+        return None
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
