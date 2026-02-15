@@ -47,7 +47,7 @@
             /* Text */
             --text:           #ededed;
             --text-secondary: #a1a1aa;
-            --text-tertiary:  #52525b;
+            --text-tertiary:  #71717a;
 
             /* Borders */
             --border:         rgba(255, 255, 255, 0.07);
@@ -1514,7 +1514,7 @@
             content: '';
             position: fixed;
             inset: 0;
-            z-index: 9999;
+            z-index: 1;
             pointer-events: none;
             background: repeating-linear-gradient(
                 0deg,
@@ -2038,6 +2038,21 @@
         }
 
         /* ═══════════════════════════════════════════════════════
+           REDUCED MOTION — Accessibility for vestibular disorders
+           ═══════════════════════════════════════════════════════ */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            .matrix-rain { display: none !important; }
+            body::after { display: none !important; }
+            .scroll-reveal { opacity: 1 !important; transform: none !important; }
+            .dim-bar-fill { animation: none !important; }
+        }
+
+        /* ═══════════════════════════════════════════════════════
            PRINT STYLESHEET — Clean, Ink-Friendly Output
            ═══════════════════════════════════════════════════════ */
         @media print {
@@ -2472,7 +2487,8 @@
                  data-dimension="{{ dimension }}"
                  data-title="{{ finding.title }}"
                  data-location="{{ finding.location.file_path }}"
-                 onclick="this.classList.toggle('expanded')">
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
                     <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
                     <span class="finding-title">{{ finding.title }}</span>
@@ -3140,6 +3156,15 @@
                 } else {
                     filterCountEl.textContent = '';
                 }
+            }
+
+            /* Reset keyboard nav index on filter change */
+            kbIndex = -1;
+
+            /* Reset expand/collapse state for consistency */
+            if (typeof allExpanded !== 'undefined' && allExpanded) {
+                allExpanded = false;
+                if (btnExpandAll) btnExpandAll.textContent = 'Expand All';
             }
         }
 
