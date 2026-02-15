@@ -93,3 +93,52 @@ class TestRetryDecorator:
         inner = AsyncMock(spec=[])  # no last_usage attribute
         retry = RetryDecorator(inner)
         assert retry.last_usage == (0, 0)
+
+    @pytest.mark.asyncio
+    async def test_analyze_with_thinking_retries(self, mock_gateway: AsyncMock):
+        mock_gateway.analyze_with_thinking.side_effect = [
+            SpectraRetryError(ERRORS["SPEC-002"]),
+            SpectraRetryError(ERRORS["SPEC-003"]),
+            "ok-thinking",
+        ]
+        retry = RetryDecorator(mock_gateway, max_retries=3, backoff_base=0.01)
+        result = await retry.analyze_with_thinking("sys", "user", "model", 1000)
+        assert result == "ok-thinking"
+        assert mock_gateway.analyze_with_thinking.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_zero_retries_fails_immediately(self, mock_gateway: AsyncMock):
+        mock_gateway.analyze.side_effect = SpectraRetryError(ERRORS["SPEC-002"])
+        retry = RetryDecorator(mock_gateway, max_retries=0, backoff_base=0.01)
+        with pytest.raises(SpectraRetryError):
+            await retry.analyze("sys", "user", "model", 1000)
+        mock_gateway.analyze.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_success_on_last_retry(self, mock_gateway: AsyncMock):
+        mock_gateway.analyze.side_effect = [
+            SpectraRetryError(ERRORS["SPEC-002"]),
+            SpectraRetryError(ERRORS["SPEC-003"]),
+            SpectraRetryError(ERRORS["SPEC-002"]),
+            "ok",
+        ]
+        retry = RetryDecorator(mock_gateway, max_retries=3, backoff_base=0.01)
+        result = await retry.analyze("sys", "user", "model", 1000)
+        assert result == "ok"
+        assert mock_gateway.analyze.call_count == 4
+
+    def test_default_max_retries(self, mock_gateway: AsyncMock):
+        retry = RetryDecorator(mock_gateway)
+        assert retry._max_retries == 3
+
+    def test_default_backoff_base(self, mock_gateway: AsyncMock):
+        retry = RetryDecorator(mock_gateway)
+        assert retry._backoff_base == 1.0
+
+    def test_custom_max_retries(self, mock_gateway: AsyncMock):
+        retry = RetryDecorator(mock_gateway, max_retries=5)
+        assert retry._max_retries == 5
+
+    def test_custom_backoff_base(self, mock_gateway: AsyncMock):
+        retry = RetryDecorator(mock_gateway, backoff_base=2.0)
+        assert retry._backoff_base == 2.0

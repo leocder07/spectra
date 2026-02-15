@@ -1,4 +1,9 @@
-"""Error taxonomy for fallible operations."""
+"""Error taxonomy for fallible operations.
+
+Defines the ``SpectraError`` hierarchy and the canonical error registry
+(SPEC-001 through SPEC-009).  Each error carries retry metadata so the
+``RetryDecorator`` can decide whether to back-off or abort.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +13,14 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SpectraError:
-    """Immutable error with retry metadata."""
+    """Immutable error descriptor with retry metadata.
+
+    Attributes:
+        code: Unique error code (e.g. ``SPEC-001``).
+        message: Human-readable description.
+        retryable: Whether the operation can be retried.
+        max_retries: Maximum retry attempts (0 = no retry).
+    """
 
     code: str
     message: str
@@ -40,7 +52,11 @@ ERRORS: dict[str, SpectraError] = {
 
 
 class AgentError(Exception):
-    """Raised when an agent operation fails with a domain error."""
+    """Raised when an agent operation fails with a domain error.
+
+    Attributes:
+        error: The underlying ``SpectraError`` with code and retry info.
+    """
 
     def __init__(self, error: SpectraError) -> None:
         self.error = error
@@ -48,7 +64,11 @@ class AgentError(Exception):
 
 
 class GitError(Exception):
-    """Raised when a git operation fails with a domain error."""
+    """Raised when a git operation fails with a domain error.
+
+    Attributes:
+        error: The underlying ``SpectraError`` with code and retry info.
+    """
 
     def __init__(self, error: SpectraError) -> None:
         self.error = error
@@ -56,18 +76,37 @@ class GitError(Exception):
 
 
 class SpectraRetryError(Exception):
-    """Raised when all retry attempts are exhausted for a SpectraError."""
+    """Raised when a retryable operation fails and should be retried.
+
+    The ``RetryDecorator`` catches this to apply exponential back-off.
+
+    Attributes:
+        error: The underlying ``SpectraError`` with code and retry info.
+    """
 
     def __init__(self, error: SpectraError) -> None:
         self.error = error
         super().__init__(f"{error.code}: {error.message}")
 
 
+# Matches ```json ... ``` fenced blocks in LLM output
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.DOTALL)
 
 
 def strip_code_fence(raw: str) -> str:
-    """Extract JSON from LLM output, handling code fences and surrounding text."""
+    """Extract JSON from LLM output, handling code fences and text.
+
+    Tries three strategies in order:
+    1. Extract content from ````` ```json ... ``` ````` blocks.
+    2. Strip wrapping code fences from the entire output.
+    3. Locate the outermost ``{`` … ``}`` pair in free text.
+
+    Args:
+        raw: Raw LLM response that may contain markdown fences.
+
+    Returns:
+        Cleaned string likely containing valid JSON.
+    """
     cleaned = raw.strip()
     # Case 1: extract content from ```json ... ``` blocks
     json_blocks = _JSON_BLOCK_RE.findall(cleaned)

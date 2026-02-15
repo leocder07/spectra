@@ -1,10 +1,31 @@
-"""Logging decorator — records model, tokens, duration, cost per LLM call."""
+"""Logging decorator — records model, tokens, duration, cost per LLM call.
+
+Security: prompt/response content truncated to _MAX_LOG_CHARS and
+API key patterns (sk-ant-*) are redacted before logging.
+"""
 
 from __future__ import annotations
 
+import re
 import time
 
 from spectra.use_cases.interfaces import LLMGateway, ProgressObserver
+
+_MAX_LOG_CHARS = 500
+_SECRET_RE = re.compile(
+    r"sk-ant-[A-Za-z0-9_-]+"  # Anthropic API keys
+    r"|sk-[A-Za-z0-9]{20,}"  # OpenAI-style keys
+    r"|ghp_[A-Za-z0-9]{36}"  # GitHub personal access tokens
+    r"|github_pat_[A-Za-z0-9_]+"  # GitHub fine-grained tokens
+)
+
+
+def _sanitize(text: str) -> str:
+    """Truncate and redact secrets from text before logging."""
+    redacted = _SECRET_RE.sub("[REDACTED]", text)
+    if len(redacted) > _MAX_LOG_CHARS:
+        return redacted[:_MAX_LOG_CHARS] + "...[truncated]"
+    return redacted
 
 
 class LoggingDecorator:
@@ -59,5 +80,5 @@ class LoggingDecorator:
         total_tokens = inp + out
         self._observer.on_stage_complete(
             stage="llm_call",
-            message=f"{model} | {duration:.1f}s | {total_tokens} tokens",
+            message=_sanitize(f"{model} | {duration:.1f}s | {total_tokens} tokens"),
         )

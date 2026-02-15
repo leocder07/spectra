@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -826,6 +827,7 @@ class ReportAdapter:
         template = self._env.get_template("report.html.j2")
         has_mermaid = any("```mermaid" in f.description for f in report.findings)
         dd_frameworks = self._build_dd_frameworks(report)
+        csp_nonce = secrets.token_urlsafe(32)
         html = template.render(
             report=report,
             summary=_build_executive_summary(report),
@@ -841,6 +843,7 @@ class ReportAdapter:
             investment_readiness=dd_frameworks["investment_readiness"],
             badge_svg=self.render_badge(report),
             has_mermaid=has_mermaid,
+            csp_nonce=csp_nonce,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         )
         Path(output_path).write_text(html, encoding="utf-8")

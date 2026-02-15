@@ -19,11 +19,32 @@ from spectra.infrastructure.report_adapter import (
     _bar_class,
     _build_executive_summary,
     _build_spectrum_segments,
+    _bus_factor_rating,
+    _complexity_component_score,
+    _complexity_indicators,
+    _complexity_risk_level,
+    _compute_bus_factor,
+    _compute_file_concentration,
     _critical_count,
+    _critical_findings_score,
     _dd_compliance_mapping,
+    _dep_risk_rating,
+    _dep_severity_penalty,
+    _dependency_risk_score,
+    _detect_copyleft_risk,
     _dimension_hours,
+    _gini_coefficient,
     _grade_class,
+    _investment_readiness_score,
+    _ir_rating,
+    _license_compliance,
+    _license_component_score,
+    _matches_soc2_criterion,
+    _safe_avg,
+    _safe_pct,
+    _security_posture_score,
     _severity_distribution,
+    _soc2_mapping,
     _sort_by_severity,
     _tech_debt_summary,
     _top_findings,
@@ -742,3 +763,1008 @@ class TestBuildVerdictReport:
         )
         verdict = build_verdict(report)
         assert "F" in verdict
+
+
+# ── SOC 2 Mapping ────────────────────────────────────────────
+
+
+class TestSoc2Mapping:
+    def test_empty_findings(self):
+        result = _soc2_mapping(())
+        assert result["total_mapped"] == 0
+        assert result["coverage_pct"] == 0.0
+        assert len(result["criteria"]) == 5
+
+    def test_criteria_have_correct_keys(self):
+        result = _soc2_mapping(())
+        for c in result["criteria"]:
+            assert "key" in c
+            assert "label" in c
+            assert "finding_count" in c
+            assert "severity_counts" in c
+            assert "has_critical" in c
+
+    def test_security_finding_maps_to_security_criterion(self):
+        finding = _make_finding(
+            dim="security",
+            desc="authentication vulnerability in access control",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        security = [c for c in result["criteria"] if c["key"] == "security"]
+        assert len(security) == 1
+        assert security[0]["finding_count"] >= 1
+
+    def test_no_critical_when_only_low_severity(self):
+        finding = _make_finding(
+            dim="security",
+            sev="low",
+            desc="minor access control concern",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        for c in result["criteria"]:
+            assert c["has_critical"] is False
+
+    def test_has_critical_when_critical_finding(self):
+        finding = _make_finding(
+            dim="security",
+            sev="critical",
+            desc="authentication bypass vulnerability",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        security = [c for c in result["criteria"] if c["key"] == "security"]
+        assert security[0]["has_critical"] is True
+
+    def test_multiple_criteria_covered(self):
+        findings = (
+            _make_finding(dim="security", desc="encryption vulnerability", line=1),
+            _make_finding(dim="quality", desc="validation integrity check missing", line=2),
+            _make_finding(dim="performance", desc="uptime redundancy concern", line=3),
+        )
+        result = _soc2_mapping(findings)
+        covered = [c for c in result["criteria"] if c["finding_count"] > 0]
+        assert len(covered) >= 2
+
+    def test_coverage_pct_calculated_correctly(self):
+        finding = _make_finding(
+            dim="security",
+            desc="authentication vulnerability",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        assert result["coverage_pct"] >= 0.0
+        assert result["coverage_pct"] <= 100.0
+
+    def test_all_five_criteria_present(self):
+        result = _soc2_mapping(())
+        keys = {c["key"] for c in result["criteria"]}
+        assert keys == {"security", "availability", "processing_integrity", "confidentiality", "privacy"}
+
+    def test_confidentiality_maps_credential_finding(self):
+        finding = _make_finding(
+            dim="security",
+            desc="hardcoded credential api key exposed",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        conf = [c for c in result["criteria"] if c["key"] == "confidentiality"]
+        assert conf[0]["finding_count"] >= 1
+
+    def test_privacy_maps_gdpr_finding(self):
+        finding = _make_finding(
+            dim="security",
+            desc="gdpr privacy concern personal data exposure",
+            line=1,
+        )
+        result = _soc2_mapping((finding,))
+        priv = [c for c in result["criteria"] if c["key"] == "privacy"]
+        assert priv[0]["finding_count"] >= 1
+
+
+# ── matches_soc2_criterion ────────────────────────────────────
+
+
+class TestMatchesSoc2Criterion:
+    def test_matches_when_dimension_and_keyword_match(self):
+        finding = _make_finding(dim="security", desc="access control issue", line=1)
+        criterion = {
+            "dimensions": ("security",),
+            "keywords": ("access control",),
+        }
+        assert _matches_soc2_criterion(finding, criterion) is True
+
+    def test_no_match_when_dimension_wrong(self):
+        finding = _make_finding(dim="quality", desc="access control issue", line=1)
+        criterion = {
+            "dimensions": ("security",),
+            "keywords": ("access control",),
+        }
+        assert _matches_soc2_criterion(finding, criterion) is False
+
+    def test_no_match_when_keyword_absent(self):
+        finding = _make_finding(dim="security", desc="something else entirely", line=1)
+        criterion = {
+            "dimensions": ("security",),
+            "keywords": ("access control",),
+        }
+        assert _matches_soc2_criterion(finding, criterion) is False
+
+    def test_matches_keyword_in_title(self):
+        finding = Finding(
+            id="F-test-1",
+            dimension="security",
+            severity="high",
+            title="authentication bypass vulnerability",
+            description="unrelated text",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.8,
+            estimated_hours=0.0,
+        )
+        criterion = {
+            "dimensions": ("security",),
+            "keywords": ("authentication",),
+        }
+        assert _matches_soc2_criterion(finding, criterion) is True
+
+
+# ── Bus Factor ────────────────────────────────────────────────
+
+
+class TestComputeBusFactor:
+    def test_empty_findings(self):
+        result = _compute_bus_factor(())
+        assert result["score"] == 100
+        assert result["rating"] == "healthy"
+        assert result["hotspots"] == []
+
+    def test_single_finding(self):
+        finding = _make_finding(line=1)
+        result = _compute_bus_factor((finding,))
+        assert "score" in result
+        assert "rating" in result
+        assert "hotspots" in result
+
+    def test_findings_in_one_file_scores_lower(self):
+        findings = tuple(_make_finding(line=i) for i in range(10))
+        result = _compute_bus_factor(findings)
+        # All in one file = concentrated = lower score
+        assert result["score"] <= 100
+
+    def test_distributed_findings_score_higher(self):
+        findings = tuple(
+            Finding(
+                id=f"F-{i}",
+                dimension="security",
+                severity="high",
+                title="test",
+                description="test",
+                location=FileLocation(file_path=f"src/file{i}.py", line_start=1),
+                recommendation="Fix",
+                agent_role="security",
+                confidence=0.8,
+                estimated_hours=0.0,
+            )
+            for i in range(10)
+        )
+        result = _compute_bus_factor(findings)
+        # Evenly distributed should have high score
+        assert result["score"] >= 80
+
+    def test_has_concentration_key(self):
+        finding = _make_finding(line=1)
+        result = _compute_bus_factor((finding,))
+        assert "concentration" in result
+
+    def test_has_unique_files_key(self):
+        findings = (
+            _make_finding(line=1),
+            _make_finding(line=2),
+        )
+        result = _compute_bus_factor(findings)
+        assert result["unique_files"] == 1  # all in src/main.py
+
+    def test_hotspots_limited_to_ten(self):
+        findings = tuple(
+            Finding(
+                id=f"F-{i}",
+                dimension="security",
+                severity="high",
+                title="test",
+                description="test",
+                location=FileLocation(file_path=f"src/file{i}.py", line_start=1),
+                recommendation="Fix",
+                agent_role="security",
+                confidence=0.8,
+                estimated_hours=0.0,
+            )
+            for i in range(20)
+        )
+        result = _compute_bus_factor(findings)
+        assert len(result["hotspots"]) <= 10
+
+
+# ── Gini Coefficient ─────────────────────────────────────────
+
+
+class TestGiniCoefficient:
+    def test_empty_list(self):
+        assert _gini_coefficient([]) == 0.0
+
+    def test_all_zeros(self):
+        assert _gini_coefficient([0, 0, 0]) == 0.0
+
+    def test_equal_distribution(self):
+        result = _gini_coefficient([5, 5, 5, 5])
+        assert abs(result) < 0.01
+
+    def test_maximum_inequality(self):
+        result = _gini_coefficient([0, 0, 0, 100])
+        assert result > 0.5
+
+    def test_single_value(self):
+        result = _gini_coefficient([10])
+        assert abs(result) < 0.01
+
+    def test_two_equal_values(self):
+        result = _gini_coefficient([5, 5])
+        assert abs(result) < 0.01
+
+    def test_two_unequal_values(self):
+        result = _gini_coefficient([1, 99])
+        assert result > 0.3
+
+    def test_returns_float(self):
+        result = _gini_coefficient([1, 2, 3])
+        assert isinstance(result, float)
+
+
+# ── Bus Factor Rating ────────────────────────────────────────
+
+
+class TestBusFactorRating:
+    def test_healthy(self):
+        assert _bus_factor_rating(0.1) == "healthy"
+        assert _bus_factor_rating(0.29) == "healthy"
+
+    def test_moderate(self):
+        assert _bus_factor_rating(0.3) == "moderate"
+        assert _bus_factor_rating(0.49) == "moderate"
+
+    def test_concerning(self):
+        assert _bus_factor_rating(0.5) == "concerning"
+        assert _bus_factor_rating(0.69) == "concerning"
+
+    def test_critical(self):
+        assert _bus_factor_rating(0.7) == "critical"
+        assert _bus_factor_rating(1.0) == "critical"
+
+    def test_zero(self):
+        assert _bus_factor_rating(0.0) == "healthy"
+
+
+# ── File Concentration ────────────────────────────────────────
+
+
+class TestComputeFileConcentration:
+    def test_empty_findings(self):
+        result = _compute_file_concentration(())
+        assert result == []
+
+    def test_single_file(self):
+        findings = tuple(_make_finding(line=i) for i in range(3))
+        result = _compute_file_concentration(findings)
+        assert len(result) == 1
+        assert result[0]["file"] == "src/main.py"
+        assert result[0]["count"] == 3
+
+    def test_multiple_files_sorted(self):
+        findings = tuple(
+            Finding(
+                id=f"F-{i}",
+                dimension="security",
+                severity="high",
+                title="test",
+                description="test",
+                location=FileLocation(
+                    file_path=f"src/file{'a' if i < 5 else 'b'}.py",
+                    line_start=i,
+                ),
+                recommendation="Fix",
+                agent_role="security",
+                confidence=0.8,
+                estimated_hours=0.0,
+            )
+            for i in range(8)
+        )
+        result = _compute_file_concentration(findings)
+        # file_a has 5, file_b has 3, so file_a should be first
+        assert result[0]["count"] >= result[-1]["count"]
+
+    def test_max_ten_hotspots(self):
+        findings = tuple(
+            Finding(
+                id=f"F-{i}",
+                dimension="security",
+                severity="high",
+                title="test",
+                description="test",
+                location=FileLocation(file_path=f"src/f{i}.py", line_start=1),
+                recommendation="Fix",
+                agent_role="security",
+                confidence=0.8,
+                estimated_hours=0.0,
+            )
+            for i in range(15)
+        )
+        result = _compute_file_concentration(findings)
+        assert len(result) <= 10
+
+
+# ── License Compliance ────────────────────────────────────────
+
+
+class TestLicenseCompliance:
+    def test_empty_findings(self):
+        result = _license_compliance(())
+        assert result["total_mentions"] == 0
+        assert result["unique_licenses"] == 0
+        assert result["copyleft_risk"]["has_copyleft"] is False
+
+    def test_detects_mit_license(self):
+        finding = _make_finding(desc="Uses MIT licensed dependency", line=1)
+        result = _license_compliance((finding,))
+        assert result["total_mentions"] >= 1
+        assert "MIT" in result["licenses_found"]
+
+    def test_detects_apache_license(self):
+        finding = _make_finding(desc="Apache-2.0 library detected", line=1)
+        result = _license_compliance((finding,))
+        assert result["total_mentions"] >= 1
+
+    def test_detects_gpl_copyleft(self):
+        finding = _make_finding(desc="GPL-3 licensed dependency", line=1)
+        result = _license_compliance((finding,))
+        assert result["copyleft_risk"]["has_copyleft"] is True
+        assert result["copyleft_risk"]["risk_level"] == "high"
+
+    def test_detects_agpl_copyleft(self):
+        finding = _make_finding(desc="AGPL-3 licensed code", line=1)
+        result = _license_compliance((finding,))
+        assert result["copyleft_risk"]["has_copyleft"] is True
+
+    def test_no_copyleft_with_permissive_licenses(self):
+        finding = _make_finding(desc="MIT and BSD-2 licenses", line=1)
+        result = _license_compliance((finding,))
+        assert result["copyleft_risk"]["has_copyleft"] is False
+        assert result["copyleft_risk"]["risk_level"] == "none"
+
+    def test_flagged_findings_limited_to_20(self):
+        findings = tuple(_make_finding(desc=f"MIT license #{i}", line=i) for i in range(30))
+        result = _license_compliance(findings)
+        assert len(result["flagged"]) <= 20
+
+    def test_flagged_finding_has_correct_keys(self):
+        finding = _make_finding(desc="MIT license here", line=1)
+        result = _license_compliance((finding,))
+        if result["flagged"]:
+            f = result["flagged"][0]
+            assert "license" in f
+            assert "finding_id" in f
+            assert "title" in f
+            assert "severity" in f
+
+    def test_multiple_licenses_in_one_finding(self):
+        finding = _make_finding(desc="Both MIT and Apache-2.0 detected", line=1)
+        result = _license_compliance((finding,))
+        assert result["unique_licenses"] >= 2
+
+    def test_license_in_recommendation(self):
+        finding = _make_finding(desc="some issue", rec="Switch to MIT license", line=1)
+        result = _license_compliance((finding,))
+        assert result["total_mentions"] >= 1
+
+    def test_license_in_title(self):
+        finding = Finding(
+            id="F-lic-1",
+            dimension="security",
+            severity="high",
+            title="GPL-3 dependency found",
+            description="unrelated",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Review",
+            agent_role="security",
+            confidence=0.8,
+            estimated_hours=0.0,
+        )
+        result = _license_compliance((finding,))
+        assert result["total_mentions"] >= 1
+
+
+# ── Detect Copyleft Risk ──────────────────────────────────────
+
+
+class TestDetectCopyleftRisk:
+    def test_no_licenses(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter())
+        assert result["has_copyleft"] is False
+        assert result["risk_level"] == "none"
+
+    def test_permissive_only(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter({"MIT": 3, "APACHE-2.0": 1}))
+        assert result["has_copyleft"] is False
+
+    def test_gpl_detected(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter({"GPL-3": 1}))
+        assert result["has_copyleft"] is True
+        assert "GPL-3" in result["copyleft_licenses"]
+
+    def test_lgpl_detected(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter({"LGPL-2.1": 1}))
+        assert result["has_copyleft"] is True
+
+    def test_agpl_detected(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter({"AGPL-3": 1}))
+        assert result["has_copyleft"] is True
+
+    def test_mixed_licenses(self):
+        from collections import Counter
+
+        result = _detect_copyleft_risk(Counter({"MIT": 5, "GPL-3": 1, "BSD-2": 2}))
+        assert result["has_copyleft"] is True
+        assert result["risk_level"] == "high"
+
+
+# ── Complexity Indicators ─────────────────────────────────────
+
+
+class TestComplexityIndicators:
+    def test_empty_findings(self):
+        result = _complexity_indicators(())
+        assert result["max_complexity"] == 0
+        assert result["avg_complexity"] == 0.0
+        assert result["high_complexity_count"] == 0
+        assert result["risk_level"] == "unknown"
+
+    def test_extracts_numeric_complexity(self):
+        finding = _make_finding(
+            desc="cyclomatic complexity: 25",
+            line=1,
+        )
+        result = _complexity_indicators((finding,))
+        assert 25 in result["mentioned_scores"]
+        assert result["max_complexity"] == 25
+
+    def test_extracts_cognitive_complexity(self):
+        finding = _make_finding(desc="cognitive complexity 15", line=1)
+        result = _complexity_indicators((finding,))
+        assert 15 in result["mentioned_scores"]
+
+    def test_detects_high_complexity_flag(self):
+        finding = _make_finding(desc="high cyclomatic complexity detected", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["high_complexity_count"] >= 1
+
+    def test_detects_excessive_complexity(self):
+        finding = _make_finding(desc="excessive complexity in module", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["high_complexity_count"] >= 1
+
+    def test_risk_level_low(self):
+        finding = _make_finding(desc="cyclomatic complexity: 5", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["risk_level"] == "low"
+
+    def test_risk_level_moderate(self):
+        finding = _make_finding(desc="cyclomatic complexity: 15", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["risk_level"] == "moderate"
+
+    def test_risk_level_high(self):
+        finding = _make_finding(desc="cyclomatic complexity: 25", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["risk_level"] == "high"
+
+    def test_risk_level_critical(self):
+        finding = _make_finding(desc="cyclomatic complexity: 35", line=1)
+        result = _complexity_indicators((finding,))
+        assert result["risk_level"] == "critical"
+
+    def test_mentioned_scores_sorted_descending(self):
+        findings = (
+            _make_finding(desc="cyclomatic complexity: 5", line=1),
+            _make_finding(desc="cyclomatic complexity: 25", line=2),
+            _make_finding(desc="cyclomatic complexity: 15", line=3),
+        )
+        result = _complexity_indicators(findings)
+        assert result["mentioned_scores"] == sorted(result["mentioned_scores"], reverse=True)
+
+    def test_mentioned_scores_capped_at_20(self):
+        findings = tuple(_make_finding(desc=f"cyclomatic complexity: {i}", line=i) for i in range(1, 30))
+        result = _complexity_indicators(findings)
+        assert len(result["mentioned_scores"]) <= 20
+
+    def test_high_complexity_files_capped_at_10(self):
+        findings = tuple(_make_finding(desc="high complexity detected", line=i) for i in range(15))
+        result = _complexity_indicators(findings)
+        assert len(result["high_complexity_files"]) <= 10
+
+    def test_avg_complexity_computed(self):
+        findings = (
+            _make_finding(desc="cyclomatic complexity: 10", line=1),
+            _make_finding(desc="cyclomatic complexity: 20", line=2),
+        )
+        result = _complexity_indicators(findings)
+        assert result["avg_complexity"] == 15.0
+
+
+# ── Complexity Risk Level ─────────────────────────────────────
+
+
+class TestComplexityRiskLevel:
+    def test_empty(self):
+        assert _complexity_risk_level([]) == "unknown"
+
+    def test_low(self):
+        assert _complexity_risk_level([5, 8]) == "low"
+
+    def test_moderate(self):
+        assert _complexity_risk_level([15]) == "moderate"
+
+    def test_high(self):
+        assert _complexity_risk_level([25]) == "high"
+
+    def test_critical(self):
+        assert _complexity_risk_level([35]) == "critical"
+
+    def test_uses_max_value(self):
+        assert _complexity_risk_level([5, 35]) == "critical"
+
+
+# ── Safe Avg ──────────────────────────────────────────────────
+
+
+class TestSafeAvg:
+    def test_empty(self):
+        assert _safe_avg([]) == 0.0
+
+    def test_single(self):
+        assert _safe_avg([10]) == 10.0
+
+    def test_multiple(self):
+        assert _safe_avg([10, 20, 30]) == 20.0
+
+    def test_rounds_to_one_decimal(self):
+        result = _safe_avg([1, 2])
+        assert result == 1.5
+
+
+# ── Safe Pct ──────────────────────────────────────────────────
+
+
+class TestSafePct:
+    def test_zero_denominator(self):
+        assert _safe_pct(5, 0) == 0.0
+
+    def test_normal(self):
+        assert _safe_pct(50, 100) == 50.0
+
+    def test_all(self):
+        assert _safe_pct(100, 100) == 100.0
+
+    def test_none(self):
+        assert _safe_pct(0, 100) == 0.0
+
+    def test_rounds_to_one_decimal(self):
+        result = _safe_pct(1, 3)
+        assert result == 33.3
+
+
+# ── Dependency Risk Score ─────────────────────────────────────
+
+
+class TestDependencyRiskScore:
+    def test_empty_findings(self):
+        result = _dependency_risk_score(())
+        assert result["score"] == 0
+        assert result["rating"] == "low"
+        assert result["total_dep_findings"] == 0
+
+    def test_maintainability_findings_used(self):
+        finding = _make_finding(
+            dim="maintainability",
+            desc="outdated deprecated dependency",
+            line=1,
+        )
+        result = _dependency_risk_score((finding,))
+        assert result["total_dep_findings"] == 1
+        assert result["score"] > 0
+
+    def test_keyword_outdated_adds_points(self):
+        finding = _make_finding(dim="maintainability", desc="outdated package", line=1)
+        result = _dependency_risk_score((finding,))
+        assert result["score"] >= 15
+
+    def test_keyword_vulnerable_adds_points(self):
+        finding = _make_finding(dim="maintainability", desc="vulnerable dependency", line=1)
+        result = _dependency_risk_score((finding,))
+        assert result["score"] >= 25
+
+    def test_severity_penalty_for_critical(self):
+        finding = _make_finding(dim="maintainability", sev="critical", desc="outdated", line=1)
+        result = _dependency_risk_score((finding,))
+        assert result["severity_penalty"] >= 20
+
+    def test_score_capped_at_100(self):
+        findings = tuple(
+            _make_finding(
+                dim="maintainability",
+                sev="critical",
+                desc="outdated vulnerable deprecated end of life unmaintained cve",
+                line=i,
+            )
+            for i in range(10)
+        )
+        result = _dependency_risk_score(findings)
+        assert result["score"] <= 100
+
+    def test_risk_signals_limited(self):
+        findings = tuple(_make_finding(dim="maintainability", desc="outdated deprecated", line=i) for i in range(20))
+        result = _dependency_risk_score(findings)
+        assert len(result["risk_signals"]) <= 15
+
+    def test_fallback_to_agent_role_dependency(self):
+        finding = Finding(
+            id="F-dep-1",
+            dimension="quality",  # Not maintainability
+            severity="high",
+            title="test",
+            description="outdated lib",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="update",
+            agent_role="dependency",  # But agent_role is dependency
+            confidence=0.8,
+            estimated_hours=0.0,
+        )
+        result = _dependency_risk_score((finding,))
+        assert result["total_dep_findings"] == 1
+
+    def test_rating_low(self):
+        assert _dep_risk_rating(10) == "low"
+
+    def test_rating_moderate(self):
+        assert _dep_risk_rating(30) == "moderate"
+
+    def test_rating_elevated(self):
+        assert _dep_risk_rating(50) == "elevated"
+
+    def test_rating_high(self):
+        assert _dep_risk_rating(70) == "high"
+
+    def test_rating_critical(self):
+        assert _dep_risk_rating(90) == "critical"
+
+
+# ── Dep Severity Penalty ──────────────────────────────────────
+
+
+class TestDepSeverityPenalty:
+    def test_empty(self):
+        assert _dep_severity_penalty([]) == 0
+
+    def test_critical_adds_20(self):
+        findings = [_make_finding(sev="critical", line=1)]
+        assert _dep_severity_penalty(findings) == 20
+
+    def test_high_adds_10(self):
+        findings = [_make_finding(sev="high", line=1)]
+        assert _dep_severity_penalty(findings) == 10
+
+    def test_medium_adds_5(self):
+        findings = [_make_finding(sev="medium", line=1)]
+        assert _dep_severity_penalty(findings) == 5
+
+    def test_low_adds_nothing(self):
+        findings = [_make_finding(sev="low", line=1)]
+        assert _dep_severity_penalty(findings) == 0
+
+    def test_info_adds_nothing(self):
+        findings = [_make_finding(sev="info", line=1)]
+        assert _dep_severity_penalty(findings) == 0
+
+    def test_capped_at_50(self):
+        findings = [_make_finding(sev="critical", line=i) for i in range(10)]
+        assert _dep_severity_penalty(findings) == 50
+
+    def test_mixed_severities(self):
+        findings = [
+            _make_finding(sev="critical", line=1),
+            _make_finding(sev="high", line=2),
+            _make_finding(sev="medium", line=3),
+        ]
+        assert _dep_severity_penalty(findings) == 35
+
+
+# ── Investment Readiness Score ────────────────────────────────
+
+
+class TestInvestmentReadinessScore:
+    def _default_report(self) -> AnalysisReport:
+        return _minimal_report(score=85.0)
+
+    def _default_bus_factor(self) -> dict:
+        return {"score": 80, "rating": "healthy"}
+
+    def _default_dep_risk(self) -> dict:
+        return {"score": 20, "rating": "moderate"}
+
+    def _default_complexity(self) -> dict:
+        return {"risk_level": "low"}
+
+    def _default_license(self) -> dict:
+        return {"copyleft_risk": {"has_copyleft": False}}
+
+    def _default_soc2(self) -> dict:
+        return {"coverage_pct": 50.0}
+
+    def test_returns_score(self):
+        result = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            self._default_license(),
+            self._default_soc2(),
+        )
+        assert "score" in result
+        assert 0 <= result["score"] <= 100
+
+    def test_returns_rating(self):
+        result = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            self._default_license(),
+            self._default_soc2(),
+        )
+        assert result["rating"] in {
+            "investment-ready",
+            "near-ready",
+            "needs-work",
+            "significant-gaps",
+            "not-ready",
+        }
+
+    def test_returns_components(self):
+        result = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            self._default_license(),
+            self._default_soc2(),
+        )
+        assert "components" in result
+        assert "overall_score" in result["components"]
+        assert "security_posture" in result["components"]
+
+    def test_returns_weights(self):
+        result = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            self._default_license(),
+            self._default_soc2(),
+        )
+        assert "weights" in result
+        assert abs(sum(result["weights"].values()) - 1.0) < 0.01
+
+    def test_high_score_with_good_inputs(self):
+        report = _minimal_report(score=95.0)
+        result = _investment_readiness_score(
+            report,
+            {"score": 95},
+            {"score": 5},
+            {"risk_level": "low"},
+            {"copyleft_risk": {"has_copyleft": False}},
+            {"coverage_pct": 80.0},
+        )
+        assert result["score"] >= 70
+
+    def test_low_score_with_bad_inputs(self):
+        report = _minimal_report(score=40.0)
+        result = _investment_readiness_score(
+            report,
+            {"score": 20},
+            {"score": 80},
+            {"risk_level": "critical"},
+            {"copyleft_risk": {"has_copyleft": True}},
+            {"coverage_pct": 10.0},
+        )
+        assert result["score"] <= 60
+
+    def test_copyleft_reduces_license_score(self):
+        no_copyleft = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            {"copyleft_risk": {"has_copyleft": False}},
+            self._default_soc2(),
+        )
+        with_copyleft = _investment_readiness_score(
+            self._default_report(),
+            self._default_bus_factor(),
+            self._default_dep_risk(),
+            self._default_complexity(),
+            {"copyleft_risk": {"has_copyleft": True}},
+            self._default_soc2(),
+        )
+        assert no_copyleft["score"] > with_copyleft["score"]
+
+
+# ── IR Rating ─────────────────────────────────────────────────
+
+
+class TestIRRating:
+    def test_investment_ready(self):
+        assert _ir_rating(85.0) == "investment-ready"
+        assert _ir_rating(100.0) == "investment-ready"
+
+    def test_near_ready(self):
+        assert _ir_rating(70.0) == "near-ready"
+        assert _ir_rating(84.9) == "near-ready"
+
+    def test_needs_work(self):
+        assert _ir_rating(50.0) == "needs-work"
+        assert _ir_rating(69.9) == "needs-work"
+
+    def test_significant_gaps(self):
+        assert _ir_rating(30.0) == "significant-gaps"
+        assert _ir_rating(49.9) == "significant-gaps"
+
+    def test_not_ready(self):
+        assert _ir_rating(0.0) == "not-ready"
+        assert _ir_rating(29.9) == "not-ready"
+
+
+# ── Security Posture Score ────────────────────────────────────
+
+
+class TestSecurityPostureScore:
+    def test_returns_security_dimension_score(self):
+        report = _minimal_report()
+        score = _security_posture_score(report)
+        assert score == 80.0
+
+    def test_defaults_to_50_when_no_security(self):
+        sc = ScoreCard(
+            overall_score=70.0,
+            overall_grade="C",
+            dimensions=(
+                DimensionScore(
+                    dimension="architecture",
+                    score=70.0,
+                    grade=score_to_grade(70.0),
+                    findings_count=0,
+                    weight=1.0,
+                ),
+            ),
+            total_findings=0,
+        )
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sc,
+            findings=(),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=0,
+            total_cost_usd=0.0,
+            agents_used=(),
+        )
+        assert _security_posture_score(report) == 50.0
+
+
+# ── Complexity Component Score ────────────────────────────────
+
+
+class TestComplexityComponentScore:
+    def test_low(self):
+        assert _complexity_component_score({"risk_level": "low"}) == 90.0
+
+    def test_moderate(self):
+        assert _complexity_component_score({"risk_level": "moderate"}) == 70.0
+
+    def test_high(self):
+        assert _complexity_component_score({"risk_level": "high"}) == 40.0
+
+    def test_critical(self):
+        assert _complexity_component_score({"risk_level": "critical"}) == 15.0
+
+    def test_unknown(self):
+        assert _complexity_component_score({"risk_level": "unknown"}) == 50.0
+
+    def test_missing_key(self):
+        assert _complexity_component_score({}) == 50.0
+
+
+# ── License Component Score ───────────────────────────────────
+
+
+class TestLicenseComponentScore:
+    def test_clean(self):
+        assert _license_component_score({"copyleft_risk": {"has_copyleft": False}}) == 95.0
+
+    def test_copyleft(self):
+        assert _license_component_score({"copyleft_risk": {"has_copyleft": True}}) == 40.0
+
+    def test_missing_copyleft_risk(self):
+        assert _license_component_score({}) == 95.0
+
+    def test_non_dict_copyleft(self):
+        assert _license_component_score({"copyleft_risk": "none"}) == 95.0
+
+
+# ── Critical Findings Score ───────────────────────────────────
+
+
+class TestCriticalFindingsScore:
+    def test_no_criticals(self):
+        report = _minimal_report()
+        assert _critical_findings_score(report) == 100.0
+
+    def test_one_critical(self):
+        finding = _make_finding(sev="critical", line=1)
+        report = _minimal_report(findings=(finding,))
+        assert _critical_findings_score(report) == 85.0
+
+    def test_many_criticals_floors_at_zero(self):
+        findings = tuple(_make_finding(sev="critical", line=i) for i in range(10))
+        report = _minimal_report(findings=findings)
+        assert _critical_findings_score(report) == 0.0
+
+    def test_two_criticals(self):
+        findings = (
+            _make_finding(sev="critical", line=1),
+            _make_finding(sev="critical", line=2),
+        )
+        report = _minimal_report(findings=findings)
+        assert _critical_findings_score(report) == 70.0
+
+
+# ── OWASP 2024 Coverage ──────────────────────────────────────
+
+
+class TestOWASP2024Coverage:
+    def test_has_2024_coverage(self):
+        result = _dd_compliance_mapping(())
+        assert "owasp_2024_coverage" in result
+        assert len(result["owasp_2024_coverage"]) == 10
+
+    def test_2024_total(self):
+        result = _dd_compliance_mapping(())
+        assert result["owasp_2024_total"] == 10
+
+    def test_2024_initially_uncovered(self):
+        result = _dd_compliance_mapping(())
+        assert result["owasp_2024_covered_count"] == 0
+
+    def test_2024_category_detected(self):
+        finding = _make_finding(desc="A03 injection vulnerability", line=1)
+        result = _dd_compliance_mapping((finding,))
+        assert result["owasp_2024_covered_count"] >= 1

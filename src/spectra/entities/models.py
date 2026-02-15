@@ -1,4 +1,9 @@
-"""Pydantic frozen models for the Spectra domain."""
+"""Pydantic frozen models for the Spectra domain.
+
+All models use ``frozen=True`` to guarantee immutability across the
+pipeline.  Constants define scoring thresholds shared by use-case and
+infrastructure layers.
+"""
 
 from __future__ import annotations
 
@@ -13,13 +18,26 @@ from spectra.entities.enums import (
 
 # ── Named Constants ────────────────────────────────────────────
 PASSING_SCORE: float = 60.0
+"""Minimum score (0-100) for a dimension to be considered passing."""
+
 EXCELLENT_SCORE: float = 90.0
+"""Threshold for an excellent dimension score."""
+
 DEFAULT_DIMENSION_SCORE: float = 85.0
+"""Score assigned to a dimension with zero findings."""
+
 MIN_CONFIDENCE: float = 0.7
+"""Minimum confidence for a finding to be included in the report."""
 
 
 class FileLocation(BaseModel, frozen=True):
-    """Value object for a source code location."""
+    """Value object pinpointing a source code location.
+
+    Attributes:
+        file_path: Repository-relative path (e.g. ``src/main.py``).
+        line_start: First line of the relevant span (1-based).
+        line_end: Last line, or ``None`` for single-line locations.
+    """
 
     file_path: str
     line_start: int
@@ -27,7 +45,25 @@ class FileLocation(BaseModel, frozen=True):
 
 
 class Finding(BaseModel, frozen=True):
-    """Core domain entity — immutable, dedupable by location + dimension."""
+    """Core domain entity — an immutable, dedupable analysis finding.
+
+    Two findings are equal when they share the same file path, start
+    line, and dimension, which prevents duplicate reports from
+    overlapping agents.
+
+    Attributes:
+        id: Unique identifier (e.g. ``sec-001``).
+        dimension: Analysis dimension that owns this finding.
+        severity: Impact level from critical to info.
+        title: Short human-readable summary.
+        description: Detailed explanation with evidence.
+        location: Source code location reference.
+        recommendation: Actionable fix suggestion.
+        agent_role: The agent that produced this finding.
+        confidence: Agent confidence in the finding (0.0-1.0).
+        validated_by_critique: Whether CritiqueAgent confirmed this.
+        estimated_hours: Estimated remediation effort in hours.
+    """
 
     id: str
     dimension: Dimension
@@ -42,9 +78,11 @@ class Finding(BaseModel, frozen=True):
     estimated_hours: float = 0.0
 
     def __hash__(self) -> int:
+        """Hash by (file_path, line_start, dimension) for deduplication."""
         return hash((self.location.file_path, self.location.line_start, self.dimension))
 
     def __eq__(self, other: object) -> bool:
+        """Equality by location + dimension to collapse duplicate reports."""
         if not isinstance(other, Finding):
             return False
         return (
@@ -54,14 +92,24 @@ class Finding(BaseModel, frozen=True):
         )
 
     def is_critical(self) -> bool:
+        """Return True if this finding has critical severity."""
         return self.severity == "critical"
 
     def is_actionable(self) -> bool:
+        """Return True if severity is critical, high, or medium."""
         return self.severity in ("critical", "high", "medium")
 
 
 class DimensionScore(BaseModel, frozen=True):
-    """Score for a single analysis dimension."""
+    """Score for a single analysis dimension.
+
+    Attributes:
+        dimension: Which dimension this score represents.
+        score: Numeric score from 0 to 100.
+        grade: Letter grade derived from score.
+        findings_count: Number of findings in this dimension.
+        weight: Normalized weight used for overall score calculation.
+    """
 
     dimension: Dimension
     score: float = Field(ge=0.0, le=100.0)
@@ -70,14 +118,23 @@ class DimensionScore(BaseModel, frozen=True):
     weight: float
 
     def is_passing(self) -> bool:
+        """Return True if score meets the passing threshold (60)."""
         return self.score >= PASSING_SCORE
 
     def is_excellent(self) -> bool:
+        """Return True if score meets the excellent threshold (90)."""
         return self.score >= EXCELLENT_SCORE
 
 
 class ScoreCard(BaseModel, frozen=True):
-    """Aggregate scores across all dimensions."""
+    """Aggregate scores across all analysis dimensions.
+
+    Attributes:
+        overall_score: Weighted average of all dimension scores.
+        overall_grade: Letter grade for the overall score.
+        dimensions: Per-dimension breakdown.
+        total_findings: Sum of findings across all dimensions.
+    """
 
     overall_score: float = Field(ge=0.0, le=100.0)
     overall_grade: Grade
@@ -85,16 +142,26 @@ class ScoreCard(BaseModel, frozen=True):
     total_findings: int
 
     def worst_dimension(self) -> DimensionScore | None:
+        """Return the dimension with the lowest score, or None if empty."""
         if not self.dimensions:
             return None
         return min(self.dimensions, key=lambda d: d.score)
 
     def best_dimension(self) -> DimensionScore | None:
+        """Return the dimension with the highest score, or None if empty."""
         if not self.dimensions:
             return None
         return max(self.dimensions, key=lambda d: d.score)
 
     def grade_for(self, dimension: Dimension) -> Grade | None:
+        """Look up the letter grade for a specific dimension.
+
+        Args:
+            dimension: The dimension to query.
+
+        Returns:
+            The grade if found, otherwise None.
+        """
         for d in self.dimensions:
             if d.dimension == dimension:
                 return d.grade
@@ -102,7 +169,16 @@ class ScoreCard(BaseModel, frozen=True):
 
 
 class AgentOutput(BaseModel, frozen=True):
-    """Validated output from a single agent run."""
+    """Validated output from a single agent run.
+
+    Attributes:
+        agent_role: Which agent produced this output.
+        findings: Validated findings extracted from the LLM response.
+        tokens_used: Total tokens consumed (input + output).
+        duration_seconds: Wall-clock time for the LLM call.
+        raw_response: Unprocessed LLM response text.
+        dimension_score: Optional LLM-assigned holistic score (0-100).
+    """
 
     agent_role: AgentRole
     findings: tuple[Finding, ...]
@@ -113,7 +189,16 @@ class AgentOutput(BaseModel, frozen=True):
 
 
 class AgentContext(BaseModel, frozen=True):
-    """Input context passed to an agent for analysis."""
+    """Input context passed to an agent for analysis.
+
+    Attributes:
+        agent_role: Target agent role.
+        system_prompt: System prompt defining agent behavior.
+        user_prompt: User prompt with repository data.
+        model: Anthropic model identifier.
+        max_tokens: Maximum tokens for the response.
+        extended_thinking: Whether to enable extended thinking.
+    """
 
     agent_role: AgentRole
     system_prompt: str
@@ -124,7 +209,22 @@ class AgentContext(BaseModel, frozen=True):
 
 
 class AnalysisReport(BaseModel, frozen=True):
-    """Final report combining all agent results."""
+    """Final report combining all agent results.
+
+    Attributes:
+        repo_url: URL of the analyzed repository.
+        repo_name: Short name derived from the URL.
+        score_card: Aggregate scores across all dimensions.
+        findings: Deduplicated, validated findings.
+        analysis_duration_seconds: Total pipeline wall-clock time.
+        total_tokens_used: Sum of tokens across all agents.
+        total_cost_usd: Estimated API cost in USD.
+        agents_used: Roles of agents that contributed.
+        is_degraded: True if 2+ agents failed.
+        degraded_dimensions: Dimensions missing due to agent failure.
+        cross_cutting_insights: CritiqueAgent cross-dimension notes.
+        hallucination_removed_count: Findings removed by path validation.
+    """
 
     repo_url: str
     repo_name: str
@@ -140,11 +240,19 @@ class AnalysisReport(BaseModel, frozen=True):
     hallucination_removed_count: int = 0
 
     def critical_finding_count(self) -> int:
+        """Return the number of findings with critical severity."""
         return sum(1 for f in self.findings if f.is_critical())
 
 
 class Codebase(BaseModel, frozen=True):
-    """Representation of a cloned repository."""
+    """Representation of a cloned repository on disk.
+
+    Attributes:
+        repo_url: Original remote URL.
+        repo_name: Short name (last path segment).
+        local_path: Absolute path to the clone directory.
+        file_tree: Sorted list of repository-relative file paths.
+    """
 
     repo_url: str
     repo_name: str
@@ -152,11 +260,18 @@ class Codebase(BaseModel, frozen=True):
     file_tree: tuple[str, ...]
 
     def file_count(self) -> int:
+        """Return the total number of files in the repository."""
         return len(self.file_tree)
 
 
 class AnalysisRequest(BaseModel, frozen=True):
-    """User-initiated analysis request."""
+    """User-initiated analysis request.
+
+    Attributes:
+        repo_url: Git HTTPS URL to analyze.
+        quick: Skip CritiqueAgent when True.
+        output_format: Report format (``rich``, ``html``, or ``json``).
+    """
 
     repo_url: str
     quick: bool = False
@@ -164,7 +279,18 @@ class AnalysisRequest(BaseModel, frozen=True):
 
 
 class TokenBudget(BaseModel, frozen=True):
-    """Token allocation across pipeline stages."""
+    """Token allocation across pipeline stages.
+
+    The total budget is split between MetaPrompter (planning),
+    the 6 specialist agents, CritiqueAgent, and a safety buffer.
+
+    Attributes:
+        total: Maximum tokens for the entire pipeline.
+        meta_prompter: Tokens reserved for planning.
+        specialists_pool: Shared pool for all 6 specialists.
+        critique_reserved: Tokens reserved for CritiqueAgent.
+        buffer: Safety margin to avoid overruns.
+    """
 
     total: int = 800_000
     meta_prompter: int = 5_000
@@ -173,14 +299,31 @@ class TokenBudget(BaseModel, frozen=True):
     buffer: int = 95_000
 
     def has_remaining(self, used: int) -> bool:
+        """Return True if tokens remain in the budget.
+
+        Args:
+            used: Tokens consumed so far.
+        """
         return used < self.total
 
     def remaining(self, used: int) -> int:
+        """Return tokens remaining, clamped to zero.
+
+        Args:
+            used: Tokens consumed so far.
+        """
         return max(0, self.total - used)
 
 
 def score_to_grade(score: float) -> Grade:
-    """Map a numeric score (0-100) to a letter grade."""
+    """Map a numeric score (0-100) to a letter grade.
+
+    Args:
+        score: Numeric score between 0 and 100.
+
+    Returns:
+        Letter grade from ``A+`` (95-100) down to ``F`` (0-56).
+    """
     if score >= 95:
         return "A+"
     if score >= 90:
@@ -234,7 +377,17 @@ _MODEL_COST: dict[AgentRole, float] = {
 
 
 def estimate_cost(outputs: tuple[AgentOutput, ...]) -> float:
-    """Estimate total USD cost from agent outputs."""
+    """Estimate total USD cost from agent outputs.
+
+    Uses per-1K-token pricing with a 70/30 input/output ratio
+    assumption. Sonnet is used for MetaPrompter; Opus for all others.
+
+    Args:
+        outputs: Completed agent outputs with token counts.
+
+    Returns:
+        Estimated cost in USD, rounded to 4 decimal places.
+    """
     total = 0.0
     for out in outputs:
         rate = _MODEL_COST.get(out.agent_role, _OPUS_AVG_PER_1K)

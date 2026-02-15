@@ -1,4 +1,13 @@
-"""Facade — orchestrates the 6-stage analysis pipeline."""
+"""Facade — orchestrates the 6-stage analysis pipeline.
+
+Stages:
+    1. INGEST — Clone repo and extract file tree (handled externally).
+    2. PLAN — MetaPrompter creates per-agent focus areas.
+    3. ANALYZE — 6 specialists run in parallel via ``asyncio.gather``.
+    4. MERGE — Deduplicate findings and validate file paths.
+    5. CRITIQUE — CritiqueAgent validates findings (extended thinking).
+    6. REPORT — Build ``AnalysisReport`` with computed ScoreCard.
+"""
 
 from __future__ import annotations
 
@@ -109,7 +118,25 @@ async def analyze_repository(
     git_port: GitPort | None = None,
     observer: ProgressObserver | None = None,
 ) -> AnalysisReport:
-    """Run the full 6-stage pipeline."""
+    """Run the full 6-stage analysis pipeline.
+
+    This is the main entry point for the use-case layer. It
+    coordinates planning, parallel analysis, merging, critique,
+    and report assembly.
+
+    Args:
+        request: User analysis request with URL and options.
+        codebase: Cloned repository metadata and file tree.
+        meta_prompter: Planning agent (Sonnet 4.5).
+        specialists: List of 6 specialist agents.
+        critique_agent: Validation agent, or None to skip.
+        source_files: Pre-read source files, or None to read lazily.
+        git_port: Git adapter for lazy file reads.
+        observer: Progress callback for terminal display.
+
+    Returns:
+        Complete analysis report with scores and findings.
+    """
     ctx = PipelineContext(
         request,
         codebase,
@@ -203,12 +230,15 @@ def _build_specialist_prompts(
     state: _PipelineState,
 ) -> dict[AgentRole, str]:
     """Assemble prompt strings for each specialist."""
-    tree_text = "\n".join(ctx.codebase.file_tree)
+    full_tree = ctx.codebase.file_tree
+    full_tree_text = "\n".join(full_tree)
     plan_ctx = _extract_plan_context(plan_output.raw_response)
     source_ctx = _build_source_context(state.source_files)
+    agent_files = _extract_agent_files(plan_output.raw_response)
 
     prompts: dict[AgentRole, str] = {}
     for s in ctx.specialists:
+        tree_text = _filtered_tree(full_tree, full_tree_text, agent_files.get(s.role))
         parts = [tree_text]
         if plan_ctx:
             parts.append(plan_ctx.get(s.role, ""))
@@ -216,6 +246,17 @@ def _build_specialist_prompts(
             parts.append(source_ctx)
         prompts[s.role] = "\n\n".join(p for p in parts if p)
     return prompts
+
+
+def _filtered_tree(
+    full_tree: tuple[str, ...],
+    full_tree_text: str,
+    agent_file_set: set[str] | None,
+) -> str:
+    """Return filtered file tree for an agent, or full tree if no filter."""
+    if not agent_file_set:
+        return full_tree_text
+    return "\n".join(f for f in full_tree if f in agent_file_set)
 
 
 def _log_budget_warning(state: _PipelineState) -> None:
@@ -727,6 +768,24 @@ def _extract_plan_files(raw_plan: str) -> set[str]:
     return files
 
 
+def _extract_agent_files(
+    raw_plan: str,
+) -> dict[AgentRole, set[str]]:
+    """Extract per-agent file sets from MetaPrompter plan."""
+    try:
+        plan = json.loads(strip_code_fence(raw_plan))
+    except (json.JSONDecodeError, IndexError):
+        return {}
+
+    result: dict[AgentRole, set[str]] = {}
+    for area in plan.get("focus_areas", []):
+        agent = area.get("agent", "")
+        files = area.get("files", [])
+        if agent and files:
+            result[agent] = {str(f) for f in files}
+    return result
+
+
 # ── Scoring ───────────────────────────────────────────────────
 
 
@@ -788,9 +847,10 @@ def _score_dimensions(
 ) -> list[DimensionScore]:
     """Score each active dimension."""
     total = sum(active_weights.values()) or 1.0
+    grouped = _group_findings_by_dimension(findings)
     dimensions: list[DimensionScore] = []
     for dim, raw_weight in active_weights.items():
-        dim_findings = [f for f in findings if f.dimension == dim]
+        dim_findings = grouped.get(dim, [])
         score = _estimate_score(dim_findings, llm_scores.get(dim))
         dimensions.append(
             DimensionScore(
@@ -802,6 +862,16 @@ def _score_dimensions(
             )
         )
     return dimensions
+
+
+def _group_findings_by_dimension(
+    findings: tuple[Finding, ...],
+) -> dict[Dimension, list[Finding]]:
+    """Pre-group findings by dimension in a single pass (O(n))."""
+    grouped: dict[Dimension, list[Finding]] = {}
+    for f in findings:
+        grouped.setdefault(f.dimension, []).append(f)
+    return grouped
 
 
 _PENALTY_MAP: dict[str, float] = {

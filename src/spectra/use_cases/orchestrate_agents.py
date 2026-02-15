@@ -1,4 +1,9 @@
-"""Agent orchestration — parallel execution with failure state machine."""
+"""Agent orchestration — parallel execution with failure state machine.
+
+Provides the ``run_specialists`` coroutine that fans out 6 agents via
+``asyncio.gather`` and the ``evaluate_results`` function that applies
+the failure state machine (0-1 failures → merging, 2+ → degraded).
+"""
 
 from __future__ import annotations
 
@@ -10,12 +15,21 @@ from spectra.entities.models import AgentOutput
 
 
 class AnalysisAgent(Protocol):
-    """Structural type for any agent that the orchestrator can run."""
+    """Structural type for any agent that the orchestrator can run.
+
+    Both ``BaseAgent`` subclasses and test doubles satisfy this
+    protocol by exposing a ``role`` property and an async ``run``
+    method.
+    """
 
     @property
-    def role(self) -> AgentRole: ...
+    def role(self) -> AgentRole:
+        """The agent's role identifier."""
+        ...
 
-    async def run(self, user_prompt: str) -> AgentOutput: ...
+    async def run(self, user_prompt: str) -> AgentOutput:
+        """Execute the agent and return validated output."""
+        ...
 
 
 async def run_specialists(
@@ -26,7 +40,18 @@ async def run_specialists(
 ) -> list[AgentOutput | Exception]:
     """Run specialist agents in parallel with individual timeouts.
 
-    A semaphore limits concurrent API calls to avoid rate-limit bursts.
+    A semaphore limits concurrent API calls to avoid rate-limit
+    bursts. Each agent gets its own ``asyncio.wait_for`` timeout.
+
+    Args:
+        agents: List of specialist agents to execute.
+        prompts: Role-keyed prompt strings for each agent.
+        timeout_seconds: Per-agent timeout (default 120s).
+        max_concurrency: Maximum concurrent LLM calls.
+
+    Returns:
+        List of ``AgentOutput`` or ``Exception`` per agent,
+        preserving input order.
     """
     semaphore = asyncio.Semaphore(max_concurrency)
 
@@ -45,12 +70,16 @@ def evaluate_results(
     results: list[AgentOutput | Exception],
     roles: list[AgentRole],
 ) -> tuple[list[AgentOutput], list[AgentRole], PipelineState]:
-    """Apply failure state machine to agent results.
+    """Apply the failure state machine to agent results.
 
-    Returns (successes, failed_roles, next_state).
-    - 0 failures → "merging"
-    - 1 failure → "merging" (reweight later)
-    - 2+ failures → "degraded"
+    Args:
+        results: Outputs or exceptions from ``run_specialists``.
+        roles: Ordered role list matching the results.
+
+    Returns:
+        A 3-tuple of (successes, failed_roles, next_state):
+        - 0-1 failures → ``"merging"`` (reweight later)
+        - 2+ failures → ``"degraded"`` (partial report)
     """
     successes: list[AgentOutput] = []
     failed_roles: list[AgentRole] = []

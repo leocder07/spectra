@@ -58,6 +58,7 @@ async def _run_analysis(
     report_renderer = ReportAdapter()
 
     clone_dir = tempfile.mkdtemp(prefix="spectra-")
+    os.chmod(clone_dir, 0o700)
     try:
         # Stage 1: INGEST — clone repo
         observer.on_stage_start("INGEST", "Cloning repository")

@@ -17,8 +17,10 @@ from spectra.entities.models import (
     Codebase,
     DimensionScore,
     FileLocation,
+    Finding,
     ScoreCard,
     TokenBudget,
+    estimate_cost,
     score_to_grade,
 )
 
@@ -629,3 +631,191 @@ class TestScoreToGrade:
 
     def test_zero_score(self):
         assert score_to_grade(0.0) == "F"
+
+
+# ── estimate_cost ──────────────────────────────────────────────
+
+
+class TestEstimateCost:
+    def test_empty_outputs(self):
+        assert estimate_cost(()) == 0.0
+
+    def test_single_output(self):
+        output = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        cost = estimate_cost((output,))
+        assert cost > 0
+
+    def test_multiple_outputs(self):
+        outputs = tuple(
+            AgentOutput(
+                agent_role=role,
+                findings=(),
+                tokens_used=1000,
+                duration_seconds=1.0,
+                raw_response="{}",
+            )
+            for role in ("architecture", "security", "quality")
+        )
+        cost = estimate_cost(outputs)
+        assert cost > 0
+
+    def test_meta_prompter_cheaper_than_opus(self):
+        sonnet = AgentOutput(
+            agent_role="meta_prompter",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        opus = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        assert estimate_cost((sonnet,)) < estimate_cost((opus,))
+
+    def test_zero_tokens(self):
+        output = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=0,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        assert estimate_cost((output,)) == 0.0
+
+    def test_cost_is_rounded(self):
+        output = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        cost = estimate_cost((output,))
+        assert cost == round(cost, 4)
+
+
+# ── Finding edge cases ─────────────────────────────────────────
+
+
+class TestFindingEdgeCases:
+    def test_estimated_hours_default(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="Test",
+            description="Desc",
+            location=FileLocation(file_path="a.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        assert f.estimated_hours == 0.0
+
+    def test_estimated_hours_set(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="Test",
+            description="Desc",
+            location=FileLocation(file_path="a.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.8,
+            estimated_hours=5.5,
+        )
+        assert f.estimated_hours == 5.5
+
+    def test_validated_by_critique_default(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="Test",
+            description="Desc",
+            location=FileLocation(file_path="a.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        assert f.validated_by_critique is False
+
+    def test_model_copy_preserves_fields(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="Test",
+            description="Desc",
+            location=FileLocation(file_path="a.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        f2 = f.model_copy(update={"severity": "critical", "validated_by_critique": True})
+        assert f2.severity == "critical"
+        assert f2.validated_by_critique is True
+        assert f2.id == "F-1"
+        assert f2.title == "Test"
+
+    def test_eq_with_none(self, sample_finding):
+        assert sample_finding != None  # noqa: E711
+
+    def test_eq_with_int(self, sample_finding):
+        assert sample_finding != 42
+
+
+# ── AnalysisReport edge cases ──────────────────────────────────
+
+
+class TestAnalysisReportEdgeCases:
+    def test_cross_cutting_insights_default(self, sample_scorecard):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=0,
+            total_cost_usd=0.0,
+            agents_used=(),
+        )
+        assert report.cross_cutting_insights == ()
+
+    def test_hallucination_removed_count_default(self, sample_scorecard):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=0,
+            total_cost_usd=0.0,
+            agents_used=(),
+        )
+        assert report.hallucination_removed_count == 0
+
+    def test_with_cross_cutting_insights(self, sample_scorecard):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=0,
+            total_cost_usd=0.0,
+            agents_used=(),
+            cross_cutting_insights=("Insight 1", "Insight 2"),
+        )
+        assert len(report.cross_cutting_insights) == 2

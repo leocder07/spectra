@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-{{ csp_nonce }}'; style-src 'nonce-{{ csp_nonce }}' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
     <title>Spectra — {{ report.repo_name }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,9 +12,9 @@
     <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"
             integrity="sha384-enVdc7lTHDGtpROV85t9+VqPC2EyyB0hsRD0MrvQnHUsHmTHIz2D8SPP4EnBkstH"
             crossorigin="anonymous"></script>
-    <script>document.addEventListener('DOMContentLoaded', function() { if (window.mermaid) mermaid.initialize({startOnLoad: true, theme: 'dark'}); });</script>
+    <script nonce="{{ csp_nonce }}">document.addEventListener('DOMContentLoaded', function() { if (window.mermaid) mermaid.initialize({startOnLoad: true, theme: 'dark'}); });</script>
     {% endif %}
-    <style>
+    <style nonce="{{ csp_nonce }}">
         /* ═══════════════════════════════════════════════════════
            SPECTRA — Premium Report Theme
            Vercel × Linear × Terminal aesthetic
@@ -2948,7 +2948,7 @@
          SPECTRA — Premium Interactive JavaScript
          Filters, Search, Counters, Keyboard Nav, Scroll Spy
          ═══════════════════════════════════════════════════════ -->
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function() {
         'use strict';
 

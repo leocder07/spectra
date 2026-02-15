@@ -8,7 +8,7 @@ import pytest
 
 from spectra.entities.errors import AgentError
 from spectra.entities.models import Finding
-from spectra.infrastructure.agents.base_agent import BaseAgent
+from spectra.infrastructure.agents.base_agent import BaseAgent, _extract_json_object
 
 
 class StubAgent(BaseAgent):
@@ -101,3 +101,119 @@ class TestBaseAgent:
             model="test-model",
             max_tokens=1000,
         )
+
+    def test_format_result_with_actual_tokens(self, agent: StubAgent):
+        result = agent.format_result((), "response", 2.0, tokens_used=500)
+        assert result.tokens_used == 500
+
+    def test_format_result_with_dimension_score(self, agent: StubAgent):
+        result = agent.format_result((), "response", 1.0, 100, dimension_score=88.5)
+        assert result.dimension_score == 88.5
+
+    def test_format_result_without_dimension_score(self, agent: StubAgent):
+        result = agent.format_result((), "response", 1.0, 100)
+        assert result.dimension_score is None
+
+    def test_extract_dimension_score_valid(self, agent: StubAgent):
+        parsed = {"dimension_score": 75}
+        assert agent._extract_dimension_score(parsed) == 75.0
+
+    def test_extract_dimension_score_float(self, agent: StubAgent):
+        parsed = {"dimension_score": 82.5}
+        assert agent._extract_dimension_score(parsed) == 82.5
+
+    def test_extract_dimension_score_out_of_range_high(self, agent: StubAgent):
+        parsed = {"dimension_score": 101}
+        assert agent._extract_dimension_score(parsed) is None
+
+    def test_extract_dimension_score_negative(self, agent: StubAgent):
+        parsed = {"dimension_score": -5}
+        assert agent._extract_dimension_score(parsed) is None
+
+    def test_extract_dimension_score_missing(self, agent: StubAgent):
+        parsed = {"findings": []}
+        assert agent._extract_dimension_score(parsed) is None
+
+    def test_extract_dimension_score_string(self, agent: StubAgent):
+        parsed = {"dimension_score": "high"}
+        assert agent._extract_dimension_score(parsed) is None
+
+    def test_extract_dimension_score_zero(self, agent: StubAgent):
+        parsed = {"dimension_score": 0}
+        assert agent._extract_dimension_score(parsed) == 0.0
+
+    def test_extract_dimension_score_hundred(self, agent: StubAgent):
+        parsed = {"dimension_score": 100}
+        assert agent._extract_dimension_score(parsed) == 100.0
+
+    def test_get_tokens_used_from_gateway(self, agent: StubAgent):
+        # mock_gateway has last_usage = (100, 50)
+        assert agent._get_tokens_used() == 150
+
+    def test_get_tokens_used_no_attribute(self, mock_gateway: AsyncMock):
+        del mock_gateway.last_usage
+        agent = StubAgent(
+            role="architecture",
+            gateway=mock_gateway,
+            model="test",
+            system_prompt="test",
+            max_tokens=100,
+        )
+        assert agent._get_tokens_used() == 0
+
+    def test_parse_output_nested_json(self, agent: StubAgent):
+        raw = '{"findings": [{"title": "test", "severity": "high"}]}'
+        result = agent.parse_output(raw)
+        assert len(result["findings"]) == 1
+
+    def test_parse_output_json_with_prefix_text(self, agent: StubAgent):
+        raw = 'Here is the analysis:\n{"findings": []}'
+        result = agent.parse_output(raw)
+        assert result == {"findings": []}
+
+    def test_parse_output_empty_code_fence(self, agent: StubAgent):
+        raw = '```\n{"findings": []}\n```'
+        result = agent.parse_output(raw)
+        assert "findings" in result
+
+    @pytest.mark.asyncio
+    async def test_run_records_duration(self, agent: StubAgent):
+        output = await agent.run("test code")
+        assert output.duration_seconds >= 0
+
+
+# ── _extract_json_object ──────────────────────────────────────
+
+
+class TestExtractJsonObject:
+    def test_valid_json(self):
+        result = _extract_json_object('{"key": "value"}')
+        assert result == {"key": "value"}
+
+    def test_json_with_surrounding_text(self):
+        result = _extract_json_object('text before {"key": "value"} text after')
+        assert result == {"key": "value"}
+
+    def test_no_json(self):
+        assert _extract_json_object("no json here") is None
+
+    def test_no_opening_brace(self):
+        assert _extract_json_object("just text") is None
+
+    def test_brace_before_closing(self):
+        assert _extract_json_object("}bad{") is None
+
+    def test_invalid_json_inside_braces(self):
+        assert _extract_json_object("{not: valid json}") is None
+
+    def test_empty_object(self):
+        result = _extract_json_object("{}")
+        assert result == {}
+
+    def test_nested_objects(self):
+        raw = '{"outer": {"inner": 1}}'
+        result = _extract_json_object(raw)
+        assert result == {"outer": {"inner": 1}}
+
+    def test_empty_string(self):
+        assert _extract_json_object("") is None

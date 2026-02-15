@@ -12,6 +12,7 @@ from spectra.infrastructure.agents.base_agent import AgentError, BaseAgent
 from spectra.infrastructure.agents.critique_agent import CritiqueAgent
 from spectra.infrastructure.agents.meta_prompter import MetaPrompter
 from spectra.infrastructure.agents.specialist_agent import SpecialistAgent
+from spectra.infrastructure.agents.specialist_prompts import SPECIALIST_CONFIGS
 
 __all__ = [
     "AgentError",
@@ -19,5 +20,6 @@ __all__ = [
     "BaseAgent",
     "CritiqueAgent",
     "MetaPrompter",
+    "SPECIALIST_CONFIGS",
     "SpecialistAgent",
 ]

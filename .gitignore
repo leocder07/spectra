@@ -44,3 +44,8 @@ firebase-debug.log
 # Temp
 *.tmp
 spectra-*/
+
+# Stale directories
+archive/
+cortex-vault/
+memory/

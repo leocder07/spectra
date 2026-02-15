@@ -161,3 +161,46 @@ class TestMetaPrompterRun:
         assert output.agent_role == "meta_prompter"
         assert output.findings == ()
         mock_gateway.analyze.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_with_empty_raises(self, agent: MetaPrompter):
+        with pytest.raises(ValueError):
+            await agent.run("")
+
+
+class TestMetaPrompterMaxTokens:
+    def test_max_tokens_is_5000(self, agent: MetaPrompter):
+        assert agent._max_tokens == 5_000
+
+    def test_system_prompt_mentions_file_tree(self, agent: MetaPrompter):
+        assert "file tree" in agent._system_prompt.lower()
+
+    def test_system_prompt_mentions_focus_areas(self, agent: MetaPrompter):
+        assert "focus_areas" in agent._system_prompt
+
+    def test_system_prompt_mentions_token_allocation(self, agent: MetaPrompter):
+        assert "token_allocation" in agent._system_prompt
+
+    def test_system_prompt_has_guardrails(self, agent: MetaPrompter):
+        assert "GUARDRAILS" in agent._system_prompt
+
+    def test_system_prompt_has_constraints(self, agent: MetaPrompter):
+        assert "CONSTRAINTS" in agent._system_prompt
+
+
+class TestMetaPrompterBuildPromptEdgeCases:
+    def test_very_long_file_tree(self, agent: MetaPrompter):
+        tree = "\n".join(f"src/file{i}.py" for i in range(1000))
+        prompt = agent.build_prompt(tree)
+        assert "src/file999.py" in prompt
+
+    def test_special_characters_in_tree(self, agent: MetaPrompter):
+        tree = "src/[special].py\nsrc/file (1).py"
+        prompt = agent.build_prompt(tree)
+        assert "[special]" in prompt
+
+    def test_empty_lines_in_tree(self, agent: MetaPrompter):
+        tree = "src/main.py\n\n\nsrc/utils.py"
+        prompt = agent.build_prompt(tree)
+        assert "src/main.py" in prompt
+        assert "src/utils.py" in prompt

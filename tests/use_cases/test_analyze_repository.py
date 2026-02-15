@@ -18,12 +18,17 @@ from spectra.entities.models import (
 )
 from spectra.use_cases.analyze_repository import (
     _apply_critique,
+    _build_source_context,
     _compute_scorecard,
     _estimate_score,
     _extract_cross_cutting_insights,
+    _extract_plan_context,
     _extract_plan_files,
     _extract_token_allocations,
+    _merge_findings,
+    _role_to_dimension,
     _should_run_critique,
+    _validate_finding_paths,
     analyze_repository,
 )
 
@@ -755,3 +760,265 @@ class TestObserverWiring:
             observer=observer,
         )
         observer.on_agent_failure.assert_called_once()
+
+
+# ── _merge_findings ─────────────────────────────────────────────
+
+
+class TestMergeFindings:
+    def test_empty_successes(self):
+        result = _merge_findings([])
+        assert result == ()
+
+    def test_single_output_with_findings(self):
+        f1 = _finding("security", "high", line=1)
+        output = AgentOutput(
+            agent_role="security",
+            findings=(f1,),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        result = _merge_findings([output])
+        assert len(result) == 1
+
+    def test_deduplicates_same_findings(self):
+        f1 = _finding("security", "high", line=10)
+        out1 = AgentOutput(
+            agent_role="security",
+            findings=(f1,),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        out2 = AgentOutput(
+            agent_role="quality",
+            findings=(f1,),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        result = _merge_findings([out1, out2])
+        assert len(result) == 1
+
+    def test_keeps_different_findings(self):
+        f1 = _finding("security", "high", line=1)
+        f2 = _finding("quality", "medium", line=2)
+        out1 = AgentOutput(
+            agent_role="security", findings=(f1,), tokens_used=500, duration_seconds=1.0, raw_response="{}"
+        )
+        out2 = AgentOutput(
+            agent_role="quality", findings=(f2,), tokens_used=500, duration_seconds=1.0, raw_response="{}"
+        )
+        result = _merge_findings([out1, out2])
+        assert len(result) == 2
+
+
+# ── _validate_finding_paths ────────────────────────────────────
+
+
+class TestValidateFindingPaths:
+    def test_valid_path_kept(self):
+        f = _finding("security", "high", line=1)
+        result = _validate_finding_paths((f,), ("src/main.py",))
+        assert len(result) == 1
+
+    def test_invalid_path_removed(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="test",
+            description="test",
+            location=FileLocation(file_path="nonexistent.py", line_start=1),
+            recommendation="fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        result = _validate_finding_paths((f,), ("src/main.py",))
+        assert len(result) == 0
+
+    def test_empty_findings(self):
+        result = _validate_finding_paths((), ("src/main.py",))
+        assert result == ()
+
+    def test_empty_file_tree(self):
+        f = _finding("security", "high", line=1)
+        result = _validate_finding_paths((f,), ())
+        assert len(result) == 0
+
+    def test_partial_path_match(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="test",
+            description="test",
+            location=FileLocation(file_path="main.py", line_start=1),
+            recommendation="fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        result = _validate_finding_paths((f,), ("src/main.py",))
+        assert len(result) == 1
+
+    def test_empty_path_kept(self):
+        f = Finding(
+            id="F-1",
+            dimension="security",
+            severity="high",
+            title="test",
+            description="test",
+            location=FileLocation(file_path="", line_start=1),
+            recommendation="fix",
+            agent_role="security",
+            confidence=0.8,
+        )
+        result = _validate_finding_paths((f,), ("src/main.py",))
+        assert len(result) == 1
+
+
+# ── _role_to_dimension ──────────────────────────────────────────
+
+
+class TestRoleToDimension:
+    def test_architecture(self):
+        assert _role_to_dimension("architecture") == "architecture"
+
+    def test_security(self):
+        assert _role_to_dimension("security") == "security"
+
+    def test_quality(self):
+        assert _role_to_dimension("quality") == "quality"
+
+    def test_documentation(self):
+        assert _role_to_dimension("documentation") == "documentation"
+
+    def test_dependency_maps_to_maintainability(self):
+        assert _role_to_dimension("dependency") == "maintainability"
+
+    def test_performance(self):
+        assert _role_to_dimension("performance") == "performance"
+
+    def test_unknown_defaults_to_architecture(self):
+        assert _role_to_dimension("unknown") == "architecture"
+
+
+# ── _build_source_context ──────────────────────────────────────
+
+
+class TestBuildSourceContext:
+    def test_none_returns_empty(self):
+        assert _build_source_context(None) == ""
+
+    def test_empty_dict_returns_empty(self):
+        assert _build_source_context({}) == ""
+
+    def test_single_file(self):
+        result = _build_source_context({"src/main.py": "print('hello')"})
+        assert "SOURCE CODE:" in result
+        assert "src/main.py" in result
+        assert "print('hello')" in result
+
+    def test_multiple_files(self):
+        result = _build_source_context({"src/a.py": "a_content", "src/b.py": "b_content"})
+        assert "src/a.py" in result
+        assert "src/b.py" in result
+
+
+# ── _extract_plan_context ─────────────────────────────────────
+
+
+class TestExtractPlanContext:
+    def test_valid_plan_with_focus_areas(self):
+        plan = json.dumps(
+            {
+                "focus_areas": [
+                    {"agent": "security", "files": ["auth.py"], "concerns": ["injection"]},
+                ],
+            }
+        )
+        result = _extract_plan_context(plan)
+        assert result is not None
+        assert "security" in result
+
+    def test_invalid_json_returns_none(self):
+        assert _extract_plan_context("bad json") is None
+
+    def test_empty_focus_areas_returns_none(self):
+        plan = json.dumps({"focus_areas": []})
+        assert _extract_plan_context(plan) is None
+
+    def test_missing_focus_areas_returns_none(self):
+        plan = json.dumps({"repo_language": "python"})
+        assert _extract_plan_context(plan) is None
+
+    def test_focus_area_with_no_agent_skipped(self):
+        plan = json.dumps({"focus_areas": [{"files": ["a.py"], "concerns": ["test"]}]})
+        assert _extract_plan_context(plan) is None
+
+    def test_focus_area_with_no_files_or_concerns_skipped(self):
+        plan = json.dumps({"focus_areas": [{"agent": "security"}]})
+        assert _extract_plan_context(plan) is None
+
+
+# ── _estimate_score edge cases ─────────────────────────────────
+
+
+class TestEstimateScoreEdgeCases:
+    def test_single_info_finding(self):
+        findings = [_finding("security", "info")]
+        assert _estimate_score(findings) == 100.0
+
+    def test_multiple_severities(self):
+        findings = [
+            _finding("security", "critical", line=1),
+            _finding("security", "high", line=2),
+            _finding("security", "medium", line=3),
+        ]
+        # 15 + 8 + 3 = 26 penalty
+        assert _estimate_score(findings) == 74.0
+
+    def test_blended_score_with_no_findings(self):
+        # No findings = default 85, but with llm_score
+        assert _estimate_score([], llm_score=90.0) == 85.0  # no findings returns default
+
+    def test_llm_score_high_penalty_low(self):
+        findings = [_finding("security", "low", line=1)]
+        # penalty_score = 99, llm = 100 → 0.4*100 + 0.6*99 = 40 + 59.4 = 99.4
+        assert _estimate_score(findings, llm_score=100.0) == 99.4
+
+    def test_llm_score_boundary_zero(self):
+        findings = [_finding("security", "high", line=1)]
+        # penalty = 92, llm = 0 → 0.4*0 + 0.6*92 = 55.2
+        assert _estimate_score(findings, llm_score=0.0) == 55.2
+
+
+# ── _compute_scorecard edge cases ──────────────────────────────
+
+
+class TestComputeScorecardEdgeCases:
+    def test_all_roles_failed(self):
+        failed = ["architecture", "security", "quality", "documentation", "dependency", "performance"]
+        card = _compute_scorecard((), failed)
+        assert len(card.dimensions) == 0
+
+    def test_single_dimension_remaining(self):
+        failed = ["architecture", "quality", "documentation", "dependency", "performance"]
+        card = _compute_scorecard((), failed)
+        assert len(card.dimensions) == 1
+        assert card.dimensions[0].dimension == "security"
+
+    def test_with_llm_scores(self):
+        output = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response="{}",
+            dimension_score=90.0,
+        )
+        card = _compute_scorecard((), [], agent_outputs=[output])
+        sec_dim = next(d for d in card.dimensions if d.dimension == "security")
+        # Should blend llm_score with penalty score
+        assert sec_dim.score > 0

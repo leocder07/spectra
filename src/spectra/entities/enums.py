@@ -1,8 +1,14 @@
-"""Literal type aliases for the Spectra domain."""
+"""Literal type aliases for the Spectra domain.
+
+Defines the core enum-like types used throughout all layers. Using
+``Literal`` instead of ``enum.Enum`` keeps models JSON-serializable
+without custom encoders and enables exhaustive type checking.
+"""
 
 from typing import Literal
 
 Severity = Literal["critical", "high", "medium", "low", "info"]
+"""Finding severity from most to least urgent."""
 
 Dimension = Literal[
     "architecture",
@@ -12,6 +18,7 @@ Dimension = Literal[
     "maintainability",
     "performance",
 ]
+"""Analysis dimension — each maps to one specialist agent."""
 
 Grade = Literal[
     "A+",
@@ -28,6 +35,7 @@ Grade = Literal[
     "D-",
     "F",
 ]
+"""Letter grade derived from a 0-100 numeric score."""
 
 AgentRole = Literal[
     "meta_prompter",
@@ -39,6 +47,7 @@ AgentRole = Literal[
     "performance",
     "critique",
 ]
+"""Identifier for each of the 8 pipeline agents."""
 
 PipelineState = Literal[
     "pending",
@@ -52,3 +61,4 @@ PipelineState = Literal[
     "degraded",
     "failed",
 ]
+"""Pipeline lifecycle state machine values."""

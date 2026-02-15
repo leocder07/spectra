@@ -64,3 +64,38 @@ class TestAgentFactory:
             "dependency",
             "performance",
         }
+
+    def test_specialists_are_all_specialist_agents(self, factory: AgentFactory):
+        specialists = factory.create_specialists()
+        for s in specialists:
+            assert isinstance(s, SpecialistAgent)
+
+    def test_meta_prompter_uses_sonnet(self, factory: AgentFactory):
+        agent = factory.create("meta_prompter")
+        assert "sonnet" in agent._model
+
+    def test_critique_uses_opus(self, factory: AgentFactory):
+        agent = factory.create("critique")
+        assert "opus" in agent._model
+
+    def test_security_specialist_has_system_prompt(self, factory: AgentFactory):
+        agent = factory.create("security")
+        assert len(agent._system_prompt) > 0
+
+    def test_architecture_specialist_has_system_prompt(self, factory: AgentFactory):
+        agent = factory.create("architecture")
+        assert len(agent._system_prompt) > 0
+
+    def test_all_specialists_have_system_prompts(self, factory: AgentFactory):
+        for role in ["architecture", "security", "quality", "documentation", "dependency", "performance"]:
+            agent = factory.create(role)
+            assert len(agent._system_prompt) > 0
+
+    def test_factory_shares_gateway(self, factory: AgentFactory):
+        a1 = factory.create("security")
+        a2 = factory.create("architecture")
+        assert a1._gateway is a2._gateway
+
+    def test_create_specialists_returns_list(self, factory: AgentFactory):
+        result = factory.create_specialists()
+        assert isinstance(result, list)

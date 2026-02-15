@@ -33,14 +33,10 @@ class TestCloneValidation:
             mock_clone.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_http_url_accepted(self, adapter: GitAdapter, tmp_path):
-        """Plain HTTP URLs also pass URL validation."""
-        from unittest.mock import MagicMock, patch
-
-        with patch("spectra.infrastructure.git_adapter.git.Repo.clone_from") as mock_clone:
-            mock_clone.return_value = MagicMock()
+    async def test_http_url_rejected(self, adapter: GitAdapter, tmp_path):
+        """Plain HTTP is rejected — HTTPS only."""
+        with pytest.raises(GitError):
             await adapter.clone("http://github.com/test/repo.git", str(tmp_path / "out"))
-            mock_clone.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_file_url_rejected(self, adapter: GitAdapter, tmp_path):

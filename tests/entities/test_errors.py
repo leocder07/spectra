@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from spectra.entities.errors import ERRORS, SpectraError
+from spectra.entities.errors import (
+    ERRORS,
+    AgentError,
+    GitError,
+    SpectraError,
+    SpectraRetryError,
+    strip_code_fence,
+)
 
 # ── SpectraError ────────────────────────────────────────────────
 
@@ -85,3 +92,121 @@ class TestErrorsDict:
     def test_all_have_messages(self):
         for error in ERRORS.values():
             assert len(error.message) > 0
+
+
+# ── AgentError ─────────────────────────────────────────────────
+
+
+class TestAgentError:
+    def test_is_exception(self):
+        err = AgentError(ERRORS["SPEC-005"])
+        assert isinstance(err, Exception)
+
+    def test_has_error_attribute(self):
+        err = AgentError(ERRORS["SPEC-005"])
+        assert err.error.code == "SPEC-005"
+
+    def test_message_contains_code(self):
+        err = AgentError(ERRORS["SPEC-005"])
+        assert "SPEC-005" in str(err)
+
+    def test_message_contains_description(self):
+        err = AgentError(ERRORS["SPEC-005"])
+        assert "validation failed" in str(err).lower()
+
+
+# ── GitError ───────────────────────────────────────────────────
+
+
+class TestGitError:
+    def test_is_exception(self):
+        err = GitError(ERRORS["SPEC-001"])
+        assert isinstance(err, Exception)
+
+    def test_has_error_attribute(self):
+        err = GitError(ERRORS["SPEC-001"])
+        assert err.error.code == "SPEC-001"
+
+    def test_message_contains_code(self):
+        err = GitError(ERRORS["SPEC-001"])
+        assert "SPEC-001" in str(err)
+
+
+# ── SpectraRetryError ─────────────────────────────────────────
+
+
+class TestSpectraRetryError:
+    def test_is_exception(self):
+        err = SpectraRetryError(ERRORS["SPEC-002"])
+        assert isinstance(err, Exception)
+
+    def test_has_error_attribute(self):
+        err = SpectraRetryError(ERRORS["SPEC-002"])
+        assert err.error.code == "SPEC-002"
+
+    def test_message_contains_code(self):
+        err = SpectraRetryError(ERRORS["SPEC-003"])
+        assert "SPEC-003" in str(err)
+
+
+# ── strip_code_fence ──────────────────────────────────────────
+
+
+class TestStripCodeFence:
+    def test_plain_json(self):
+        result = strip_code_fence('{"key": "value"}')
+        assert result == '{"key": "value"}'
+
+    def test_json_code_fence(self):
+        raw = '```json\n{"key": "value"}\n```'
+        result = strip_code_fence(raw)
+        assert result == '{"key": "value"}'
+
+    def test_plain_code_fence(self):
+        raw = '```\n{"key": "value"}\n```'
+        result = strip_code_fence(raw)
+        assert result == '{"key": "value"}'
+
+    def test_json_with_surrounding_text(self):
+        raw = 'Here is the result:\n{"key": "value"}\nDone.'
+        result = strip_code_fence(raw)
+        assert '{"key": "value"}' in result
+
+    def test_whitespace_stripped(self):
+        raw = '   \n  {"key": "value"}  \n  '
+        result = strip_code_fence(raw)
+        assert '{"key": "value"}' in result
+
+    def test_no_json_returns_cleaned(self):
+        result = strip_code_fence("just text")
+        assert result == "just text"
+
+    def test_empty_string(self):
+        result = strip_code_fence("")
+        assert result == ""
+
+    def test_multiple_code_blocks_returns_first(self):
+        raw = '```json\n{"a": 1}\n```\n```json\n{"b": 2}\n```'
+        result = strip_code_fence(raw)
+        assert '"a"' in result
+
+    def test_code_fence_with_language_tag(self):
+        raw = '```json\n{"findings": []}\n```'
+        result = strip_code_fence(raw)
+        assert "findings" in result
+
+    def test_nested_braces_preserved(self):
+        raw = '{"outer": {"inner": [1, 2]}}'
+        result = strip_code_fence(raw)
+        assert result == '{"outer": {"inner": [1, 2]}}'
+
+    def test_braces_in_text(self):
+        raw = 'Text before {"key": "val"} text after'
+        result = strip_code_fence(raw)
+        assert '{"key": "val"}' in result
+
+    def test_no_closing_brace(self):
+        raw = '{"key": "value"'
+        result = strip_code_fence(raw)
+        # Should return something, even if partial
+        assert len(result) > 0

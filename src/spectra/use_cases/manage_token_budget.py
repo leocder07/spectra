@@ -1,4 +1,9 @@
-"""Token budget management — allocation and tracking across pipeline stages."""
+"""Token budget management — allocation and tracking across pipeline stages.
+
+Handles the distribution of the specialist token pool (500K tokens by
+default) across the 6 analysis dimensions, using either MetaPrompter
+suggestions or the default ``DIMENSION_WEIGHTS``.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +18,7 @@ DIMENSION_WEIGHTS: dict[Dimension, float] = {
     "maintainability": 0.10,
     "performance": 0.10,
 }
+"""Default weights matching the ScoreCard dimension weights."""
 
 
 def allocate_specialist_budgets(
@@ -21,7 +27,16 @@ def allocate_specialist_budgets(
 ) -> dict[Dimension, int]:
     """Distribute specialist token pool across dimensions.
 
-    Uses MetaPrompter allocations if provided, else default weights.
+    Uses MetaPrompter allocations if provided, otherwise falls back
+    to the default ``DIMENSION_WEIGHTS``.
+
+    Args:
+        budget: Pipeline token budget with the specialist pool size.
+        allocations: Optional MetaPrompter-suggested per-dimension
+            token counts.
+
+    Returns:
+        Mapping of dimension to allocated token count.
     """
     pool = budget.specialists_pool
 
@@ -36,6 +51,14 @@ def check_budget_remaining(
     budget: TokenBudget,
     tokens_used: int,
 ) -> int:
-    """Return remaining tokens, or 0 if budget exceeded."""
+    """Return remaining tokens, clamped to zero.
+
+    Args:
+        budget: Pipeline token budget.
+        tokens_used: Tokens consumed so far.
+
+    Returns:
+        Non-negative remaining token count.
+    """
     remaining = budget.total - tokens_used
     return max(remaining, 0)

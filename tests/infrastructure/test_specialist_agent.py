@@ -216,3 +216,298 @@ class TestSpecialistAgentRun:
         assert output.agent_role == "security"
         assert len(output.findings) == 1
         assert output.findings[0].title == "XSS"
+
+
+# ── validate_output edge cases ────────────────────────────────
+
+
+class TestValidateOutputEdgeCases:
+    def test_finding_with_zero_confidence(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Zero conf",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.0,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert len(findings) == 0
+
+    def test_finding_missing_confidence_defaults_to_zero(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "No conf",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert len(findings) == 0
+
+    def test_finding_with_no_line_end(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 10,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].location.line_end is None
+
+    def test_finding_with_line_end_zero_becomes_none(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 10,
+                    "line_end": 0,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].location.line_end is None
+
+    def test_finding_with_explicit_line_end(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 10,
+                    "line_end": 20,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].location.line_end == 20
+
+    def test_finding_with_estimated_hours(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                    "estimated_hours": 3.5,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].estimated_hours == 3.5
+
+    def test_finding_missing_estimated_hours_defaults_zero(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].estimated_hours == 0.0
+
+    def test_many_findings_all_have_correct_prefix(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": f"Finding {i}",
+                    "description": "d",
+                    "file_path": f"f{i}.py",
+                    "line_start": i,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                }
+                for i in range(20)
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        for f in findings:
+            assert f.id.startswith("SEC-")
+
+    def test_finding_default_empty_title(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].title == ""
+
+    def test_agent_role_set_correctly(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].agent_role == "security"
+
+    def test_dimension_set_correctly(self, agent: SpecialistAgent):
+        parsed = {
+            "findings": [
+                {
+                    "severity": "high",
+                    "title": "Test",
+                    "description": "d",
+                    "file_path": "a.py",
+                    "line_start": 1,
+                    "recommendation": "fix",
+                    "confidence": 0.9,
+                },
+            ]
+        }
+        findings = agent.validate_output(parsed)
+        assert findings[0].dimension == "security"
+
+
+# ── SpecialistAgent with different roles ──────────────────────
+
+
+class TestSpecialistDifferentRoles:
+    def test_architecture_agent(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="architecture",
+            gateway=mock_gateway,
+            dimension="architecture",
+            id_prefix="ARCH",
+            system_prompt="Analyze architecture",
+        )
+        assert agent.role == "architecture"
+        assert agent._dimension == "architecture"
+        assert agent._id_prefix == "ARCH"
+
+    def test_quality_agent(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="quality",
+            gateway=mock_gateway,
+            dimension="quality",
+            id_prefix="QUAL",
+            system_prompt="Analyze quality",
+        )
+        assert agent.role == "quality"
+
+    def test_documentation_agent(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="documentation",
+            gateway=mock_gateway,
+            dimension="documentation",
+            id_prefix="DOC",
+            system_prompt="Analyze docs",
+        )
+        assert agent.role == "documentation"
+
+    def test_dependency_agent(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="dependency",
+            gateway=mock_gateway,
+            dimension="maintainability",
+            id_prefix="DEP",
+            system_prompt="Analyze deps",
+        )
+        assert agent.role == "dependency"
+        assert agent._dimension == "maintainability"
+
+    def test_performance_agent(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="performance",
+            gateway=mock_gateway,
+            dimension="performance",
+            id_prefix="PERF",
+            system_prompt="Analyze perf",
+        )
+        assert agent.role == "performance"
+
+    def test_custom_model(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="security",
+            gateway=mock_gateway,
+            dimension="security",
+            id_prefix="SEC",
+            system_prompt="test",
+            model="custom-model",
+        )
+        assert agent._model == "custom-model"
+
+    def test_custom_max_tokens(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="security",
+            gateway=mock_gateway,
+            dimension="security",
+            id_prefix="SEC",
+            system_prompt="test",
+            max_tokens=50_000,
+        )
+        assert agent._max_tokens == 50_000
+
+    def test_default_model_is_opus(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="security",
+            gateway=mock_gateway,
+            dimension="security",
+            id_prefix="SEC",
+            system_prompt="test",
+        )
+        assert agent._model == "claude-opus-4-6"
+
+    def test_default_max_tokens(self, mock_gateway: AsyncMock):
+        agent = SpecialistAgent(
+            role="security",
+            gateway=mock_gateway,
+            dimension="security",
+            id_prefix="SEC",
+            system_prompt="test",
+        )
+        assert agent._max_tokens == 80_000

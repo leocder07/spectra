@@ -5,17 +5,28 @@ from __future__ import annotations
 import logging
 
 import anthropic
+import httpx
 
 from spectra.entities.errors import ERRORS, SpectraRetryError
 
 _log = logging.getLogger("spectra.adapter")
+
+_MAX_CONNECTIONS = 10
 
 
 class AnthropicAdapter:
     """Async Anthropic client implementing the LLMGateway protocol."""
 
     def __init__(self, api_key: str) -> None:
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+        self._client = anthropic.AsyncAnthropic(
+            api_key=api_key,
+            http_client=httpx.AsyncClient(
+                limits=httpx.Limits(
+                    max_connections=_MAX_CONNECTIONS,
+                    max_keepalive_connections=_MAX_CONNECTIONS,
+                ),
+            ),
+        )
         self._last_usage: tuple[int, int] = (0, 0)
 
     @property
