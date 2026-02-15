@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-JY-Hb6w61wGcrxGzLuD7HXfZrtZrjvHpZkTu7tjzRyA'; style-src 'nonce-JY-Hb6w61wGcrxGzLuD7HXfZrtZrjvHpZkTu7tjzRyA' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-TiX0_o_UeWST0xymAc_1gQ4FW8lb5svZx7KQDD8_uLc'; style-src 'nonce-TiX0_o_UeWST0xymAc_1gQ4FW8lb5svZx7KQDD8_uLc' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
     <title>Spectra — spectra</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <style nonce="JY-Hb6w61wGcrxGzLuD7HXfZrtZrjvHpZkTu7tjzRyA">
+    <style nonce="TiX0_o_UeWST0xymAc_1gQ4FW8lb5svZx7KQDD8_uLc">
         /* ═══════════════════════════════════════════════════════
            SPECTRA — Premium Report Theme
            Vercel × Linear × Terminal aesthetic
@@ -42,7 +42,7 @@
             /* Text */
             --text:           #ededed;
             --text-secondary: #a1a1aa;
-            --text-tertiary:  #52525b;
+            --text-tertiary:  #71717a;
 
             /* Borders */
             --border:         rgba(255, 255, 255, 0.07);
@@ -1509,7 +1509,7 @@
             content: '';
             position: fixed;
             inset: 0;
-            z-index: 9999;
+            z-index: 1;
             pointer-events: none;
             background: repeating-linear-gradient(
                 0deg,
@@ -2033,6 +2033,21 @@
         }
 
         /* ═══════════════════════════════════════════════════════
+           REDUCED MOTION — Accessibility for vestibular disorders
+           ═══════════════════════════════════════════════════════ */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            .matrix-rain { display: none !important; }
+            body::after { display: none !important; }
+            .scroll-reveal { opacity: 1 !important; transform: none !important; }
+            .dim-bar-fill { animation: none !important; }
+        }
+
+        /* ═══════════════════════════════════════════════════════
            PRINT STYLESHEET — Clean, Ink-Friendly Output
            ═══════════════════════════════════════════════════════ */
         @media print {
@@ -2182,7 +2197,7 @@
         <!-- Header -->
         <header class="header" id="top">
             <div class="header-inner">
-                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#06B6D4"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">B+ 83/100</text></svg></div>
+                <div class="header-badge"><svg xmlns="http://www.w3.org/2000/svg" width="160" height="20"><rect width="80" height="20" rx="3" fill="#555"/><rect x="80" width="80" height="20" rx="3" fill="#22C55E"/><text x="40" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">Spectra</text><text x="120" y="14" fill="#fff" text-anchor="middle" font-size="11" font-family="Verdana">A- 87/100</text></svg></div>
                 <h1 class="wordmark">SPECTRA</h1>
                 <div class="repo-line">
                     <span class="prompt">&gt;</span> analyzing <strong>spectra</strong><span class="terminal-cursor" aria-hidden="true"></span>
@@ -2196,27 +2211,27 @@
             <div class="spectrum-bar">
                 
                 <div class="spectrum-seg" style="width: 25.0%; background: #22C55E;">
-                    Architecture 89 A-
+                    Architecture 91 A
                 </div>
                 
                 <div class="spectrum-seg" style="width: 25.0%; background: #06B6D4;">
-                    Security 78 B-
+                    Security 80 B
                 </div>
                 
-                <div class="spectrum-seg" style="width: 20.0%; background: #06B6D4;">
-                    Quality 82 B
-                </div>
-                
-                <div class="spectrum-seg" style="width: 10.0%; background: #06B6D4;">
-                    Documentation 79 B-
+                <div class="spectrum-seg" style="width: 20.0%; background: #22C55E;">
+                    Quality 88 A-
                 </div>
                 
                 <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
-                    Maintainability 87 A-
+                    Documentation 93 A
+                </div>
+                
+                <div class="spectrum-seg" style="width: 10.0%; background: #22C55E;">
+                    Maintainability 90 A
                 </div>
                 
                 <div class="spectrum-seg" style="width: 10.0%; background: #06B6D4;">
-                    Performance 80 B
+                    Performance 86 B+
                 </div>
                 
             </div>
@@ -2273,25 +2288,25 @@
         <!-- Executive Summary -->
         <section class="executive-summary scroll-reveal" id="summary">
             <div class="section-label">Executive Summary</div>
-            <div class="verdict">Your codebase scores B+ (83/100) — strong architecture with security gaps</div>
+            <div class="verdict">Your codebase scores A- (88/100) — strong documentation with security gaps</div>
 
             <div class="summary-grid">
                 <div class="summary-col strengths">
                     <h3>Top Strengths</h3>
                     
                     <div class="summary-item">
+                        <span class="summary-dim">Documentation</span>
+                        <span class="summary-score grade-a">A (93)</span>
+                    </div>
+                    
+                    <div class="summary-item">
                         <span class="summary-dim">Architecture</span>
-                        <span class="summary-score grade-a">A- (89)</span>
+                        <span class="summary-score grade-a">A (92)</span>
                     </div>
                     
                     <div class="summary-item">
                         <span class="summary-dim">Maintainability</span>
-                        <span class="summary-score grade-a">A- (87)</span>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span class="summary-dim">Quality</span>
-                        <span class="summary-score grade-b">B (82)</span>
+                        <span class="summary-score grade-a">A (91)</span>
                     </div>
                     
                 </div>
@@ -2301,17 +2316,17 @@
                     
                     <div class="summary-item">
                         <span class="summary-dim">Security</span>
-                        <span class="summary-score grade-b">B- (78)</span>
-                    </div>
-                    
-                    <div class="summary-item">
-                        <span class="summary-dim">Documentation</span>
-                        <span class="summary-score grade-b">B- (80)</span>
+                        <span class="summary-score grade-b">B (80)</span>
                     </div>
                     
                     <div class="summary-item">
                         <span class="summary-dim">Performance</span>
-                        <span class="summary-score grade-b">B (80)</span>
+                        <span class="summary-score grade-b">B+ (87)</span>
+                    </div>
+                    
+                    <div class="summary-item">
+                        <span class="summary-dim">Quality</span>
+                        <span class="summary-score grade-a">A- (88)</span>
                     </div>
                     
                 </div>
@@ -2332,15 +2347,13 @@
                     
                     
                     
-                    <div class="seg seg-medium" style="width: 37.0%"></div>
+                    
+                    
+                    <div class="seg seg-low" style="width: 43.5%"></div>
                     
                     
                     
-                    <div class="seg seg-low" style="width: 18.5%"></div>
-                    
-                    
-                    
-                    <div class="seg seg-info" style="width: 44.4%"></div>
+                    <div class="seg seg-info" style="width: 56.5%"></div>
                     
                     
                 </div>
@@ -2351,23 +2364,18 @@
                     
                     
                     
-                    <span class="legend-item">
-                        <span class="legend-dot" style="background: var(--amber)"></span>
-                        medium (10)
-                    </span>
-                    
                     
                     
                     <span class="legend-item">
                         <span class="legend-dot" style="background: var(--cyan)"></span>
-                        low (5)
+                        low (10)
                     </span>
                     
                     
                     
                     <span class="legend-item">
                         <span class="legend-dot" style="background: var(--text-tertiary)"></span>
-                        info (12)
+                        info (13)
                     </span>
                     
                     
@@ -2376,7 +2384,7 @@
             
 
             <div class="quick-stats">
-                27 findings <span class="sep">&middot;</span> 6 agents <span class="sep">&middot;</span> 190s <span class="sep">&middot;</span> ~48h tech debt
+                23 findings <span class="sep">&middot;</span> 6 agents <span class="sep">&middot;</span> 156s <span class="sep">&middot;</span> ~29h tech debt
             </div>
         </section>
 
@@ -2388,42 +2396,42 @@
                 
                 <li>
                     <span class="action-num">01<span class="arrow">&gt;</span></span>
-                    <span class="badge badge-medium">medium</span>
-                    <span class="action-title">No automated layer boundary enforcement detected</span>
-                    <span class="action-location">src/spectra/use_cases/</span>
-                    <p class="action-rec">Add import-linter or a similar tool to CI to enforce dependency rules: entities → (nothing), use_cases → entities only, adapters → use_cases + entities, infrastructure → any layer.</p>
+                    <span class="badge badge-low">low</span>
+                    <span class="action-title">Agent infrastructure co-located with composition root</span>
+                    <span class="action-location">src/spectra/infrastructure/main.py</span>
+                    <p class="action-rec">Consider moving the composition root to a dedicated entry point location (e.g., src/spectra/main.py or src/spectra/bootstrap.py) to clearly separate wiring from infrastructure implementations. Alternatively, document this decision in an ADR.</p>
                 </li>
                 
                 <li>
                     <span class="action-num">02<span class="arrow">&gt;</span></span>
-                    <span class="badge badge-medium">medium</span>
-                    <span class="action-title">Shell script hook may be vulnerable to injection</span>
-                    <span class="action-location">.claude-plugin/hooks/dependency-guard.sh</span>
-                    <p class="action-rec">Ensure all variables in the shell script are properly quoted (&#34;$var&#34; not $var). Use arrays for command arguments. Avoid eval or unquoted variable expansion. Consider using set -euo pipefail.</p>
+                    <span class="badge badge-low">low</span>
+                    <span class="action-title">Single adapter layer entry point may limit extensibility</span>
+                    <span class="action-location">src/spectra/adapters/cli_controller.py</span>
+                    <p class="action-rec">This is fine for now. When adding new adapters, create separate modules (e.g., adapters/api_controller.py) that depend on the same use_case interfaces. The current architecture already supports this pattern.</p>
                 </li>
                 
                 <li>
                     <span class="action-num">03<span class="arrow">&gt;</span></span>
-                    <span class="badge badge-medium">medium</span>
-                    <span class="action-title">External API adapter (Anthropic) — verify secure communication and error handling</span>
-                    <span class="action-location">src/spectra/infrastructure/anthropic_adapter.py</span>
-                    <p class="action-rec">Verify: (1) API key is loaded from environment, not hardcoded, (2) Error handlers do not leak API keys in stack traces or logs, (3) HTTPS is enforced for all API calls, (4) Response data is validated/sanitized before use.</p>
+                    <span class="badge badge-low">low</span>
+                    <span class="action-title">Consider adding ADR index for discoverability</span>
+                    <span class="action-location">docs/adr</span>
+                    <p class="action-rec">Create a docs/adr/README.md with a table listing each ADR number, title, status (Accepted/Superseded/Deprecated), and date. This is a common pattern in ADR-driven projects.</p>
                 </li>
                 
                 <li>
                     <span class="action-num">04<span class="arrow">&gt;</span></span>
-                    <span class="badge badge-medium">medium</span>
-                    <span class="action-title">Git adapter — potential path traversal in repository access</span>
-                    <span class="action-location">src/spectra/infrastructure/git_adapter.py</span>
-                    <p class="action-rec">Validate and canonicalize all file paths. Use os.path.realpath() to resolve symlinks and verify paths remain within the expected repository root. Reject paths containing &#39;..&#39; sequences.</p>
+                    <span class="badge badge-low">low</span>
+                    <span class="action-title">Consider cross-linking between docs/API.md and source code interfaces</span>
+                    <span class="action-location">docs/API.md</span>
+                    <p class="action-rec">Add cross-references between docs/API.md and the source interfaces. Consider using a documentation generation tool (e.g., Sphinx with autodoc, or mkdocs with mkdocstrings) to auto-generate API reference from docstrings, reducing drift risk.</p>
                 </li>
                 
                 <li>
                     <span class="action-num">05<span class="arrow">&gt;</span></span>
-                    <span class="badge badge-medium">medium</span>
-                    <span class="action-title">CI/CD workflow security — verify pinned action versions</span>
-                    <span class="action-location">.github/workflows/ci.yml</span>
-                    <p class="action-rec">Pin all third-party GitHub Actions to full commit SHAs (e.g., uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29) instead of version tags.</p>
+                    <span class="badge badge-low">low</span>
+                    <span class="action-title">External API client dependencies (anthropic, tiktoken) require version monitoring</span>
+                    <span class="action-location">src/spectra/infrastructure/anthropic_adapter.py</span>
+                    <p class="action-rec">Ensure anthropic and tiktoken are pinned with upper bounds in pyproject.toml (e.g., anthropic&gt;=0.39,&lt;1.0) and that the lock file reflects tested versions.</p>
                 </li>
                 
             </ol>
@@ -2438,10 +2446,10 @@
                 
                 
                 <div class="grade-gauge"
-                     style="background: conic-gradient(var(--cyan) 298.8deg, var(--bg-elevated) 0deg); --gauge-glow: rgba(6,182,212,0.2);">
+                     style="background: conic-gradient(var(--green) 315.4deg, var(--bg-elevated) 0deg); --gauge-glow: var(--green-glow);">
                     <div class="grade-gauge-inner">
-                        <span class="grade-gauge-letter grade-b">B+</span>
-                        <span class="grade-gauge-score"><span class="counter-animate" data-target="83">0</span> / 100</span>
+                        <span class="grade-gauge-letter grade-a">A-</span>
+                        <span class="grade-gauge-score"><span class="counter-animate" data-target="88">0</span> / 100</span>
                     </div>
                 </div>
             </div>
@@ -2469,33 +2477,33 @@
                     </div>
                     
                     <div class="radar-label" id="radar-label-0"
-                         data-dim="Architecture" data-score="89">
-                        Architecture<span class="radar-label-score">89</span>
+                         data-dim="Architecture" data-score="92">
+                        Architecture<span class="radar-label-score">92</span>
                     </div>
                     
                     <div class="radar-label" id="radar-label-1"
-                         data-dim="Security" data-score="78">
-                        Security<span class="radar-label-score">78</span>
+                         data-dim="Security" data-score="80">
+                        Security<span class="radar-label-score">80</span>
                     </div>
                     
                     <div class="radar-label" id="radar-label-2"
-                         data-dim="Quality" data-score="82">
-                        Quality<span class="radar-label-score">82</span>
+                         data-dim="Quality" data-score="88">
+                        Quality<span class="radar-label-score">88</span>
                     </div>
                     
                     <div class="radar-label" id="radar-label-3"
-                         data-dim="Documentation" data-score="80">
-                        Documentation<span class="radar-label-score">80</span>
+                         data-dim="Documentation" data-score="93">
+                        Documentation<span class="radar-label-score">93</span>
                     </div>
                     
                     <div class="radar-label" id="radar-label-4"
-                         data-dim="Maintainability" data-score="87">
-                        Maintainability<span class="radar-label-score">87</span>
+                         data-dim="Maintainability" data-score="91">
+                        Maintainability<span class="radar-label-score">91</span>
                     </div>
                     
                     <div class="radar-label" id="radar-label-5"
-                         data-dim="Performance" data-score="80">
-                        Performance<span class="radar-label-score">80</span>
+                         data-dim="Performance" data-score="87">
+                        Performance<span class="radar-label-score">87</span>
                     </div>
                     
                 </div>
@@ -2507,54 +2515,14 @@
                     <span class="dim-label">Architecture</span>
                     <div class="dim-bar">
                         <div class="dim-bar-fill bar-a"
-                             style="--target-width: 89.4%"></div>
+                             style="--target-width: 91.9%"></div>
                     </div>
-                    <span class="dim-score"><span class="counter-animate" data-target="89">0</span></span>
-                    <span class="dim-grade grade-a">A-</span>
+                    <span class="dim-score"><span class="counter-animate" data-target="92">0</span></span>
+                    <span class="dim-grade grade-a">A</span>
                 </div>
                 
                 <div class="dim-row">
                     <span class="dim-label">Security</span>
-                    <div class="dim-bar">
-                        <div class="dim-bar-fill bar-b"
-                             style="--target-width: 78.2%"></div>
-                    </div>
-                    <span class="dim-score"><span class="counter-animate" data-target="78">0</span></span>
-                    <span class="dim-grade grade-b">B-</span>
-                </div>
-                
-                <div class="dim-row">
-                    <span class="dim-label">Quality</span>
-                    <div class="dim-bar">
-                        <div class="dim-bar-fill bar-b"
-                             style="--target-width: 82.4%"></div>
-                    </div>
-                    <span class="dim-score"><span class="counter-animate" data-target="82">0</span></span>
-                    <span class="dim-grade grade-b">B</span>
-                </div>
-                
-                <div class="dim-row">
-                    <span class="dim-label">Documentation</span>
-                    <div class="dim-bar">
-                        <div class="dim-bar-fill bar-b"
-                             style="--target-width: 79.6%"></div>
-                    </div>
-                    <span class="dim-score"><span class="counter-animate" data-target="80">0</span></span>
-                    <span class="dim-grade grade-b">B-</span>
-                </div>
-                
-                <div class="dim-row">
-                    <span class="dim-label">Maintainability</span>
-                    <div class="dim-bar">
-                        <div class="dim-bar-fill bar-a"
-                             style="--target-width: 87.0%"></div>
-                    </div>
-                    <span class="dim-score"><span class="counter-animate" data-target="87">0</span></span>
-                    <span class="dim-grade grade-a">A-</span>
-                </div>
-                
-                <div class="dim-row">
-                    <span class="dim-label">Performance</span>
                     <div class="dim-bar">
                         <div class="dim-bar-fill bar-b"
                              style="--target-width: 80.0%"></div>
@@ -2563,11 +2531,51 @@
                     <span class="dim-grade grade-b">B</span>
                 </div>
                 
+                <div class="dim-row">
+                    <span class="dim-label">Quality</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 88.0%"></div>
+                    </div>
+                    <span class="dim-score"><span class="counter-animate" data-target="88">0</span></span>
+                    <span class="dim-grade grade-a">A-</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Documentation</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 93.0%"></div>
+                    </div>
+                    <span class="dim-score"><span class="counter-animate" data-target="93">0</span></span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Maintainability</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-a"
+                             style="--target-width: 90.8%"></div>
+                    </div>
+                    <span class="dim-score"><span class="counter-animate" data-target="91">0</span></span>
+                    <span class="dim-grade grade-a">A</span>
+                </div>
+                
+                <div class="dim-row">
+                    <span class="dim-label">Performance</span>
+                    <div class="dim-bar">
+                        <div class="dim-bar-fill bar-b"
+                             style="--target-width: 86.7%"></div>
+                    </div>
+                    <span class="dim-score"><span class="counter-animate" data-target="87">0</span></span>
+                    <span class="dim-grade grade-b">B+</span>
+                </div>
+                
             </div>
 
             <div class="stats">
                 <div class="stat">
-                    <div class="stat-value"><span class="counter-animate" data-target="27">0</span></div>
+                    <div class="stat-value"><span class="counter-animate" data-target="23">0</span></div>
                     <div class="stat-label">Findings</div>
                 </div>
                 <div class="stat">
@@ -2575,11 +2583,11 @@
                     <div class="stat-label">Critical</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value"><span class="counter-animate" data-target="190" data-suffix="s">0</span></div>
+                    <div class="stat-value"><span class="counter-animate" data-target="156" data-suffix="s">0</span></div>
                     <div class="stat-label">Duration</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">$<span class="counter-animate" data-target="1.07" data-decimals="2">0</span></div>
+                    <div class="stat-value">$<span class="counter-animate" data-target="1.00" data-decimals="2">0</span></div>
                     <div class="stat-label">Cost</div>
                 </div>
                 <div class="stat">
@@ -2699,30 +2707,6 @@
         
             
             
-        
-            
-            
-                
-                    
-                
-            
-        
-            
-            
-                
-                    
-                
-            
-        
-            
-            
-                
-                    
-                
-            
-        
-            
-            
                 
                     
                 
@@ -2790,25 +2774,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
                     </div>
-                    <span class="heatmap-path" title="src/spectra/use_cases/orchestrate_agents.py">src/spectra/use_cases/orchestrate_agents.py</span>
-                </li>
-                
-                
-                <li class="heatmap-item">
-                    <span class="heatmap-count heat-medium">2</span>
-                    <div class="heatmap-bar">
-                        <div class="heatmap-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
-                    </div>
-                    <span class="heatmap-path" title=".claude-plugin/hooks/dependency-guard.sh">.claude-plugin/hooks/dependency-guard.sh</span>
-                </li>
-                
-                
-                <li class="heatmap-item">
-                    <span class="heatmap-count heat-medium">2</span>
-                    <div class="heatmap-bar">
-                        <div class="heatmap-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
-                    </div>
-                    <span class="heatmap-path" title="src/spectra/infrastructure/anthropic_adapter.py">src/spectra/infrastructure/anthropic_adapter.py</span>
+                    <span class="heatmap-path" title="docs/adr/ADR-001-clean-architecture.md">docs/adr/ADR-001-clean-architecture.md</span>
                 </li>
                 
                 
@@ -2826,6 +2792,15 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
+                    <span class="heatmap-path" title="src/spectra/entities/models.py">src/spectra/entities/models.py</span>
+                </li>
+                
+                
+                <li class="heatmap-item">
+                    <span class="heatmap-count heat-low">1</span>
+                    <div class="heatmap-bar">
+                        <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
+                    </div>
                     <span class="heatmap-path" title="src/spectra/use_cases/interfaces.py">src/spectra/use_cases/interfaces.py</span>
                 </li>
                 
@@ -2835,7 +2810,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="docs/adr/ADR-001-clean-architecture.md">docs/adr/ADR-001-clean-architecture.md</span>
+                    <span class="heatmap-path" title="src/spectra/infrastructure/main.py">src/spectra/infrastructure/main.py</span>
                 </li>
                 
                 
@@ -2844,16 +2819,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="src/spectra/use_cases/">src/spectra/use_cases/</span>
-                </li>
-                
-                
-                <li class="heatmap-item">
-                    <span class="heatmap-count heat-low">1</span>
-                    <div class="heatmap-bar">
-                        <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
-                    </div>
-                    <span class="heatmap-path" title=".">.</span>
+                    <span class="heatmap-path" title="src/spectra/adapters/cli_controller.py">src/spectra/adapters/cli_controller.py</span>
                 </li>
                 
                 
@@ -2871,7 +2837,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="src/spectra/infrastructure/git_adapter.py">src/spectra/infrastructure/git_adapter.py</span>
+                    <span class="heatmap-path" title="README.md">README.md</span>
                 </li>
                 
                 
@@ -2880,7 +2846,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title=".github/workflows/ci.yml">.github/workflows/ci.yml</span>
+                    <span class="heatmap-path" title="docs/adr">docs/adr</span>
                 </li>
                 
                 
@@ -2889,7 +2855,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="src/spectra/entities/errors.py">src/spectra/entities/errors.py</span>
+                    <span class="heatmap-path" title="src/spectra/infrastructure/agents/specialist_prompts.py">src/spectra/infrastructure/agents/specialist_prompts.py</span>
                 </li>
                 
                 
@@ -2898,7 +2864,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="docs/adr/ADR-004-frozen-pydantic-models.md">docs/adr/ADR-004-frozen-pydantic-models.md</span>
+                    <span class="heatmap-path" title="CLAUDE.md">CLAUDE.md</span>
                 </li>
                 
                 
@@ -2907,7 +2873,7 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="src/spectra/infrastructure/retry_decorator.py">src/spectra/infrastructure/retry_decorator.py</span>
+                    <span class="heatmap-path" title="docs/API.md">docs/API.md</span>
                 </li>
                 
                 
@@ -2916,7 +2882,25 @@
                     <div class="heatmap-bar">
                         <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="heatmap-path" title="tests/integration/test_pipeline.py">tests/integration/test_pipeline.py</span>
+                    <span class="heatmap-path" title="docs/skills/Spectra-Master-Prompt.md">docs/skills/Spectra-Master-Prompt.md</span>
+                </li>
+                
+                
+                <li class="heatmap-item">
+                    <span class="heatmap-count heat-low">1</span>
+                    <div class="heatmap-bar">
+                        <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
+                    </div>
+                    <span class="heatmap-path" title=".github/dependabot.yml">.github/dependabot.yml</span>
+                </li>
+                
+                
+                <li class="heatmap-item">
+                    <span class="heatmap-count heat-low">1</span>
+                    <div class="heatmap-bar">
+                        <div class="heatmap-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
+                    </div>
+                    <span class="heatmap-path" title="requirements.lock">requirements.lock</span>
                 </li>
                 
             </ul>
@@ -2978,32 +2962,63 @@
         
         
         <section class="findings-section scroll-reveal" id="dim-architecture" data-dimension="architecture">
-            <h2>Architecture <span class="dim-count">(4)</span></h2>
+            <h2>Architecture <span class="dim-count">(5)</span></h2>
 
             
-            <div class="finding severity-medium"
-                 data-severity="medium"
+            <div class="finding severity-low"
+                 data-severity="low"
                  data-dimension="architecture"
-                 data-title="No automated layer boundary enforcement detected"
-                 data-location="src/spectra/use_cases/"
-                 onclick="this.classList.toggle('expanded')">
+                 data-title="Agent infrastructure co-located with composition root"
+                 data-location="src/spectra/infrastructure/main.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">No automated layer boundary enforcement detected</span>
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Agent infrastructure co-located with composition root</span>
                     
-                    <span class="hours-badge">~4.0h</span>
+                    <span class="hours-badge">~2.0h</span>
+                    
+                    
+                    <span class="validated-badge">✓ validated</span>
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/main.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Both the agent subsystem (agent_factory.py, base_agent.py) and the composition root (main.py) reside under infrastructure/. While agents are correctly in the infrastructure layer (they are implementation details), the flat co-location of main.py alongside the agents/ subdirectory may blur the distinction between the composition root and infrastructure implementations as the project grows.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Consider moving the composition root to a dedicated entry point location (e.g., src/spectra/main.py or src/spectra/bootstrap.py) to clearly separate wiring from infrastructure implementations. Alternatively, document this decision in an ADR.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="architecture"
+                 data-title="Single adapter layer entry point may limit extensibility"
+                 data-location="src/spectra/adapters/cli_controller.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Single adapter layer entry point may limit extensibility</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
-                    src/spectra/use_cases/
+                    src/spectra/adapters/cli_controller.py
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">While the directory structure follows Clean Architecture conventions, there is no evidence of automated tooling (e.g., import-linter, archunit-style checks, or custom CI scripts) to enforce that inner layers do not import from outer layers. Without enforcement, layer violations can creep in over time as the team grows.</div>
+                    <div class="finding-description">Currently only a CLI controller exists in the adapters layer. While this is appropriate for the current scope, the architecture should anticipate additional adapters (REST API, SDK, etc.) without requiring changes to use_cases.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Add import-linter or a similar tool to CI to enforce dependency rules: entities → (nothing), use_cases → entities only, adapters → use_cases + entities, infrastructure → any layer.
+                        <strong>Recommendation:</strong> This is fine for now. When adding new adapters, create separate modules (e.g., adapters/api_controller.py) that depend on the same use_case interfaces. The current architecture already supports this pattern.
                     </div>
                 </div>
             </div>
@@ -3011,14 +3026,43 @@
             <div class="finding severity-info"
                  data-severity="info"
                  data-dimension="architecture"
-                 data-title="Insufficient code content provided for thorough architecture analysis"
-                 data-location="src/spectra/use_cases/interfaces.py"
-                 onclick="this.classList.toggle('expanded')">
+                 data-title="Well-structured Clean Architecture layer separation"
+                 data-location="src/spectra/entities/models.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
-                    <span class="finding-title">Insufficient code content provided for thorough architecture analysis</span>
+                    <span class="finding-title">Well-structured Clean Architecture layer separation</span>
                     
                     <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/entities/models.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The codebase follows Clean Architecture with clearly separated layers: entities (domain models), use_cases (application logic with interfaces for dependency inversion), adapters (CLI controller), and infrastructure (agents, composition root). This matches the documented ADR-001 decision.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Continue maintaining this layering discipline. Ensure new developers read ADR-001 before contributing.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="architecture"
+                 data-title="Dependency inversion via interfaces module in use_cases layer"
+                 data-location="src/spectra/use_cases/interfaces.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependency inversion via interfaces module in use_cases layer</span>
+                    
+                    <span class="hours-badge">~2.0h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
@@ -3028,9 +3072,9 @@
                     src/spectra/use_cases/interfaces.py
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The analysis input contains file paths and directory structure but lacks the actual source code content of the key architectural files (entities/, use_cases/interfaces.py, use_cases/orchestrate_agents.py, adapters/, infrastructure/). Without file contents, dependency direction enforcement, interface segregation, and layer boundary violations cannot be verified with high confidence.</div>
+                    <div class="finding-description">The use_cases layer defines its own interfaces (ports) in interfaces.py, which infrastructure and adapter layers should implement. This is a correct application of the Dependency Inversion Principle — inner layers define abstractions, outer layers provide implementations.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Re-run analysis with full file contents for entities, use_cases, adapters, and infrastructure layers to enable proper dependency direction and layer boundary verification.
+                        <strong>Recommendation:</strong> Verify that infrastructure/agents modules import from use_cases/interfaces.py (inward dependency) and not the reverse. Consider adding an architectural fitness function or import linter (e.g., import-linter) to enforce dependency rules automatically.
                     </div>
                 </div>
             </div>
@@ -3038,14 +3082,15 @@
             <div class="finding severity-info"
                  data-severity="info"
                  data-dimension="architecture"
-                 data-title="Clean Architecture directory structure is well-organized"
+                 data-title="ADR documentation supports architectural governance"
                  data-location="docs/adr/ADR-001-clean-architecture.md"
-                 onclick="this.classList.toggle('expanded')">
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
-                    <span class="finding-title">Clean Architecture directory structure is well-organized</span>
+                    <span class="finding-title">ADR documentation supports architectural governance</span>
                     
-                    <span class="hours-badge">~4.0h</span>
+                    <span class="hours-badge">~0.5h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
@@ -3055,36 +3100,308 @@
                     docs/adr/ADR-001-clean-architecture.md
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The project follows a canonical Clean Architecture layout with clearly separated layers: entities/ (domain), use_cases/ (application), adapters/ (interface adapters), and infrastructure/ (frameworks &amp; drivers). ADR-001 documents this decision, and an architecture diagram (SVG) is maintained alongside the code. The presence of use_cases/interfaces.py suggests proper port definitions at the use-case boundary.</div>
+                    <div class="finding-description">The presence of ADR-001 (Clean Architecture) and ADR-002 (Parallel Agent Pipeline) demonstrates intentional architectural decision-making. This is a strong governance practice that aids onboarding and prevents architectural drift.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Continue maintaining ADRs and architecture diagrams as the system evolves. Consider adding automated dependency checks (e.g., import-linter) to enforce layer boundaries in CI.
+                        <strong>Recommendation:</strong> Continue documenting significant decisions as ADRs. Consider adding ADRs for error handling strategy, configuration management, and testing strategy.
                     </div>
                 </div>
             </div>
             
+            
+            
+            <div class="dim-effort">
+                estimated effort: ~6h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section scroll-reveal" id="dim-security" data-dimension="security">
+            <h2>Security <span class="dim-count">(1)</span></h2>
+
+            
             <div class="finding severity-info"
                  data-severity="info"
-                 data-dimension="architecture"
-                 data-title="Agent orchestration architecture documented via ADR"
-                 data-location="src/spectra/use_cases/orchestrate_agents.py"
-                 onclick="this.classList.toggle('expanded')">
+                 data-dimension="security"
+                 data-title="Insufficient code content provided for thorough security analysis"
+                 data-location=".env.example"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
-                    <span class="finding-title">Agent orchestration architecture documented via ADR</span>
+                    <span class="finding-title">Insufficient code content provided for thorough security analysis</span>
                     
-                    <span class="hours-badge">~2.0h</span>
+                    <span class="hours-badge">~0.5h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
-                    src/spectra/use_cases/orchestrate_agents.py
+                    .env.example
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">ADR-002 documents the parallel agent pipeline pattern, and orchestrate_agents.py in the use_cases layer suggests the orchestration logic is correctly placed at the application/use-case level rather than in infrastructure. Agents appear to live under infrastructure/agents/, which is the correct layer for external-facing implementations.</div>
+                    <div class="finding-description">The repository file listing was provided but the actual source code contents were not included in the analysis payload. File paths reference API key handling (.env.example), external API adapters (anthropic_adapter.py, git_adapter.py), and infrastructure components, but without source code, specific vulnerabilities cannot be confirmed with adequate confidence.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Verify that orchestrate_agents.py depends only on interfaces defined in use_cases/interfaces.py (ports) and not directly on infrastructure/agents/ implementations. This ensures the dependency rule is maintained.
+                        <strong>Recommendation:</strong> Re-run the analysis with full file contents included so that concrete security findings can be identified with appropriate confidence levels.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div class="dim-effort">
+                estimated effort: ~0h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section scroll-reveal" id="dim-quality" data-dimension="quality">
+            <h2>Quality <span class="dim-count">(1)</span></h2>
+
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="quality"
+                 data-title="Insufficient code content provided for thorough analysis"
+                 data-location="pyproject.toml"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Insufficient code content provided for thorough analysis</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The analyzed data contains file paths and a plan outline but no actual source code content. The file listing suggests a well-structured project following Clean Architecture patterns (use_cases, infrastructure layers) with dedicated test directories mirroring the source structure (unit, integration, infrastructure tests). The presence of pyproject.toml, multiple test layers, and domain-specific modules (token budget management, agent pipeline, JSON output validation) indicates mature project organization.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Re-run analysis with full file contents included to enable detailed code quality assessment including cyclomatic complexity, duplication detection, naming conventions, error handling patterns, and test coverage analysis.
+                    </div>
+                </div>
+            </div>
+            
+            
+            
+            <div class="dim-effort">
+                estimated effort: ~0h
+            </div>
+            
+        </section>
+        
+        
+        
+        
+        <section class="findings-section scroll-reveal" id="dim-documentation" data-dimension="documentation">
+            <h2>Documentation <span class="dim-count">(7)</span></h2>
+
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="documentation"
+                 data-title="Consider adding ADR index for discoverability"
+                 data-location="docs/adr"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Consider adding ADR index for discoverability</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/adr
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">With 4 ADRs already present and likely more to come, there is no visible index file (e.g., docs/adr/README.md or docs/adr/index.md) that lists all ADRs with their titles, statuses, and dates. As the number of ADRs grows, discoverability becomes important.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Create a docs/adr/README.md with a table listing each ADR number, title, status (Accepted/Superseded/Deprecated), and date. This is a common pattern in ADR-driven projects.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="documentation"
+                 data-title="Consider cross-linking between docs/API.md and source code interfaces"
+                 data-location="docs/API.md"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Consider cross-linking between docs/API.md and source code interfaces</span>
+                    
+                    <span class="hours-badge">~4.0h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/API.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project has both docs/API.md and src/spectra/use_cases/interfaces.py. For developer experience, the API documentation should reference or be generated from the actual interface definitions to prevent documentation drift where the API docs describe behavior that no longer matches the code.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add cross-references between docs/API.md and the source interfaces. Consider using a documentation generation tool (e.g., Sphinx with autodoc, or mkdocs with mkdocstrings) to auto-generate API reference from docstrings, reducing drift risk.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="documentation"
+                 data-title="Comprehensive documentation structure with README, API docs, ADRs, and contribution guide"
+                 data-location="README.md"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Comprehensive documentation structure with README, API docs, ADRs, and contribution guide</span>
+                    
+                    <span class="hours-badge">~1.0h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    README.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The project demonstrates a mature documentation structure: README.md at root, dedicated docs/ directory with API.md, 4 Architecture Decision Records (ADRs), skill documentation, CONTRIBUTING.md, and CLAUDE.md for AI-assisted development context. This is well above average for most open-source projects.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Maintain this documentation structure as the project evolves. Consider adding a docs/index.md or table of contents linking all documentation artifacts together for discoverability.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="documentation"
+                 data-title="Architecture Decision Records cover key design choices"
+                 data-location="docs/adr/ADR-001-clean-architecture.md"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Architecture Decision Records cover key design choices</span>
+                    
+                    <span class="hours-badge">~1.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/adr/ADR-001-clean-architecture.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">Four ADRs are present covering Clean Architecture (ADR-001), Parallel Agent Pipeline (ADR-002), Extended Thinking Critique-Only (ADR-003), and Frozen Pydantic Models (ADR-004). This demonstrates disciplined architectural documentation and traceability of design decisions.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Ensure each ADR follows a consistent template (Status, Context, Decision, Consequences). Consider adding an ADR index file (docs/adr/README.md) that lists all ADRs with their statuses for quick reference.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="documentation"
+                 data-title="Specialist prompts module could benefit from inline documentation of prompt design rationale"
+                 data-location="src/spectra/infrastructure/agents/specialist_prompts.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Specialist prompts module could benefit from inline documentation of prompt design rationale</span>
+                    
+                    <span class="hours-badge">~2.0h</span>
+                    
+                    
+                    <span class="validated-badge">✓ validated</span>
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/agents/specialist_prompts.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The specialist_prompts.py file contains agent prompt definitions. Prompt engineering decisions (why certain phrasing, temperature guidance, or structural choices were made) are often undocumented, making it difficult for future maintainers to understand why prompts are written a certain way or to safely modify them.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add module-level and per-prompt docstrings explaining the design rationale behind each specialist prompt. Reference ADR-003 (Extended Thinking Critique-Only) where relevant. Consider documenting which model capabilities each prompt targets.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="documentation"
+                 data-title="CLAUDE.md provides AI development context — a forward-thinking practice"
+                 data-location="CLAUDE.md"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">CLAUDE.md provides AI development context — a forward-thinking practice</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    CLAUDE.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The presence of CLAUDE.md indicates the project provides structured context for AI-assisted development. This is an emerging best practice that helps maintain consistency when using AI coding assistants and serves as additional project documentation for human developers as well.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Keep CLAUDE.md updated as the project evolves. Ensure it references key architectural decisions and coding conventions so AI assistants produce consistent code.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="documentation"
+                 data-title="Skill documentation in docs/skills/ is a strong practice for agent-based systems"
+                 data-location="docs/skills/Spectra-Master-Prompt.md"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Skill documentation in docs/skills/ is a strong practice for agent-based systems</span>
+                    
+                    <span class="hours-badge">~1.0h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    docs/skills/Spectra-Master-Prompt.md
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The docs/skills/Spectra-Master-Prompt.md file documents the master prompt/skill definition for the Spectra system. Documenting agent skills and prompts outside of code is valuable for non-developer stakeholders and for prompt iteration workflows.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> As more skills/agents are added, maintain a consistent documentation template for each skill. Consider adding a skills index similar to the ADR index recommendation.
                     </div>
                 </div>
             </div>
@@ -3100,550 +3417,22 @@
         
         
         
-        <section class="findings-section scroll-reveal" id="dim-security" data-dimension="security">
-            <h2>Security <span class="dim-count">(7)</span></h2>
-
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="security"
-                 data-title="Shell script hook may be vulnerable to injection"
-                 data-location=".claude-plugin/hooks/dependency-guard.sh"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Shell script hook may be vulnerable to injection</span>
-                    
-                    <span class="hours-badge">~2.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .claude-plugin/hooks/dependency-guard.sh
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The dependency-guard.sh hook script processes dependency information. Shell scripts that handle external input (package names, versions, file paths) are susceptible to command injection (CWE-78) if inputs are not properly sanitized. OWASP A03:2021 Injection.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure all variables in the shell script are properly quoted (&#34;$var&#34; not $var). Use arrays for command arguments. Avoid eval or unquoted variable expansion. Consider using set -euo pipefail.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="security"
-                 data-title="External API adapter (Anthropic) — verify secure communication and error handling"
-                 data-location="src/spectra/infrastructure/anthropic_adapter.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">External API adapter (Anthropic) — verify secure communication and error handling</span>
-                    
-                    <span class="hours-badge">~4.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    src/spectra/infrastructure/anthropic_adapter.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The anthropic_adapter.py communicates with an external API. Key concerns include: ensuring TLS is enforced (CWE-319), API keys are not logged in error messages (CWE-209, CWE-532), and responses are validated before processing. OWASP A02:2021 Cryptographic Failures, A07:2021 Identification and Authentication Failures.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Verify: (1) API key is loaded from environment, not hardcoded, (2) Error handlers do not leak API keys in stack traces or logs, (3) HTTPS is enforced for all API calls, (4) Response data is validated/sanitized before use.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="security"
-                 data-title="Git adapter — potential path traversal in repository access"
-                 data-location="src/spectra/infrastructure/git_adapter.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Git adapter — potential path traversal in repository access</span>
-                    
-                    <span class="hours-badge">~4.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    src/spectra/infrastructure/git_adapter.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The git_adapter.py handles repository paths and file access. Without proper validation, user-supplied repository paths could enable path traversal attacks (CWE-22) to access files outside intended directories. OWASP A01:2021 Broken Access Control.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Validate and canonicalize all file paths. Use os.path.realpath() to resolve symlinks and verify paths remain within the expected repository root. Reject paths containing &#39;..&#39; sequences.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="security"
-                 data-title="CI/CD workflow security — verify pinned action versions"
-                 data-location=".github/workflows/ci.yml"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">CI/CD workflow security — verify pinned action versions</span>
-                    
-                    <span class="hours-badge">~1.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .github/workflows/ci.yml
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">GitHub Actions workflows should pin third-party actions to specific commit SHAs rather than mutable tags to prevent supply chain attacks (CWE-1395). OWASP A08:2021 Software and Data Integrity Failures.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Pin all third-party GitHub Actions to full commit SHAs (e.g., uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29) instead of version tags.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-low"
-                 data-severity="low"
-                 data-dimension="security"
-                 data-title="Error entity design — verify no sensitive data exposure"
-                 data-location="src/spectra/entities/errors.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">Error entity design — verify no sensitive data exposure</span>
-                    
-                    <span class="hours-badge">~2.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    src/spectra/entities/errors.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The errors.py entity defines error types. Custom error classes must ensure that internal details (file paths, stack traces, API keys, configuration values) are not exposed to end users (CWE-209). OWASP A04:2021 Insecure Design.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure error messages shown to users are generic. Log detailed error information server-side only. Implement separate user-facing and developer-facing error representations.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="security"
-                 data-title="Unable to perform deep code analysis — file contents not provided"
-                 data-location="."
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Unable to perform deep code analysis — file contents not provided</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The analysis request included file paths but not the actual source code contents. Security findings below are based on architectural patterns inferred from file names, paths, and the analysis plan. A complete security review requires access to the actual source code.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Re-run the analysis with full file contents included for comprehensive security assessment.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="security"
-                 data-title="API key management via .env.example pattern"
-                 data-location=".env.example"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">API key management via .env.example pattern</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .env.example
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The project uses a .env.example file, which is a standard pattern for documenting required environment variables without exposing actual secrets. This is a proper secrets management approach (CWE-798 mitigation). Without seeing .gitignore, cannot confirm .env is excluded from version control, but the presence of .env.example suggests awareness of secrets hygiene.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Verify that .gitignore includes .env and any other files that may contain secrets. Consider documenting secrets rotation procedures.
-                    </div>
-                </div>
-            </div>
-            
-            
-            
-            <div class="dim-effort">
-                estimated effort: ~14h
-            </div>
-            
-        </section>
-        
-        
-        
-        
-        <section class="findings-section scroll-reveal" id="dim-quality" data-dimension="quality">
-            <h2>Quality <span class="dim-count">(4)</span></h2>
-
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="quality"
-                 data-title="Infrastructure decorators (logging, retry) should have comprehensive unit tests"
-                 data-location="src/spectra/infrastructure/retry_decorator.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Infrastructure decorators (logging, retry) should have comprehensive unit tests</span>
-                    
-                    <span class="hours-badge">~4.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    src/spectra/infrastructure/retry_decorator.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The project includes logging_decorator.py and retry_decorator.py in the infrastructure layer. The plan mentions &#39;decorator functionality verification&#39; as a concern, suggesting these may lack thorough test coverage. Cross-cutting concerns like retry logic and logging decoration are critical infrastructure that, if buggy, can cause subtle failures across the entire application.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure unit tests cover: retry with various exception types, max retry exhaustion, backoff timing, logging output verification, decorator preservation of function signatures (functools.wraps), and edge cases like immediate success and all-failures scenarios.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="quality"
-                 data-title="Integration test completeness for agent pipeline"
-                 data-location="tests/integration/test_pipeline.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Integration test completeness for agent pipeline</span>
-                    
-                    <span class="hours-badge">~8.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    tests/integration/test_pipeline.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The plan explicitly calls out &#39;integration test completeness for agent pipeline&#39; and &#39;error handling test scenarios&#39; as concerns. The presence of tests/integration/test_pipeline.py is positive, but the concern suggests gaps may exist in error path coverage, timeout handling, or partial failure scenarios.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Verify integration tests cover: happy path end-to-end, individual stage failures, timeout scenarios, retry exhaustion in pipeline context, partial pipeline completion, and cleanup/rollback behavior.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="quality"
-                 data-title="Insufficient code content provided for thorough quality analysis"
-                 data-location="pyproject.toml"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Insufficient code content provided for thorough quality analysis</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    pyproject.toml
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The analyzed_code section contains only file paths and a plan summary, but not the actual source code contents of the listed files. This limits the depth of analysis possible. The file structure suggests a Clean Architecture project (entities, use_cases, adapters, infrastructure layers) with Pydantic models, decorators for logging and retry, and integration tests for a pipeline.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Provide full file contents for a comprehensive quality analysis covering cyclomatic complexity, code duplication, naming conventions, error handling patterns, and test coverage gaps.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="quality"
-                 data-title="Architecture Decision Record for frozen Pydantic models indicates good practices"
-                 data-location="docs/adr/ADR-004-frozen-pydantic-models.md"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Architecture Decision Record for frozen Pydantic models indicates good practices</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    docs/adr/ADR-004-frozen-pydantic-models.md
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The presence of ADR-004-frozen-pydantic-models.md suggests the team documents architectural decisions, including the use of frozen (immutable) Pydantic models. This is a positive quality signal indicating deliberate design choices and team communication.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Continue maintaining ADRs for significant architectural decisions. Ensure ADRs are kept up to date as the codebase evolves.
-                    </div>
-                </div>
-            </div>
-            
-            
-            
-            <div class="dim-effort">
-                estimated effort: ~12h
-            </div>
-            
-        </section>
-        
-        
-        
-        
-        <section class="findings-section scroll-reveal" id="dim-documentation" data-dimension="documentation">
-            <h2>Documentation <span class="dim-count">(6)</span></h2>
-
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="documentation"
-                 data-title="Python adapter module likely missing docstrings"
-                 data-location="src/spectra/adapters/brand.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Python adapter module likely missing docstrings</span>
-                    
-                    <span class="hours-badge">~2.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    src/spectra/adapters/brand.py
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">src/spectra/adapters/brand.py is a Python module in what appears to be the core adapter layer. Python ecosystem conventions strongly expect module-level docstrings, class docstrings, and function/method docstrings (Google-style or NumPy-style). Without file contents, this cannot be confirmed, but adapter modules are frequently under-documented.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure brand.py has: (1) a module-level docstring explaining the adapter&#39;s role in the system, (2) class-level docstrings with Attributes sections, (3) method docstrings with Args, Returns, and Raises sections, and (4) at least one usage example in the module or class docstring.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-low"
-                 data-severity="low"
-                 data-dimension="documentation"
-                 data-title="Plugin configuration documentation may be insufficient"
-                 data-location=".claude-plugin/plugin.json"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">Plugin configuration documentation may be insufficient</span>
-                    
-                    <span class="hours-badge">~1.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .claude-plugin/plugin.json
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The .claude-plugin/plugin.json file exists, indicating a Claude plugin integration. Plugin configurations often lack documentation about available fields, validation rules, and how changes propagate. Without file contents, the exact gap cannot be confirmed, but plugin config files are commonly under-documented.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Add inline comments (if JSON5 or JSONC is supported) or a companion .claude-plugin/README.md explaining each configuration field, its purpose, valid values, and the effect of changes. Link to this from the main README.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-low"
-                 data-severity="low"
-                 data-dimension="documentation"
-                 data-title="Agent skill prompt documentation exists but coverage is unclear"
-                 data-location="docs/skills/Spectra-Master-Prompt.md"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">Agent skill prompt documentation exists but coverage is unclear</span>
-                    
-                    <span class="hours-badge">~2.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    docs/skills/Spectra-Master-Prompt.md
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">docs/skills/Spectra-Master-Prompt.md exists, which is a positive sign for documenting the agent&#39;s master prompt. However, it is the only skill document visible. If the system supports multiple skills or prompt modes, each should have its own documentation file or section.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Add a docs/skills/README.md index that lists all available skills, their purposes, and links to individual skill docs. For each skill beyond the master prompt, create a dedicated markdown file with: purpose, trigger conditions, example interactions, and configuration options.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-low"
-                 data-severity="low"
-                 data-dimension="documentation"
-                 data-title="CLAUDE.md purpose and audience should be clarified"
-                 data-location="CLAUDE.md"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">CLAUDE.md purpose and audience should be clarified</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    CLAUDE.md
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">CLAUDE.md is a convention file used to provide context to Claude AI when working with the repository. Its presence is good practice, but it should be clearly scoped: is it for Claude Code, Claude chat, or the plugin system? It should also be referenced from CONTRIBUTING.md so human contributors understand its role.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Add a brief header comment in CLAUDE.md explaining its purpose (e.g., &#39;This file provides repository context to Claude AI assistants&#39;). Reference it from CONTRIBUTING.md under a section like &#39;AI-Assisted Development&#39; so contributors know it exists and how to maintain it.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="documentation"
-                 data-title="Repository file listing provided without file contents — unable to perform deep analysis"
-                 data-location=""
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Repository file listing provided without file contents — unable to perform deep analysis</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The analyzed code payload contains only a list of file paths (README.md, CLAUDE.md, CONTRIBUTING.md, docs/API.md, docs/skills/Spectra-Master-Prompt.md, src/spectra/adapters/brand.py, .claude-plugin/plugin.json) and a PLAN block, but no actual file contents were provided. This limits the analysis to structural observations about what documentation artifacts exist versus what is missing.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Re-run the analysis with full file contents so that documentation quality, completeness, and accuracy can be evaluated in depth.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="documentation"
-                 data-title="Core documentation artifacts are present (README, CONTRIBUTING, API docs)"
-                 data-location="README.md"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Core documentation artifacts are present (README, CONTRIBUTING, API docs)</span>
-                    
-                    <span class="hours-badge">~2.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    README.md
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The repository includes README.md, CONTRIBUTING.md, and docs/API.md — the three most important documentation files for an open or team-internal project. The presence of these files indicates a baseline documentation practice is in place. Without contents, quality cannot be assessed, but the structure is sound.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure README.md covers: project purpose, installation/setup, quickstart example, configuration, and links to deeper docs. Verify CONTRIBUTING.md covers: branching strategy, PR process, code style, and testing expectations.
-                    </div>
-                </div>
-            </div>
-            
-            
-            
-            <div class="dim-effort">
-                estimated effort: ~8h
-            </div>
-            
-        </section>
-        
-        
-        
-        
         <section class="findings-section scroll-reveal" id="dim-maintainability" data-dimension="maintainability">
-            <h2>Maintainability <span class="dim-count">(5)</span></h2>
+            <h2>Maintainability <span class="dim-count">(4)</span></h2>
 
             
-            <div class="finding severity-medium"
-                 data-severity="medium"
+            <div class="finding severity-low"
+                 data-severity="low"
                  data-dimension="maintainability"
-                 data-title="Verify lock file consistency with pyproject.toml"
-                 data-location="pyproject.toml"
-                 onclick="this.classList.toggle('expanded')">
+                 data-title="External API client dependencies (anthropic, tiktoken) require version monitoring"
+                 data-location="src/spectra/infrastructure/anthropic_adapter.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">Verify lock file consistency with pyproject.toml</span>
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">External API client dependencies (anthropic, tiktoken) require version monitoring</span>
                     
                     <span class="hours-badge">~1.0h</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    pyproject.toml
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">Without seeing the actual contents, it is important to ensure requirements.lock is regenerated whenever pyproject.toml changes. Drift between the two files can lead to inconsistent environments and missed security patches. The dependency-guard.sh hook may already enforce this, but this should be verified.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure CI pipeline includes a step that verifies `requirements.lock` is up-to-date with `pyproject.toml` (e.g., `uv pip compile --check` or equivalent). Confirm the dependency-guard.sh hook covers this case.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-medium"
-                 data-severity="medium"
-                 data-dimension="maintainability"
-                 data-title="External API client libraries (anthropic, tiktoken) require version monitoring"
-                 data-location="src/spectra/infrastructure/anthropic_adapter.py"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-medium">medium</span>
-                    <span class="finding-title">External API client libraries (anthropic, tiktoken) require version monitoring</span>
-                    
-                    <span class="hours-badge">~0.5h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
@@ -3653,22 +3442,51 @@
                     src/spectra/infrastructure/anthropic_adapter.py
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The project depends on the `anthropic` Python SDK and `tiktoken` for token counting. Both libraries are actively developed with frequent releases. The anthropic SDK in particular has had rapid major version changes as the API evolves. Falling behind on these can cause API incompatibilities or miss important bug fixes.</div>
+                    <div class="finding-description">The project depends on anthropic and tiktoken client libraries (evidenced by infrastructure adapters). These libraries are actively developed with frequent releases. The anthropic SDK in particular has had rapid major version changes. Without seeing pinned versions, this is flagged as a monitoring concern.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure dependabot.yml covers the pip ecosystem and that anthropic and tiktoken are not excluded from automated update PRs. Consider setting a weekly update schedule for these high-velocity dependencies.
+                        <strong>Recommendation:</strong> Ensure anthropic and tiktoken are pinned with upper bounds in pyproject.toml (e.g., anthropic&gt;=0.39,&lt;1.0) and that the lock file reflects tested versions.
                     </div>
                 </div>
             </div>
             
-            <div class="finding severity-low"
-                 data-severity="low"
+            <div class="finding severity-info"
+                 data-severity="info"
                  data-dimension="maintainability"
-                 data-title="Dependabot configuration should cover all ecosystems in use"
-                 data-location=".github/dependabot.yml"
-                 onclick="this.classList.toggle('expanded')">
+                 data-title="Unable to verify dependency contents — file bodies not provided"
+                 data-location="pyproject.toml"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
-                    <span class="badge badge-low">low</span>
-                    <span class="finding-title">Dependabot configuration should cover all ecosystems in use</span>
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Unable to verify dependency contents — file bodies not provided</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    pyproject.toml
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">The analysis was provided with file paths but not file contents. The project structure shows strong dependency management practices: a lock file (requirements.lock), Dependabot configuration (.github/dependabot.yml), CI pipeline (.github/workflows/ci.yml), and modern pyproject.toml packaging. Without file contents, specific version auditing, CVE checks, and license analysis cannot be performed.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Re-run analysis with full file contents to enable version-level CVE scanning, license compatibility checks, and lock file consistency verification.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-info"
+                 data-severity="info"
+                 data-dimension="maintainability"
+                 data-title="Dependabot configuration present — positive signal"
+                 data-location=".github/dependabot.yml"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-info">info</span>
+                    <span class="finding-title">Dependabot configuration present — positive signal</span>
                     
                     <span class="hours-badge">~0.5h</span>
                     
@@ -3680,9 +3498,9 @@
                     .github/dependabot.yml
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The .github/dependabot.yml should be configured to cover the pip ecosystem (for pyproject.toml/requirements.lock) and potentially GitHub Actions if any are used. Incomplete ecosystem coverage can leave blind spots in automated vulnerability detection.</div>
+                    <div class="finding-description">The presence of .github/dependabot.yml indicates the project has automated dependency update monitoring configured. This is a best practice for supply chain security and ensures timely awareness of outdated or vulnerable dependencies.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Verify dependabot.yml includes entries for both &#39;pip&#39; and &#39;github-actions&#39; package ecosystems with appropriate directory and schedule settings.
+                        <strong>Recommendation:</strong> Ensure Dependabot is configured for both pip and GitHub Actions ecosystems, with appropriate update schedules and auto-merge policies for patch updates.
                     </div>
                 </div>
             </div>
@@ -3690,12 +3508,15 @@
             <div class="finding severity-info"
                  data-severity="info"
                  data-dimension="maintainability"
-                 data-title="Lock file present with automated dependency management"
+                 data-title="Lock file present — dependency reproducibility ensured"
                  data-location="requirements.lock"
-                 onclick="this.classList.toggle('expanded')">
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
-                    <span class="finding-title">Lock file present with automated dependency management</span>
+                    <span class="finding-title">Lock file present — dependency reproducibility ensured</span>
+                    
+                    <span class="hours-badge">~0.5h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
@@ -3705,34 +3526,9 @@
                     requirements.lock
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The project uses a requirements.lock file alongside pyproject.toml, indicating a proper dependency pinning strategy. A dependabot.yml is configured for automated updates, and a custom dependency-guard.sh hook provides additional supply chain protection. This is a strong setup.</div>
+                    <div class="finding-description">The presence of requirements.lock indicates deterministic dependency resolution. This is critical for reproducible builds and reduces supply chain attack surface by pinning exact versions including transitive dependencies.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> No action needed. This is a positive finding demonstrating good dependency management practices.
-                    </div>
-                </div>
-            </div>
-            
-            <div class="finding severity-info"
-                 data-severity="info"
-                 data-dimension="maintainability"
-                 data-title="Custom dependency guard hook is a strong supply chain defense"
-                 data-location=".claude-plugin/hooks/dependency-guard.sh"
-                 onclick="this.classList.toggle('expanded')">
-                <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Custom dependency guard hook is a strong supply chain defense</span>
-                    
-                    
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
-                    <span class="finding-chevron">▶</span>
-                </div>
-                <div class="finding-location">
-                    .claude-plugin/hooks/dependency-guard.sh
-                </div>
-                <div class="finding-body">
-                    <div class="finding-description">The presence of .claude-plugin/hooks/dependency-guard.sh indicates proactive supply chain risk management, likely validating dependency additions or changes before they are committed. This is an above-average practice for Python projects.</div>
-                    <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Ensure the guard script checks for license compatibility, known malicious packages, and unexpected new transitive dependencies.
+                        <strong>Recommendation:</strong> Verify lock file is regenerated in CI and that deployments use the lock file rather than resolving from pyproject.toml directly.
                     </div>
                 </div>
             </div>
@@ -3749,32 +3545,151 @@
         
         
         <section class="findings-section scroll-reveal" id="dim-performance" data-dimension="performance">
-            <h2>Performance <span class="dim-count">(1)</span></h2>
+            <h2>Performance <span class="dim-count">(5)</span></h2>
 
             
-            <div class="finding severity-info"
-                 data-severity="info"
+            <div class="finding severity-low"
+                 data-severity="low"
                  data-dimension="performance"
-                 data-title="Insufficient code content provided for detailed performance analysis"
-                 data-location="src/spectra/use_cases/orchestrate_agents.py"
-                 onclick="this.classList.toggle('expanded')">
+                 data-title="Potential lack of tiktoken encoder caching"
+                 data-location="src/spectra/infrastructure/tiktoken_adapter.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                 <div class="finding-header">
-                    <span class="badge badge-info">info</span>
-                    <span class="finding-title">Insufficient code content provided for detailed performance analysis</span>
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Potential lack of tiktoken encoder caching</span>
                     
                     <span class="hours-badge">~0.5h</span>
+                    
+                    
+                    <span class="validated-badge">✓ validated</span>
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/tiktoken_adapter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">tiktoken encoder initialization is expensive (requires loading BPE merge files). If TiktokenAdapter instantiates a new encoder per call rather than caching the encoder instance, this could add significant latency to every token counting operation, especially when called repeatedly during budget management.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Cache the tiktoken encoder instance at the class or module level. Use `tiktoken.encoding_for_model()` or `tiktoken.get_encoding()` once and reuse the result. Consider using `functools.lru_cache` on the encoder factory method.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="performance"
+                 data-title="Retry decorator exponential backoff may cause cascading delays under load"
+                 data-location="src/spectra/infrastructure/retry_decorator.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Retry decorator exponential backoff may cause cascading delays under load</span>
+                    
+                    <span class="hours-badge">~4.0h</span>
+                    
+                    
+                    <span class="validated-badge">✓ validated</span>
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/infrastructure/retry_decorator.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">When multiple parallel agents hit API rate limits simultaneously, exponential backoff retries across all agents can compound total execution time significantly. If agents are awaited concurrently via asyncio.gather, one slow-retrying agent blocks the entire batch result.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Add jitter to backoff delays to prevent thundering herd. Consider implementing a shared rate limiter (e.g., asyncio.Semaphore) across agents rather than relying solely on per-request retry. Set a maximum total retry duration cap.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="performance"
+                 data-title="Agent factory may create redundant instances without pooling"
+                 data-location="src/spectra/infrastructure/agents/agent_factory.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Agent factory may create redundant instances without pooling</span>
+                    
+                    <span class="hours-badge">~2.0h</span>
                     
                     
                     <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
-                    src/spectra/use_cases/orchestrate_agents.py
+                    src/spectra/infrastructure/agents/agent_factory.py
                 </div>
                 <div class="finding-body">
-                    <div class="finding-description">The analyzed content contains only file paths and a plan outline, not the actual source code of the files listed. Without the implementation details, specific performance issues like N+1 queries, unbounded loops, memory leaks, or blocking I/O patterns cannot be identified with confidence. The architecture appears to include parallel agent execution (ADR-002), token budget management, retry logic, and an Anthropic API adapter — all of which are performance-sensitive areas that require source-level inspection.</div>
+                    <div class="finding-description">If AgentFactory creates new agent instances (and their associated API clients/connections) for each analysis dimension without reusing shared resources like HTTP connections or API clients, this adds unnecessary overhead for connection setup and teardown.</div>
                     <div class="finding-recommendation">
-                        <strong>Recommendation:</strong> Re-run the analysis with full file contents included so that specific performance bottlenecks can be identified in the orchestration layer, token budget allocation, retry logic, and API adapter.
+                        <strong>Recommendation:</strong> Share the Anthropic API client instance across agents created by the factory. Use connection pooling for HTTP clients (e.g., a shared httpx.AsyncClient or aiohttp.ClientSession).
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="performance"
+                 data-title="Progress reporter may introduce synchronous I/O overhead in async pipeline"
+                 data-location="src/spectra/adapters/progress_reporter.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Progress reporter may introduce synchronous I/O overhead in async pipeline</span>
+                    
+                    <span class="hours-badge">~1.0h</span>
+                    
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/adapters/progress_reporter.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">If the progress reporter writes to stdout/stderr synchronously (e.g., using print() or sys.stdout.write()) within an async orchestration pipeline, it could block the event loop briefly on each progress update, especially with frequent updates across parallel agents.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Use async-compatible output or batch progress updates. If using Rich or similar libraries, ensure they don&#39;t block the event loop. Consider throttling progress updates to at most once per second.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="finding severity-low"
+                 data-severity="low"
+                 data-dimension="performance"
+                 data-title="Token budget management may perform redundant counting on large codebases"
+                 data-location="src/spectra/use_cases/manage_token_budget.py"
+                 role="button" tabindex="0" aria-expanded="false"
+                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                <div class="finding-header">
+                    <span class="badge badge-low">low</span>
+                    <span class="finding-title">Token budget management may perform redundant counting on large codebases</span>
+                    
+                    <span class="hours-badge">~2.0h</span>
+                    
+                    
+                    <span class="validated-badge">✓ validated</span>
+                    
+                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <span class="finding-chevron">▶</span>
+                </div>
+                <div class="finding-location">
+                    src/spectra/use_cases/manage_token_budget.py
+                </div>
+                <div class="finding-body">
+                    <div class="finding-description">For large repositories, token counting the entire codebase content multiple times (once per agent dimension) could be expensive. If manage_token_budget recounts tokens for the same content across different agents rather than caching the count, this wastes CPU cycles proportional to codebase size × number of agents.</div>
+                    <div class="finding-recommendation">
+                        <strong>Recommendation:</strong> Count tokens once for the full codebase content and cache the result. Pass pre-computed token counts to budget allocation logic. Consider memoizing token counts per file for incremental budget adjustments.
                     </div>
                 </div>
             </div>
@@ -3782,7 +3697,7 @@
             
             
             <div class="dim-effort">
-                estimated effort: ~0h
+                estimated effort: ~10h
             </div>
             
         </section>
@@ -3795,10 +3710,10 @@
             <div class="section-label">Technical Debt Summary</div>
 
             <div class="dd-headline">
-                <span class="dd-headline-num"><span class="counter-animate" data-target="48.0">0</span></span>
+                <span class="dd-headline-num"><span class="counter-animate" data-target="29.0">0</span></span>
                 <span class="dd-headline-unit">estimated hours to remediate</span>
             </div>
-            <div class="dd-cost">cost to remediate: ~$7,200 at $150/hr avg dev rate</div>
+            <div class="dd-cost">cost to remediate: ~$4,350 at $150/hr avg dev rate</div>
 
             <div class="dd-grid">
                 <div>
@@ -3806,32 +3721,32 @@
                     
                     
                     <div class="dd-stat-row">
-                        <span class="dd-stat-label">Security</span>
-                        <span class="dd-stat-value">14.0h</span>
-                    </div>
-                    
-                    <div class="dd-stat-row">
-                        <span class="dd-stat-label">Quality</span>
-                        <span class="dd-stat-value">12.5h</span>
-                    </div>
-                    
-                    <div class="dd-stat-row">
-                        <span class="dd-stat-label">Architecture</span>
+                        <span class="dd-stat-label">Documentation</span>
                         <span class="dd-stat-value">10.5h</span>
                     </div>
                     
                     <div class="dd-stat-row">
-                        <span class="dd-stat-label">Documentation</span>
-                        <span class="dd-stat-value">8.5h</span>
+                        <span class="dd-stat-label">Performance</span>
+                        <span class="dd-stat-value">9.5h</span>
+                    </div>
+                    
+                    <div class="dd-stat-row">
+                        <span class="dd-stat-label">Architecture</span>
+                        <span class="dd-stat-value">5.5h</span>
                     </div>
                     
                     <div class="dd-stat-row">
                         <span class="dd-stat-label">Maintainability</span>
-                        <span class="dd-stat-value">2.0h</span>
+                        <span class="dd-stat-value">2.5h</span>
                     </div>
                     
                     <div class="dd-stat-row">
-                        <span class="dd-stat-label">Performance</span>
+                        <span class="dd-stat-label">Security</span>
+                        <span class="dd-stat-value">0.5h</span>
+                    </div>
+                    
+                    <div class="dd-stat-row">
+                        <span class="dd-stat-label">Quality</span>
                         <span class="dd-stat-value">0.5h</span>
                     </div>
                     
@@ -3848,17 +3763,12 @@
                     
                     
                     
-                    <div class="dd-stat-row">
-                        <span class="dd-stat-label" style="color: var(--amber);">medium</span>
-                        <span class="dd-stat-value">30.5h</span>
-                    </div>
-                    
                     
                     
                     
                     <div class="dd-stat-row">
                         <span class="dd-stat-label" style="color: var(--cyan);">low</span>
-                        <span class="dd-stat-value">6.5h</span>
+                        <span class="dd-stat-value">17.5h</span>
                     </div>
                     
                     
@@ -3866,7 +3776,7 @@
                     
                     <div class="dd-stat-row">
                         <span class="dd-stat-label" style="color: var(--text-tertiary);">info</span>
-                        <span class="dd-stat-value">11.0h</span>
+                        <span class="dd-stat-value">11.5h</span>
                     </div>
                     
                     
@@ -3886,21 +3796,17 @@
                     
                     
                     
-                    <div class="dd-bar-fill" style="width: 63.5%; background: var(--amber);">
-                        medi
-                    </div>
                     
                     
                     
-                    
-                    <div class="dd-bar-fill" style="width: 13.5%; background: var(--cyan);">
+                    <div class="dd-bar-fill" style="width: 60.3%; background: var(--cyan);">
                         low
                     </div>
                     
                     
                     
                     
-                    <div class="dd-bar-fill" style="width: 22.9%; background: var(--text-tertiary);">
+                    <div class="dd-bar-fill" style="width: 39.7%; background: var(--text-tertiary);">
                         info
                     </div>
                     
@@ -3917,25 +3823,25 @@
             <div class="section-label">Due Diligence Compliance Mapping</div>
 
             <div class="dd-subsection-label" style="margin-top: 0;">OWASP Top 10 (2021) Coverage</div>
-            <div class="dd-coverage-stat">6 of 10 categories checked</div>
+            <div class="dd-coverage-stat">0 of 10 categories checked</div>
             <div class="owasp-grid">
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A01:2021 Broken Access Control
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A02:2021 Cryptographic Failures
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A03:2021 Injection
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A04:2021 Insecure Design
                 </div>
@@ -3950,12 +3856,12 @@
                     A06:2021 Vulnerable and Outdated Components
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A07:2021 Identification and Auth Failures
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A08:2021 Software and Data Integrity Failures
                 </div>
@@ -3974,25 +3880,25 @@
 
             
             <div class="dd-subsection-label">OWASP Top 10 (2024) Coverage</div>
-            <div class="dd-coverage-stat">6 of 10 categories checked</div>
+            <div class="dd-coverage-stat">0 of 10 categories checked</div>
             <div class="owasp-grid">
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A01:2024 Broken Access Control
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A02:2024 Cryptographic Failures
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A03:2024 Injection
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A04:2024 Insecure Design
                 </div>
@@ -4007,12 +3913,12 @@
                     A06:2024 Vulnerable and Outdated Components
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A07:2024 Identification and Auth Failures
                 </div>
                 
-                <div class="owasp-item covered">
+                <div class="owasp-item uncovered">
                     <span class="owasp-dot"></span>
                     A08:2024 Software and Data Integrity Failures
                 </div>
@@ -4031,25 +3937,6 @@
             
 
             
-            <div class="dd-subsection-label">CWE References Found</div>
-            <div class="cwe-list">
-                
-                <span class="cwe-tag">CWE-22</span>
-                
-                <span class="cwe-tag">CWE-78</span>
-                
-                <span class="cwe-tag">CWE-209</span>
-                
-                <span class="cwe-tag">CWE-319</span>
-                
-                <span class="cwe-tag">CWE-532</span>
-                
-                <span class="cwe-tag">CWE-798</span>
-                
-                <span class="cwe-tag">CWE-1395</span>
-                
-            </div>
-            
         </section>
         
 
@@ -4060,7 +3947,7 @@
 
         <!-- Investment Readiness Score -->
         
-        <section class="dd-section scroll-reveal dd-green" id="investment-readiness">
+        <section class="dd-section scroll-reveal dd-amber" id="investment-readiness">
             <div class="section-label">Investment Readiness Score</div>
 
             
@@ -4069,16 +3956,16 @@
 
             <div class="ir-gauge-wrapper">
                 <div class="ir-gauge"
-                     style="background: conic-gradient(var(--cyan) 266.0deg, var(--bg-elevated) 0deg); --gauge-glow: rgba(6,182,212,0.2);">
+                     style="background: conic-gradient(var(--amber) 246.6deg, var(--bg-elevated) 0deg); --gauge-glow: var(--amber-glow);">
                     <div class="ir-gauge-inner">
-                        <span class="ir-gauge-score" style="color: var(--cyan);"><span class="counter-animate" data-target="74">0</span></span>
+                        <span class="ir-gauge-score" style="color: var(--amber);"><span class="counter-animate" data-target="68">0</span></span>
                         <span class="ir-gauge-label">/ 100</span>
                     </div>
                 </div>
                 <div class="ir-meta">
-                    <span class="ir-rating-badge ir-rating-near-ready">near ready</span>
+                    <span class="ir-rating-badge ir-rating-needs-work">needs work</span>
                     <p style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary);">
-                        Solid foundation with minor gaps. Address key issues before due diligence.
+                        Moderate technical risk. Several areas need attention before fundraising.
                         
                     </p>
                 </div>
@@ -4095,9 +3982,9 @@
                 <div class="ir-component-row">
                     <span class="ir-component-label">Overall Score</span>
                     <div class="ir-component-bar">
-                        <div class="ir-component-bar-fill" style="width: 83%; background: var(--green);"></div>
+                        <div class="ir-component-bar-fill" style="width: 88%; background: var(--green);"></div>
                     </div>
-                    <span class="ir-component-score" style="color: var(--green);">83</span>
+                    <span class="ir-component-score" style="color: var(--green);">88</span>
                     
                     <span class="ir-component-weight">25%</span>
                     
@@ -4109,9 +3996,9 @@
                 <div class="ir-component-row">
                     <span class="ir-component-label">Security Posture</span>
                     <div class="ir-component-bar">
-                        <div class="ir-component-bar-fill" style="width: 78%; background: var(--cyan);"></div>
+                        <div class="ir-component-bar-fill" style="width: 80%; background: var(--green);"></div>
                     </div>
-                    <span class="ir-component-score" style="color: var(--cyan);">78</span>
+                    <span class="ir-component-score" style="color: var(--green);">80</span>
                     
                     <span class="ir-component-weight">20%</span>
                     
@@ -4123,9 +4010,9 @@
                 <div class="ir-component-row">
                     <span class="ir-component-label">Bus Factor</span>
                     <div class="ir-component-bar">
-                        <div class="ir-component-bar-fill" style="width: 88%; background: var(--green);"></div>
+                        <div class="ir-component-bar-fill" style="width: 92%; background: var(--green);"></div>
                     </div>
-                    <span class="ir-component-score" style="color: var(--green);">88</span>
+                    <span class="ir-component-score" style="color: var(--green);">92</span>
                     
                     <span class="ir-component-weight">10%</span>
                     
@@ -4133,13 +4020,12 @@
                 
                 
                 
-                
                 <div class="ir-component-row">
                     <span class="ir-component-label">Dependency Health</span>
                     <div class="ir-component-bar">
-                        <div class="ir-component-bar-fill" style="width: 70%; background: var(--cyan);"></div>
+                        <div class="ir-component-bar-fill" style="width: 10%; background: var(--red);"></div>
                     </div>
-                    <span class="ir-component-score" style="color: var(--cyan);">70</span>
+                    <span class="ir-component-score" style="color: var(--red);">10</span>
                     
                     <span class="ir-component-weight">10%</span>
                     
@@ -4178,9 +4064,9 @@
                 <div class="ir-component-row">
                     <span class="ir-component-label">SOC 2 Readiness</span>
                     <div class="ir-component-bar">
-                        <div class="ir-component-bar-fill" style="width: 22%; background: var(--red);"></div>
+                        <div class="ir-component-bar-fill" style="width: 9%; background: var(--red);"></div>
                     </div>
-                    <span class="ir-component-score" style="color: var(--red);">22</span>
+                    <span class="ir-component-score" style="color: var(--red);">9</span>
                     
                     <span class="ir-component-weight">10%</span>
                     
@@ -4211,9 +4097,9 @@
             <div class="section-label">SOC 2 Readiness</div>
 
             <div class="dd-coverage-stat">
-                6 findings mapped across 5 trust service criteria
+                2 findings mapped across 5 trust service criteria
                 <span style="color: var(--text-tertiary);"> &middot; </span>
-                <span style="font-weight: 600;">22.2%</span> coverage
+                <span style="font-weight: 600;">8.7%</span> coverage
             </div>
 
             <div class="soc2-grid">
@@ -4222,49 +4108,13 @@
                     <div class="soc2-criterion-header">
                         <span class="soc2-criterion-label">Security (Common Criteria)</span>
                         
-                        <span class="soc2-criterion-count soc2-count-warn">2 findings</span>
+                        <span class="soc2-criterion-count soc2-count-ok">0 findings</span>
                         
                     </div>
                     
                     
                     
-                    <div class="dd-bar-track" style="height: 6px;">
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        <div class="dd-bar-fill" style="width: 100.0%; background: var(--amber); font-size: 0;"></div>
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                    </div>
-                    <div class="soc2-severity-row">
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        <span class="soc2-sev-chip" style="background: var(--amber)22; color: var(--amber);">medium 2</span>
-                        
-                        
-                        
-                        
-                        
-                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--green); margin-top: 0.3rem;">No issues detected</div>
                     
                 </div>
                 
@@ -4302,13 +4152,13 @@
                         
                         
                         
-                        <div class="dd-bar-fill" style="width: 100.0%; background: var(--amber); font-size: 0;"></div>
                         
                         
                         
                         
                         
                         
+                        <div class="dd-bar-fill" style="width: 100.0%; background: var(--text-tertiary); font-size: 0;"></div>
                         
                         
                     </div>
@@ -4322,8 +4172,6 @@
                         
                         
                         
-                        <span class="soc2-sev-chip" style="background: var(--amber)22; color: var(--amber);">medium 1</span>
-                        
                         
                         
                         
@@ -4336,7 +4184,7 @@
                     <div class="soc2-criterion-header">
                         <span class="soc2-criterion-label">Confidentiality</span>
                         
-                        <span class="soc2-criterion-count soc2-count-warn">3 findings</span>
+                        <span class="soc2-criterion-count soc2-count-warn">1 findings</span>
                         
                     </div>
                     
@@ -4352,17 +4200,13 @@
                         
                         
                         
-                        <div class="dd-bar-fill" style="width: 33.3%; background: var(--amber); font-size: 0;"></div>
                         
                         
                         
                         
-                        <div class="dd-bar-fill" style="width: 33.3%; background: var(--cyan); font-size: 0;"></div>
                         
                         
-                        
-                        
-                        <div class="dd-bar-fill" style="width: 33.3%; background: var(--text-tertiary); font-size: 0;"></div>
+                        <div class="dd-bar-fill" style="width: 100.0%; background: var(--text-tertiary); font-size: 0;"></div>
                         
                         
                     </div>
@@ -4376,12 +4220,8 @@
                         
                         
                         
-                        <span class="soc2-sev-chip" style="background: var(--amber)22; color: var(--amber);">medium 1</span>
                         
                         
-                        
-                        
-                        <span class="soc2-sev-chip" style="background: var(--cyan)22; color: var(--cyan);">low 1</span>
                         
                         
                     </div>
@@ -4417,7 +4257,7 @@
 
             <div class="bf-header">
                 <div class="bf-score-display">
-                    <div class="bf-score-num" style="color: var(--green);"><span class="counter-animate" data-target="88">0</span></div>
+                    <div class="bf-score-num" style="color: var(--green);"><span class="counter-animate" data-target="92">0</span></div>
                     <div class="bf-score-label">distribution score</div>
                 </div>
                 <div class="ir-rating-badge ir-rating-investment-ready">
@@ -4426,19 +4266,19 @@
                 <div class="bf-meta-grid">
                     
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">0.122</div>
+                        <div class="bf-meta-value">0.079</div>
                         <div class="bf-meta-label">Gini Coefficient</div>
                     </div>
                     
                     
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">23</div>
+                        <div class="bf-meta-value">21</div>
                         <div class="bf-meta-label">Unique Files</div>
                     </div>
                     
                     
                     <div class="bf-meta-item">
-                        <div class="bf-meta-value">27</div>
+                        <div class="bf-meta-value">23</div>
                         <div class="bf-meta-label">Total Issues</div>
                     </div>
                     
@@ -4459,7 +4299,7 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title="src/spectra/use_cases/orchestrate_agents.py">src/spectra/use_cases/orchestrate_agents.py</span>
+                    <span class="bf-hotspot-path" title="docs/adr/ADR-001-clean-architecture.md">docs/adr/ADR-001-clean-architecture.md</span>
                 </li>
                 
                 
@@ -4471,37 +4311,24 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title=".claude-plugin/hooks/dependency-guard.sh">.claude-plugin/hooks/dependency-guard.sh</span>
-                </li>
-                
-                
-                
-                
-                <li class="bf-hotspot-item">
-                    <span class="bf-hotspot-rank">3</span>
-                    <span class="bf-hotspot-count" style="color: var(--amber);">2</span>
-                    <div class="bf-hotspot-bar">
-                        <div class="bf-hotspot-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
-                    </div>
-                    <span class="bf-hotspot-path" title="src/spectra/infrastructure/anthropic_adapter.py">src/spectra/infrastructure/anthropic_adapter.py</span>
-                </li>
-                
-                
-                
-                
-                <li class="bf-hotspot-item">
-                    <span class="bf-hotspot-rank">4</span>
-                    <span class="bf-hotspot-count" style="color: var(--amber);">2</span>
-                    <div class="bf-hotspot-bar">
-                        <div class="bf-hotspot-bar-fill" style="width: 100.0%; background: var(--amber);"></div>
-                    </div>
                     <span class="bf-hotspot-path" title="pyproject.toml">pyproject.toml</span>
                 </li>
                 
                 
                 
                 <li class="bf-hotspot-item">
-                    <span class="bf-hotspot-rank">5</span>
+                    <span class="bf-hotspot-rank">3</span>
+                    <span class="bf-hotspot-count" style="color: var(--cyan);">1</span>
+                    <div class="bf-hotspot-bar">
+                        <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
+                    </div>
+                    <span class="bf-hotspot-path" title="src/spectra/entities/models.py">src/spectra/entities/models.py</span>
+                </li>
+                
+                
+                
+                <li class="bf-hotspot-item">
+                    <span class="bf-hotspot-rank">4</span>
                     <span class="bf-hotspot-count" style="color: var(--cyan);">1</span>
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
@@ -4512,12 +4339,23 @@
                 
                 
                 <li class="bf-hotspot-item">
+                    <span class="bf-hotspot-rank">5</span>
+                    <span class="bf-hotspot-count" style="color: var(--cyan);">1</span>
+                    <div class="bf-hotspot-bar">
+                        <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
+                    </div>
+                    <span class="bf-hotspot-path" title="src/spectra/infrastructure/main.py">src/spectra/infrastructure/main.py</span>
+                </li>
+                
+                
+                
+                <li class="bf-hotspot-item">
                     <span class="bf-hotspot-rank">6</span>
                     <span class="bf-hotspot-count" style="color: var(--cyan);">1</span>
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title="docs/adr/ADR-001-clean-architecture.md">docs/adr/ADR-001-clean-architecture.md</span>
+                    <span class="bf-hotspot-path" title="src/spectra/adapters/cli_controller.py">src/spectra/adapters/cli_controller.py</span>
                 </li>
                 
                 
@@ -4528,7 +4366,7 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title="src/spectra/use_cases/">src/spectra/use_cases/</span>
+                    <span class="bf-hotspot-path" title=".env.example">.env.example</span>
                 </li>
                 
                 
@@ -4539,7 +4377,7 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title=".">.</span>
+                    <span class="bf-hotspot-path" title="README.md">README.md</span>
                 </li>
                 
                 
@@ -4550,7 +4388,7 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title=".env.example">.env.example</span>
+                    <span class="bf-hotspot-path" title="docs/adr">docs/adr</span>
                 </li>
                 
                 
@@ -4561,7 +4399,7 @@
                     <div class="bf-hotspot-bar">
                         <div class="bf-hotspot-bar-fill" style="width: 50.0%; background: var(--cyan);"></div>
                     </div>
-                    <span class="bf-hotspot-path" title="src/spectra/infrastructure/git_adapter.py">src/spectra/infrastructure/git_adapter.py</span>
+                    <span class="bf-hotspot-path" title="src/spectra/infrastructure/agents/specialist_prompts.py">src/spectra/infrastructure/agents/specialist_prompts.py</span>
                 </li>
                 
             </ul>
@@ -4571,30 +4409,26 @@
 
         <!-- Dependency Risk -->
         
-        <section class="dd-section scroll-reveal dd-green" id="dependency-risk">
+        <section class="dd-section scroll-reveal dd-red" id="dependency-risk">
             <div class="section-label">Dependency Risk</div>
 
-            
             
             
 
             <div class="dr-header">
                 <div class="dr-gauge"
-                     style="background: conic-gradient(var(--cyan) 108.0deg, var(--bg-elevated) 0deg); --gauge-glow: rgba(6,182,212,0.2);">
+                     style="background: conic-gradient(var(--red) 324.0deg, var(--bg-elevated) 0deg); --gauge-glow: var(--red-glow);">
                     <div class="dr-gauge-inner">
-                        <span class="dr-gauge-score" style="color: var(--cyan);"><span class="counter-animate" data-target="30">0</span></span>
+                        <span class="dr-gauge-score" style="color: var(--red);"><span class="counter-animate" data-target="90">0</span></span>
                         <span class="dr-gauge-label">risk</span>
                     </div>
                 </div>
                 <div>
-                    <span class="ir-rating-badge ir-rating-near-ready">
-                        moderate risk
+                    <span class="ir-rating-badge ir-rating-not-ready">
+                        critical risk
                     </span>
                     <div style="margin-top: 0.5rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary);">
-                        5 dependency findings analyzed
-                        
-                        <span style="color: var(--text-tertiary);"> &middot; </span>
-                        <span style="color: var(--red);">+10 severity penalty</span>
+                        4 dependency findings analyzed
                         
                     </div>
                 </div>
@@ -4605,8 +4439,23 @@
             <ul class="dr-signals-list">
                 
                 <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">cve</span>
+                    <span class="dr-signal-weight">+20 pts</span>
+                </li>
+                
+                <li class="dr-signal-item">
                     <span class="dr-signal-keyword">lock file</span>
                     <span class="dr-signal-weight">+5 pts</span>
+                </li>
+                
+                <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">outdated</span>
+                    <span class="dr-signal-weight">+15 pts</span>
+                </li>
+                
+                <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">vulnerable</span>
+                    <span class="dr-signal-weight">+25 pts</span>
                 </li>
                 
                 <li class="dr-signal-item">
@@ -4617,6 +4466,16 @@
                 <li class="dr-signal-item">
                     <span class="dr-signal-keyword">transitive</span>
                     <span class="dr-signal-weight">+10 pts</span>
+                </li>
+                
+                <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">pinned</span>
+                    <span class="dr-signal-weight">+5 pts</span>
+                </li>
+                
+                <li class="dr-signal-item">
+                    <span class="dr-signal-keyword">lock file</span>
+                    <span class="dr-signal-weight">+5 pts</span>
                 </li>
                 
             </ul>
@@ -4630,9 +4489,9 @@
             <div class="section-label">License Compliance</div>
 
             <div class="dd-coverage-stat">
-                1 unique license detected
+                2 unique licenses detected
                 <span style="color: var(--text-tertiary);"> &middot; </span>
-                6 total mentions
+                8 total mentions
             </div>
 
             
@@ -4640,7 +4499,11 @@
                 
                 
                 <span class="lc-tag ">
-                    MIT<span class="lc-tag-count">&times;6</span>
+                    ISC<span class="lc-tag-count">&times;5</span>
+                </span>
+                
+                <span class="lc-tag ">
+                    MIT<span class="lc-tag-count">&times;3</span>
                 </span>
                 
             </div>
@@ -4689,11 +4552,11 @@
             <div class="footer-line">
                 <a href="https://github.com/leocder07/spectra">spectra</a>
                 <span class="sep"> &middot; </span>6 agents
-                <span class="sep"> &middot; </span>190s
-                <span class="sep"> &middot; </span>$1.07
+                <span class="sep"> &middot; </span>156s
+                <span class="sep"> &middot; </span>$1.00
             </div>
             <div class="footer-line">https://github.com/leocder07/spectra</div>
-            <div class="footer-line" style="opacity: 0.5;">2026-02-15 21:45 UTC</div>
+            <div class="footer-line" style="opacity: 0.5;">2026-02-15 22:57 UTC</div>
         </footer>
     </div>
 
@@ -4709,7 +4572,7 @@
          SPECTRA — Premium Interactive JavaScript
          Filters, Search, Counters, Keyboard Nav, Scroll Spy
          ═══════════════════════════════════════════════════════ -->
-    <script nonce="JY-Hb6w61wGcrxGzLuD7HXfZrtZrjvHpZkTu7tjzRyA">
+    <script nonce="TiX0_o_UeWST0xymAc_1gQ4FW8lb5svZx7KQDD8_uLc">
     (function() {
         'use strict';
 
@@ -4901,6 +4764,15 @@
                 } else {
                     filterCountEl.textContent = '';
                 }
+            }
+
+            /* Reset keyboard nav index on filter change */
+            kbIndex = -1;
+
+            /* Reset expand/collapse state for consistency */
+            if (typeof allExpanded !== 'undefined' && allExpanded) {
+                allExpanded = false;
+                if (btnExpandAll) btnExpandAll.textContent = 'Expand All';
             }
         }
 
