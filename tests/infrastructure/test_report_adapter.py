@@ -19,8 +19,11 @@ from spectra.entities.models import (
 from spectra.infrastructure.report_adapter import (
     ReportAdapter,
     _bar_class,
+    _build_benchmark_context,
+    _build_coverage_summary,
     _build_executive_summary,
     _build_spectrum_segments,
+    _compute_roi,
     _concentration_rating,
     _complexity_component_score,
     _complexity_indicators,
@@ -34,7 +37,10 @@ from spectra.infrastructure.report_adapter import (
     _dep_severity_penalty,
     _dependency_risk_score,
     _detect_copyleft_risk,
+    _detect_primary_language,
     _dimension_hours,
+    _format_duration,
+    _format_token_count,
     _gini_coefficient,
     _grade_class,
     _investment_readiness_score,
@@ -42,6 +48,8 @@ from spectra.infrastructure.report_adapter import (
     _license_compliance,
     _license_component_score,
     _matches_soc2_criterion,
+    _nist_csf_mapping,
+    _pci_dss_mapping,
     _safe_avg,
     _safe_pct,
     _security_posture_score,
@@ -2032,3 +2040,433 @@ class TestBadgeScoreRounding:
         badge = adapter.render_badge(report)
         # round(83.2) = 83
         assert "83" in badge
+
+
+# ── Format Token Count ───────────────────────────────────────
+
+
+class TestFormatTokenCount:
+    @pytest.mark.parametrize(
+        ("tokens", "expected"),
+        [
+            (0, "0"),
+            (500, "500"),
+            (999, "999"),
+            (1000, "1K"),
+            (1500, "2K"),
+            (50000, "50K"),
+            (1000000, "1.0M"),
+            (1500000, "1.5M"),
+            (2500000, "2.5M"),
+        ],
+    )
+    def test_format_token_count(self, tokens, expected):
+        assert _format_token_count(tokens) == expected
+
+
+# ── Format Duration ──────────────────────────────────────────
+
+
+class TestFormatDuration:
+    @pytest.mark.parametrize(
+        ("seconds", "expected"),
+        [
+            (5.0, "5.0s"),
+            (0.5, "0.5s"),
+            (59.9, "59.9s"),
+            (60.0, "1m 0s"),
+            (90.0, "1m 30s"),
+            (150.0, "2m 30s"),
+            (3600.0, "60m 0s"),
+        ],
+    )
+    def test_format_duration(self, seconds, expected):
+        assert _format_duration(seconds) == expected
+
+
+# ── Build Coverage Summary ───────────────────────────────────
+
+
+class TestBuildCoverageSummary:
+    def test_returns_expected_keys(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        expected_keys = {
+            "agents_used",
+            "agents_count",
+            "hallucinations_removed",
+            "is_degraded",
+            "degraded_dimensions",
+            "total_tokens",
+            "total_cost",
+            "duration",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_agents_used_labels(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        # agents_used in _minimal_report are role strings; verify mapping
+        assert "Architecture" in result["agents_used"]
+        assert "Security" in result["agents_used"]
+
+    def test_agents_count_matches(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        assert result["agents_count"] == len(report.agents_used)
+
+    def test_total_tokens_formatted(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        # 1000 tokens → "1K"
+        assert result["total_tokens"] == "1K"
+
+    def test_total_cost_formatted(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        assert result["total_cost"] == "$0.01"
+
+    def test_duration_formatted(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        assert result["duration"] == "5.0s"
+
+    def test_not_degraded_by_default(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        assert result["is_degraded"] is False
+        assert result["degraded_dimensions"] == []
+
+    def test_hallucination_count_passed_through(self):
+        report = _minimal_report()
+        result = _build_coverage_summary(report)
+        assert result["hallucinations_removed"] == 0
+
+    def test_coverage_summary_with_zero_tokens(self):
+        """Zero tokens should show '0', not '0K'."""
+        report = _minimal_report()
+        zero_report = report.model_copy(update={"total_tokens_used": 0})
+        result = _build_coverage_summary(zero_report)
+        assert result["total_tokens"] == "0"
+
+
+# ── Detect Primary Language ──────────────────────────────────
+
+
+class TestDetectPrimaryLanguage:
+    @pytest.mark.parametrize(
+        ("repo_name", "expected"),
+        [
+            ("my-python-app", "python"),
+            ("fastapi-backend", "python"),
+            ("django-saas", "python"),
+            ("react-dashboard", "javascript"),
+            ("express-starter", "javascript"),
+            ("nest-api", "typescript"),
+            ("angular-app", "typescript"),
+            ("go-service", "go"),
+            ("spring-boot", "java"),
+            ("rust-cli", "rust"),
+            ("unknown-repo", ""),
+            ("my-project", ""),
+        ],
+    )
+    def test_detect_language(self, repo_name, expected):
+        assert _detect_primary_language(repo_name) == expected
+
+    def test_underscores_handled(self):
+        assert _detect_primary_language("my_python_app") == "python"
+
+
+# ── Build Benchmark Context ──────────────────────────────────
+
+
+class TestBuildBenchmarkContext:
+    def test_returns_expected_keys(self):
+        report = _minimal_report()
+        result = _build_benchmark_context(report)
+        assert "median_score" in result
+        assert "percentile_text" in result
+        assert "grade_context" in result
+        assert "language" in result
+
+    def test_unknown_language_uses_default_median(self):
+        report = _minimal_report()
+        result = _build_benchmark_context(report)
+        # repo_name="repo" → no language detected → default median 65
+        assert result["median_score"] == "65"
+        assert result["language"] == "all"
+
+    @pytest.mark.parametrize(
+        ("score", "expected_phrase"),
+        [
+            (95.0, "Well above"),
+            (70.0, "Above"),
+            (62.0, "Near"),
+            (40.0, "Below"),
+        ],
+    )
+    def test_percentile_text_for_default_median(self, score, expected_phrase):
+        # Default median is 65 for unknown language
+        report = _minimal_report(score=score)
+        result = _build_benchmark_context(report)
+        assert expected_phrase in result["percentile_text"]
+
+    def test_python_repo_uses_python_median(self):
+        sc = ScoreCard(
+            overall_score=85.0,
+            overall_grade=score_to_grade(85.0),
+            dimensions=_minimal_report().score_card.dimensions,
+            total_findings=1,
+        )
+        report = AnalysisReport(
+            repo_url="https://github.com/test/python-api",
+            repo_name="python-api",
+            score_card=sc,
+            findings=(_make_finding(),),
+            analysis_duration_seconds=5.0,
+            total_tokens_used=1000,
+            total_cost_usd=0.01,
+            agents_used=("architecture",),
+        )
+        result = _build_benchmark_context(report)
+        # Python median is 68; 85 >= 68+10 → "Well above"
+        assert result["language"] == "Python"
+        assert result["median_score"] == "68"
+        assert "Well above" in result["percentile_text"]
+
+    def test_grade_context_for_a_grade(self):
+        report = _minimal_report(score=95.0)
+        result = _build_benchmark_context(report)
+        assert "top-tier" in result["grade_context"]
+
+    def test_grade_context_for_b_grade(self):
+        report = _minimal_report(score=83.5)
+        result = _build_benchmark_context(report)
+        assert "well-maintained" in result["grade_context"]
+
+    def test_grade_context_for_f_grade(self):
+        report = _minimal_report(score=40.0)
+        result = _build_benchmark_context(report)
+        assert "critical issues" in result["grade_context"]
+
+
+# ── Cross-Cutting Insights HTML Rendering ────────────────────
+
+
+class TestCrossCuttingInsightsRendering:
+    def _render_html(self, *, insights: tuple[str, ...] = ()) -> str:
+        sc = _minimal_report().score_card
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sc,
+            findings=(_make_finding(),),
+            analysis_duration_seconds=5.0,
+            total_tokens_used=1000,
+            total_cost_usd=0.01,
+            agents_used=("architecture", "security"),
+            cross_cutting_insights=insights,
+        )
+        adapter = ReportAdapter()
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+            path = f.name
+        adapter.render(report, path)
+        content = Path(path).read_text(encoding="utf-8")
+        Path(path).unlink()
+        return content
+
+    def test_insights_present_renders_section(self):
+        html = self._render_html(insights=("Pattern A spans arch and security",))
+        assert "Cross-Cutting Insights" in html
+        assert "Pattern A spans arch and security" in html
+
+    def test_multiple_insights_rendered(self):
+        html = self._render_html(
+            insights=("Insight One", "Insight Two"),
+        )
+        assert "Insight One" in html
+        assert "Insight Two" in html
+
+    def test_no_insights_hides_section(self):
+        html = self._render_html(insights=())
+        # The section label should not appear (CSS comment will, but that's fine)
+        assert 'id="cross-cutting"' not in html
+
+    def test_validated_count_displayed(self):
+        # With insights present, the validation note should appear
+        sc = _minimal_report().score_card
+        finding = _make_finding()
+        validated_finding = Finding(
+            id="V-001",
+            dimension="security",
+            severity="high",
+            title="Validated finding",
+            description="Test",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.9,
+            validated_by_critique=True,
+        )
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sc,
+            findings=(finding, validated_finding),
+            analysis_duration_seconds=5.0,
+            total_tokens_used=1000,
+            total_cost_usd=0.01,
+            agents_used=("architecture", "security"),
+            cross_cutting_insights=("Some insight",),
+        )
+        adapter = ReportAdapter()
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+            path = f.name
+        adapter.render(report, path)
+        content = Path(path).read_text(encoding="utf-8")
+        Path(path).unlink()
+        assert "1 of 2" in content
+
+
+# ── Compliance Disclaimers HTML Rendering ────────────────────
+
+
+class TestComplianceDisclaimers:
+    def _render_html_with_findings(self) -> str:
+        """Render a full report with security findings to trigger all sections."""
+        findings = (
+            _make_finding(
+                dim="security",
+                sev="critical",
+                desc="authentication bypass access control vulnerability encryption",
+                line=1,
+            ),
+            _make_finding(
+                dim="quality",
+                sev="high",
+                desc="validation integrity error handling input validation",
+                line=2,
+            ),
+        )
+        report = _minimal_report(findings=findings)
+        adapter = ReportAdapter()
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+            path = f.name
+        adapter.render(report, path)
+        content = Path(path).read_text(encoding="utf-8")
+        Path(path).unlink()
+        return content
+
+    def test_owasp_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "Not a substitute for professional penetration testing" in html
+
+    def test_investment_readiness_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "not a substitute for formal due diligence" in html
+
+    def test_soc2_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "Not a formal SOC 2 audit" in html
+
+    def test_pci_dss_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "Not a formal PCI assessment" in html
+
+    def test_nist_csf_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "Not a formal NIST assessment" in html
+
+    def test_issue_concentration_disclaimer_in_html(self):
+        html = self._render_html_with_findings()
+        assert "git blame" in html
+
+
+# ── PCI DSS 4.0 Mapping ─────────────────────────────────────
+
+
+class TestPCIDSSMapping:
+    def test_empty_findings(self):
+        result = _pci_dss_mapping(())
+        assert result["total_mapped"] == 0
+        assert result["coverage_pct"] == 0.0
+        assert result["total_controls"] > 0
+
+    def test_has_cc_categories(self):
+        result = _pci_dss_mapping(())
+        assert "cc_categories" in result
+        assert len(result["cc_categories"]) == 4  # R6.2-R6.5
+
+    def test_injection_finding_maps(self):
+        finding = _make_finding(
+            dim="security",
+            desc="SQL injection vulnerability found",
+            line=1,
+        )
+        result = _pci_dss_mapping((finding,))
+        assert result["total_mapped"] >= 1
+
+    def test_gap_controls_collected(self):
+        result = _pci_dss_mapping(())
+        assert len(result["gap_controls"]) > 0
+
+
+# ── NIST CSF 2.0 Mapping ────────────────────────────────────
+
+
+class TestNISTCSFMapping:
+    def test_empty_findings(self):
+        result = _nist_csf_mapping(())
+        assert result["total_mapped"] == 0
+        assert result["coverage_pct"] == 0.0
+        assert result["total_controls"] > 0
+
+    def test_has_six_functions(self):
+        result = _nist_csf_mapping(())
+        assert len(result["cc_categories"]) == 6  # GV, ID, PR, DE, RS, RC
+
+    def test_auth_finding_maps_to_protect(self):
+        finding = _make_finding(
+            dim="security",
+            desc="authentication access control bypass",
+            line=1,
+        )
+        result = _nist_csf_mapping((finding,))
+        assert result["total_mapped"] >= 1
+
+    def test_gap_controls_collected(self):
+        result = _nist_csf_mapping(())
+        assert len(result["gap_controls"]) > 0
+
+
+# ── ROI Calculator ───────────────────────────────────────────
+
+
+class TestComputeROI:
+    def test_returns_expected_keys(self):
+        report = _minimal_report()
+        result = _compute_roi(report)
+        assert "spectra_cost" in result
+        assert "manual_cost" in result
+        assert "savings" in result
+        assert "savings_pct" in result
+        assert "cost_per_finding" in result
+        assert "findings_count" in result
+
+    def test_savings_is_positive(self):
+        report = _minimal_report()
+        result = _compute_roi(report)
+        assert result["savings"] > 0
+
+    def test_no_findings_cost_per_finding_zero(self):
+        report = _minimal_report(findings=())
+        result = _compute_roi(report)
+        assert result["cost_per_finding"] == 0.0
+
+    def test_manual_cost_uses_hourly_rate(self):
+        report = _minimal_report()
+        result = _compute_roi(report)
+        assert result["engineer_rate"] == 175
+        assert result["manual_hours"] == 4.0
+        assert result["manual_cost"] == 700

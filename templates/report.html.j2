@@ -507,6 +507,18 @@
             margin-top: 0.2rem;
         }
 
+        .benchmark-context {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.15rem;
+            margin-top: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-tertiary);
+            opacity: 0.8;
+        }
+
         /* Dimensions */
         .dimensions {
             display: grid;
@@ -621,6 +633,115 @@
             font-family: var(--font-mono);
             font-weight: 600;
             font-size: 0.85rem;
+        }
+
+        /* ─── Analysis Coverage ─── */
+        .coverage-section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .coverage-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+        }
+
+        .coverage-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .coverage-metric {
+            text-align: center;
+            padding: 1rem 0.5rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+        }
+
+        .coverage-metric-value {
+            font-family: var(--font-mono);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .coverage-metric-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+        }
+
+        .coverage-agents { margin-bottom: 1rem; }
+
+        .coverage-agents-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            margin-bottom: 0.5rem;
+        }
+
+        .coverage-agent-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .coverage-pill {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 999px;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--violet-light);
+            background: rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(124, 58, 237, 0.25);
+        }
+
+        .coverage-warning {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            margin-top: 1rem;
+            color: var(--amber);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+
+        .coverage-warning-icon { margin-right: 0.4rem; }
+
+        .coverage-info {
+            background: rgba(6, 182, 212, 0.08);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            margin-top: 0.75rem;
+            color: var(--cyan);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+
+        @media (max-width: 640px) {
+            .coverage-grid { grid-template-columns: repeat(2, 1fr); }
+            .coverage-grid .coverage-metric:last-child { grid-column: span 2; }
         }
 
         /* ─── Findings ─── */
@@ -767,6 +888,33 @@
             font-size: 0.75rem;
             color: var(--amber);
             font-weight: 500;
+        }
+
+        /* ─── Cross-Cutting Insights ─── */
+        .insight-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-left: 2px solid var(--violet);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            transition: all 0.2s ease;
+        }
+
+        .insight-card:hover {
+            border-color: var(--glass-border);
+            border-left-color: var(--violet-light);
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .insight-card::before {
+            content: '\25B8\0020';
+            color: var(--violet-light);
+            font-family: var(--font-mono);
+            font-weight: 600;
         }
 
         /* ─── Tech Debt & DD Compliance ─── */
@@ -961,6 +1109,27 @@
             padding-top: 0.5rem;
             border-top: 1px solid var(--border);
             opacity: 0.7;
+        }
+
+        .compliance-disclaimer {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            border-radius: 6px;
+            padding: 0.5rem 0.85rem;
+            margin-bottom: 1rem;
+            color: var(--amber);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            line-height: 1.5;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        .compliance-disclaimer-icon {
+            font-weight: 700;
+            font-size: 0.8rem;
+            flex-shrink: 0;
         }
 
         /* ─── Strengths Section ─── */
@@ -2169,12 +2338,14 @@
             .finding { break-inside: avoid; }
             .scorecard { break-inside: avoid; }
             .executive-summary { break-inside: avoid; }
+            .coverage-section { break-inside: avoid; }
 
             /* Remove backgrounds that waste ink */
             .finding,
             .executive-summary,
             .priority-actions,
             .scorecard,
+            .coverage-section,
             .dd-section,
             .heatmap-section {
                 background: white !important;
@@ -2253,12 +2424,14 @@
             <a href="#summary">Summary</a>
             {% if top_findings %}<a href="#actions">Actions</a>{% endif %}
             <a href="#scores">Scores</a>
+            {% if coverage %}<a href="#coverage">Coverage</a>{% endif %}
             {% for dimension in dimensions_order %}
             {% set dim_findings = report.findings | selectattr('dimension', 'equalto', dimension) | list %}
             {% if dim_findings %}
             <a href="#dim-{{ dimension }}">{{ _dim_label(dimension) }}</a>
             {% endif %}
             {% endfor %}
+            {% if report.cross_cutting_insights %}<a href="#cross-cutting">Insights</a>{% endif %}
             {% if tech_debt and tech_debt.total_hours > 0 %}<a href="#tech-debt">Tech Debt</a>{% endif %}
             {% if dd_compliance %}<a href="#dd-compliance">Compliance</a>{% endif %}
             {% if investment_readiness %}<a href="#investment-readiness">Investment</a>{% endif %}
@@ -2375,6 +2548,12 @@
                         <span class="grade-gauge-score"><span class="counter-animate" data-target="{{ score_pct | round(0) | int }}">0</span> / 100</span>
                     </div>
                 </div>
+                {% if benchmark %}
+                <div class="benchmark-context">
+                    <span>Industry median: {{ benchmark.median_score }} · {{ benchmark.percentile_text }}</span>
+                    <span>{{ benchmark.grade_context }}</span>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Radar Chart -->
@@ -2444,6 +2623,58 @@
                 </div>
             </div>
         </section>
+
+        <!-- Analysis Coverage -->
+        {% if coverage %}
+        <section class="coverage-section scroll-reveal" id="coverage">
+            <div class="section-label">Analysis Coverage</div>
+
+            <div class="coverage-grid">
+                <div class="coverage-metric">
+                    <div class="coverage-metric-value">{{ coverage.agents_count }}</div>
+                    <div class="coverage-metric-label">Agents</div>
+                </div>
+                <div class="coverage-metric">
+                    <div class="coverage-metric-value">{{ coverage.total_tokens }}</div>
+                    <div class="coverage-metric-label">Tokens Used</div>
+                </div>
+                <div class="coverage-metric">
+                    <div class="coverage-metric-value">{{ coverage.duration }}</div>
+                    <div class="coverage-metric-label">Duration</div>
+                </div>
+                <div class="coverage-metric">
+                    <div class="coverage-metric-value">{{ coverage.total_cost }}</div>
+                    <div class="coverage-metric-label">API Cost</div>
+                </div>
+                <div class="coverage-metric">
+                    <div class="coverage-metric-value">{{ coverage.hallucinations_removed }}</div>
+                    <div class="coverage-metric-label">Hallucinations Removed</div>
+                </div>
+            </div>
+
+            <div class="coverage-agents">
+                <div class="coverage-agents-label">Agents Used</div>
+                <div class="coverage-agent-pills">
+                    {% for agent in coverage.agents_used %}
+                    <span class="coverage-pill">{{ agent }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if coverage.is_degraded %}
+            <div class="coverage-warning">
+                <span class="coverage-warning-icon">&#9888;</span>
+                Degraded analysis &mdash; missing dimensions: {{ coverage.degraded_dimensions | join(', ') }}
+            </div>
+            {% endif %}
+
+            {% if coverage.hallucinations_removed > 0 %}
+            <div class="coverage-info">
+                {{ coverage.hallucinations_removed }} finding{{ 's' if coverage.hallucinations_removed != 1 else '' }} removed (referenced non-existent files)
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
 
         <!-- File Hotspot Heatmap -->
         {% set file_counts = {} %}
@@ -2573,6 +2804,19 @@
         {% endif %}
         {% endfor %}
 
+        <!-- Cross-Cutting Insights -->
+        {% if report.cross_cutting_insights %}
+        <section class="dd-section dd-violet scroll-reveal" id="cross-cutting">
+            <div class="section-label">Cross-Cutting Insights</div>
+            <p style="font-size: 0.8rem; color: var(--text-tertiary); margin-bottom: 1.25rem; font-family: var(--font-mono);">
+                Patterns identified by CritiqueAgent that span multiple dimensions
+            </p>
+            {% for insight in report.cross_cutting_insights %}
+            <div class="insight-card">{{ insight }}</div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
         <!-- Technical Debt Summary -->
         {% if tech_debt and tech_debt.total_hours > 0 %}
         <section class="dd-section scroll-reveal" id="tech-debt">
@@ -2682,6 +2926,11 @@
         <section class="dd-section scroll-reveal {% if investment_readiness.score >= 85 %}dd-green{% elif investment_readiness.score >= 70 %}dd-green{% elif investment_readiness.score >= 50 %}dd-amber{% else %}dd-red{% endif %}" id="investment-readiness">
             <div class="section-label">Investment Readiness Score</div>
 
+            <div class="compliance-disclaimer">
+                <span class="compliance-disclaimer-icon">&#x26A0;</span>
+                <span>Automated heuristic — not a substitute for formal due diligence or financial advisory. Score is derived from code-quality signals, not business fundamentals.</span>
+            </div>
+
             {% set ir_score = investment_readiness.score %}
             {% if ir_score >= 85 %}{% set ir_color = 'var(--green)' %}{% set ir_glow = 'var(--green-glow)' %}
             {% elif ir_score >= 70 %}{% set ir_color = 'var(--cyan)' %}{% set ir_glow = 'rgba(6,182,212,0.2)' %}
@@ -2748,6 +2997,11 @@
         {% if soc2 %}
         <section class="dd-section scroll-reveal" id="soc2-readiness">
             <div class="section-label">SOC 2 Readiness</div>
+
+            <div class="compliance-disclaimer">
+                <span class="compliance-disclaimer-icon">&#x26A0;</span>
+                <span>Automated heuristic — not a substitute for formal SOC 2 assessment. Findings are mapped by keyword analysis, not control evidence evaluation.</span>
+            </div>
 
             <div class="soc2-readiness-header">
                 <div class="soc2-readiness-score">
@@ -2817,6 +3071,11 @@
         <section class="dd-section scroll-reveal" id="pci-dss-readiness">
             <div class="section-label">PCI DSS 4.0 — Requirement 6</div>
 
+            <div class="compliance-disclaimer">
+                <span class="compliance-disclaimer-icon">&#x26A0;</span>
+                <span>Automated heuristic — not a substitute for formal PCI DSS assessment. Findings are mapped by keyword analysis, not control evidence evaluation.</span>
+            </div>
+
             <div class="soc2-readiness-header">
                 <div class="soc2-readiness-score">
                     {% set pci_rs = pci_dss.readiness_score | default(0) | round(1) %}
@@ -2881,6 +3140,11 @@
         {% if nist_csf %}
         <section class="dd-section scroll-reveal" id="nist-csf-readiness">
             <div class="section-label">NIST CSF 2.0</div>
+
+            <div class="compliance-disclaimer">
+                <span class="compliance-disclaimer-icon">&#x26A0;</span>
+                <span>Automated heuristic — not a substitute for formal NIST CSF assessment. Findings are mapped by keyword analysis, not control evidence evaluation.</span>
+            </div>
 
             <div class="soc2-readiness-header">
                 <div class="soc2-readiness-score">

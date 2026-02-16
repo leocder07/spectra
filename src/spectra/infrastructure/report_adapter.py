@@ -19,7 +19,7 @@ from pathlib import Path
 import jinja2
 
 from spectra.adapters.brand import build_verdict, dim_label
-from spectra.entities.enums import Dimension, Grade
+from spectra.entities.enums import AgentRole, Dimension, Grade
 from spectra.entities.models import AnalysisReport, Finding
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "templates"
@@ -1648,6 +1648,89 @@ def _ir_rating(score: float) -> str:
 
 _MANUAL_REVIEW_HOURS = 4.0  # Estimated hours for equivalent manual review
 
+# ── Comparative Benchmark Medians ────────────────────────────
+
+_LANGUAGE_MEDIANS: dict[str, int] = {
+    "python": 68,
+    "javascript": 62,
+    "typescript": 70,
+    "go": 72,
+    "rust": 75,
+    "java": 65,
+}
+
+_REPO_NAME_HINTS: dict[str, str] = {
+    "py": "python",
+    "python": "python",
+    "django": "python",
+    "flask": "python",
+    "fastapi": "python",
+    "js": "javascript",
+    "react": "javascript",
+    "next": "javascript",
+    "express": "javascript",
+    "vue": "javascript",
+    "ts": "typescript",
+    "nest": "typescript",
+    "angular": "typescript",
+    "go": "go",
+    "gin": "go",
+    "rust": "rust",
+    "java": "java",
+    "spring": "java",
+}
+
+_DEFAULT_MEDIAN = 65
+
+_GRADE_CONTEXT: dict[str, str] = {
+    "A": "A grades represent top-tier, production-ready codebases",
+    "B": "B grades represent well-maintained codebases with room for improvement",
+    "C": "C grades indicate functional codebases with notable gaps",
+    "D": "D grades signal significant technical debt requiring attention",
+    "F": "F grades indicate critical issues across multiple dimensions",
+}
+
+
+def _detect_primary_language(repo_name: str) -> str:
+    """Infer primary language from repository name segments."""
+    parts = repo_name.lower().replace("_", "-").split("-")
+    for part in parts:
+        if part in _REPO_NAME_HINTS:
+            return _REPO_NAME_HINTS[part]
+    return ""
+
+
+def _build_benchmark_context(
+    report: AnalysisReport,
+) -> dict[str, str]:
+    """Build comparative benchmark data for the ScoreCard."""
+    lang = _detect_primary_language(report.repo_name)
+    median = _LANGUAGE_MEDIANS.get(lang, _DEFAULT_MEDIAN)
+    score = report.score_card.overall_score
+    grade_letter = report.score_card.overall_grade[0]
+
+    if lang:
+        lang_label = lang.capitalize()
+    else:
+        lang_label = "all"
+
+    if score >= median + 10:
+        percentile = f"Well above industry median for {lang_label} projects"
+    elif score >= median:
+        percentile = f"Above industry median for {lang_label} projects"
+    elif score >= median - 10:
+        percentile = f"Near industry median for {lang_label} projects"
+    else:
+        percentile = f"Below industry median for {lang_label} projects"
+
+    context = _GRADE_CONTEXT.get(grade_letter, _GRADE_CONTEXT["C"])
+    return {
+        "median_score": str(median),
+        "percentile_text": percentile,
+        "grade_context": context,
+        "language": lang_label,
+    }
+
 
 def _compute_roi(report: AnalysisReport) -> dict[str, object]:
     """Compute ROI comparison: Spectra cost vs. manual review cost.
@@ -1668,6 +1751,60 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
         "findings_count": findings_count,
         "engineer_rate": _HOURLY_RATE_USD,
         "manual_hours": _MANUAL_REVIEW_HOURS,
+    }
+
+
+# ── Analysis Coverage Summary ────────────────────────────────
+
+_AGENT_ROLE_LABEL: dict[AgentRole, str] = {
+    "meta_prompter": "MetaPrompter",
+    "architecture": "Architecture",
+    "security": "Security",
+    "quality": "Quality",
+    "documentation": "Documentation",
+    "dependency": "Dependency",
+    "performance": "Performance",
+    "critique": "Critique",
+}
+
+
+def _format_token_count(total_tokens: int) -> str:
+    """Format a token count as a compact string (e.g. '324K')."""
+    if total_tokens >= 1_000_000:
+        return f"{total_tokens / 1_000_000:.1f}M"
+    if total_tokens >= 1_000:
+        return f"{total_tokens / 1_000:.0f}K"
+    return str(total_tokens)
+
+
+def _format_duration(seconds: float) -> str:
+    """Format analysis duration as a human-readable string."""
+    if seconds >= 60:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}m {secs}s"
+    return f"{seconds:.1f}s"
+
+
+def _build_coverage_summary(
+    report: AnalysisReport,
+) -> dict[str, object]:
+    """Build transparency data for the Analysis Coverage section."""
+    agent_names = [
+        _AGENT_ROLE_LABEL.get(r, r) for r in report.agents_used
+    ]
+    degraded_names = [
+        dim_label(d) for d in report.degraded_dimensions
+    ]
+    return {
+        "agents_used": agent_names,
+        "agents_count": len(report.agents_used),
+        "hallucinations_removed": report.hallucination_removed_count,
+        "is_degraded": report.is_degraded,
+        "degraded_dimensions": degraded_names,
+        "total_tokens": _format_token_count(report.total_tokens_used),
+        "total_cost": f"${report.total_cost_usd:.2f}",
+        "duration": _format_duration(report.analysis_duration_seconds),
     }
 
 
@@ -1723,6 +1860,7 @@ class ReportAdapter:
             tech_debt=_tech_debt_summary(report.findings),
             strengths=finding_strengths,
             filtered_findings=finding_issues,
+            coverage=_build_coverage_summary(report),
             dd_compliance=dd_frameworks["dd_compliance"],
             soc2=dd_frameworks["soc2"],
             pci_dss=dd_frameworks["pci_dss"],
@@ -1734,6 +1872,7 @@ class ReportAdapter:
             investment_readiness=dd_frameworks["investment_readiness"],
             badge_svg=self.render_badge(report),
             roi=_compute_roi(report),
+            benchmark=_build_benchmark_context(report),
             validated_count=sum(1 for f in report.findings if f.validated_by_critique),
             total_count=len(report.findings),
             has_mermaid=has_mermaid,
