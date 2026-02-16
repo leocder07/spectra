@@ -25,6 +25,7 @@ from spectra.use_cases.analyze_repository import (
     _extract_plan_context,
     _extract_plan_files,
     _extract_token_allocations,
+    _has_insufficient_data,
     _merge_findings,
     _role_to_dimension,
     _should_run_critique,
@@ -1080,6 +1081,134 @@ class TestEstimateScoreParametrized:
         # penalty = 3.0 * 0.8 confidence = 2.4, penalty_score = 97.6
         # blended = 0.4 * 50.0 + 0.6 * 97.6 = 20.0 + 58.56 = 78.6
         assert result == 78.6
+
+
+# ── _has_insufficient_data ─────────────────────────────────────
+
+
+class TestHasInsufficientData:
+    def test_detects_insufficient_code_content(self):
+        """Finding with 'Insufficient code content' triggers detection."""
+        f = Finding(
+            id="F-sec-1",
+            dimension="security",
+            severity="info",
+            title="Insufficient code content",
+            description="Not enough code to analyze",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Provide more code",
+            agent_role="security",
+            confidence=0.5,
+        )
+        assert _has_insufficient_data([f]) is True
+
+    def test_detects_insufficient_in_description(self):
+        """Detection works when 'insufficient' is in the description."""
+        f = Finding(
+            id="F-sec-2",
+            dimension="security",
+            severity="info",
+            title="Analysis limited",
+            description="Insufficient code was provided for analysis",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Provide more code",
+            agent_role="security",
+            confidence=0.5,
+        )
+        assert _has_insufficient_data([f]) is True
+
+    def test_no_insufficient_data_with_normal_findings(self):
+        """Normal findings do not trigger insufficient data detection."""
+        f = _finding("security", "high", line=1)
+        assert _has_insufficient_data([f]) is False
+
+    def test_empty_findings_not_insufficient(self):
+        assert _has_insufficient_data([]) is False
+
+    def test_case_insensitive(self):
+        """Detection is case-insensitive."""
+        f = Finding(
+            id="F-q-1",
+            dimension="quality",
+            severity="info",
+            title="INSUFFICIENT CODE CONTENT detected",
+            description="No analyzable code",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Add code",
+            agent_role="quality",
+            confidence=0.5,
+        )
+        assert _has_insufficient_data([f]) is True
+
+
+# ── _estimate_score with insufficient data ─────────────────────
+
+
+class TestEstimateScoreInsufficientData:
+    def test_caps_llm_score_at_50_when_insufficient(self):
+        """LLM score of 90 should be capped at 50 when data is insufficient."""
+        f = Finding(
+            id="F-sec-1",
+            dimension="security",
+            severity="info",
+            title="Insufficient code content",
+            description="Not enough code to analyze",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Provide more code",
+            agent_role="security",
+            confidence=0.5,
+        )
+        # penalty = 0.0 * 0.5 = 0.0, penalty_score = 100.0
+        # capped_llm = min(90, 50) = 50
+        # blended = 0.4 * 50 + 0.6 * 100 = 20 + 60 = 80.0
+        result = _estimate_score([f], llm_score=90.0)
+        assert result == 80.0
+
+    def test_caps_llm_score_at_50_not_above(self):
+        """LLM score below 50 is kept as-is when data is insufficient."""
+        f = Finding(
+            id="F-sec-1",
+            dimension="security",
+            severity="info",
+            title="Insufficient code content",
+            description="Not enough content available",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Provide more code",
+            agent_role="security",
+            confidence=0.5,
+        )
+        # penalty = 0.0, penalty_score = 100.0
+        # capped_llm = min(30, 50) = 30
+        # blended = 0.4 * 30 + 0.6 * 100 = 12 + 60 = 72.0
+        result = _estimate_score([f], llm_score=30.0)
+        assert result == 72.0
+
+    def test_no_cap_when_data_sufficient(self):
+        """Normal findings do not cap LLM score."""
+        findings = [_finding("security", "high", line=1)]
+        # penalty = 8*0.8=6.4, penalty_score = 93.6
+        # blended = 0.4*90 + 0.6*93.6 = 36 + 56.16 = 92.2
+        result = _estimate_score(findings, llm_score=90.0)
+        assert result == 92.2
+
+    def test_insufficient_with_no_llm_score_defaults_to_50(self):
+        """When no LLM score provided and data is insufficient, default to 50."""
+        f = Finding(
+            id="F-sec-1",
+            dimension="security",
+            severity="info",
+            title="Insufficient code content",
+            description="Not enough code",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="Provide more code",
+            agent_role="security",
+            confidence=0.5,
+        )
+        # penalty = 0.0, penalty_score = 100.0
+        # capped_llm = min(50, 50) = 50 (llm_score defaults to 50.0)
+        # blended = 0.4 * 50 + 0.6 * 100 = 20 + 60 = 80.0
+        result = _estimate_score([f], llm_score=None)
+        assert result == 80.0
 
 
 # ── Parametrized _validate_repo_url ──────────────────────────

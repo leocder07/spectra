@@ -2263,6 +2263,8 @@
             {% if dd_compliance %}<a href="#dd-compliance">Compliance</a>{% endif %}
             {% if investment_readiness %}<a href="#investment-readiness">Investment</a>{% endif %}
             {% if soc2 %}<a href="#soc2-readiness">SOC 2</a>{% endif %}
+            {% if pci_dss %}<a href="#pci-dss-readiness">PCI DSS</a>{% endif %}
+            {% if nist_csf %}<a href="#nist-csf-readiness">NIST CSF</a>{% endif %}
             {% if issue_concentration %}<a href="#issue-concentration">Issue Concentration</a>{% endif %}
             {% if dependency_risk %}<a href="#dependency-risk">Dep Risk</a>{% endif %}
             {% if license_compliance %}<a href="#license-compliance">Licenses</a>{% endif %}
@@ -2513,6 +2515,11 @@
                 {% endfor %}
             </ul>
         </section>
+        {% endif %}
+
+        <!-- CritiqueAgent Validation Note -->
+        {% if report.cross_cutting_insights %}
+        <p class="dd-disclaimer" style="margin-bottom: 1rem; opacity: 1; border-top: none; padding-top: 0;">CritiqueAgent validated findings using extended thinking. {{ validated_count }} of {{ total_count }} findings were individually confirmed.</p>
         {% endif %}
 
         <!-- Findings by Dimension -->
@@ -2805,6 +2812,136 @@
         </section>
         {% endif %}
 
+        <!-- PCI DSS 4.0 Readiness -->
+        {% if pci_dss %}
+        <section class="dd-section scroll-reveal" id="pci-dss-readiness">
+            <div class="section-label">PCI DSS 4.0 — Requirement 6</div>
+
+            <div class="soc2-readiness-header">
+                <div class="soc2-readiness-score">
+                    {% set pci_rs = pci_dss.readiness_score | default(0) | round(1) %}
+                    <span class="soc2-pct" style="color: {% if pci_rs >= 75 %}var(--green){% elif pci_rs >= 50 %}var(--cyan){% elif pci_rs > 0 %}var(--amber){% else %}var(--red){% endif %};">{{ pci_rs }}%</span>
+                    <span class="soc2-pct-label">control coverage</span>
+                </div>
+                <div class="soc2-readiness-stats">
+                    {{ pci_dss.covered_controls | default(0) }} of {{ pci_dss.total_controls | default(0) }} controls addressed<br>
+                    {{ pci_dss.gap_controls | default([]) | length }} gaps &middot; {{ pci_dss.total_mapped | default(0) }} findings mapped
+                </div>
+            </div>
+
+            {% if pci_dss.readiness_score is defined and pci_dss.readiness_score < 10 %}
+            <p class="dd-empty-note">PCI DSS mapping requires findings with Req 6-specific keywords. Low coverage typically means the analysis did not surface relevant language.</p>
+            {% endif %}
+
+            <div class="dd-bar-track" style="height: 8px; margin-bottom: 1.5rem;">
+                <div class="dd-bar-fill" style="width: {{ pci_dss.readiness_score | default(0) }}%; background: {% if pci_rs >= 75 %}var(--green){% elif pci_rs >= 50 %}var(--cyan){% elif pci_rs > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+            </div>
+
+            <div class="soc2-grid">
+                {% for cc in pci_dss.cc_categories | default([]) %}
+                <div class="soc2-criterion">
+                    <details>
+                        <summary class="soc2-criterion-header">
+                            <span class="soc2-criterion-label">{{ cc.id }}: {{ cc.title }}</span>
+                            {% if cc.has_critical %}
+                            <span class="soc2-criterion-count soc2-count-crit">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% elif cc.covered_count > 0 %}
+                            <span class="soc2-criterion-count soc2-count-warn">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% else %}
+                            <span class="soc2-criterion-count soc2-count-ok">0/{{ cc.total_count }}</span>
+                            {% endif %}
+                        </summary>
+
+                        <div class="dd-bar-track" style="height: 6px; margin-top: 0.5rem;">
+                            {% set cpct = cc.coverage_pct | default(0) %}
+                            <div class="dd-bar-fill" style="width: {{ cpct }}%; background: {% if cpct >= 75 %}var(--green){% elif cpct >= 50 %}var(--cyan){% elif cpct > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+                        </div>
+
+                        <div class="soc2-controls-list">
+                            {% for ctrl in cc.controls | default([]) %}
+                            <div class="soc2-control-item {% if ctrl.covered %}soc2-covered{% else %}soc2-gap{% endif %}">
+                                <span class="soc2-control-icon">{% if ctrl.covered %}&#x2713;{% else %}&#x2717;{% endif %}</span>
+                                <span class="soc2-control-id">{{ ctrl.id }}</span>
+                                <span class="soc2-control-desc">{{ ctrl.desc }}</span>
+                                {% if ctrl.finding_count > 0 %}
+                                <span class="soc2-control-count">{{ ctrl.finding_count }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="dd-disclaimer">Keyword-based mapping to PCI DSS 4.0 Requirement 6 (Secure Systems &amp; Software). Not a formal PCI assessment.</p>
+        </section>
+        {% endif %}
+
+        <!-- NIST CSF 2.0 Readiness -->
+        {% if nist_csf %}
+        <section class="dd-section scroll-reveal" id="nist-csf-readiness">
+            <div class="section-label">NIST CSF 2.0</div>
+
+            <div class="soc2-readiness-header">
+                <div class="soc2-readiness-score">
+                    {% set nist_rs = nist_csf.readiness_score | default(0) | round(1) %}
+                    <span class="soc2-pct" style="color: {% if nist_rs >= 75 %}var(--green){% elif nist_rs >= 50 %}var(--cyan){% elif nist_rs > 0 %}var(--amber){% else %}var(--red){% endif %};">{{ nist_rs }}%</span>
+                    <span class="soc2-pct-label">function coverage</span>
+                </div>
+                <div class="soc2-readiness-stats">
+                    {{ nist_csf.covered_controls | default(0) }} of {{ nist_csf.total_controls | default(0) }} categories addressed<br>
+                    {{ nist_csf.gap_controls | default([]) | length }} gaps &middot; {{ nist_csf.total_mapped | default(0) }} findings mapped
+                </div>
+            </div>
+
+            {% if nist_csf.readiness_score is defined and nist_csf.readiness_score < 10 %}
+            <p class="dd-empty-note">NIST CSF mapping requires findings with function-specific keywords. Low coverage typically means the analysis did not surface relevant language.</p>
+            {% endif %}
+
+            <div class="dd-bar-track" style="height: 8px; margin-bottom: 1.5rem;">
+                <div class="dd-bar-fill" style="width: {{ nist_csf.readiness_score | default(0) }}%; background: {% if nist_rs >= 75 %}var(--green){% elif nist_rs >= 50 %}var(--cyan){% elif nist_rs > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+            </div>
+
+            <div class="soc2-grid">
+                {% for cc in nist_csf.cc_categories | default([]) %}
+                <div class="soc2-criterion">
+                    <details>
+                        <summary class="soc2-criterion-header">
+                            <span class="soc2-criterion-label">{{ cc.id }}: {{ cc.title }}</span>
+                            {% if cc.has_critical %}
+                            <span class="soc2-criterion-count soc2-count-crit">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% elif cc.covered_count > 0 %}
+                            <span class="soc2-criterion-count soc2-count-warn">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% else %}
+                            <span class="soc2-criterion-count soc2-count-ok">0/{{ cc.total_count }}</span>
+                            {% endif %}
+                        </summary>
+
+                        <div class="dd-bar-track" style="height: 6px; margin-top: 0.5rem;">
+                            {% set cpct = cc.coverage_pct | default(0) %}
+                            <div class="dd-bar-fill" style="width: {{ cpct }}%; background: {% if cpct >= 75 %}var(--green){% elif cpct >= 50 %}var(--cyan){% elif cpct > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+                        </div>
+
+                        <div class="soc2-controls-list">
+                            {% for ctrl in cc.controls | default([]) %}
+                            <div class="soc2-control-item {% if ctrl.covered %}soc2-covered{% else %}soc2-gap{% endif %}">
+                                <span class="soc2-control-icon">{% if ctrl.covered %}&#x2713;{% else %}&#x2717;{% endif %}</span>
+                                <span class="soc2-control-id">{{ ctrl.id }}</span>
+                                <span class="soc2-control-desc">{{ ctrl.desc }}</span>
+                                {% if ctrl.finding_count > 0 %}
+                                <span class="soc2-control-count">{{ ctrl.finding_count }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="dd-disclaimer">Keyword-based mapping to NIST Cybersecurity Framework 2.0 (6 Functions). Not a formal NIST assessment.</p>
+        </section>
+        {% endif %}
+
         <!-- Issue Concentration Analysis -->
         {% if issue_concentration %}
         <section class="dd-section scroll-reveal {% if issue_concentration.rating == 'critical' %}dd-red{% elif issue_concentration.rating == 'concerning' %}dd-amber{% else %}dd-green{% endif %}" id="issue-concentration">
@@ -3002,6 +3139,39 @@
             {% elif complexity.risk_level == 'low' or complexity.risk_level == 'unknown' %}
             <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--green); margin-top: 0.5rem;">No high complexity files detected</div>
             {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- ROI Analysis -->
+        {% if roi %}
+        <section class="dd-section dd-green scroll-reveal" id="roi-analysis">
+            <div class="section-label">ROI Analysis</div>
+
+            <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 10px; padding: 1.5rem 2rem; margin-top: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">This analysis cost</div>
+                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text);">${{ "%.2f" | format(roi.spectra_cost) }}</div>
+                    </div>
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Manual equivalent (${{ roi.engineer_rate }}/hr &times; {{ roi.manual_hours | round(0) | int }}h)</div>
+                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text-secondary);">${{ roi.manual_cost }}</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(34, 197, 94, 0.15); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--green); font-weight: 600;">Spectra saved you</div>
+                        <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--green); filter: drop-shadow(0 0 12px var(--green-glow));">${{ roi.savings }} <span style="font-size: 1rem; opacity: 0.8;">({{ roi.savings_pct }}%)</span></div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">Cost per finding</div>
+                        <div style="font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--text-secondary);">${{ "%.2f" | format(roi.cost_per_finding) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="dd-disclaimer">Based on ${{ roi.engineer_rate }}/hr senior engineer rate and ~{{ roi.manual_hours | round(0) | int }} hours for equivalent manual review. Actual costs vary.</p>
         </section>
         {% endif %}
 

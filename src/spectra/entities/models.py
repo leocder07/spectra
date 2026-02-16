@@ -7,6 +7,8 @@ infrastructure layers.
 
 from __future__ import annotations
 
+import bisect
+
 from pydantic import BaseModel, Field
 
 from spectra.entities.enums import (
@@ -316,6 +318,24 @@ class TokenBudget(BaseModel, frozen=True):
         return max(0, self.total - used)
 
 
+_GRADE_THRESHOLDS = [57, 60, 63, 67, 70, 73, 77, 80, 83, 87, 90, 95]
+_GRADE_LABELS: list[Grade] = [
+    "F",
+    "D-",
+    "D",
+    "D+",
+    "C-",
+    "C",
+    "C+",
+    "B-",
+    "B",
+    "B+",
+    "A-",
+    "A",
+    "A+",
+]
+
+
 def score_to_grade(score: float) -> Grade:
     """Map a numeric score (0-100) to a letter grade.
 
@@ -325,31 +345,8 @@ def score_to_grade(score: float) -> Grade:
     Returns:
         Letter grade from ``A+`` (95-100) down to ``F`` (0-56).
     """
-    if score >= 95:
-        return "A+"
-    if score >= 90:
-        return "A"
-    if score >= 87:
-        return "A-"
-    if score >= 83:
-        return "B+"
-    if score >= 80:
-        return "B"
-    if score >= 77:
-        return "B-"
-    if score >= 73:
-        return "C+"
-    if score >= 70:
-        return "C"
-    if score >= 67:
-        return "C-"
-    if score >= 63:
-        return "D+"
-    if score >= 60:
-        return "D"
-    if score >= 57:
-        return "D-"
-    return "F"
+    idx = bisect.bisect_right(_GRADE_THRESHOLDS, score)
+    return _GRADE_LABELS[idx]
 
 
 # ── Cost Estimation ───────────────────────────────────────────

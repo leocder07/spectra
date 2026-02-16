@@ -461,3 +461,186 @@ class TestCli:
                 cli()
                 # The factory should receive the _run_analysis function
                 assert mock_set.call_args[0][0] is _run_analysis
+
+
+# ── _build_sarif ─────────────────────────────────────────────
+
+
+from spectra.infrastructure.main import _build_sarif, _SARIF_SEVERITY
+
+
+class TestBuildSarif:
+    """Tests for SARIF v2.1.0 output generation."""
+
+    @staticmethod
+    def _make_report(findings: tuple[Finding, ...] = ()) -> AnalysisReport:
+        dim_score = DimensionScore(
+            dimension="security", score=85.0, grade="B+", findings_count=len(findings), weight=1.0
+        )
+        score_card = ScoreCard(
+            overall_score=85.0, overall_grade="B+", dimensions=(dim_score,), total_findings=len(findings)
+        )
+        return AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=score_card,
+            findings=findings,
+            analysis_duration_seconds=5.0,
+            total_tokens_used=1000,
+            total_cost_usd=0.5,
+            agents_used=("security",),
+        )
+
+    def test_sarif_top_level_structure(self):
+        """SARIF output has $schema, version, and runs keys."""
+        report = self._make_report()
+        sarif = _build_sarif(report)
+        assert sarif["$schema"].endswith("sarif-schema-2.1.0.json")
+        assert sarif["version"] == "2.1.0"
+        assert isinstance(sarif["runs"], list)
+        assert len(sarif["runs"]) == 1
+
+    def test_sarif_tool_driver(self):
+        """SARIF run contains Spectra tool driver metadata."""
+        sarif = _build_sarif(self._make_report())
+        driver = sarif["runs"][0]["tool"]["driver"]
+        assert driver["name"] == "Spectra"
+        assert driver["version"] == "0.1.0"
+        assert "informationUri" in driver
+
+    def test_sarif_zero_findings_empty_results(self):
+        """Report with no findings produces an empty results array."""
+        sarif = _build_sarif(self._make_report(findings=()))
+        assert sarif["runs"][0]["results"] == []
+
+    def test_sarif_finding_to_result_mapping(self):
+        """Each finding maps to a SARIF result with ruleId, level, locations."""
+        finding = Finding(
+            id="sec-001",
+            dimension="security",
+            severity="critical",
+            title="SQL Injection",
+            description="Unsanitized user input",
+            location=FileLocation(file_path="src/db.py", line_start=42),
+            recommendation="Use parameterized queries",
+            agent_role="security",
+            confidence=0.95,
+            estimated_hours=2.0,
+        )
+        sarif = _build_sarif(self._make_report(findings=(finding,)))
+        results = sarif["runs"][0]["results"]
+        assert len(results) == 1
+
+        r = results[0]
+        assert r["ruleId"] == "spectra/security/sec-001"
+        assert r["level"] == "error"
+        assert "SQL Injection" in r["message"]["text"]
+        assert "Unsanitized user input" in r["message"]["text"]
+
+        loc = r["locations"][0]["physicalLocation"]
+        assert loc["artifactLocation"]["uri"] == "src/db.py"
+        assert loc["region"]["startLine"] == 42
+
+        assert r["properties"]["severity"] == "critical"
+        assert r["properties"]["dimension"] == "security"
+        assert r["properties"]["recommendation"] == "Use parameterized queries"
+        assert r["properties"]["estimatedHours"] == 2.0
+
+    def test_sarif_severity_mapping_critical_to_error(self):
+        assert _SARIF_SEVERITY["critical"] == "error"
+
+    def test_sarif_severity_mapping_high_to_error(self):
+        assert _SARIF_SEVERITY["high"] == "error"
+
+    def test_sarif_severity_mapping_medium_to_warning(self):
+        assert _SARIF_SEVERITY["medium"] == "warning"
+
+    def test_sarif_severity_mapping_low_to_note(self):
+        assert _SARIF_SEVERITY["low"] == "note"
+
+    def test_sarif_severity_mapping_info_to_note(self):
+        assert _SARIF_SEVERITY["info"] == "note"
+
+    def test_sarif_unknown_severity_defaults_to_note(self):
+        """Unknown severity falls back to 'note' via dict.get default."""
+        finding = Finding(
+            id="x-001",
+            dimension="quality",
+            severity="low",
+            title="Title",
+            description="Desc",
+            location=FileLocation(file_path="f.py", line_start=1),
+            recommendation="Rec",
+            agent_role="quality",
+            confidence=0.8,
+        )
+        sarif = _build_sarif(self._make_report(findings=(finding,)))
+        assert sarif["runs"][0]["results"][0]["level"] == "note"
+
+    def test_sarif_multiple_findings(self):
+        """Multiple findings produce multiple SARIF results."""
+        f1 = Finding(
+            id="sec-001",
+            dimension="security",
+            severity="critical",
+            title="SQL Injection",
+            description="Input not sanitized",
+            location=FileLocation(file_path="src/db.py", line_start=10),
+            recommendation="Fix",
+            agent_role="security",
+            confidence=0.9,
+        )
+        f2 = Finding(
+            id="perf-001",
+            dimension="performance",
+            severity="medium",
+            title="N+1 query",
+            description="Loop queries",
+            location=FileLocation(file_path="src/api.py", line_start=25),
+            recommendation="Batch",
+            agent_role="performance",
+            confidence=0.85,
+        )
+        sarif = _build_sarif(self._make_report(findings=(f1, f2)))
+        results = sarif["runs"][0]["results"]
+        assert len(results) == 2
+        assert results[0]["ruleId"] == "spectra/security/sec-001"
+        assert results[0]["level"] == "error"
+        assert results[1]["ruleId"] == "spectra/performance/perf-001"
+        assert results[1]["level"] == "warning"
+
+    def test_sarif_line_start_zero_clamped_to_one(self):
+        """line_start=0 is clamped to 1 via max(1, ...)."""
+        finding = Finding(
+            id="q-001",
+            dimension="quality",
+            severity="info",
+            title="Title",
+            description="Desc",
+            location=FileLocation(file_path="f.py", line_start=0),
+            recommendation="Rec",
+            agent_role="quality",
+            confidence=0.8,
+        )
+        sarif = _build_sarif(self._make_report(findings=(finding,)))
+        region = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]
+        assert region["startLine"] == 1
+
+    def test_sarif_is_json_serializable(self):
+        """SARIF output can be serialized to JSON without errors."""
+        finding = Finding(
+            id="a-001",
+            dimension="architecture",
+            severity="high",
+            title="Circular dependency",
+            description="A imports B imports A",
+            location=FileLocation(file_path="src/a.py", line_start=5),
+            recommendation="Break the cycle",
+            agent_role="architecture",
+            confidence=0.88,
+            estimated_hours=4.0,
+        )
+        sarif = _build_sarif(self._make_report(findings=(finding,)))
+        serialized = json.dumps(sarif, indent=2)
+        roundtripped = json.loads(serialized)
+        assert roundtripped["version"] == "2.1.0"

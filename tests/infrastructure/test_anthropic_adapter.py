@@ -331,6 +331,53 @@ class TestThinkingEmptyResponse:
         assert result == ""
 
 
+class TestAuthenticationError:
+    @pytest.mark.asyncio
+    async def test_authentication_error_raises_value_error(self, adapter):
+        """AuthenticationError from Anthropic API raises ValueError with 'Invalid API key'."""
+        import anthropic
+
+        a, client = adapter
+        response = MagicMock()
+        response.status_code = 401
+        response.headers = {}
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [],
+                error=anthropic.AuthenticationError(
+                    message="invalid api key",
+                    response=response,
+                    body=None,
+                ),
+            )
+        )
+        with pytest.raises(ValueError, match="Invalid API key"):
+            await a.analyze("sys", "user", "model", 1000)
+
+    @pytest.mark.asyncio
+    async def test_internal_server_error_raises_retry_error(self, adapter):
+        """InternalServerError from Anthropic API raises SpectraRetryError (SPEC-002)."""
+        import anthropic
+
+        a, client = adapter
+        response = MagicMock()
+        response.status_code = 500
+        response.headers = {}
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(
+                [],
+                error=anthropic.InternalServerError(
+                    message="internal server error",
+                    response=response,
+                    body=None,
+                ),
+            )
+        )
+        with pytest.raises(SpectraRetryError) as exc_info:
+            await a.analyze("sys", "user", "model", 1000)
+        assert exc_info.value.error.code == "SPEC-002"
+
+
 class TestMultipleContentBlocks:
     @pytest.mark.asyncio
     async def test_multiple_text_deltas_concatenated(self, adapter):

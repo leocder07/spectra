@@ -554,7 +554,8 @@ def _is_valid_path(finding: Finding, file_set: set[str]) -> bool:
     path = finding.location.file_path
     if not path or path in file_set:
         return True
-    if any(path in ft for ft in file_set):
+    suffix = f"/{path}"
+    if any(ft.endswith(suffix) for ft in file_set):
         return True
     _log.warning(
         "Hallucinated path removed: %s (finding: %s)",

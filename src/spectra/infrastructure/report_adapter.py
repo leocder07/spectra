@@ -203,7 +203,7 @@ def _build_executive_summary(report: AnalysisReport) -> dict[str, object]:
     }
 
 
-_DEV_RATE_USD = 150  # Average hourly dev rate for cost estimation
+_HOURLY_RATE_USD = 175  # Senior engineer market rate (unified)
 
 # ── OWASP Top 10 (2021 + 2024) ──────────────────────────────
 
@@ -643,6 +643,323 @@ _SOC2_CONTROLS: dict[str, dict[str, object]] = {
     },
 }
 
+# ── PCI DSS 4.0 Requirement 6 Controls ──────────────────────
+
+_PCI_DSS_CONTROLS: dict[str, dict[str, object]] = {
+    "R6.2": {
+        "id": "R6.2",
+        "category": "Secure Development",
+        "title": "Secure Software Development",
+        "dimensions": ("security", "quality"),
+        "controls": [
+            {
+                "id": "6.2.1",
+                "desc": "Secure development processes defined",
+                "keywords": (
+                    "code review",
+                    "secure coding",
+                    "development lifecycle",
+                ),
+            },
+            {
+                "id": "6.2.2",
+                "desc": "Software development personnel trained",
+                "keywords": (
+                    "training",
+                    "security awareness",
+                    "developer education",
+                ),
+            },
+            {
+                "id": "6.2.3",
+                "desc": "Code reviewed before release",
+                "keywords": (
+                    "code review",
+                    "peer review",
+                    "pull request",
+                    "merge request",
+                ),
+            },
+            {
+                "id": "6.2.4",
+                "desc": "Protection against common vulnerabilities",
+                "keywords": (
+                    "injection",
+                    "xss",
+                    "csrf",
+                    "buffer overflow",
+                    "owasp",
+                ),
+            },
+        ],
+    },
+    "R6.3": {
+        "id": "R6.3",
+        "category": "Vulnerability Management",
+        "title": "Security Vulnerabilities Identified and Addressed",
+        "dimensions": ("security", "maintainability"),
+        "controls": [
+            {
+                "id": "6.3.1",
+                "desc": "Known vulnerabilities identified",
+                "keywords": ("cve", "vulnerability", "advisory", "scan"),
+            },
+            {
+                "id": "6.3.2",
+                "desc": "Software inventory maintained",
+                "keywords": (
+                    "dependency",
+                    "sbom",
+                    "inventory",
+                    "package",
+                ),
+            },
+            {
+                "id": "6.3.3",
+                "desc": "Patches applied timely",
+                "keywords": ("patch", "update", "upgrade", "outdated"),
+            },
+        ],
+    },
+    "R6.4": {
+        "id": "R6.4",
+        "category": "Application Security",
+        "title": "Public-Facing Web Applications Protected",
+        "dimensions": ("security", "architecture"),
+        "controls": [
+            {
+                "id": "6.4.1",
+                "desc": "Web application firewall or equivalent",
+                "keywords": (
+                    "waf",
+                    "firewall",
+                    "rate limit",
+                    "csp",
+                    "cors",
+                ),
+            },
+            {
+                "id": "6.4.2",
+                "desc": "Automated attack detection",
+                "keywords": (
+                    "intrusion",
+                    "detection",
+                    "monitoring",
+                    "anomaly",
+                ),
+            },
+        ],
+    },
+    "R6.5": {
+        "id": "R6.5",
+        "category": "Change Management",
+        "title": "Changes Managed Securely",
+        "dimensions": ("quality", "maintainability"),
+        "controls": [
+            {
+                "id": "6.5.1",
+                "desc": "Change control procedures",
+                "keywords": (
+                    "version control",
+                    "git",
+                    "deployment",
+                    "rollback",
+                ),
+            },
+            {
+                "id": "6.5.2",
+                "desc": "Development/test/production separation",
+                "keywords": (
+                    "environment",
+                    "staging",
+                    "production",
+                    "separation",
+                ),
+            },
+        ],
+    },
+}
+
+# ── NIST CSF 2.0 (6 Functions) ──────────────────────────────
+
+_NIST_CSF_CONTROLS: dict[str, dict[str, object]] = {
+    "GV": {
+        "id": "GV",
+        "category": "Govern",
+        "title": "Govern",
+        "dimensions": ("documentation", "architecture", "quality"),
+        "controls": [
+            {
+                "id": "GV.OC-01",
+                "desc": "Organizational context understood",
+                "keywords": (
+                    "governance",
+                    "policy",
+                    "organizational",
+                    "compliance",
+                ),
+            },
+            {
+                "id": "GV.RM-01",
+                "desc": "Risk management objectives established",
+                "keywords": (
+                    "risk management",
+                    "risk assessment",
+                    "risk tolerance",
+                ),
+            },
+        ],
+    },
+    "ID": {
+        "id": "ID",
+        "category": "Identify",
+        "title": "Identify",
+        "dimensions": ("security", "maintainability", "architecture"),
+        "controls": [
+            {
+                "id": "ID.AM-01",
+                "desc": "Asset inventory maintained",
+                "keywords": (
+                    "asset",
+                    "inventory",
+                    "dependency",
+                    "sbom",
+                    "package",
+                ),
+            },
+            {
+                "id": "ID.RA-01",
+                "desc": "Risk assessment performed",
+                "keywords": (
+                    "vulnerability",
+                    "threat",
+                    "risk assessment",
+                    "cve",
+                    "scan",
+                ),
+            },
+        ],
+    },
+    "PR": {
+        "id": "PR",
+        "category": "Protect",
+        "title": "Protect",
+        "dimensions": ("security", "architecture", "quality"),
+        "controls": [
+            {
+                "id": "PR.AA-01",
+                "desc": "Access control enforced",
+                "keywords": (
+                    "authentication",
+                    "authorization",
+                    "access control",
+                    "rbac",
+                ),
+            },
+            {
+                "id": "PR.DS-01",
+                "desc": "Data security ensured",
+                "keywords": (
+                    "encryption",
+                    "tls",
+                    "secret",
+                    "credential",
+                    "pii",
+                ),
+            },
+            {
+                "id": "PR.PS-01",
+                "desc": "Platform security maintained",
+                "keywords": (
+                    "hardening",
+                    "configuration",
+                    "firewall",
+                    "csp",
+                    "cors",
+                ),
+            },
+        ],
+    },
+    "DE": {
+        "id": "DE",
+        "category": "Detect",
+        "title": "Detect",
+        "dimensions": ("security", "performance", "quality"),
+        "controls": [
+            {
+                "id": "DE.CM-01",
+                "desc": "Continuous monitoring implemented",
+                "keywords": (
+                    "monitoring",
+                    "logging",
+                    "observability",
+                    "metrics",
+                    "health check",
+                ),
+            },
+            {
+                "id": "DE.AE-01",
+                "desc": "Adverse event analysis performed",
+                "keywords": (
+                    "anomaly",
+                    "detection",
+                    "alerting",
+                    "intrusion",
+                    "suspicious",
+                ),
+            },
+        ],
+    },
+    "RS": {
+        "id": "RS",
+        "category": "Respond",
+        "title": "Respond",
+        "dimensions": ("security", "quality", "documentation"),
+        "controls": [
+            {
+                "id": "RS.AN-01",
+                "desc": "Incident analysis conducted",
+                "keywords": (
+                    "incident",
+                    "triage",
+                    "root cause",
+                    "post-mortem",
+                ),
+            },
+            {
+                "id": "RS.MI-01",
+                "desc": "Incident mitigation applied",
+                "keywords": (
+                    "remediation",
+                    "patch",
+                    "rollback",
+                    "mitigation",
+                    "hotfix",
+                ),
+            },
+        ],
+    },
+    "RC": {
+        "id": "RC",
+        "category": "Recover",
+        "title": "Recover",
+        "dimensions": ("architecture", "performance", "security"),
+        "controls": [
+            {
+                "id": "RC.RP-01",
+                "desc": "Recovery execution planned and tested",
+                "keywords": (
+                    "backup",
+                    "disaster recovery",
+                    "failover",
+                    "resilience",
+                    "restoration",
+                ),
+            },
+        ],
+    },
+}
+
 # ── License Detection ────────────────────────────────────────
 
 _LICENSE_RE = re.compile(
@@ -719,7 +1036,7 @@ def _tech_debt_summary(
         by_severity[f.severity] = by_severity.get(f.severity, 0.0) + f.estimated_hours
     return {
         "total_hours": round(total_hours, 1),
-        "cost_usd": round(total_hours * _DEV_RATE_USD),
+        "cost_usd": round(total_hours * _HOURLY_RATE_USD),
         "by_dimension": by_dimension,
         "by_severity": by_severity,
     }
@@ -927,6 +1244,44 @@ def _soc2_mapping(
     total_mapped = sum(c["finding_count"] for c in cc)
     return {
         "criteria": tsc,
+        "cc_categories": cc,
+        "total_mapped": total_mapped,
+        "coverage_pct": _safe_pct(covered_ctrl, total_ctrl),
+        "readiness_score": _safe_pct(covered_ctrl, total_ctrl),
+        "total_controls": total_ctrl,
+        "covered_controls": covered_ctrl,
+        "gap_controls": _collect_cc_gaps(cc),
+    }
+
+
+def _pci_dss_mapping(
+    findings: tuple[Finding, ...],
+) -> dict[str, object]:
+    """Map findings to PCI DSS 4.0 Requirement 6 controls."""
+    cc = [_build_cc_category(findings, k, v) for k, v in _PCI_DSS_CONTROLS.items()]
+    total_ctrl = sum(c["total_count"] for c in cc)
+    covered_ctrl = sum(c["covered_count"] for c in cc)
+    total_mapped = sum(c["finding_count"] for c in cc)
+    return {
+        "cc_categories": cc,
+        "total_mapped": total_mapped,
+        "coverage_pct": _safe_pct(covered_ctrl, total_ctrl),
+        "readiness_score": _safe_pct(covered_ctrl, total_ctrl),
+        "total_controls": total_ctrl,
+        "covered_controls": covered_ctrl,
+        "gap_controls": _collect_cc_gaps(cc),
+    }
+
+
+def _nist_csf_mapping(
+    findings: tuple[Finding, ...],
+) -> dict[str, object]:
+    """Map findings to NIST CSF 2.0 function controls."""
+    cc = [_build_cc_category(findings, k, v) for k, v in _NIST_CSF_CONTROLS.items()]
+    total_ctrl = sum(c["total_count"] for c in cc)
+    covered_ctrl = sum(c["covered_count"] for c in cc)
+    total_mapped = sum(c["finding_count"] for c in cc)
+    return {
         "cc_categories": cc,
         "total_mapped": total_mapped,
         "coverage_pct": _safe_pct(covered_ctrl, total_ctrl),
@@ -1291,7 +1646,6 @@ def _ir_rating(score: float) -> str:
 
 # ── ROI Calculator ("The $47 Line") ──────────────────────────
 
-_ENGINEER_HOURLY_RATE = 175  # Senior engineer market rate
 _MANUAL_REVIEW_HOURS = 4.0  # Estimated hours for equivalent manual review
 
 
@@ -1301,7 +1655,7 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
     Returns data for the "savings" callout in the report template.
     """
     spectra_cost = report.total_cost_usd
-    manual_cost = _ENGINEER_HOURLY_RATE * _MANUAL_REVIEW_HOURS
+    manual_cost = _HOURLY_RATE_USD * _MANUAL_REVIEW_HOURS
     savings = manual_cost - spectra_cost
     findings_count = len(report.findings)
     cost_per_finding = round(spectra_cost / findings_count, 2) if findings_count else 0.0
@@ -1312,7 +1666,7 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
         "savings_pct": round((savings / manual_cost) * 100) if manual_cost else 0,
         "cost_per_finding": cost_per_finding,
         "findings_count": findings_count,
-        "engineer_rate": _ENGINEER_HOURLY_RATE,
+        "engineer_rate": _HOURLY_RATE_USD,
         "manual_hours": _MANUAL_REVIEW_HOURS,
     }
 
@@ -1371,6 +1725,8 @@ class ReportAdapter:
             filtered_findings=finding_issues,
             dd_compliance=dd_frameworks["dd_compliance"],
             soc2=dd_frameworks["soc2"],
+            pci_dss=dd_frameworks["pci_dss"],
+            nist_csf=dd_frameworks["nist_csf"],
             issue_concentration=dd_frameworks["issue_concentration"],
             license_compliance=dd_frameworks["license_compliance"],
             complexity=dd_frameworks["complexity"],
@@ -1378,6 +1734,8 @@ class ReportAdapter:
             investment_readiness=dd_frameworks["investment_readiness"],
             badge_svg=self.render_badge(report),
             roi=_compute_roi(report),
+            validated_count=sum(1 for f in report.findings if f.validated_by_critique),
+            total_count=len(report.findings),
             has_mermaid=has_mermaid,
             csp_nonce=csp_nonce,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
@@ -1392,6 +1750,8 @@ class ReportAdapter:
         """Compute all VC due diligence framework data."""
         dd_compliance = _dd_compliance_mapping(report.findings)
         soc2 = _soc2_mapping(report.findings)
+        pci_dss = _pci_dss_mapping(report.findings)
+        nist_csf = _nist_csf_mapping(report.findings)
         issue_concentration = _compute_issue_concentration(report.findings)
         license_data = _license_compliance(report.findings)
         complexity = _complexity_indicators(report.findings)
@@ -1407,6 +1767,8 @@ class ReportAdapter:
         return {
             "dd_compliance": dd_compliance,
             "soc2": soc2,
+            "pci_dss": pci_dss,
+            "nist_csf": nist_csf,
             "issue_concentration": issue_concentration,
             "license_compliance": license_data,
             "complexity": complexity,

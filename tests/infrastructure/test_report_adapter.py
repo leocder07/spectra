@@ -473,8 +473,8 @@ class TestTechDebtSummary:
     def test_computes_cost_usd(self):
         findings = (_make_finding(hours=10.0, line=1),)
         summary = _tech_debt_summary(findings)
-        # Cost = 10 * 150 = 1500
-        assert summary["cost_usd"] == 1500
+        # Cost = 10 * 175 = 1750
+        assert summary["cost_usd"] == 1750
 
     def test_groups_by_dimension(self):
         findings = (

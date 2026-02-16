@@ -9,6 +9,7 @@ from spectra.infrastructure.git_adapter import (
     _MAX_FILE_COUNT,
     _MAX_FILE_SIZE,
     _MAX_TOTAL_BYTES,
+    _is_private_ip,
     GitAdapter,
 )
 
@@ -338,3 +339,41 @@ class TestGitAdapterConstants:
 
     def test_max_file_count(self):
         assert _MAX_FILE_COUNT == 10_000
+
+
+# ── SSRF prevention: _is_private_ip ──────────────────────────
+
+
+class TestIsPrivateIp:
+    """Tests for _is_private_ip SSRF protection."""
+
+    def test_loopback_127_0_0_1(self):
+        assert _is_private_ip("127.0.0.1") is True
+
+    def test_private_10_0_0_1(self):
+        assert _is_private_ip("10.0.0.1") is True
+
+    def test_private_192_168_1_1(self):
+        assert _is_private_ip("192.168.1.1") is True
+
+    def test_private_172_16_0_1(self):
+        assert _is_private_ip("172.16.0.1") is True
+
+    def test_link_local_169_254(self):
+        assert _is_private_ip("169.254.1.1") is True
+
+    def test_loopback_ipv6(self):
+        assert _is_private_ip("::1") is True
+
+    def test_public_ip_8_8_8_8(self):
+        assert _is_private_ip("8.8.8.8") is False
+
+    def test_public_ip_1_1_1_1(self):
+        assert _is_private_ip("1.1.1.1") is False
+
+    def test_public_ip_93_184_216_34(self):
+        assert _is_private_ip("93.184.216.34") is False
+
+    def test_unresolvable_hostname_returns_false(self):
+        """Non-existent hostname should return False (not raise)."""
+        assert _is_private_ip("this-host-does-not-exist-xyz123.invalid") is False
