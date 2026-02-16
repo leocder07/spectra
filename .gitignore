@@ -45,6 +45,9 @@ firebase-debug.log
 *.tmp
 spectra-*/
 
+# Rendered output
+out/
+
 # Stale directories
 archive/
 cortex-vault/

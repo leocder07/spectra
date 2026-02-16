@@ -1,29 +1,35 @@
-![CI](https://github.com/leocder07/spectra/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1096_passed-22C55E)
-![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E)
-![Python](https://img.shields.io/badge/python-3.12+-7C3AED)
-![License](https://img.shields.io/badge/license-MIT-F59E0B)
+<div align="center">
 
-# Spectra
+# SPECTRA
 
-**8 AI agents analyze your entire repository in under 3 minutes.**
+### The full spectrum of your codebase
 
-> **See Spectra analyze itself**: [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
+**8 AI agents analyze your entire repository in 90 seconds.**
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Tests](https://img.shields.io/badge/tests-1%2C096_passed-22C55E?style=for-the-badge)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E?style=for-the-badge)](tests/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
+[![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.6-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
+
+[Try It](#try-it) · [How It Works](#how-it-works) · [Architecture](#architecture) · [Agent Roster](#agent-roster)
+
+</div>
 
 ---
 
 ## The Problem
 
-In the age of AI-generated code, review is the bottleneck. Teams ship faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
+AI-generated code ships faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
 
-**Spectra deploys 8 AI agents to give you the full spectrum in under 3 minutes.**
+**Spectra deploys 8 AI agents — 6 parallel specialists, a planning agent, and a critique agent — to give you the full spectrum in 90 seconds.**
 
 ---
 
-## Quick Start
+## Try It
 
 ```bash
-pip install spectra-cli
+pip install -e .
 export ANTHROPIC_API_KEY=sk-ant-...
 spectra analyze https://github.com/expressjs/express
 ```
@@ -31,7 +37,8 @@ spectra analyze https://github.com/expressjs/express
 Open `spectra-report.html` when it's done.
 
 ```bash
-spectra analyze <repo-url> --quick           # Skip critique pass, ~40s
+# Options
+spectra analyze <repo-url> --quick           # Skip critique pass (~40s)
 spectra analyze <repo-url> --format json     # Machine-readable output
 spectra analyze <repo-url> --format sarif    # SARIF for GitHub Security tab
 spectra analyze <repo-url> --min-score 70    # Quality gate (exit 1 if below)
@@ -40,32 +47,92 @@ spectra analyze <repo-url> --output my.html  # Custom report path
 
 ---
 
-## What Makes Spectra Different
+## Key Features
 
-- **Multi-agent, not single-prompt** — 6 specialist agents run in parallel, each focused on one dimension so nothing gets diluted
-- **Validation built in** — CritiqueAgent uses Claude Opus 4.6 with extended thinking to remove false positives and adjust severity ratings
-- **VC-grade due diligence** — OWASP Top 10, SOC 2 Trust Criteria, and Investment Readiness scoring in every report
-- **Premium terminal aesthetic** — dark theme, animated radar charts, interactive findings with keyboard navigation
-- **Strict Clean Architecture** — 4-layer dependency rule, frozen models, zero `Any` types — the tool that audits your architecture follows strict architecture itself
+- **8 AI agents, 6 dimensions** — Architecture, Security, Quality, Documentation, Maintainability, Performance analyzed in parallel
+- **90-second analysis** — 6 specialists run concurrently via `asyncio.gather`, not sequentially
+- **Multi-model strategy** — Sonnet 4.5 for planning, Opus 4.6 for deep analysis, Opus 4.6 + Extended Thinking for critique
+- **False positive filtering** — CritiqueAgent uses extended thinking to validate every finding before it reaches the report
+- **Self-contained HTML reports** — Radar charts, interactive findings, keyboard navigation, file hotspot heatmaps — one file, works offline
+- **Due diligence frameworks** — OWASP Top 10, SOC 2 Trust Criteria, PCI DSS 4.0, NIST CSF 2.0, and Investment Readiness scoring
+- **Cost transparency** — Every report shows exact token usage and dollar cost
+- **Clean Architecture** — 4-layer dependency rule, frozen Pydantic models, zero `Any` types — the tool that audits architecture follows strict architecture itself
 
 ---
 
 ## How It Works
 
-```
-INGEST ──→ PLAN ──→ ANALYZE ──→ MERGE ──→ CRITIQUE ──→ REPORT
-  │          │         │           │          │            │
-  Clone    MetaP    6 agents    Dedup     Validate     HTML +
-  repo     plans    parallel   + score   findings     ScoreCard
+```mermaid
+graph LR
+    A[INGEST<br/>Clone repo] --> B[PLAN<br/>MetaPrompter<br/>Sonnet 4.5]
+    B --> C[ANALYZE<br/>6 Specialists<br/>Opus 4.6]
+    C --> D[MERGE<br/>Deduplicate<br/>& Score]
+    D --> E[CRITIQUE<br/>CritiqueAgent<br/>Opus 4.6 + ET]
+    E --> F[REPORT<br/>HTML + Charts<br/>ScoreCard]
+
+    style A fill:#7C3AED,stroke:#7C3AED,color:#fff
+    style B fill:#7C3AED,stroke:#7C3AED,color:#fff
+    style C fill:#F59E0B,stroke:#F59E0B,color:#fff
+    style D fill:#7C3AED,stroke:#7C3AED,color:#fff
+    style E fill:#EF4444,stroke:#EF4444,color:#fff
+    style F fill:#22C55E,stroke:#22C55E,color:#fff
 ```
 
-| Stage | Agent | Model | What Happens |
-|-------|-------|-------|--------------|
-| Plan | MetaPrompter | Sonnet 4.5 | Reads file tree (never full code), builds analysis plan |
-| Analyze | 6 Specialists | Opus 4.6 | Architecture, Security, Quality, Docs, Deps, Performance — all parallel via `asyncio.gather` |
-| Critique | CritiqueAgent | Opus 4.6 + Extended Thinking | Validates every finding, removes false positives |
+The ANALYZE stage fans out to 6 parallel specialists:
 
-### ScoreCard Output
+```mermaid
+graph TD
+    MP[MetaPrompter Plan] --> ARCH[Architecture Agent]
+    MP --> SEC[Security Agent]
+    MP --> QUAL[Quality Agent]
+    MP --> DOC[Documentation Agent]
+    MP --> DEP[Dependency Agent]
+    MP --> PERF[Performance Agent]
+
+    ARCH --> MERGE[Merge & Score]
+    SEC --> MERGE
+    QUAL --> MERGE
+    DOC --> MERGE
+    DEP --> MERGE
+    PERF --> MERGE
+
+    style MP fill:#7C3AED,stroke:#7C3AED,color:#fff
+    style MERGE fill:#F59E0B,stroke:#F59E0B,color:#fff
+```
+
+---
+
+## Agent Roster
+
+| Agent | Model | Role |
+|-------|-------|------|
+| **MetaPrompter** | Sonnet 4.5 | Reads file tree (never full code), builds analysis plan |
+| **ArchitectureAgent** | Opus 4.6 | Layering, coupling, dependency analysis |
+| **SecurityAgent** | Opus 4.6 | OWASP Top 10, CWE mapping, vulnerability detection |
+| **QualityAgent** | Opus 4.6 | Code smells, complexity, test coverage gaps |
+| **DocumentationAgent** | Opus 4.6 | API docs, README quality, inline comments |
+| **DependencyAgent** | Opus 4.6 | Supply chain, outdated packages, license risks |
+| **PerformanceAgent** | Opus 4.6 | N+1 queries, memory leaks, async anti-patterns |
+| **CritiqueAgent** | Opus 4.6 + Extended Thinking | Validates all findings, removes false positives |
+
+---
+
+## ScoreCard
+
+Every analysis produces a weighted ScoreCard:
+
+| Dimension | Weight | Agent |
+|-----------|--------|-------|
+| Architecture | 25% | ArchitectureAgent |
+| Security | 25% | SecurityAgent |
+| Quality | 20% | QualityAgent |
+| Documentation | 10% | DocumentationAgent |
+| Maintainability | 10% | DependencyAgent |
+| Performance | 10% | PerformanceAgent |
+
+**Grades:** A+ (95-100) · A (90-94) · A- (87-89) · B+ (83-86) · B (80-82) · B- (77-79) · C+ (73-76) · C (70-72) · C- (67-69) · D+ (63-66) · D (60-62) · D- (57-59) · F (0-56)
+
+### Example Output
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -84,23 +151,21 @@ INGEST ──→ PLAN ──→ ANALYZE ──→ MERGE ──→ CRITIQUE ─�
 └─────────────────────────────────────────────┘
 ```
 
+> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
+
 ---
 
 ## Report Features
 
 Every analysis generates a self-contained HTML report with:
 
-- **Executive summary** — top strengths and concerns at a glance
-- **Radar chart** — scores across all 6 dimensions
-- **Interactive findings** — filter by severity/dimension, text search, keyboard navigation (`j`/`k`, `o`, `/`)
-- **File hotspot heatmap** — files ranked by finding density
-- **Technical debt quantification** — estimated hours and cost to remediate
-
-### Due Diligence Frameworks
-
-- **OWASP Top 10** — compliance mapping across all 10 categories
-- **SOC 2 Trust Service Criteria** — findings mapped to security, availability, processing integrity, confidentiality, privacy
-- **Investment Readiness Score** — weighted composite across architecture, security, test coverage, documentation, bus factor, SOC 2 readiness
+- **Executive summary** — Top strengths and concerns at a glance
+- **Radar chart** — Scores across all 6 dimensions
+- **Interactive findings** — Filter by severity/dimension, text search, keyboard navigation (`j`/`k`, `o`, `/`)
+- **File hotspot heatmap** — Files ranked by finding density
+- **Technical debt quantification** — Estimated hours and cost to remediate
+- **ROI analysis** — Estimated return on fixing identified issues
+- **Compliance mapping** — OWASP Top 10, SOC 2, PCI DSS 4.0, NIST CSF 2.0
 
 Works offline. No external dependencies. One HTML file. Print-friendly for PDF export.
 
@@ -110,32 +175,46 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 Clean Architecture with four strict layers:
 
-```
-┌──────────────────────────────────────────────┐
-│  Layer 4: infrastructure/                    │
-│  Anthropic API, Git, token counting, agents  │
-├──────────────────────────────────────────────┤
-│  Layer 3: adapters/                          │
-│  CLI (Typer), Rich terminal, HTML presenter  │
-├──────────────────────────────────────────────┤
-│  Layer 2: use_cases/                         │
-│  Pipeline orchestration, Protocol interfaces │
-├──────────────────────────────────────────────┤
-│  Layer 1: entities/                          │
-│  Domain models (Pydantic), enums, errors     │
-└──────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Layer 4 — Infrastructure"
+        INF[Anthropic API · Git · Tokens · Agents]
+    end
+    subgraph "Layer 3 — Adapters"
+        ADP[CLI · Rich Terminal · HTML Presenter]
+    end
+    subgraph "Layer 2 — Use Cases"
+        UC[Pipeline Orchestration · Protocol Interfaces]
+    end
+    subgraph "Layer 1 — Entities"
+        ENT[Domain Models · Enums · Errors]
+    end
+
+    INF --> ADP
+    INF --> UC
+    INF --> ENT
+    ADP --> UC
+    ADP --> ENT
+    UC --> ENT
+
+    style ENT fill:#22C55E,stroke:#22C55E,color:#fff
+    style UC fill:#7C3AED,stroke:#7C3AED,color:#fff
+    style ADP fill:#F59E0B,stroke:#F59E0B,color:#fff
+    style INF fill:#EF4444,stroke:#EF4444,color:#fff
 ```
 
-**The dependency rule:** source code dependencies only point inward. No exceptions.
+**The dependency rule:** Source code dependencies only point inward. No exceptions.
 
 ### Design Patterns
 
-- **Facade** — `AnalyzeRepository` orchestrates the 6-stage pipeline
-- **Strategy** — Agent implementations swapped via factory
-- **Decorator** — LLM call chain: Logging → Retry → Anthropic adapter
-- **Observer** — `ProgressObserver` protocol for Rich terminal updates
-- **Template Method** — `BaseAgent` defines the agent lifecycle
-- **Composition Root** — `main.py` wires all dependencies at startup
+| Pattern | Where | Why |
+|---------|-------|-----|
+| **Facade** | `AnalyzeRepository` | Orchestrates the 6-stage pipeline behind one call |
+| **Strategy** | Agent implementations | Swap agents via factory without touching orchestrator |
+| **Decorator** | LLM call chain | Logging → Retry → Anthropic adapter (composable) |
+| **Observer** | `ProgressObserver` | Rich terminal updates decoupled from business logic |
+| **Template Method** | `BaseAgent` | Common agent lifecycle, specialized per dimension |
+| **Composition Root** | `main.py` | All dependencies wired at startup, no service locator |
 
 ---
 
@@ -143,19 +222,54 @@ Clean Architecture with four strict layers:
 
 ### Multi-Model Strategy
 
-| Agent | Model | Why |
-|-------|-------|-----|
-| MetaPrompter | Sonnet 4.5 | Fast planning from file tree — no deep reasoning needed |
-| 6 Specialists | Opus 4.6 | Deep code understanding across all 6 dimensions |
-| CritiqueAgent | Opus 4.6 + Extended Thinking | Meta-reasoning to validate findings and reject false positives |
+| Agent | Model | Why This Model |
+|-------|-------|----------------|
+| MetaPrompter | **Sonnet 4.5** | Fast planning from file tree — no deep reasoning needed |
+| 6 Specialists | **Opus 4.6** | Deep code understanding across all 6 dimensions |
+| CritiqueAgent | **Opus 4.6 + Extended Thinking** | Meta-reasoning to validate findings and reject false positives |
 
-### Key Capabilities
+### Key Capabilities Used
 
 - **Parallel execution** — 6 agents via `asyncio.gather` with semaphore rate limiting
 - **Token budget management** — 800K tokens distributed by MetaPrompter's plan
-- **Prompt engineering** — few-shot JSON examples, hallucination guardrails, CWE/OWASP references
-- **Cost transparency** — every analysis shows exact cost in the report
-- **Graceful degradation** — if 2+ agents fail, partial report in DEGRADED state
+- **Extended thinking** — CritiqueAgent reasons through each finding before passing judgment
+- **Structured output** — Every agent returns Pydantic-validated JSON
+- **Prompt engineering** — Few-shot JSON examples, hallucination guardrails, CWE/OWASP references
+- **Graceful degradation** — If 2+ agents fail, partial report in DEGRADED state
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Language | Python 3.12+ |
+| AI Models | Claude Opus 4.6, Claude Sonnet 4.5 |
+| AI SDK | `anthropic` Python SDK |
+| CLI Framework | Typer |
+| Terminal UI | Rich |
+| Data Models | Pydantic v2 (frozen) |
+| Git Operations | GitPython |
+| Token Counting | tiktoken |
+| Report Rendering | Jinja2 |
+| HTTP Client | httpx |
+| Testing | pytest, pytest-asyncio |
+| Linting | Ruff (40+ rules), mypy (strict) |
+
+---
+
+## Numbers That Matter
+
+| Metric | Value |
+|--------|-------|
+| Tests | 1,096 passed |
+| Coverage | 97% |
+| Agents | 8 (6 parallel + MetaPrompter + CritiqueAgent) |
+| Dimensions | 6 |
+| Cost | $1-10 per analysis |
+| Speed | ~90 seconds end-to-end |
+| Architecture | Clean Architecture, 4 layers |
+| Error codes | 9 typed (SPEC-001 to SPEC-009) |
 
 ---
 
@@ -183,20 +297,34 @@ jobs:
 
 ---
 
-## Numbers That Matter
+## Contributing
 
-| Metric | Value |
-|--------|-------|
-| Tests | 1,096 passed |
-| Coverage | 97% |
-| Agents | 8 (6 parallel specialists + MetaPrompter + CritiqueAgent) |
-| Dimensions | 6 (architecture, security, quality, documentation, maintainability, performance) |
-| Cost | $1-10 per analysis (varies by repo size) |
-| Speed | 2-6 minutes end-to-end |
-| Architecture | Clean Architecture, 4 layers, strict dependency rule |
+```bash
+# Clone and install
+git clone https://github.com/leocder07/spectra.git
+cd spectra
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Lint
+ruff check src/ tests/
+mypy src/
+```
+
+PRs welcome. Please follow the Clean Architecture dependency rule — it's enforced.
 
 ---
 
-## License
+<div align="center">
 
-MIT
+### Built for the Anthropic Build with Claude Hackathon
+
+[![Anthropic Build Hackathon](https://img.shields.io/badge/Anthropic_Build-Hackathon_2025-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
+
+Built with Claude Opus 4.6, Claude Sonnet 4.5, and Claude Code.
+
+**MIT License** · [Repository](https://github.com/leocder07/spectra)
+
+</div>

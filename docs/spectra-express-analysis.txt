@@ -1,0 +1,73 @@
+
+  ╔═╗╔═╗╔═╗╔═╗╔╦╗╦═╗╔═╗
+  ╚═╗╠═╝║╣ ║   ║ ╠╦╝╠═╣
+  ╚═╝╩  ╚═╝╚═╝ ╩ ╩╚═╩ ╩
+  ░▒▓ the full spectrum of your codebase ▓▒░
+  8 agents · 6 dimensions · under 3 minutes
+
+──────────────────────────────────────────────────
+  target: express  (https://github.com/expressjs/express)
+  mode:   quick scan (no critique)
+  output: spectra-report.html  (html)
+
+
+[INIT] ░░░░░░░░░░ Cloning repository
+[INIT] ▓▓▓▓▓▓▓▓▓▓ 213 files indexed [1.3s]
+[PLAN] ▓▓░░░░░░░░ Running MetaPrompter
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-sonnet-4-5-20250929 | 18.4s | 4529 tokens
+[PLAN] ▓▓▓▓▓▓▓▓▓▓ Plan ready [18.4s]
+[SCAN] ▓▓▓▓░░░░░░ Running specialists
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 53.4s | 12950 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 57.4s | 13014 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 62.1s | 13318 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 63.7s | 14696 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 40.4s | 12087 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 52.6s | 12760 tokens
+  ✓ ArchitectureAgent complete (53.5s)
+  ✓ SecurityAgent complete (63.7s)
+  ✓ QualityAgent complete (57.4s)
+  ✓ DocumentationAgent complete (62.1s)
+  ✓ DependencyAgent complete (40.4s)
+    ├─ ArchitectureAgent    ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+    ├─ SecurityAgent        ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+    ├─ QualityAgent         ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+    ├─ DocumentationAgent   ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+    ├─ DependencyAgent      ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+    ├─ PerformanceAgent     ━━━━━━━━━━━━━━━━━━━━ 100% 0:01:50
+╭─────────────────────────────────  ANALYZE  ──────────────────────────────────╮
+│   ├── ArchitectureAgent …  ████████…  10…  53.5s  layer & pattern analysis   │
+│   ├── SecurityAgent     …  ████████…  10…  63.7s  OWASP, CVE, injection sc…  │
+│   ├── QualityAgent      …  ████████…  10…  57.4s  test coverage & complexi…  │
+│   ├── DocumentationAgent…  ████████…  10…  62.1s  docstring & readme audit   │
+│   ├── DependencyAgent   …  ████████…  10…  40.4s  supply chain & licenses    │
+│   └── PerformanceAgent  …  ████████…  10…  52.6s  hotspots & async patterns  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+  SCAN COMPLETE ─ 6 passed, 0 failed, 329.7s total
+[SCAN] ▓▓▓▓▓▓▓▓▓▓ Analysis complete [110.1s]
+[EMIT] ▓▓▓▓▓▓▓▓▓▓ Rendering report
+[EMIT] ▓▓▓▓▓▓▓▓▓▓ Report generated [0.1s]
+──────────────────────────────────────────────────
+
+▸ Your codebase scores D+ (67/100) — strong maintainability with security gaps
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  SPECTRA SCORECARD                                                           │
+│  repo: express                                                               │
+│  Overall: D+ (67/100)                                                        │
+│                                                                              │
+│  Architecture      ███████░░░      68  C-                                    │
+│  Security          █████░░░░░      53  F                                     │
+│  Quality           ███████░░░      66  D+                                    │
+│  Documentation     ███████░░░      69  C-                                    │
+│  Maintainability   ████████░░      83  B+                                    │
+│  Performance       ████████░░      82  B                                     │
+│                                                                              │
+│  63 findings · 0 critical · 128s · $2.63                                     │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ✓ Report saved to spectra-report.html
+
+  // spectra analysis complete
+
