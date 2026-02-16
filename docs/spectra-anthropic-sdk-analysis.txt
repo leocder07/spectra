@@ -1,0 +1,74 @@
+
+  ╔═╗╔═╗╔═╗╔═╗╔╦╗╦═╗╔═╗
+  ╚═╗╠═╝║╣ ║   ║ ╠╦╝╠═╣
+  ╚═╝╩  ╚═╝╚═╝ ╩ ╩╚═╩ ╩
+  ░▒▓ the full spectrum of your codebase ▓▒░
+  8 agents · 6 dimensions · under 3 minutes
+
+──────────────────────────────────────────────────
+  target: anthropic-sdk-python  
+(https://github.com/anthropics/anthropic-sdk-python)
+  mode:   quick scan (no critique)
+  output: spectra-report.html  (html)
+
+
+[INIT] ░░░░░░░░░░ Cloning repository
+[INIT] ▓▓▓▓▓▓▓▓▓▓ 576 files indexed [1.2s]
+[PLAN] ▓▓░░░░░░░░ Running MetaPrompter
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-sonnet-4-5-20250929 | 27.0s | 12758 tokens
+[PLAN] ▓▓▓▓▓▓▓▓▓▓ Plan ready [27.0s]
+[SCAN] ▓▓▓▓░░░░░░ Running specialists
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 54.7s | 76369 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 71.2s | 76461 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 71.8s | 76687 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 71.9s | 76500 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 55.6s | 75639 tokens
+[LLM_] ▓▓▓▓▓▓▓▓▓▓ claude-opus-4-6 | 65.6s | 76236 tokens
+  ✓ ArchitectureAgent complete (71.2s)
+  ✓ SecurityAgent complete (54.7s)
+  ✓ QualityAgent complete (71.8s)
+  ✓ DocumentationAgent complete (71.9s)
+  ✓ DependencyAgent complete (55.6s)
+    ├─ ArchitectureAgent    ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+    ├─ SecurityAgent        ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+    ├─ QualityAgent         ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+    ├─ DocumentationAgent   ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+    ├─ DependencyAgent      ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+    ├─ PerformanceAgent     ━━━━━━━━━━━━━━━━━━━━ 100% 0:02:16
+╭─────────────────────────────────  ANALYZE  ──────────────────────────────────╮
+│   ├── ArchitectureAgent …  ████████…  10…  71.2s  layer & pattern analysis   │
+│   ├── SecurityAgent     …  ████████…  10…  54.7s  OWASP, CVE, injection sc…  │
+│   ├── QualityAgent      …  ████████…  10…  71.8s  test coverage & complexi…  │
+│   ├── DocumentationAgent…  ████████…  10…  71.9s  docstring & readme audit   │
+│   ├── DependencyAgent   …  ████████…  10…  55.6s  supply chain & licenses    │
+│   └── PerformanceAgent  …  ████████…  10…  65.6s  hotspots & async patterns  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+  SCAN COMPLETE ─ 6 passed, 0 failed, 390.8s total
+[SCAN] ▓▓▓▓▓▓▓▓▓▓ Analysis complete [136.8s]
+[EMIT] ▓▓▓▓▓▓▓▓▓▓ Rendering report
+[EMIT] ▓▓▓▓▓▓▓▓▓▓ Report generated [0.1s]
+──────────────────────────────────────────────────
+
+▸ Your codebase scores B (83/100) — strong security with documentation gaps
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  SPECTRA SCORECARD                                                           │
+│  repo: anthropic-sdk-python                                                  │
+│  Overall: B (83/100)                                                         │
+│                                                                              │
+│  Architecture      ████████░░      79  B-                                    │
+│  Security          █████████░      88  A-                                    │
+│  Quality           ████████░░      80  B                                     │
+│  Documentation     ████████░░      77  C+                                    │
+│  Maintainability   █████████░      87  B+                                    │
+│  Performance       ████████░░      85  B+                                    │
+│                                                                              │
+│  56 findings · 0 critical · 164s · $15.19                                    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ✓ Report saved to spectra-report.html
+
+  // spectra analysis complete
+
