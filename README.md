@@ -1,12 +1,14 @@
 ![CI](https://github.com/leocder07/spectra/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1087_passed-22C55E)
-![Coverage](https://img.shields.io/badge/coverage-91%25-22C55E)
+![Tests](https://img.shields.io/badge/tests-1096_passed-22C55E)
+![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E)
 ![Python](https://img.shields.io/badge/python-3.12+-7C3AED)
 ![License](https://img.shields.io/badge/license-MIT-F59E0B)
 
 # Spectra
 
-**8 AI agents analyze your entire repository in 90-180 seconds.**
+**8 AI agents analyze your entire repository in under 3 minutes.**
+
+> **See Spectra analyze itself**: [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
 
 ---
 
@@ -14,7 +16,7 @@
 
 In the age of AI-generated code, review is the bottleneck. Teams ship faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
 
-**Spectra deploys 8 AI agents to give you the full spectrum in 90-180 seconds.**
+**Spectra deploys 8 AI agents to give you the full spectrum in under 3 minutes.**
 
 ---
 
@@ -185,12 +187,12 @@ jobs:
 
 | Metric | Value |
 |--------|-------|
-| Tests | 1087 passed |
-| Coverage | 91% |
+| Tests | 1,096 passed |
+| Coverage | 97% |
 | Agents | 8 (6 parallel specialists + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 (architecture, security, quality, documentation, maintainability, performance) |
-| Cost | ~$0.94 per analysis |
-| Speed | 90-180 seconds end-to-end |
+| Cost | $1-10 per analysis (varies by repo size) |
+| Speed | 2-6 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers, strict dependency rule |
 
 ---

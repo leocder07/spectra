@@ -70,7 +70,7 @@ _BANNER = """\
   ╚═╗╠═╝║╣ ║   ║ ╠╦╝╠═╣
   ╚═╝╩  ╚═╝╚═╝ ╩ ╩╚═╩ ╩[/]
 [dim #a78bfa]  ░▒▓ the full spectrum of your codebase ▓▒░[/]
-[dim #52525b]  8 agents · 6 dimensions · 90-180 seconds[/]
+[dim #52525b]  8 agents · 6 dimensions · under 3 minutes[/]
 """
 
 _PIPELINE_INFO = """\

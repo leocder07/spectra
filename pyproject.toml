@@ -3,7 +3,7 @@ requires = ["setuptools>=75", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spectra-cli"
+name = "spectra"
 version = "0.1.0"
 description = "8 AI agents analyze your entire repository in 90 seconds"
 readme = "README.md"
@@ -48,8 +48,8 @@ dev = [
 spectra = "spectra.infrastructure.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/leocder07/spectra-cli"
-Repository = "https://github.com/leocder07/spectra-cli"
+Homepage = "https://github.com/leocder07/spectra"
+Repository = "https://github.com/leocder07/spectra"
 
 [tool.setuptools.packages.find]
 where = ["src"]
