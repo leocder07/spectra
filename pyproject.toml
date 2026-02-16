@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "spectra-cli"
 version = "0.1.0"
-description = "8 AI agents analyze your entire repository in 90 seconds"
+description = "8 AI agents analyze your entire repository in under 5 minutes"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
@@ -51,6 +51,8 @@ spectra = "spectra.infrastructure.main:cli"
 [project.urls]
 Homepage = "https://github.com/leocder07/spectra"
 Repository = "https://github.com/leocder07/spectra"
+Issues = "https://github.com/leocder07/spectra/issues"
+Changelog = "https://github.com/leocder07/spectra/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]

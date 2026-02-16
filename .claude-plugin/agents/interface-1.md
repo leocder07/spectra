@@ -76,7 +76,7 @@ You do NOT touch:
 ## Brand Voice Rules
 
 - **Forbidden words:** revolutionary, cutting-edge, game-changing, leverage, innovative, utilize, AI-powered
-- **Say instead:** "6 AI agents", "8 analysis dimensions", "90 seconds"
+- **Say instead:** "6 AI agents", "8 analysis dimensions", "under 5 minutes"
 - **CLI format:** `▸ [Stage]: [Action]` / `✓ [Result]` / `✗ [What]: [Why]: [Fix]`
 
 ## Color Palette (Rich Markup)

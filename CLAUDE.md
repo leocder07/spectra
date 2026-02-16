@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Spectra?
 
-Spectra deploys 8 AI agents (6 parallel specialists + MetaPrompter + CritiqueAgent) to analyze entire repositories across 6 dimensions — architecture, security, quality, documentation, maintainability, performance — in 90 seconds. Python CLI. Clean Architecture.
+Spectra deploys 8 AI agents (6 parallel specialists + MetaPrompter + CritiqueAgent) to analyze entire repositories across 6 dimensions — architecture, security, quality, documentation, maintainability, performance — in under 5 minutes. Python CLI. Clean Architecture.
 
 **Tagline:** "The full spectrum of your codebase."
-**One-liner:** "8 AI agents analyze your entire repository in 90 seconds."
+**One-liner:** "8 AI agents analyze your entire repository in under 5 minutes."
 
 ---
 

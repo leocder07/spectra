@@ -4,7 +4,7 @@
 
 ### The full spectrum of your codebase
 
-**8 AI agents analyze your entire repository in 90 seconds.**
+**8 AI agents analyze your entire repository in under 5 minutes.**
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Tests](https://img.shields.io/badge/tests-1%2C096_passed-22C55E?style=for-the-badge)](tests/)
@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
 [![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.6-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 
-[Try It](#try-it) · [How It Works](#how-it-works) · [Architecture](#architecture) · [Agent Roster](#agent-roster)
+[Installation](#installation) · [Try It](#try-it) · [How It Works](#how-it-works) · [Architecture](#architecture) · [Agent Roster](#agent-roster)
 
 </div>
 
@@ -22,14 +22,23 @@
 
 AI-generated code ships faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
 
-**Spectra deploys 8 AI agents — 6 parallel specialists, a planning agent, and a critique agent — to give you the full spectrum in 90 seconds.**
+**Spectra deploys 8 AI agents — 6 parallel specialists, a planning agent, and a critique agent — to give you the full spectrum in under 5 minutes.**
+
+---
+
+## Installation
+
+```bash
+pip install spectra-cli
+```
+
+Requires Python 3.12+ and an [Anthropic API key](https://console.anthropic.com/).
 
 ---
 
 ## Try It
 
 ```bash
-pip install -e .
 export ANTHROPIC_API_KEY=sk-ant-...
 spectra analyze https://github.com/expressjs/express
 ```
@@ -50,7 +59,7 @@ spectra analyze <repo-url> --output my.html  # Custom report path
 ## Key Features
 
 - **8 AI agents, 6 dimensions** — Architecture, Security, Quality, Documentation, Maintainability, Performance analyzed in parallel
-- **90-second analysis** — 6 specialists run concurrently via `asyncio.gather`, not sequentially
+- **Under 5 minutes** — 6 specialists run concurrently via `asyncio.gather`, not sequentially
 - **Multi-model strategy** — Sonnet 4.5 for planning, Opus 4.6 for deep analysis, Opus 4.6 + Extended Thinking for critique
 - **False positive filtering** — CritiqueAgent uses extended thinking to validate every finding before it reaches the report
 - **Self-contained HTML reports** — Radar charts, interactive findings, keyboard navigation, file hotspot heatmaps — one file, works offline
@@ -267,7 +276,7 @@ graph TB
 | Agents | 8 (6 parallel + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 |
 | Cost | $1-10 per analysis |
-| Speed | ~90 seconds end-to-end |
+| Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
 | Error codes | 9 typed (SPEC-001 to SPEC-009) |
 

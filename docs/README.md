@@ -1,6 +1,6 @@
 # Spectra Documentation
 
-> **Spectra** deploys 8 AI agents to analyze your entire repository across 6 dimensions in 90 seconds.
+> **Spectra** deploys 8 AI agents to analyze your entire repository across 6 dimensions in under 5 minutes.
 > Clean Architecture. Python 3.12+. Opus 4.6 where it counts.
 
 ---
@@ -22,7 +22,7 @@ That's it. You'll get an HTML report with a ScoreCard, dimension-by-dimension fi
 |--------|-------|
 | AI Agents | 8 (MetaPrompter + 6 specialists + CritiqueAgent) |
 | Analysis Dimensions | 6 (Architecture, Security, Quality, Documentation, Maintainability, Performance) |
-| Analysis Time | ~90 seconds |
+| Analysis Time | Under 5 minutes |
 | Tests | 1,130+ |
 | Coverage | 98% |
 | Design Patterns | 11 documented |

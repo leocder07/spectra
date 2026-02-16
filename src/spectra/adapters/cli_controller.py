@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 app = typer.Typer(
     name="spectra",
-    help="8 AI agents analyze your entire repository in 90 seconds",
+    help="8 AI agents analyze your entire repository in under 5 minutes",
     add_completion=False,
     no_args_is_help=True,
 )

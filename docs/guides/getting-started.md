@@ -43,7 +43,7 @@ Your analysis runs through 6 stages:
 | **CRITIQUE** | CritiqueAgent (Opus 4.6 + thinking) validates all findings | ~25s |
 | **REPORT** | Computes ScoreCard, renders HTML report | ~2s |
 
-Total: ~90 seconds for a full analysis.
+Total: under 5 minutes for a full analysis.
 
 ---
 

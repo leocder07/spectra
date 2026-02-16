@@ -1,6 +1,6 @@
 # High-Level Design (HLD)
 
-> **Spectra** deploys 8 AI agents to analyze entire repositories across 6 dimensions in 90 seconds.
+> **Spectra** deploys 8 AI agents to analyze entire repositories across 6 dimensions in under 5 minutes.
 > Clean Architecture. Python 3.12+. Opus 4.6 everywhere it matters.
 
 ---

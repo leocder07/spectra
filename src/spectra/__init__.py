@@ -1,4 +1,4 @@
-"""Spectra — 8 AI agents analyze your entire repository in 90 seconds.
+"""Spectra — 8 AI agents analyze your entire repository in under 5 minutes.
 
 The full spectrum of your codebase: architecture, security, quality,
 documentation, maintainability, and performance — analyzed in parallel
