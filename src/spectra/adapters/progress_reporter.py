@@ -53,7 +53,7 @@ AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
 }
 
 AGENT_MODELS: dict[AgentRole, str] = {
-    "meta_prompter": "claude-sonnet-4-5",
+    "meta_prompter": "claude-opus-4-6",
     "architecture": "claude-opus-4-6",
     "security": "claude-opus-4-6",
     "quality": "claude-opus-4-6",

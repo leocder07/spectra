@@ -75,7 +75,7 @@ _BANNER = """\
 
 _PIPELINE_INFO = """\
 [dim #52525b]  ┌─ pipeline ───────────────────────────────────┐[/]
-[dim #52525b]  │[/] [#F59E0B]1[/] MetaPrompter    [dim]sonnet-4.5  planner  [/] [dim #52525b]│[/]
+[dim #52525b]  │[/] [#F59E0B]1[/] MetaPrompter    [dim]opus-4.6    planner  [/] [dim #52525b]│[/]
 [dim #52525b]  │[/] [#F59E0B]6[/] Specialists     [dim]opus-4.6    parallel [/] [dim #52525b]│[/]
 [dim #52525b]  │[/] [#F59E0B]1[/] CritiqueAgent   [dim]opus-4.6    thinking [/] [dim #52525b]│[/]
 [dim #52525b]  │[/] [dim]  arch · sec · qual · doc · dep · perf  [/] [dim #52525b]│[/]

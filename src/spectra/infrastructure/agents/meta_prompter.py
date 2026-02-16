@@ -125,7 +125,7 @@ class MetaPrompter(BaseAgent):
         super().__init__(
             role="meta_prompter",
             gateway=gateway,
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-6",
             system_prompt=_SYSTEM_PROMPT,
             max_tokens=5_000,
         )

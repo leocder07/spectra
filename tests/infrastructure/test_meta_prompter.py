@@ -150,8 +150,8 @@ class TestMetaPrompterConfig:
     def test_role_is_meta_prompter(self, agent: MetaPrompter):
         assert agent.role == "meta_prompter"
 
-    def test_uses_sonnet_model(self, agent: MetaPrompter):
-        assert "sonnet" in agent._model
+    def test_uses_opus_model(self, agent: MetaPrompter):
+        assert "opus" in agent._model
 
 
 class TestMetaPrompterRun:
