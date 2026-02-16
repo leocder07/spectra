@@ -1117,6 +1117,40 @@
         }
 
         /* ─── DD Framework: SOC 2 Readiness ─── */
+        .soc2-readiness-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .soc2-readiness-score {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .soc2-pct {
+            font-family: var(--font-mono);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .soc2-pct-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .soc2-readiness-stats {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
         .soc2-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -1138,8 +1172,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.6rem;
+            cursor: pointer;
+            list-style: none;
         }
+
+        .soc2-criterion-header::-webkit-details-marker { display: none; }
 
         .soc2-criterion-label {
             font-family: var(--font-mono);
@@ -1159,6 +1196,44 @@
         .soc2-count-ok { background: rgba(34, 197, 94, 0.1); color: var(--green); }
         .soc2-count-warn { background: rgba(245, 158, 11, 0.1); color: var(--amber); }
         .soc2-count-crit { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+
+        .soc2-controls-list {
+            margin-top: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .soc2-control-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.25rem 0;
+        }
+
+        .soc2-covered .soc2-control-icon { color: var(--green); }
+        .soc2-gap .soc2-control-icon { color: var(--red); }
+
+        .soc2-control-id {
+            font-weight: 600;
+            min-width: 3.5rem;
+            color: var(--text-secondary);
+        }
+
+        .soc2-control-desc {
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .soc2-control-count {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--amber);
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-size: 0.6rem;
+        }
 
         .soc2-severity-row {
             display: flex;
@@ -2667,54 +2742,66 @@
         <section class="dd-section scroll-reveal" id="soc2-readiness">
             <div class="section-label">SOC 2 Readiness</div>
 
-            <div class="dd-coverage-stat">
-                {{ soc2.total_mapped }} findings mapped across {{ soc2.criteria | length }} trust service criteria
-                <span style="color: var(--text-tertiary);"> &middot; </span>
-                <span style="font-weight: 600;">{{ soc2.coverage_pct | round(1) }}%</span> coverage
+            <div class="soc2-readiness-header">
+                <div class="soc2-readiness-score">
+                    {% set rs = soc2.readiness_score | default(0) | round(1) %}
+                    <span class="soc2-pct" style="color: {% if rs >= 75 %}var(--green){% elif rs >= 50 %}var(--cyan){% elif rs > 0 %}var(--amber){% else %}var(--red){% endif %};">{{ rs }}%</span>
+                    <span class="soc2-pct-label">control coverage</span>
+                </div>
+                <div class="soc2-readiness-stats">
+                    {{ soc2.covered_controls | default(0) }} of {{ soc2.total_controls | default(0) }} controls addressed<br>
+                    {{ soc2.gap_controls | default([]) | length }} gaps &middot; {{ soc2.total_mapped | default(0) }} findings mapped
+                </div>
             </div>
-            {% if soc2.coverage_pct < 10 %}
-            <p class="dd-empty-note">SOC 2 mapping requires findings with explicit trust-service-criteria keywords. Coverage below 10% typically means the analysis did not surface criteria-specific language.</p>
+
+            {% if soc2.readiness_score is defined and soc2.readiness_score < 10 %}
+            <p class="dd-empty-note">SOC 2 mapping requires findings with criteria-specific keywords. Low coverage typically means the analysis did not surface relevant language.</p>
             {% endif %}
 
+            <!-- Overall readiness progress bar -->
+            <div class="dd-bar-track" style="height: 8px; margin-bottom: 1.5rem;">
+                <div class="dd-bar-fill" style="width: {{ soc2.readiness_score | default(0) }}%; background: {% if rs >= 75 %}var(--green){% elif rs >= 50 %}var(--cyan){% elif rs > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+            </div>
+
             <div class="soc2-grid">
-                {% for criterion in soc2.criteria %}
+                {% for cc in soc2.cc_categories | default([]) %}
                 <div class="soc2-criterion">
-                    <div class="soc2-criterion-header">
-                        <span class="soc2-criterion-label">{{ criterion.label }}</span>
-                        {% if criterion.has_critical %}
-                        <span class="soc2-criterion-count soc2-count-crit">{{ criterion.finding_count }} findings</span>
-                        {% elif criterion.finding_count > 0 %}
-                        <span class="soc2-criterion-count soc2-count-warn">{{ criterion.finding_count }} findings</span>
-                        {% else %}
-                        <span class="soc2-criterion-count soc2-count-ok">0 findings</span>
-                        {% endif %}
-                    </div>
-                    {% set sev_counts = criterion.severity_counts %}
-                    {% set crit_total = (sev_counts.critical | default(0)) + (sev_counts.high | default(0)) + (sev_counts.medium | default(0)) + (sev_counts.low | default(0)) + (sev_counts.info | default(0)) %}
-                    {% if crit_total > 0 %}
-                    <div class="dd-bar-track" style="height: 6px;">
-                        {% for sev, color in [("critical", "var(--red)"), ("high", "var(--orange)"), ("medium", "var(--amber)"), ("low", "var(--cyan)"), ("info", "var(--text-tertiary)")] %}
-                        {% set sev_val = sev_counts[sev] | default(0) %}
-                        {% if sev_val > 0 %}
-                        <div class="dd-bar-fill" style="width: {{ (sev_val / crit_total * 100) | round(1) }}%; background: {{ color }}; font-size: 0;"></div>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                    <div class="soc2-severity-row">
-                        {% for sev, color in [("critical", "var(--red)"), ("high", "var(--orange)"), ("medium", "var(--amber)"), ("low", "var(--cyan)")] %}
-                        {% set sev_val = sev_counts[sev] | default(0) %}
-                        {% if sev_val > 0 %}
-                        <span class="soc2-sev-chip" style="background: {{ color }}22; color: {{ color }};">{{ sev }} {{ sev_val }}</span>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--green); margin-top: 0.3rem;">No issues detected</div>
-                    {% endif %}
+                    <details>
+                        <summary class="soc2-criterion-header">
+                            <span class="soc2-criterion-label">{{ cc.id }}: {{ cc.title }}</span>
+                            {% if cc.has_critical %}
+                            <span class="soc2-criterion-count soc2-count-crit">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% elif cc.covered_count > 0 %}
+                            <span class="soc2-criterion-count soc2-count-warn">{{ cc.covered_count }}/{{ cc.total_count }}</span>
+                            {% else %}
+                            <span class="soc2-criterion-count soc2-count-ok">0/{{ cc.total_count }}</span>
+                            {% endif %}
+                        </summary>
+
+                        <!-- Per-CC progress bar -->
+                        <div class="dd-bar-track" style="height: 6px; margin-top: 0.5rem;">
+                            {% set cpct = cc.coverage_pct | default(0) %}
+                            <div class="dd-bar-fill" style="width: {{ cpct }}%; background: {% if cpct >= 75 %}var(--green){% elif cpct >= 50 %}var(--cyan){% elif cpct > 0 %}var(--amber){% else %}var(--red){% endif %};"></div>
+                        </div>
+
+                        <!-- Individual controls -->
+                        <div class="soc2-controls-list">
+                            {% for ctrl in cc.controls | default([]) %}
+                            <div class="soc2-control-item {% if ctrl.covered %}soc2-covered{% else %}soc2-gap{% endif %}">
+                                <span class="soc2-control-icon">{% if ctrl.covered %}&#x2713;{% else %}&#x2717;{% endif %}</span>
+                                <span class="soc2-control-id">{{ ctrl.id }}</span>
+                                <span class="soc2-control-desc">{{ ctrl.desc }}</span>
+                                {% if ctrl.finding_count > 0 %}
+                                <span class="soc2-control-count">{{ ctrl.finding_count }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
                 </div>
                 {% endfor %}
             </div>
-            <p class="dd-disclaimer">Keyword-based mapping to Trust Service Criteria. Not a formal SOC 2 audit.</p>
+            <p class="dd-disclaimer">Keyword-based mapping to AICPA Common Criteria (CC1–CC9). Not a formal SOC 2 audit.</p>
         </section>
         {% endif %}
 

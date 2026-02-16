@@ -321,6 +321,315 @@ _SOC2_CRITERIA: dict[str, dict[str, object]] = {
     },
 }
 
+# ── SOC 2 Common Criteria Controls (CC1–CC9) ─────────────────
+
+_SOC2_CONTROLS: dict[str, dict[str, object]] = {
+    "CC1": {
+        "id": "CC1",
+        "category": "Security",
+        "title": "Control Environment",
+        "dimensions": ("documentation", "architecture", "quality"),
+        "controls": [
+            {
+                "id": "CC1.1",
+                "desc": "Integrity and ethical values",
+                "keywords": ("ethics", "code of conduct", "integrity"),
+            },
+            {
+                "id": "CC1.2",
+                "desc": "Board independence and oversight",
+                "keywords": ("governance", "oversight", "board"),
+            },
+            {
+                "id": "CC1.3",
+                "desc": "Management structure and reporting",
+                "keywords": ("roles", "responsibilities", "organizational"),
+            },
+        ],
+    },
+    "CC2": {
+        "id": "CC2",
+        "category": "Security",
+        "title": "Communication and Information",
+        "dimensions": ("documentation", "quality", "architecture"),
+        "controls": [
+            {
+                "id": "CC2.1",
+                "desc": "Information for internal control",
+                "keywords": (
+                    "documentation",
+                    "api doc",
+                    "readme",
+                    "specification",
+                ),
+            },
+            {
+                "id": "CC2.2",
+                "desc": "Internal communication of objectives",
+                "keywords": (
+                    "logging",
+                    "notification",
+                    "alert",
+                    "error reporting",
+                ),
+            },
+            {
+                "id": "CC2.3",
+                "desc": "External communication",
+                "keywords": ("external api", "webhook", "disclosure"),
+            },
+        ],
+    },
+    "CC3": {
+        "id": "CC3",
+        "category": "Security",
+        "title": "Risk Assessment",
+        "dimensions": ("security", "architecture", "quality"),
+        "controls": [
+            {
+                "id": "CC3.1",
+                "desc": "Specification of suitable objectives",
+                "keywords": ("requirements", "specification", "validation"),
+            },
+            {
+                "id": "CC3.2",
+                "desc": "Risk identification and analysis",
+                "keywords": ("risk", "threat model", "vulnerability assessment"),
+            },
+            {
+                "id": "CC3.3",
+                "desc": "Consideration of fraud risk",
+                "keywords": ("injection", "tampering", "spoofing", "xss", "csrf"),
+            },
+            {
+                "id": "CC3.4",
+                "desc": "Identification of significant changes",
+                "keywords": ("migration", "breaking change", "deprecation"),
+            },
+        ],
+    },
+    "CC4": {
+        "id": "CC4",
+        "category": "Security",
+        "title": "Monitoring Activities",
+        "dimensions": ("performance", "security", "quality"),
+        "controls": [
+            {
+                "id": "CC4.1",
+                "desc": "Ongoing and separate evaluations",
+                "keywords": (
+                    "monitoring",
+                    "health check",
+                    "metrics",
+                    "observability",
+                ),
+            },
+            {
+                "id": "CC4.2",
+                "desc": "Communication of deficiencies",
+                "keywords": (
+                    "alerting",
+                    "incident",
+                    "deficiency",
+                    "remediation",
+                ),
+            },
+        ],
+    },
+    "CC5": {
+        "id": "CC5",
+        "category": "Security",
+        "title": "Control Activities",
+        "dimensions": ("quality", "security", "architecture"),
+        "controls": [
+            {
+                "id": "CC5.1",
+                "desc": "Selection of control activities",
+                "keywords": (
+                    "input validation",
+                    "sanitization",
+                    "rate limit",
+                    "error handling",
+                ),
+            },
+            {
+                "id": "CC5.2",
+                "desc": "Technology general controls",
+                "keywords": (
+                    "automated test",
+                    "ci/cd",
+                    "static analysis",
+                    "linting",
+                ),
+            },
+            {
+                "id": "CC5.3",
+                "desc": "Deployment through policies",
+                "keywords": (
+                    "code standard",
+                    "style guide",
+                    "configuration",
+                    "policy",
+                ),
+            },
+        ],
+    },
+    "CC6": {
+        "id": "CC6",
+        "category": "Security",
+        "title": "Logical and Physical Access Controls",
+        "dimensions": ("security", "architecture"),
+        "controls": [
+            {
+                "id": "CC6.1",
+                "desc": "Logical access security software",
+                "keywords": ("authentication", "authorization", "access control"),
+            },
+            {
+                "id": "CC6.2",
+                "desc": "Credential and secret management",
+                "keywords": (
+                    "credential",
+                    "password",
+                    "api key",
+                    "secret",
+                    "token",
+                ),
+            },
+            {
+                "id": "CC6.3",
+                "desc": "Role-based access authorization",
+                "keywords": (
+                    "rbac",
+                    "role-based",
+                    "permission",
+                    "least privilege",
+                ),
+            },
+            {
+                "id": "CC6.4",
+                "desc": "Access removal and session management",
+                "keywords": ("session", "logout", "expiration", "revocation"),
+            },
+            {
+                "id": "CC6.5",
+                "desc": "Physical access restrictions",
+                "keywords": ("physical", "data center", "server room"),
+            },
+            {
+                "id": "CC6.6",
+                "desc": "System boundary protection",
+                "keywords": ("firewall", "network", "cors", "csp", "boundary"),
+            },
+            {
+                "id": "CC6.7",
+                "desc": "Data transmission security",
+                "keywords": ("encryption", "tls", "ssl", "https", "transit"),
+            },
+            {
+                "id": "CC6.8",
+                "desc": "Prevention of unauthorized software",
+                "keywords": (
+                    "dependency scan",
+                    "code signing",
+                    "integrity check",
+                    "malware",
+                ),
+            },
+        ],
+    },
+    "CC7": {
+        "id": "CC7",
+        "category": "Security",
+        "title": "System Operations",
+        "dimensions": ("performance", "architecture", "security"),
+        "controls": [
+            {
+                "id": "CC7.1",
+                "desc": "Infrastructure and availability monitoring",
+                "keywords": ("uptime", "availability", "health", "monitoring"),
+            },
+            {
+                "id": "CC7.2",
+                "desc": "Security event detection",
+                "keywords": ("intrusion", "anomaly", "suspicious", "detection"),
+            },
+            {
+                "id": "CC7.3",
+                "desc": "Security event evaluation",
+                "keywords": ("triage", "severity", "classification"),
+            },
+            {
+                "id": "CC7.4",
+                "desc": "Incident response procedures",
+                "keywords": (
+                    "incident response",
+                    "disaster recovery",
+                    "backup",
+                ),
+            },
+            {
+                "id": "CC7.5",
+                "desc": "Recovery and resilience",
+                "keywords": (
+                    "failover",
+                    "redundancy",
+                    "resilience",
+                    "restoration",
+                ),
+            },
+        ],
+    },
+    "CC8": {
+        "id": "CC8",
+        "category": "Security",
+        "title": "Change Management",
+        "dimensions": ("quality", "maintainability", "architecture"),
+        "controls": [
+            {
+                "id": "CC8.1",
+                "desc": "Change control processes",
+                "keywords": (
+                    "version control",
+                    "code review",
+                    "deployment",
+                    "rollback",
+                    "change management",
+                ),
+            },
+        ],
+    },
+    "CC9": {
+        "id": "CC9",
+        "category": "Security",
+        "title": "Risk Mitigation",
+        "dimensions": ("maintainability", "security"),
+        "controls": [
+            {
+                "id": "CC9.1",
+                "desc": "Vendor and third-party risk management",
+                "keywords": (
+                    "third-party",
+                    "dependency",
+                    "supply chain",
+                    "vendor",
+                    "outdated",
+                ),
+            },
+            {
+                "id": "CC9.2",
+                "desc": "Vulnerability management and remediation",
+                "keywords": (
+                    "vulnerability",
+                    "patching",
+                    "cve",
+                    "security advisory",
+                ),
+            },
+        ],
+    },
+}
+
 # ── License Detection ────────────────────────────────────────
 
 _LICENSE_RE = re.compile(
@@ -467,31 +776,151 @@ def _matches_soc2_criterion(
         return False
     text = f"{finding.title} {finding.description}".lower()
     keywords = criterion.get("keywords", ())
-    return any(kw in text for kw in keywords)
+    if any(kw in text for kw in keywords):
+        return True
+    for ctrl in criterion.get("controls", []):
+        if any(kw in text for kw in ctrl.get("keywords", ())):
+            return True
+    return False
 
 
-def _soc2_mapping(
+def _match_finding_to_cc(
+    finding: Finding,
+    control: dict[str, object],
+    dimensions: tuple[str, ...],
+) -> bool:
+    """Check if a finding matches a specific CC sub-control."""
+    if finding.dimension not in dimensions:
+        return False
+    text = f"{finding.title} {finding.description}".lower()
+    return any(kw in text for kw in control.get("keywords", ()))
+
+
+def _evaluate_cc_controls(
     findings: tuple[Finding, ...],
+    cc_data: dict[str, object],
+) -> list[dict[str, object]]:
+    """Evaluate each sub-control within a CC category."""
+    dims = cc_data.get("dimensions", ())
+    results: list[dict[str, object]] = []
+    for ctrl in cc_data.get("controls", []):
+        matched = sum(1 for f in findings if _match_finding_to_cc(f, ctrl, dims))
+        results.append(
+            {
+                "id": ctrl["id"],
+                "desc": ctrl["desc"],
+                "covered": matched > 0,
+                "finding_count": matched,
+            }
+        )
+    return results
+
+
+def _cc_category_finding_count(
+    findings: tuple[Finding, ...],
+    cc_data: dict[str, object],
+) -> int:
+    """Count unique findings matching any control in a CC category."""
+    dims = cc_data.get("dimensions", ())
+    count = 0
+    for f in findings:
+        if f.dimension not in dims:
+            continue
+        text = f"{f.title} {f.description}".lower()
+        for ctrl in cc_data.get("controls", []):
+            if any(kw in text for kw in ctrl.get("keywords", ())):
+                count += 1
+                break
+    return count
+
+
+def _cc_has_critical(
+    findings: tuple[Finding, ...],
+    cc_data: dict[str, object],
+) -> bool:
+    """Check if any critical finding matches a CC category."""
+    dims = cc_data.get("dimensions", ())
+    for f in findings:
+        if f.severity != "critical" or f.dimension not in dims:
+            continue
+        text = f"{f.title} {f.description}".lower()
+        for ctrl in cc_data.get("controls", []):
+            if any(kw in text for kw in ctrl.get("keywords", ())):
+                return True
+    return False
+
+
+def _build_cc_category(
+    findings: tuple[Finding, ...],
+    cc_id: str,
+    cc_data: dict[str, object],
 ) -> dict[str, object]:
-    """Map findings to SOC 2 Trust Service Criteria categories."""
+    """Build coverage data for a single CC category."""
+    ctrl_results = _evaluate_cc_controls(findings, cc_data)
+    covered = sum(1 for c in ctrl_results if c["covered"])
+    fc = _cc_category_finding_count(findings, cc_data)
+    return {
+        "id": cc_id,
+        "title": cc_data["title"],
+        "controls": ctrl_results,
+        "covered_count": covered,
+        "total_count": len(ctrl_results),
+        "coverage_pct": _safe_pct(covered, len(ctrl_results)),
+        "finding_count": fc,
+        "has_critical": _cc_has_critical(findings, cc_data),
+    }
+
+
+def _build_tsc_criteria(
+    findings: tuple[Finding, ...],
+) -> list[dict[str, object]]:
+    """Build old-format TSC criteria for backward compatibility."""
     results: list[dict[str, object]] = []
     for key, criterion in _SOC2_CRITERIA.items():
         matched = [f for f in findings if _matches_soc2_criterion(f, criterion)]
-        severity_counts = _severity_distribution(tuple(matched))
+        sev = _severity_distribution(tuple(matched))
         results.append(
             {
                 "key": key,
                 "label": criterion["label"],
                 "finding_count": len(matched),
-                "severity_counts": severity_counts,
-                "has_critical": severity_counts.get("critical", 0) > 0,
+                "severity_counts": sev,
+                "has_critical": sev.get("critical", 0) > 0,
             }
         )
-    total_mapped = sum(r["finding_count"] for r in results)
+    return results
+
+
+def _collect_cc_gaps(
+    cc_categories: list[dict[str, object]],
+) -> list[dict[str, str]]:
+    """Collect all uncovered CC controls as a gap list."""
+    gaps: list[dict[str, str]] = []
+    for cat in cc_categories:
+        for ctrl in cat["controls"]:
+            if not ctrl["covered"]:
+                gaps.append({"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]})
+    return gaps
+
+
+def _soc2_mapping(
+    findings: tuple[Finding, ...],
+) -> dict[str, object]:
+    """Map findings to SOC 2 CC controls and TSC categories."""
+    tsc = _build_tsc_criteria(findings)
+    cc = [_build_cc_category(findings, k, v) for k, v in _SOC2_CONTROLS.items()]
+    total_ctrl = sum(c["total_count"] for c in cc)
+    covered_ctrl = sum(c["covered_count"] for c in cc)
+    total_mapped = sum(c["finding_count"] for c in cc)
     return {
-        "criteria": results,
+        "criteria": tsc,
+        "cc_categories": cc,
         "total_mapped": total_mapped,
-        "coverage_pct": _safe_pct(total_mapped, len(findings)),
+        "coverage_pct": _safe_pct(covered_ctrl, total_ctrl),
+        "readiness_score": _safe_pct(covered_ctrl, total_ctrl),
+        "total_controls": total_ctrl,
+        "covered_controls": covered_ctrl,
+        "gap_controls": _collect_cc_gaps(cc),
     }
 
 
