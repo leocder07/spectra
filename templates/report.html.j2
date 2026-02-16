@@ -2640,11 +2640,11 @@
                 {% endfor %}
             </div>
 
-            {% if dd_compliance.owasp_2024_coverage %}
-            <div class="dd-subsection-label">OWASP Top 10 (2024) Coverage</div>
-            <div class="dd-coverage-stat">{{ dd_compliance.owasp_2024_covered_count }} of {{ dd_compliance.owasp_2024_total }} categories checked</div>
+            {% if dd_compliance.owasp_2025_coverage %}
+            <div class="dd-subsection-label">OWASP Top 10 (2025) Coverage</div>
+            <div class="dd-coverage-stat">{{ dd_compliance.owasp_2025_covered_count }} of {{ dd_compliance.owasp_2025_total }} categories checked</div>
             <div class="owasp-grid">
-                {% for item in dd_compliance.owasp_2024_coverage %}
+                {% for item in dd_compliance.owasp_2025_coverage %}
                 <div class="owasp-item {{ 'covered' if item.covered else 'uncovered' }}">
                     <span class="owasp-dot"></span>
                     {{ item.label }}

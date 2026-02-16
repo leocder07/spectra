@@ -1750,27 +1750,27 @@ class TestCriticalFindingsScore:
         assert _critical_findings_score(report) == 70.0
 
 
-# ── OWASP 2024 Coverage ──────────────────────────────────────
+# ── OWASP 2025 Coverage ──────────────────────────────────────
 
 
-class TestOWASP2024Coverage:
+class TestOWASP2025Coverage:
     def test_has_2024_coverage(self):
         result = _dd_compliance_mapping(())
-        assert "owasp_2024_coverage" in result
-        assert len(result["owasp_2024_coverage"]) == 10
+        assert "owasp_2025_coverage" in result
+        assert len(result["owasp_2025_coverage"]) == 10
 
     def test_2024_total(self):
         result = _dd_compliance_mapping(())
-        assert result["owasp_2024_total"] == 10
+        assert result["owasp_2025_total"] == 10
 
     def test_2024_initially_uncovered(self):
         result = _dd_compliance_mapping(())
-        assert result["owasp_2024_covered_count"] == 0
+        assert result["owasp_2025_covered_count"] == 0
 
     def test_2024_category_detected(self):
         finding = _make_finding(desc="A03 injection vulnerability", line=1)
         result = _dd_compliance_mapping((finding,))
-        assert result["owasp_2024_covered_count"] >= 1
+        assert result["owasp_2025_covered_count"] >= 1
 
 
 # ── Parametrized Gini Coefficient ────────────────────────────

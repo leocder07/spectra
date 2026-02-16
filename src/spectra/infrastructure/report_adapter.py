@@ -220,23 +220,23 @@ _OWASP_2021_CATEGORIES: dict[str, str] = {
     "A10": "A10:2021 Server-Side Request Forgery",
 }
 
-_OWASP_2024_CATEGORIES: dict[str, str] = {
-    "A01": "A01:2024 Broken Access Control",
-    "A02": "A02:2024 Cryptographic Failures",
-    "A03": "A03:2024 Injection",
-    "A04": "A04:2024 Insecure Design",
-    "A05": "A05:2024 Security Misconfiguration",
-    "A06": "A06:2024 Vulnerable and Outdated Components",
-    "A07": "A07:2024 Identification and Auth Failures",
-    "A08": "A08:2024 Software and Data Integrity Failures",
-    "A09": "A09:2024 Security Logging and Monitoring Failures",
-    "A10": "A10:2024 Server-Side Request Forgery",
+_OWASP_2025_CATEGORIES: dict[str, str] = {
+    "A01": "A01:2025 Broken Access Control",
+    "A02": "A02:2025 Security Misconfiguration",
+    "A03": "A03:2025 Software Supply Chain Failures",
+    "A04": "A04:2025 Cryptographic Failures",
+    "A05": "A05:2025 Injection",
+    "A06": "A06:2025 Insecure Design",
+    "A07": "A07:2025 Authentication Failures",
+    "A08": "A08:2025 Software or Data Integrity Failures",
+    "A09": "A09:2025 Logging and Alerting Failures",
+    "A10": "A10:2025 Mishandling of Exceptional Conditions",
 }
 
 # Unified mapping used by compliance functions — includes both editions
 _OWASP_CATEGORIES: dict[str, str] = {
     **_OWASP_2021_CATEGORIES,
-    **{f"{k}_2024": v for k, v in _OWASP_2024_CATEGORIES.items()},
+    **{f"{k}_2024": v for k, v in _OWASP_2025_CATEGORIES.items()},
 }
 
 _OWASP_RE = re.compile(r"A0[1-9]|A10", re.IGNORECASE)
@@ -344,6 +344,16 @@ _SOC2_CONTROLS: dict[str, dict[str, object]] = {
                 "id": "CC1.3",
                 "desc": "Management structure and reporting",
                 "keywords": ("roles", "responsibilities", "organizational"),
+            },
+            {
+                "id": "CC1.4",
+                "desc": "Commitment to competence",
+                "keywords": ("training", "competency", "onboarding", "skills"),
+            },
+            {
+                "id": "CC1.5",
+                "desc": "Accountability for internal controls",
+                "keywords": ("accountability", "ownership", "audit trail"),
             },
         ],
     },
@@ -607,23 +617,26 @@ _SOC2_CONTROLS: dict[str, dict[str, object]] = {
         "controls": [
             {
                 "id": "CC9.1",
-                "desc": "Vendor and third-party risk management",
+                "desc": "Risk mitigation for business disruptions",
+                "keywords": (
+                    "resilience",
+                    "failover",
+                    "backup",
+                    "disaster recovery",
+                    "continuity",
+                ),
+            },
+            {
+                "id": "CC9.2",
+                "desc": "Third-party and vendor risk management",
                 "keywords": (
                     "third-party",
                     "dependency",
                     "supply chain",
                     "vendor",
                     "outdated",
-                ),
-            },
-            {
-                "id": "CC9.2",
-                "desc": "Vulnerability management and remediation",
-                "keywords": (
                     "vulnerability",
-                    "patching",
                     "cve",
-                    "security advisory",
                 ),
             },
         ],
@@ -747,18 +760,18 @@ def _dd_compliance_mapping(
         cwes_found.update(_CWE_RE.findall(text))
 
     cov_2021 = _build_owasp_coverage(_OWASP_2021_CATEGORIES, owasp_hits)
-    cov_2024 = _build_owasp_coverage(_OWASP_2024_CATEGORIES, owasp_hits)
+    cov_2024 = _build_owasp_coverage(_OWASP_2025_CATEGORIES, owasp_hits)
 
     covered_2021 = sum(1 for o in cov_2021 if o["covered"])
     covered_2024 = sum(1 for o in cov_2024 if o["covered"])
 
     return {
         "owasp_coverage": cov_2021,
-        "owasp_2024_coverage": cov_2024,
+        "owasp_2025_coverage": cov_2024,
         "owasp_covered_count": covered_2021,
-        "owasp_2024_covered_count": covered_2024,
+        "owasp_2025_covered_count": covered_2024,
         "owasp_total": len(_OWASP_2021_CATEGORIES),
-        "owasp_2024_total": len(_OWASP_2024_CATEGORIES),
+        "owasp_2025_total": len(_OWASP_2025_CATEGORIES),
         "cwes": sorted(cwes_found, key=int),
     }
 
