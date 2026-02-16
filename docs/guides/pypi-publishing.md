@@ -1,6 +1,6 @@
 # Publishing Spectra to PyPI
 
-Step-by-step guide to publish `spectra-cli` to the Python Package Index.
+Step-by-step guide to publish `spectra-ai` to the Python Package Index.
 
 ---
 
@@ -26,7 +26,7 @@ twine --version
 1. Go to [https://pypi.org/account/register/](https://pypi.org/account/register/) and create an account.
 2. Enable two-factor authentication (required for new accounts).
 3. Go to [https://pypi.org/manage/account/token/](https://pypi.org/manage/account/token/) and create an API token.
-   - Scope: "Entire account" for first upload, then restrict to `spectra-cli` after.
+   - Scope: "Entire account" for first upload, then restrict to `spectra-ai` after.
    - Save the token (starts with `pypi-`) -- you only see it once.
 
 For TestPyPI (recommended for first-time testing):
@@ -81,7 +81,7 @@ You will be prompted for credentials:
 Verify the test upload:
 
 ```bash
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ spectra-cli
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ spectra-ai
 spectra --help
 ```
 
@@ -108,12 +108,12 @@ Credentials:
 ## 5. Verify the Production Install
 
 ```bash
-pip install spectra-cli
+pip install spectra-ai
 spectra --help
 spectra --version
 ```
 
-The package page will be live at [https://pypi.org/project/spectra-cli/](https://pypi.org/project/spectra-cli/).
+The package page will be live at [https://pypi.org/project/spectra-ai/](https://pypi.org/project/spectra-ai/).
 
 ---
 
@@ -142,7 +142,7 @@ The repository includes a GitHub Actions workflow at `.github/workflows/publish.
 
 Trusted publishing eliminates the need for API token secrets. Set it up once:
 
-1. Go to [https://pypi.org/manage/project/spectra-cli/settings/publishing/](https://pypi.org/manage/project/spectra-cli/settings/publishing/)
+1. Go to [https://pypi.org/manage/project/spectra-ai/settings/publishing/](https://pypi.org/manage/project/spectra-ai/settings/publishing/)
 2. Add a new publisher:
    - **Owner:** `leocder07`
    - **Repository:** `spectra`
@@ -198,7 +198,7 @@ jobs:
     needs: build
     environment:
       name: pypi
-      url: https://pypi.org/project/spectra-cli/
+      url: https://pypi.org/project/spectra-ai/
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4

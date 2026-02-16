@@ -30,7 +30,7 @@ permissions:
   pull-requests: write
 
 env:
-  SPECTRA_VERSION: "spectra-cli"  # Pin with spectra-cli==0.1.0 if needed
+  SPECTRA_VERSION: "spectra-ai"  # Pin with spectra-ai==0.1.0 if needed
 
 jobs:
   analyze:

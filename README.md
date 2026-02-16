@@ -29,7 +29,7 @@ AI-generated code ships faster than ever, but quality assurance hasn't kept up. 
 ## Installation
 
 ```bash
-pip install spectra-cli
+pip install spectra-ai
 ```
 
 Requires Python 3.12+ and an [Anthropic API key](https://console.anthropic.com/).
@@ -298,7 +298,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install spectra-cli
+      - run: pip install spectra-ai
       - run: spectra analyze . --quick --format json --output spectra-report.json
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

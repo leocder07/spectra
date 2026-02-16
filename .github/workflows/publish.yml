@@ -2,7 +2,7 @@
 #
 # Uses trusted publishing (OIDC) — no API token secrets needed.
 # Set up the publisher at:
-#   https://pypi.org/manage/project/spectra-cli/settings/publishing/
+#   https://pypi.org/manage/project/spectra-ai/settings/publishing/
 #
 # To trigger: git tag v0.1.0 && git push origin v0.1.0
 
@@ -83,7 +83,7 @@ jobs:
     needs: [build, test]
     environment:
       name: pypi
-      url: https://pypi.org/project/spectra-cli/
+      url: https://pypi.org/project/spectra-ai/
 
     steps:
       - name: Download build artifacts
