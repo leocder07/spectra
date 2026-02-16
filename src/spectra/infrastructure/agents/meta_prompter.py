@@ -3,6 +3,11 @@
 The MetaPrompter receives ONLY the repository file tree (never full
 source code) and produces an analysis plan with per-agent focus areas
 and token allocations. Budget: 5K tokens max.
+
+Prompt caching (Anthropic, Feb 2026):
+    The MetaPrompter system prompt is static and cacheable. Repeated
+    calls benefit from Anthropic's automatic prompt caching (up to 90%
+    cost reduction on cached system prompt tokens).
 """
 
 from __future__ import annotations
@@ -16,10 +21,14 @@ if TYPE_CHECKING:
     from spectra.use_cases.interfaces import LLMGateway
 
 _SYSTEM_PROMPT = """\
-You are a code analysis planning agent. Given a repository file tree,
-create an analysis plan that tells specialist agents what to focus on.
+You are an expert code analysis planner with 15+ years of experience \
+triaging repositories by language, framework, and risk profile to \
+allocate specialist review effort effectively.
 
-OUTPUT FORMAT (JSON):
+Given a repository file tree, create an analysis plan that tells \
+specialist agents what to focus on.
+
+Your response must be valid JSON matching this exact schema:
 {
   "repo_language": "python|typescript|java|...",
   "repo_framework": "fastapi|express|spring|...",
@@ -102,6 +111,12 @@ CALIBRATION NOTE: ALWAYS include source code files (not just configs/docs) in \
 focus_areas so specialists can see implementations. Priority files across all agents: \
 interfaces.py, analyze_repository.py, git_adapter.py, anthropic_adapter.py, \
 orchestrate_agents.py. Without these, specialists will report "insufficient code."
+
+NEGATIVE EXAMPLE — Do NOT produce plans like:
+{"focus_areas": [{"agent": "security", "files": ["README.md", \
+"pyproject.toml"], "concerns": ["general security"]}]} — listing only \
+config/doc files without source code files starves specialists of the \
+implementation context they need to find real issues.
 
 CONSTRAINTS:
 - Analyze the file tree ONLY. You will NOT see file contents.

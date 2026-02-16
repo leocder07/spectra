@@ -1,18 +1,32 @@
-"""CritiqueAgent — validates ALL findings using extended thinking.
+"""CritiqueAgent — validates ALL findings using adaptive thinking.
 
-The CritiqueAgent is the ONLY agent that uses Anthropic's extended
-thinking feature. It reviews every specialist finding to reject false
-positives, adjust severity levels, and surface cross-cutting insights.
+The CritiqueAgent is the ONLY agent that uses Anthropic's adaptive
+thinking feature (``thinking: {type: "adaptive"}``). It reviews every
+specialist finding to reject false positives, adjust severity levels,
+and surface cross-cutting insights.
 Target: <5% false positive rate in validated findings.
 
 Performance & cost justification:
-    Extended thinking is intentionally used ONLY by CritiqueAgent to validate
-    ALL findings from the 6 specialist agents. The 200K token budget is
-    pre-allocated in the pipeline's token budget (see ``TokenBudget`` in
-    ``entities/models.py``), and the additional cost (~$0.50 per run) is
-    justified by a 30%+ false positive reduction observed in testing.
-    No other agent uses extended thinking — specialists use standard
-    streaming for lower latency and cost.
+    Adaptive thinking is intentionally used ONLY by CritiqueAgent to
+    validate ALL findings from the 6 specialist agents. The additional
+    cost (~$0.50 per run) is justified by a 30%+ false positive
+    reduction observed in testing. No other agent uses thinking —
+    specialists use standard streaming for lower latency and cost.
+
+Prompt engineering notes (Opus 4.6, Feb 2026):
+    - Uses adaptive thinking (``type: "adaptive"``) instead of manual
+      budget_tokens. Opus 4.6 dynamically decides how much to reason.
+    - High-level instruction ("reason carefully through each finding")
+      outperforms step-by-step prescriptive guidance per Anthropic docs.
+    - XML tags structure the prompt for better parsing.
+    - Aggressive language dialed back — Opus 4.6 follows instructions
+      precisely without "CRITICAL/MUST" emphasis.
+
+Prompt caching (Anthropic, Feb 2026):
+    The CritiqueAgent system prompt is static and cacheable. Because
+    Spectra runs the same critique prompt across all analyses, repeated
+    calls benefit from Anthropic's automatic prompt caching (up to 90%
+    cost reduction on cached system prompt tokens).
 """
 
 from __future__ import annotations
@@ -25,24 +39,38 @@ if TYPE_CHECKING:
     from spectra.entities.models import Finding
     from spectra.use_cases.interfaces import LLMGateway
 
-_SYSTEM_PROMPT = """You are the critique agent. Use extended thinking to carefully validate
-every finding from the specialist agents.
+_SYSTEM_PROMPT = """\
+You are an expert code review validator with 15+ years of experience \
+in false positive analysis, severity calibration, and cross-cutting \
+security and architecture assessment.
 
-For EACH finding, determine:
+Carefully validate every finding from the specialist agents. Reason \
+through each finding thoroughly before deciding.
+
+For each finding, determine:
 1. Is this a true positive or false positive?
 2. Is the severity correctly assigned?
 3. Is the recommendation actionable and correct?
 4. Are there cross-cutting concerns across dimensions?
 
-OUTPUT FORMAT (JSON):
+<output_schema>
+Your response must be valid JSON matching this exact schema. Do not \
+include preamble or explanation outside the JSON:
 {
-  "validated_findings": [...],
-  "rejected_findings": [...],
-  "severity_adjustments": [...],
-  "cross_cutting_insights": [...]
+  "validated_findings": [
+    {"id": "string", "original_severity": "string", "validated": true, "reason": "string"}
+  ],
+  "rejected_findings": [
+    {"id": "string", "reason": "string — specific evidence for rejection"}
+  ],
+  "severity_adjustments": [
+    {"id": "string", "original_severity": "string", "adjusted_severity": "string", "reason": "string"}
+  ],
+  "cross_cutting_insights": ["string — connections between findings across dimensions"]
 }
+</output_schema>
 
-EXAMPLE OUTPUT:
+<example_output>
 {
   "validated_findings": [
     {
@@ -70,20 +98,30 @@ EXAMPLE OUTPUT:
     "sec-001 and doc-001 are related — fixing secrets management addresses both."
   ]
 }
+</example_output>
 
-GUARDRAILS:
+<guardrails>
 - Only validate findings that were actually provided. Do not add new findings.
 - Do not fabricate finding IDs — use the exact IDs from the specialist output.
 - When rejecting, provide a specific reason tied to evidence in the code.
 - When adjusting severity, cite the criteria that justify the change.
+</guardrails>
 
-FALSE POSITIVE HUNTING:
-- Aggressively reject findings that flag "potential" issues when the code demonstrates active mitigations (e.g., SSRF guards, CSP headers, .gitignore blocking secrets).
+<false_positive_hunting>
+- Reject findings that flag "potential" issues when the code demonstrates active mitigations (e.g., SSRF guards, CSP headers, .gitignore blocking secrets).
 - Downgrade severity when a finding describes a theoretical risk but the codebase shows evidence of the exact mitigation already in place.
 - If a specialist flags documentation as poor but the README exceeds 500 lines with API docs, reject the finding.
+</false_positive_hunting>
 
-Use your extended thinking to reason through EACH finding before deciding.
-Target: <5% false positive rate in validated findings."""
+<negative_example>
+Do NOT validate like: {"id": "sec-005", "validated": true, "reason": \
+"Seems correct"} — rubber-stamping findings without citing specific \
+code evidence defeats the purpose of critique. Each validation or \
+rejection should reference concrete evidence from the code.
+</negative_example>
+
+Use extended thinking to reason carefully through each finding before \
+deciding. Target: <5% false positive rate in validated findings."""
 
 
 class CritiqueAgent(BaseAgent):
