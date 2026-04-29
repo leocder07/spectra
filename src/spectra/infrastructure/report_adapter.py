@@ -14,6 +14,7 @@ import re
 import secrets
 from collections import Counter
 from datetime import UTC, datetime
+from importlib.resources import as_file, files
 from pathlib import Path
 
 import jinja2
@@ -22,7 +23,20 @@ from spectra.adapters.brand import build_verdict, dim_label
 from spectra.entities.enums import AgentRole, Dimension, Grade
 from spectra.entities.models import AnalysisReport, Finding
 
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "templates"
+
+def _resolve_template_dir() -> Path:
+    """Resolve the templates directory shipped inside the spectra package.
+
+    Uses importlib.resources so the template is found whether spectra was
+    installed via wheel, sdist, editable mode, or run from a checkout.
+    Falls back to a filesystem path so jinja2.FileSystemLoader works.
+    """
+    resource = files("spectra") / "templates"
+    with as_file(resource) as concrete_path:
+        return Path(concrete_path)
+
+
+_TEMPLATE_DIR = _resolve_template_dir()
 
 _DIMENSIONS_ORDER: tuple[Dimension, ...] = (
     "architecture",
