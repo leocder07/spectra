@@ -54,6 +54,7 @@ from urllib.parse import urlparse
 import git
 
 from spectra.entities.errors import ERRORS, GitError
+from spectra.use_cases.interfaces import is_local_path
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -190,12 +191,63 @@ def _iter_real_files(root: Path) -> Iterator[Path]:
             yield candidate
 
 
+def _resolve_local_repo(source: str) -> Path:
+    """Validate ``source`` as a local git checkout and return its absolute path.
+
+    Defensive checks (TOCTOU-aware): reject ``..`` segments, ``file://``
+    URIs after stripping, symlinks, and any directory missing ``.git/``.
+
+    Args:
+        source: User-supplied local path (may begin with ``~`` or ``file://``).
+
+    Returns:
+        Resolved absolute :class:`pathlib.Path` to the repository root.
+
+    Raises:
+        GitError: SPEC-001 on any validation failure.
+    """
+    raw = source[len("file://") :] if source.startswith("file://") else source
+    if ".." in Path(raw).parts:
+        raise GitError(ERRORS["SPEC-001"])
+    expanded = Path(raw).expanduser()
+    if expanded.is_symlink():
+        raise GitError(ERRORS["SPEC-001"])
+    resolved = expanded.resolve()
+    if not resolved.is_dir():
+        raise GitError(ERRORS["SPEC-001"])
+    git_dir = resolved / ".git"
+    if not git_dir.exists():
+        raise GitError(ERRORS["SPEC-001"])
+    return resolved
+
+
 class GitAdapter:
     """Async wrapper around GitPython implementing the GitPort protocol.
 
     All public methods are hardened against untrusted input — see the
     module docstring for the full security model.
     """
+
+    async def prepare_workspace(self, source: str, target_dir: str) -> str:
+        """Resolve ``source`` to a usable repo dir (clone or local).
+
+        Local paths are validated and returned unchanged; ``target_dir``
+        is ignored. URLs are cloned into ``target_dir``.
+
+        Args:
+            source: Either an HTTPS URL or a local filesystem path.
+            target_dir: Destination directory used for clones.
+
+        Returns:
+            Absolute path string to the prepared repository directory.
+
+        Raises:
+            GitError: SPEC-001 on any validation or clone failure.
+        """
+        if is_local_path(source):
+            return str(_resolve_local_repo(source))
+        await self.clone(source, target_dir)
+        return target_dir
 
     async def clone(self, repo_url: str, target_dir: str) -> None:
         """Clone a repository with security hardening.

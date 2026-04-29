@@ -56,6 +56,7 @@ from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import analyze_repository
+from spectra.use_cases.interfaces import is_local_path
 
 
 class ReportError(Exception):
@@ -123,24 +124,24 @@ async def _run_analysis(
     report_renderer = ReportAdapter()
     cache = _build_cache_adapter()
 
-    clone_dir = tempfile.mkdtemp(prefix="spectra-")
-    os.chmod(clone_dir, 0o700)
+    workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
-        # Stage 1: INGEST — clone repo
-        observer.on_stage_start("INGEST", "Cloning repository")
-        await git.clone(repo_url, clone_dir)
-        await git.validate_repo_size(clone_dir)
-        file_tree = await git.get_file_tree(clone_dir)
+        # Stage 1: INGEST — clone or use the local workspace
+        ingest_msg = "Indexing local repository" if not owns_workspace else "Cloning repository"
+        observer.on_stage_start("INGEST", ingest_msg)
+        workspace_dir = await git.prepare_workspace(repo_url, workspace_dir)
+        await git.validate_repo_size(workspace_dir)
+        file_tree = await git.get_file_tree(workspace_dir)
         observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
 
         # Pre-read key source files by heuristic for specialist agents
-        source_files = await _read_key_source_files(git, clone_dir, file_tree)
+        source_files = await _read_key_source_files(git, workspace_dir, file_tree)
 
-        repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
+        repo_name = _derive_repo_name(repo_url, workspace_dir)
         codebase = Codebase(
             repo_url=repo_url,
             repo_name=repo_name,
-            local_path=clone_dir,
+            local_path=workspace_dir,
             file_tree=tuple(file_tree),
         )
 
@@ -198,7 +199,8 @@ async def _run_analysis(
 
         return report
     finally:
-        shutil.rmtree(clone_dir, ignore_errors=True)
+        if owns_workspace:
+            shutil.rmtree(workspace_dir, ignore_errors=True)
         await adapter.close()
         _close_cache_quietly(cache)
 
@@ -232,6 +234,33 @@ def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
         cache.close()
     except AgentError:
         logging.getLogger("spectra").debug("Cache close failed; ignoring")
+
+
+# ── Workspace helpers ────────────────────────────────────────
+
+
+def _allocate_workspace(source: str) -> tuple[str, bool]:
+    """Return (workspace_dir, owns_workspace) for ``source``.
+
+    For local sources we use an empty placeholder string — ``GitPort.prepare_workspace``
+    will substitute the absolute path of the user's repo. The composition root MUST
+    not delete that directory; ``owns_workspace`` is False.
+
+    For URL sources we mint a private 0o700 tempdir, clone into it, and the
+    composition root cleans it up afterwards.
+    """
+    if is_local_path(source):
+        return "", False
+    workspace = tempfile.mkdtemp(prefix="spectra-")
+    os.chmod(workspace, 0o700)
+    return workspace, True
+
+
+def _derive_repo_name(source: str, workspace_dir: str) -> str:
+    """Pick a friendly repo name from either the URL or the workspace dir."""
+    if is_local_path(source):
+        return Path(workspace_dir).name or "repo"
+    return source.rstrip("/").split("/")[-1].removesuffix(".git")
 
 
 # ── Heuristic source file reader ─────────────────────────────

@@ -11,14 +11,60 @@ Protocols defined here:
     ReportPort — Render AnalysisReport to HTML via Jinja2.
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
     CachePort — Per-file finding cache (Phase 1, additive).
+
+Helpers:
+    is_local_path — Pure classifier distinguishing local paths from URLs.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.models import AnalysisReport, CacheStats, Finding
+
+# Prefixes that unambiguously denote a local filesystem source.
+_LOCAL_PREFIXES: tuple[str, ...] = ("/", "./", "../", "~", "file://")
+# Schemes that unambiguously denote a remote source.
+_REMOTE_SCHEMES: tuple[str, ...] = (
+    "http://",
+    "https://",
+    "git://",
+    "ssh://",
+    "git@",
+)
+
+
+def is_local_path(source: str) -> bool:
+    """Classify a source string as a local path or remote URL.
+
+    A source is local when it:
+      - starts with ``/``, ``./``, ``../``, ``~``, or ``file://``; or
+      - is ``.`` (current directory shorthand); or
+      - is a relative name that resolves to an existing directory.
+
+    Remote schemes (``https://``, ``git@``, ``ssh://``, ``git://``) are
+    always classified as non-local. The classifier never raises.
+
+    Args:
+        source: User-supplied repository reference.
+
+    Returns:
+        True when ``source`` is a local filesystem reference.
+    """
+    if not source:
+        return False
+    if source == ".":
+        return True
+    if any(source.startswith(s) for s in _REMOTE_SCHEMES):
+        return False
+    if any(source.startswith(p) for p in _LOCAL_PREFIXES):
+        return True
+    try:
+        return Path(source).is_dir()
+    except OSError:
+        return False
 
 
 class LLMGateway(Protocol):
@@ -82,6 +128,28 @@ class GitPort(Protocol):
 
     Implemented by ``GitAdapter`` using GitPython.
     """
+
+    async def prepare_workspace(self, source: str, target_dir: str) -> str:
+        """Resolve ``source`` into a usable on-disk repository directory.
+
+        For HTTPS URLs, clones into ``target_dir`` and returns it. For
+        local paths, validates the directory holds a git checkout and
+        returns its absolute path (``target_dir`` is ignored).
+
+        Implementations MUST reject path-traversal segments, symlinked
+        directories, and paths missing a ``.git/`` subdirectory.
+
+        Args:
+            source: Either an HTTPS URL or a local filesystem path.
+            target_dir: Destination directory for clones (URL sources).
+
+        Returns:
+            Absolute path to the prepared repository directory.
+
+        Raises:
+            GitError: SPEC-001 on any validation or clone failure.
+        """
+        ...
 
     async def clone(self, repo_url: str, target_dir: str) -> None:
         """Clone a repository to the target directory."""
