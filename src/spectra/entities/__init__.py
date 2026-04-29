@@ -41,6 +41,7 @@ from spectra.entities.models import (
     PASSING_SCORE,
     AgentContext,
     AgentOutput,
+    AgentRunConfig,
     AnalysisReport,
     AnalysisRequest,
     BatchCacheKey,
@@ -49,8 +50,10 @@ from spectra.entities.models import (
     CacheStats,
     Codebase,
     DimensionScore,
+    EffortLevel,
     FileLocation,
     Finding,
+    ModelId,
     RepoCacheKey,
     ScoreCard,
     TokenBudget,
@@ -59,19 +62,16 @@ from spectra.entities.models import (
 )
 
 __all__ = [
-    # constants
     "DEFAULT_DIMENSION_SCORE",
-    # errors
     "ERRORS",
     "EXCELLENT_SCORE",
     "MIN_CONFIDENCE",
     "PASSING_SCORE",
-    # models
     "AgentContext",
     "AgentError",
     "AgentOutput",
-    # enums
     "AgentRole",
+    "AgentRunConfig",
     "AnalysisReport",
     "AnalysisRequest",
     "BatchCacheKey",
@@ -81,10 +81,12 @@ __all__ = [
     "Codebase",
     "Dimension",
     "DimensionScore",
+    "EffortLevel",
     "FileLocation",
     "Finding",
     "GitError",
     "Grade",
+    "ModelId",
     "PipelineState",
     "RepoCacheKey",
     "SchemaVersion",

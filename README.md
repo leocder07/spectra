@@ -420,6 +420,39 @@ The argument can be an HTTPS Git URL, a local path, or `.` for the current worki
 | `--force` | off | Bypass cache, force a fresh analysis |
 | `--no-cache` | off | Disable cache reads and writes for this run |
 
+### Per-agent model + effort
+
+Override the default Claude Opus 4.7 wiring per agent role.
+
+```bash
+# Run all 6 specialists on Sonnet 4.6 (cheaper, slightly less accurate)
+spectra analyze <repo> --model claude-sonnet-4-6
+
+# Bump security agent's effort to max while keeping others at xhigh
+spectra analyze <repo> --security-effort max
+
+# Use Haiku for documentation only (it's cheap and docs don't need much reasoning)
+spectra analyze <repo> --documentation-model claude-haiku-4-5
+
+# Power-user JSON override
+spectra analyze <repo> \
+  --model-overrides '{"security":"claude-opus-4-7","documentation":"claude-haiku-4-5"}' \
+  --effort-overrides '{"security":"max"}'
+```
+
+| Flag | Default | Allowed |
+|---|---|---|
+| `--model` | `claude-opus-4-7` (specialists) | `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5` |
+| `--effort` | `xhigh` (specialists), `medium` (meta), `high` (critique) | `low`, `medium`, `high`, `xhigh`, `max` |
+| `--<role>-model` | inherits `--model` | same as above |
+| `--<role>-effort` | inherits `--effort` | same as above |
+
+Roles: `meta`, `architecture`, `security`, `quality`, `documentation`, `dependency`, `performance`, `critique`.
+
+**Constraint:** `max` effort is Opus-tier only (Sonnet 4.6 and Haiku 4.5 reject it).
+
+JSON overrides win over per-flag overrides when both are present.
+
 ### `spectra cache`
 
 Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db` (WAL mode). Three subcommands manage it:

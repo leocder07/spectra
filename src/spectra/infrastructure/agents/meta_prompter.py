@@ -131,19 +131,26 @@ class MetaPrompter(BaseAgent):
     agent), and ``token_allocation`` to guide specialist execution.
     """
 
-    def __init__(self, gateway: LLMGateway) -> None:
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        model: str = "claude-opus-4-7",
+        effort: str = "medium",
+    ) -> None:
         """Initialize the MetaPrompter.
 
         Args:
             gateway: Shared LLM gateway.
+            model: Anthropic model id (default Opus 4.7).
+            effort: Reasoning effort level (default ``medium``).
         """
         super().__init__(
             role="meta_prompter",
             gateway=gateway,
-            model="claude-opus-4-7",
+            model=model,
             system_prompt=_SYSTEM_PROMPT,
             max_tokens=5_000,
-            effort="medium",
+            effort=effort,
         )
 
     def validate_input(self, user_prompt: str) -> None:

@@ -140,19 +140,26 @@ class CritiqueAgent(BaseAgent):
     without the ``xhigh`` token premium used by specialists.
     """
 
-    def __init__(self, gateway: LLMGateway) -> None:
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        model: str = "claude-opus-4-7",
+        effort: str = "high",
+    ) -> None:
         """Initialize the CritiqueAgent.
 
         Args:
             gateway: Shared LLM gateway.
+            model: Anthropic model id (default Opus 4.7).
+            effort: Reasoning effort level (default ``high``).
         """
         super().__init__(
             role="critique",
             gateway=gateway,
-            model="claude-opus-4-7",
+            model=model,
             system_prompt=_SYSTEM_PROMPT,
             max_tokens=64_000,
-            effort="high",
+            effort=effort,
         )
 
     def validate_input(self, user_prompt: str) -> None:

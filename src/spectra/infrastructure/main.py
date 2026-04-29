@@ -75,6 +75,7 @@ from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import is_local_path
+from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -92,6 +93,27 @@ class ReportError(Exception):
         super().__init__(f"{error.code}: {error.message}")
 
 
+def _build_agents(
+    gateway: object,
+    agent_overrides: dict[str, object] | None,
+    *,
+    skip_critique: bool,
+) -> tuple[object, list[object], object | None]:
+    """Resolve per-agent configs from CLI overrides and build all 8 agents.
+
+    Returns:
+        ``(meta_prompter, specialists, critique_agent)``. ``critique_agent``
+        is ``None`` when ``skip_critique`` is True.
+    """
+    configs = resolve_agent_configs(agent_overrides or {})
+    factory = AgentFactory(gateway=gateway, configs=configs)  # type: ignore[arg-type]
+    return (
+        factory.create("meta_prompter"),
+        factory.create_specialists(),
+        None if skip_critique else factory.create("critique"),
+    )
+
+
 async def _run_analysis(
     repo_url: str,
     output_path: str,
@@ -100,6 +122,7 @@ async def _run_analysis(
     verbose: bool = False,
     force: bool = False,
     no_cache: bool = False,
+    agent_overrides: dict[str, object] | None = None,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -115,6 +138,7 @@ async def _run_analysis(
         verbose: Enable debug logging when True.
         force: Bypass cache reads and force a fresh run (still writes the cache).
         no_cache: Disable cache reads and writes entirely (CI-safe).
+        agent_overrides: Per-agent model/effort overrides from the CLI.
 
     Returns:
         Completed analysis report.
@@ -172,13 +196,11 @@ async def _run_analysis(
 
         # ── DI Wiring: Agent Factory ──────────────────────────────
         # AgentFactory creates all 8 agents with the decorated gateway.
-        # MetaPrompter (Opus 4.7, medium effort) plans from file tree only.
-        # 6 specialists (Opus 4.7, effort=xhigh) run in parallel via asyncio.gather.
-        # CritiqueAgent (Opus 4.7, adaptive thinking + task budget) validates findings.
-        factory = AgentFactory(gateway=gateway)
-        meta_prompter = factory.create("meta_prompter")
-        specialists = factory.create_specialists()
-        critique_agent = None if skip_critique else factory.create("critique")
+        # CLI overrides (--model / --<role>-effort / --model-overrides JSON)
+        # are merged into a per-role AgentRunConfig map and threaded through.
+        meta_prompter, specialists, critique_agent = _build_agents(
+            gateway, agent_overrides, skip_critique=skip_critique
+        )
 
         # ── Pipeline Stages 2-5 ──────────────────────────────────
         # Delegates to analyze_repository() which orchestrates:
