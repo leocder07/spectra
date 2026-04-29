@@ -42,10 +42,14 @@ from pathlib import Path
 
 from spectra.adapters.cli_controller import cli_entry, set_analyzer_factory
 from spectra.adapters.progress_reporter import RichProgressReporter
-from spectra.entities.errors import ERRORS, SpectraError
+from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import AnalysisReport, AnalysisRequest, Codebase
 from spectra.infrastructure.agents.agent_factory import AgentFactory
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
+from spectra.infrastructure.cache_adapter import (
+    SqliteCacheAdapter,
+    default_cache_path,
+)
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
@@ -112,8 +116,12 @@ async def _run_analysis(
     # ── DI Wiring: Infrastructure Adapters ─────────────────────────
     # GitAdapter implements GitPort (clone, file tree, read_file)
     # ReportAdapter implements ReportPort (Jinja2 HTML rendering)
+    # SqliteCacheAdapter implements CachePort (additive in Phase 1 —
+    # not yet consumed by analyze_repository; wired so cache state is
+    # initialized once per process and closed cleanly on shutdown).
     git = GitAdapter()
     report_renderer = ReportAdapter()
+    cache = _build_cache_adapter()
 
     clone_dir = tempfile.mkdtemp(prefix="spectra-")
     os.chmod(clone_dir, 0o700)
@@ -192,6 +200,38 @@ async def _run_analysis(
     finally:
         shutil.rmtree(clone_dir, ignore_errors=True)
         await adapter.close()
+        _close_cache_quietly(cache)
+
+
+# ── Cache adapter construction ───────────────────────────────
+
+
+def _build_cache_adapter() -> SqliteCacheAdapter | None:
+    """Construct the SQLite cache adapter, or return None on I/O failure.
+
+    Phase 1 is purely additive: the cache is wired into the composition
+    root but not yet consumed by ``analyze_repository``. Failure to
+    initialize the cache must NEVER abort the run, so SPEC-010 is
+    swallowed here and the caller treats ``None`` as "no cache".
+    """
+    try:
+        return SqliteCacheAdapter(db_path=default_cache_path())
+    except AgentError as exc:
+        logging.getLogger("spectra").warning(
+            "Cache disabled (%s); analysis will proceed without caching",
+            exc.error.code,
+        )
+        return None
+
+
+def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
+    """Close the cache adapter, swallowing any SPEC-010 raised during close."""
+    if cache is None:
+        return
+    try:
+        cache.close()
+    except AgentError:
+        logging.getLogger("spectra").debug("Cache close failed; ignoring")
 
 
 # ── Heuristic source file reader ─────────────────────────────

@@ -62,3 +62,7 @@ PipelineState = Literal[
     "failed",
 ]
 """Pipeline lifecycle state machine values."""
+
+SchemaVersion = Literal["v1"]
+"""Cache schema version. Bumped when ``Finding`` or ``AgentOutput`` shape changes;
+all rows tagged with a stale version are invalidated on lookup."""

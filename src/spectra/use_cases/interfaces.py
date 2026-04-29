@@ -10,14 +10,15 @@ Protocols defined here:
     TokenPort — Token counting and budget checks via tiktoken.
     ReportPort — Render AnalysisReport to HTML via Jinja2.
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
+    CachePort — Per-file finding cache (Phase 1, additive).
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from spectra.entities.enums import AgentRole
-from spectra.entities.models import AnalysisReport
+from spectra.entities.enums import AgentRole, Dimension
+from spectra.entities.models import AnalysisReport, CacheStats, Finding
 
 
 class LLMGateway(Protocol):
@@ -153,4 +154,48 @@ class ProgressObserver(Protocol):
 
     def on_error(self, stage: str, error: str) -> None:
         """Called when a stage-level error occurs."""
+        ...
+
+
+class CachePort(Protocol):
+    """Port for the per-file finding cache.
+
+    Implemented by ``SqliteCacheAdapter``. All methods are synchronous —
+    the cache is local I/O, not networked. Lookups return ``None`` on
+    miss rather than raising; serious I/O failures raise ``AgentError``
+    with code ``SPEC-010`` so callers can degrade gracefully.
+    """
+
+    def get_findings(
+        self,
+        file_hash: str,
+        dimension: Dimension,
+    ) -> tuple[Finding, ...] | None:
+        """Return cached findings or ``None`` on miss."""
+        ...
+
+    def put_findings(
+        self,
+        file_hash: str,
+        dimension: Dimension,
+        findings: tuple[Finding, ...],
+        model_version: str,
+        prompt_version: str,
+    ) -> None:
+        """Persist findings keyed by (file_hash, dimension)."""
+        ...
+
+    def compute_repo_signature(
+        self,
+        file_tree: tuple[str, ...],
+    ) -> str:
+        """Return a deterministic signature of the file tree."""
+        ...
+
+    def stats(self) -> CacheStats:
+        """Return aggregate cache statistics."""
+        ...
+
+    def clear(self, repo_signature: str | None = None) -> int:
+        """Purge entries; return the count removed."""
         ...
