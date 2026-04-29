@@ -1224,9 +1224,11 @@ def _collect_cc_gaps(
     """Collect all uncovered CC controls as a gap list."""
     gaps: list[dict[str, str]] = []
     for cat in cc_categories:
-        for ctrl in cat["controls"]:
-            if not ctrl["covered"]:
-                gaps.append({"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]})
+        gaps.extend(
+            {"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]}
+            for ctrl in cat["controls"]
+            if not ctrl["covered"]
+        )
     return gaps
 
 
@@ -1397,10 +1399,9 @@ def _detect_copyleft_risk(
 ) -> dict[str, object]:
     """Identify copyleft licenses that may restrict distribution."""
     copyleft_patterns = {"GPL", "AGPL", "LGPL"}
-    found: list[str] = []
-    for lic in license_hits:
-        if any(cp in lic for cp in copyleft_patterns):
-            found.append(lic)
+    found: list[str] = [
+        lic for lic in license_hits if any(cp in lic for cp in copyleft_patterns)
+    ]
     return {
         "has_copyleft": len(found) > 0,
         "copyleft_licenses": found,
