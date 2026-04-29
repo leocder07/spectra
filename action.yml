@@ -120,71 +120,38 @@ runs:
         echo "grade=${GRADE}" >> "$GITHUB_OUTPUT"
         echo "score=${SCORE}" >> "$GITHUB_OUTPUT"
 
+    # Markdown-safe PR comment renderer (capability #4 — RICE-72).
+    # The body is composed by `spectra render pr-comment`, which enforces
+    # a finding-field allowlist and HTML-escapes every text field so a
+    # malicious finding cannot inject script/img/link payloads into the
+    # PR comment surface (Red Team T3).
+    - name: Render safe PR comment body
+      id: comment_body
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' && inputs.format == 'json' }}
+      shell: bash
+      env:
+        REPORT_PATH: ${{ steps.run.outputs.report_path }}
+      run: |
+        set -euo pipefail
+        BODY_FILE="${RUNNER_TEMP:-/tmp}/spectra-pr-comment.md"
+        spectra render pr-comment "${REPORT_PATH}" > "${BODY_FILE}"
+        # Append a workflow-run footer (links are trusted — they come from
+        # GitHub's own environment, not from finding text).
+        RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        printf '\n[Workflow run](%s) · Re-runs on this PR update this comment.\n' "${RUN_URL}" >> "${BODY_FILE}"
+        echo "body_file=${BODY_FILE}" >> "$GITHUB_OUTPUT"
+
     # Pinned to v7.0.1
     - name: Post or update PR comment
       if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' && inputs.format == 'json' }}
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
       env:
-        REPORT_PATH: ${{ steps.run.outputs.report_path }}
+        BODY_FILE: ${{ steps.comment_body.outputs.body_file }}
       with:
         script: |
           const fs = require('fs');
           const MARKER = '<!-- SPECTRA -->';
-          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-          const prHead = context.payload.pull_request.head.sha;
-
-          let body = `${MARKER}\n## Spectra Analysis\n\n`;
-
-          try {
-            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
-            const sc = report.score_card || {};
-            const grade = sc.overall_grade || 'N/A';
-            const score = sc.overall_score != null ? sc.overall_score.toFixed(1) : 'N/A';
-            const totalFindings = sc.total_findings ?? (report.findings || []).length;
-            const findings = report.findings || [];
-
-            const critical = findings.filter(f => f.severity === 'critical');
-            const high = findings.filter(f => f.severity === 'high');
-            const top = [...critical, ...high].slice(0, 5);
-
-            body += `**Grade:** \`${grade}\` (${score}/100)  \n`;
-            body += `**Findings:** ${totalFindings} total · ${critical.length} critical · ${high.length} high\n\n`;
-
-            if (sc.dimensions && sc.dimensions.length) {
-              body += `| Dimension | Score | Grade |\n|---|---|---|\n`;
-              for (const d of sc.dimensions) {
-                body += `| ${d.dimension} | ${d.score.toFixed(1)} | ${d.grade} |\n`;
-              }
-              body += '\n';
-            }
-
-            if (top.length) {
-              body += `### Top ${top.length} findings\n\n`;
-              for (const f of top) {
-                const loc = f.location || {};
-                const file = loc.file_path;
-                const line = loc.line_start || 1;
-                const sev = (f.severity || '').toUpperCase();
-                let head = `- **[${sev}]** ${f.title || 'Untitled finding'}`;
-                if (file) {
-                  const link = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/blob/${prHead}/${file}#L${line}`;
-                  head += ` — [\`${file}:${line}\`](${link})`;
-                }
-                body += `${head}\n`;
-                if (f.recommendation) {
-                  body += `  - ${f.recommendation}\n`;
-                }
-              }
-              body += '\n';
-            } else {
-              body += `_No critical or high severity findings._\n\n`;
-            }
-
-            body += `[Workflow run](${runUrl}) · Re-runs on this PR update this comment.`;
-          } catch (err) {
-            body += `Analysis did not produce a parseable report (\`${err.message}\`).\n\n`;
-            body += `See the [workflow logs](${runUrl}).`;
-          }
+          const body = fs.readFileSync(process.env.BODY_FILE, 'utf8');
 
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,

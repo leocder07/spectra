@@ -1,8 +1,8 @@
 """SQLite cache adapter — Layer 4 implementation of ``CachePort``.
 
 Caches per-file specialist findings in a single ``cache.db`` file under
-``$XDG_CACHE_HOME/spectra/`` (default ``~/.cache/spectra/``). The
-composite primary key — ``(file_hash, dimension, model_version,
+``$XDG_CACHE_HOME/spectra/$UID/`` (default ``~/.cache/spectra/$UID/``).
+The composite primary key — ``(file_hash, dimension, model_version,
 prompt_version, schema_version)`` — makes invalidation a no-op: a stale
 row simply never matches a current-context lookup, and physical deletion
 is deferred to ``spectra cache prune`` (Phase 4).
@@ -12,14 +12,23 @@ blocking writes. All fallible I/O is funnelled through ``_guard_io``,
 which converts ``sqlite3.Error`` and ``OSError`` into ``AgentError``
 carrying SPEC-010 — the use-case layer treats this as non-fatal and
 degrades to no-cache.
+
+ADR-012 — every persisted row carries a 32-byte ``blake2b`` HMAC over
+the full cache-key tuple, the row payload, and the bound version tuple.
+On read the adapter recomputes and constant-time-compares the MAC; a
+mismatch drops the row and returns a cache miss. Combined with the
+per-``$UID`` directory layout, this defends against cache poisoning on
+shared dev hosts and CI runner images.
 """
 
 from __future__ import annotations
 
+import hmac as _hmac
 import json
+import logging
 import os
 import sqlite3
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from hashlib import blake2b
 from pathlib import Path
@@ -31,6 +40,7 @@ from spectra.entities.errors import ERRORS, AgentError
 from spectra.entities.models import (
     AnalysisReport,
     BatchCacheKey,
+    CacheSecret,
     CacheStats,
     Finding,
     RepoCacheKey,
@@ -61,6 +71,7 @@ CREATE TABLE IF NOT EXISTS findings_cache (
     schema_version    TEXT NOT NULL,
     repo_signature    TEXT NOT NULL,
     computed_at       TIMESTAMP NOT NULL,
+    mac               BLOB NOT NULL DEFAULT x'',
     PRIMARY KEY (file_hash, dimension, model_version, prompt_version, schema_version)
 )
 """
@@ -91,6 +102,7 @@ CREATE TABLE IF NOT EXISTS full_report_cache (
     schema_version   TEXT NOT NULL,
     report_json      TEXT NOT NULL,
     computed_at      TIMESTAMP NOT NULL,
+    mac              BLOB NOT NULL DEFAULT x'',
     PRIMARY KEY (
         repo_signature,
         spectra_version,
@@ -111,6 +123,7 @@ CREATE TABLE IF NOT EXISTS findings_batches (
     spectra_version  TEXT NOT NULL,
     findings_json    TEXT NOT NULL,
     computed_at      TIMESTAMP NOT NULL,
+    mac              BLOB NOT NULL DEFAULT x'',
     PRIMARY KEY (
         batch_id,
         dimension,
@@ -121,6 +134,19 @@ CREATE TABLE IF NOT EXISTS findings_batches (
     )
 )
 """
+
+# ADR-012: tables that gain a per-row HMAC. (table, ALTER stmt) tuples
+# applied at startup for caches created before the mac column existed.
+_MAC_LEGACY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("findings_cache", "ALTER TABLE findings_cache ADD COLUMN mac BLOB NOT NULL DEFAULT x''"),
+    ("full_report_cache", "ALTER TABLE full_report_cache ADD COLUMN mac BLOB NOT NULL DEFAULT x''"),
+    ("findings_batches", "ALTER TABLE findings_batches ADD COLUMN mac BLOB NOT NULL DEFAULT x''"),
+)
+"""ADR-012 ALTER TABLE migration steps for legacy tables missing ``mac``."""
+
+_LOG = logging.getLogger("spectra.cache")
+_MAC_DIGEST_SIZE = 32
+_NUL = b"\x00"
 
 
 # ── Module-level helpers (single responsibility) ──────────────
@@ -158,6 +184,31 @@ def _spec_010(cause: BaseException) -> AgentError:
     return err
 
 
+# ── ADR-012: HMAC helpers ─────────────────────────────────────
+
+
+def _compute_mac(secret: CacheSecret, key_parts: tuple[str, ...], value: str) -> bytes:
+    """Return ``blake2b`` MAC over the cache key tuple and serialized value.
+
+    The MAC binds every persisted row to the per-user secret. Bumping any
+    cache-key component, the value, or the secret produces a different
+    MAC; ``compare_digest`` then rejects the row at lookup time.
+    """
+    digest = blake2b(key=secret.value, digest_size=_MAC_DIGEST_SIZE)
+    for part in key_parts:
+        digest.update(part.encode("utf-8"))
+        digest.update(_NUL)
+    digest.update(value.encode("utf-8"))
+    return digest.digest()
+
+
+def _mac_matches(expected: bytes, actual: object) -> bool:
+    """Constant-time MAC comparison; tolerant of stored-MAC type wobble."""
+    if not isinstance(actual, (bytes, bytearray, memoryview)):
+        return False
+    return _hmac.compare_digest(expected, bytes(actual))
+
+
 @contextmanager
 def _guard_io() -> Iterator[None]:
     """Convert sqlite3/OS failures into ``AgentError`` SPEC-010."""
@@ -181,30 +232,64 @@ class SqliteCacheAdapter:
     lookup without touching disk.
     """
 
-    def __init__(self, db_path: Path) -> None:
-        """Open ``db_path``, enable WAL, ensure schema exists."""
+    def __init__(
+        self,
+        db_path: Path,
+        secret: CacheSecret | None = None,
+    ) -> None:
+        """Open ``db_path``, enable WAL, ensure schema exists.
+
+        Args:
+            db_path: SQLite cache file location (parent dirs auto-created).
+            secret: Optional ADR-012 HMAC key. When ``None`` the adapter
+                runs in legacy no-MAC mode for callers that do not need
+                tamper detection (existing tests, headless CI runners).
+        """
         self._db_path = db_path
+        self._secret = secret
         self._model_version = _DEFAULT_MODEL_VERSION
         self._prompt_versions: dict[str, str] = {}
         self._schema_version: SchemaVersion = SCHEMA_VERSION
         self._repo_signature = _NO_REPO_SIGNATURE
         self._run_versions: tuple[str, str, str, str] | None = None
+        self._mac_failures = 0
         self._conn = self._open_connection()
         self._init_schema()
 
     # ── Connection lifecycle ──────────────────────────────────
 
     def _open_connection(self) -> sqlite3.Connection:
-        """Create parent dir, open SQLite, set WAL — all under SPEC-010."""
+        """Create parent dir 0700, open SQLite, chmod 0600, set WAL.
+
+        ADR-012 — the parent directory is restricted to the owning user
+        and the cache file (plus its WAL/SHM siblings) are tightened to
+        owner read/write only. Permission tightening is best-effort on
+        platforms where ``chmod`` is a no-op (Windows).
+        """
         with _guard_io():
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._tighten_dir_perms()
             conn = sqlite3.connect(
                 str(self._db_path),
                 detect_types=sqlite3.PARSE_DECLTYPES,
                 isolation_level=None,
             )
             conn.execute("PRAGMA journal_mode=WAL")
+            self._tighten_db_perms()
             return conn
+
+    def _tighten_dir_perms(self) -> None:
+        """``chmod 0700`` the cache parent directory; ignore if unsupported."""
+        with suppress(OSError, NotImplementedError):
+            self._db_path.parent.chmod(0o700)
+
+    def _tighten_db_perms(self) -> None:
+        """``chmod 0600`` the cache.db (and WAL/SHM if present)."""
+        for suffix in ("", "-wal", "-shm"):
+            target = self._db_path.with_name(self._db_path.name + suffix)
+            if target.exists():
+                with suppress(OSError, NotImplementedError):
+                    target.chmod(0o600)
 
     def _init_schema(self) -> None:
         """Run CREATE TABLE/INDEX IF NOT EXISTS statements idempotently."""
@@ -216,12 +301,22 @@ class SqliteCacheAdapter:
             self._conn.execute(_CREATE_FULL_REPORT_TABLE)
             self._conn.execute(_CREATE_BATCH_FINDINGS_TABLE)
             self._migrate_hit_log_columns()
+            self._migrate_mac_columns()
 
     def _migrate_hit_log_columns(self) -> None:
         """Phase 4 ALTER TABLE: add dimension/batch_id to legacy hit_log rows."""
         existing = {row[1] for row in self._conn.execute("PRAGMA table_info(hit_log)")}
         for column, stmt in _HIT_LOG_LEGACY_COLUMNS:
             if column not in existing:
+                self._conn.execute(stmt)
+
+    def _migrate_mac_columns(self) -> None:
+        """ADR-012 ALTER TABLE: add ``mac BLOB`` to pre-HMAC cache tables."""
+        for table, stmt in _MAC_LEGACY_COLUMNS:
+            # PRAGMA accepts unquoted identifiers only — table names come
+            # from the literal allow-list ``_MAC_LEGACY_COLUMNS`` above.
+            cols = {row[1] for row in self._conn.execute(f"PRAGMA table_info({table})")}
+            if "mac" not in cols:
                 self._conn.execute(stmt)
 
     def close(self) -> None:
@@ -298,13 +393,51 @@ class SqliteCacheAdapter:
         file_hash: str,
         dimension: Dimension,
     ) -> tuple[Finding, ...] | None:
-        """Return cached findings or ``None`` on miss."""
+        """Return cached findings or ``None`` on miss.
+
+        ADR-012 — when a per-user secret is bound, the row's MAC is
+        recomputed from the cache key plus stored payload and compared
+        with ``hmac.compare_digest``. A mismatch deletes the row and
+        returns a miss; the run proceeds with a fresh analysis.
+        """
         params = self._lookup_key(file_hash, dimension)
         with _guard_io():
             row = self._conn.execute(_SELECT_FINDINGS_SQL, params).fetchone()
         if row is None:
             return None
+        if not self._verify_findings_mac(params, row):
+            return None
         return _deserialize_findings(row[0])
+
+    def _verify_findings_mac(
+        self,
+        params: tuple[str, ...],
+        row: tuple[object, ...],
+    ) -> bool:
+        """Validate the per-row HMAC; drop the row + log on mismatch."""
+        if self._secret is None:
+            return True
+        expected = _compute_mac(self._secret, params, str(row[0]))
+        if _mac_matches(expected, row[1]):
+            return True
+        self._drop_tampered_row(_DELETE_FINDINGS_BY_KEY_SQL, params, table="findings_cache")
+        return False
+
+    def _drop_tampered_row(
+        self,
+        delete_sql: str,
+        params: tuple[str, ...],
+        *,
+        table: str,
+    ) -> None:
+        """Delete a row that failed MAC verification + log SPEC-010."""
+        self._mac_failures += 1
+        _LOG.warning(
+            "SPEC-010: cache MAC mismatch on %s; dropping row and re-analyzing",
+            table,
+        )
+        with _guard_io():
+            self._conn.execute(delete_sql, params)
 
     def _lookup_key(
         self,
@@ -342,18 +475,28 @@ class SqliteCacheAdapter:
             self._conn.execute(_UPSERT_FINDINGS_SQL, params)
 
     def _upsert_params(self, call: _PutCall) -> tuple[object, ...]:
-        """Build the parameter tuple for the upsert SQL."""
+        """Build the parameter tuple for the upsert SQL (incl. ADR-012 mac)."""
+        payload = _serialize_findings(call.findings)
+        key = (
+            call.file_hash,
+            call.dimension,
+            call.model_version,
+            call.prompt_version,
+            self._schema_version,
+        )
+        mac = _compute_mac(self._secret, key, payload) if self._secret else b""
         return (
             call.file_hash,
             call.dimension,
             _first_file_path(call.findings),
-            _serialize_findings(call.findings),
+            payload,
             call.model_version,
             call.prompt_version,
             _SPECTRA_VERSION,
             self._schema_version,
             self._repo_signature,
             datetime.now(UTC),
+            mac,
         )
 
     def clear(self, repo_signature: str | None = None) -> int:
@@ -405,18 +548,32 @@ class SqliteCacheAdapter:
 
     def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
         """Return the full ``AnalysisReport`` cached under ``key``, or ``None`` on miss."""
+        params = _full_report_key_params(key)
         with _guard_io():
-            row = self._conn.execute(
-                _SELECT_FULL_REPORT_SQL,
-                _full_report_key_params(key),
-            ).fetchone()
+            row = self._conn.execute(_SELECT_FULL_REPORT_SQL, params).fetchone()
         if row is None:
+            return None
+        if not self._verify_full_report_mac(params, row):
             return None
         return AnalysisReport.model_validate_json(row[0])
 
+    def _verify_full_report_mac(
+        self,
+        params: tuple[str, ...],
+        row: tuple[object, ...],
+    ) -> bool:
+        """Validate the per-row HMAC for full_report_cache; drop on mismatch."""
+        if self._secret is None:
+            return True
+        expected = _compute_mac(self._secret, params, str(row[0]))
+        if _mac_matches(expected, row[1]):
+            return True
+        self._drop_tampered_row(_DELETE_FULL_REPORT_BY_KEY_SQL, params, table="full_report_cache")
+        return False
+
     def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
         """Persist ``report`` under ``key`` for the Phase 2 short-circuit."""
-        params = _full_report_upsert_params(key, report)
+        params = _full_report_upsert_params(key, report, self._secret)
         with _guard_io():
             self._conn.execute(_UPSERT_FULL_REPORT_SQL, params)
 
@@ -424,14 +581,28 @@ class SqliteCacheAdapter:
 
     def get_batch_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
         """Return cached findings for ``key`` or ``None`` on miss."""
+        params = _batch_key_params(key)
         with _guard_io():
-            row = self._conn.execute(
-                _SELECT_BATCH_FINDINGS_SQL,
-                _batch_key_params(key),
-            ).fetchone()
+            row = self._conn.execute(_SELECT_BATCH_FINDINGS_SQL, params).fetchone()
         if row is None:
             return None
+        if not self._verify_batch_findings_mac(params, row):
+            return None
         return _deserialize_findings(row[0])
+
+    def _verify_batch_findings_mac(
+        self,
+        params: tuple[str, ...],
+        row: tuple[object, ...],
+    ) -> bool:
+        """Validate the per-row HMAC for findings_batches; drop on mismatch."""
+        if self._secret is None:
+            return True
+        expected = _compute_mac(self._secret, params, str(row[0]))
+        if _mac_matches(expected, row[1]):
+            return True
+        self._drop_tampered_row(_DELETE_BATCH_FINDINGS_BY_KEY_SQL, params, table="findings_batches")
+        return False
 
     def put_batch_findings(
         self,
@@ -439,7 +610,7 @@ class SqliteCacheAdapter:
         findings: tuple[Finding, ...],
     ) -> None:
         """Persist ``findings`` under the composite ``key`` (latest write wins)."""
-        params = _batch_upsert_params(key, findings)
+        params = _batch_upsert_params(key, findings, self._secret)
         with _guard_io():
             self._conn.execute(_UPSERT_BATCH_FINDINGS_SQL, params)
 
@@ -585,6 +756,76 @@ class SqliteCacheAdapter:
         """Return the on-disk cache.db path (used by ``cache stats`` CLI)."""
         return self._db_path
 
+    @property
+    def has_secret(self) -> bool:
+        """True when ADR-012 HMAC enforcement is active for this adapter."""
+        return self._secret is not None
+
+    # ── ADR-012: cache doctor diagnostics ─────────────────────
+
+    def count_rows(self) -> dict[str, dict[str, int]]:
+        """Return per-table totals + verified/failed MAC counts.
+
+        Powers ``spectra cache doctor``. When no secret is bound (legacy
+        mode) every row counts as ``verified`` since MAC is not enforced.
+        """
+        with _guard_io():
+            return {table: self._count_table(table) for table in _ALL_TABLES}
+
+    def _count_table(self, table: str) -> dict[str, int]:
+        """Walk one cache table, classifying each row by MAC verification."""
+        if table == "findings_cache":
+            return self._count_findings_cache()
+        if table == "full_report_cache":
+            return self._count_full_report_cache()
+        if table == "findings_batches":
+            return self._count_findings_batches()
+        return {"total": 0, "verified": 0, "failed": 0}
+
+    def _count_findings_cache(self) -> dict[str, int]:
+        """Verify every row in findings_cache against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT file_hash, dimension, model_version, prompt_version, "
+            "schema_version, findings_json, mac FROM findings_cache",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=5)
+
+    def _count_full_report_cache(self) -> dict[str, int]:
+        """Verify every row in full_report_cache against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT repo_signature, spectra_version, model_versions, "
+            "prompt_versions, schema_version, report_json, mac FROM full_report_cache",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=5)
+
+    def _count_findings_batches(self) -> dict[str, int]:
+        """Verify every row in findings_batches against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT batch_id, dimension, model_version, prompt_version, "
+            "schema_version, spectra_version, findings_json, mac FROM findings_batches",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=6)
+
+    def _tally_rows(
+        self,
+        rows: list[tuple[object, ...]],
+        *,
+        key_width: int,
+    ) -> dict[str, int]:
+        """Bucket ``rows`` into total / verified / failed by MAC verification."""
+        verified = sum(1 for r in rows if self._row_mac_ok(r, key_width=key_width))
+        return {"total": len(rows), "verified": verified, "failed": len(rows) - verified}
+
+    def _row_mac_ok(self, row: tuple[object, ...], *, key_width: int) -> bool:
+        """Recompute the MAC for one row and compare to the stored value."""
+        if self._secret is None:
+            return True
+        key_parts = tuple(str(p) for p in row[:key_width])
+        payload = str(row[key_width])
+        stored_mac = row[key_width + 1]
+        expected = _compute_mac(self._secret, key_parts, payload)
+        return _mac_matches(expected, stored_mac)
+
 
 # ── Module-level helpers (kept tiny, single-purpose) ──────────
 
@@ -599,7 +840,7 @@ def _first_file_path(findings: Iterable[Finding]) -> str:
 # ── SQL string constants (kept at module bottom for legibility) ──
 
 _SELECT_FINDINGS_SQL = """
-SELECT findings_json
+SELECT findings_json, mac
 FROM findings_cache
 WHERE file_hash = ?
   AND dimension = ?
@@ -612,8 +853,17 @@ _UPSERT_FINDINGS_SQL = """
 INSERT OR REPLACE INTO findings_cache (
     file_hash, dimension, file_path, findings_json,
     model_version, prompt_version, spectra_version, schema_version,
-    repo_signature, computed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    repo_signature, computed_at, mac
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_DELETE_FINDINGS_BY_KEY_SQL = """
+DELETE FROM findings_cache
+WHERE file_hash = ?
+  AND dimension = ?
+  AND model_version = ?
+  AND prompt_version = ?
+  AND schema_version = ?
 """
 
 _STATS_SQL = """
@@ -654,7 +904,7 @@ _DIMENSION_VALUES: frozenset[str] = frozenset(
 )
 
 _SELECT_FULL_REPORT_SQL = """
-SELECT report_json
+SELECT report_json, mac
 FROM full_report_cache
 WHERE repo_signature = ?
   AND spectra_version = ?
@@ -666,8 +916,17 @@ WHERE repo_signature = ?
 _UPSERT_FULL_REPORT_SQL = """
 INSERT OR REPLACE INTO full_report_cache (
     repo_signature, spectra_version, model_versions,
-    prompt_versions, schema_version, report_json, computed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
+    prompt_versions, schema_version, report_json, computed_at, mac
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_DELETE_FULL_REPORT_BY_KEY_SQL = """
+DELETE FROM full_report_cache
+WHERE repo_signature = ?
+  AND spectra_version = ?
+  AND model_versions = ?
+  AND prompt_versions = ?
+  AND schema_version = ?
 """
 
 
@@ -685,21 +944,26 @@ def _full_report_key_params(key: RepoCacheKey) -> tuple[str, ...]:
 def _full_report_upsert_params(
     key: RepoCacheKey,
     report: AnalysisReport,
+    secret: CacheSecret | None,
 ) -> tuple[object, ...]:
-    """Pack key + report into the upsert parameter tuple."""
+    """Pack key + report (+ ADR-012 mac) into the upsert parameter tuple."""
+    payload = report.model_dump_json()
+    key_parts = _full_report_key_params(key)
+    mac = _compute_mac(secret, key_parts, payload) if secret else b""
     return (
         key.repo_signature,
         key.spectra_version,
         key.model_versions,
         key.prompt_versions,
         key.schema_version,
-        report.model_dump_json(),
+        payload,
         datetime.now(UTC),
+        mac,
     )
 
 
 _SELECT_BATCH_FINDINGS_SQL = """
-SELECT findings_json
+SELECT findings_json, mac
 FROM findings_batches
 WHERE batch_id = ?
   AND dimension = ?
@@ -712,8 +976,18 @@ WHERE batch_id = ?
 _UPSERT_BATCH_FINDINGS_SQL = """
 INSERT OR REPLACE INTO findings_batches (
     batch_id, dimension, model_version, prompt_version,
-    schema_version, spectra_version, findings_json, computed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    schema_version, spectra_version, findings_json, computed_at, mac
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_DELETE_BATCH_FINDINGS_BY_KEY_SQL = """
+DELETE FROM findings_batches
+WHERE batch_id = ?
+  AND dimension = ?
+  AND model_version = ?
+  AND prompt_version = ?
+  AND schema_version = ?
+  AND spectra_version = ?
 """
 
 
@@ -732,8 +1006,12 @@ def _batch_key_params(key: BatchCacheKey) -> tuple[str, ...]:
 def _batch_upsert_params(
     key: BatchCacheKey,
     findings: tuple[Finding, ...],
+    secret: CacheSecret | None,
 ) -> tuple[object, ...]:
-    """Pack key + findings into the upsert parameter tuple."""
+    """Pack key + findings (+ ADR-012 mac) into the upsert parameter tuple."""
+    payload = _serialize_findings(findings)
+    key_parts = _batch_key_params(key)
+    mac = _compute_mac(secret, key_parts, payload) if secret else b""
     return (
         key.batch_id,
         key.dimension,
@@ -741,8 +1019,9 @@ def _batch_upsert_params(
         key.prompt_version,
         key.schema_version,
         key.spectra_version,
-        _serialize_findings(findings),
+        payload,
         datetime.now(UTC),
+        mac,
     )
 
 
@@ -763,10 +1042,58 @@ sqlite3.register_adapter(datetime, _adapt_datetime_iso)
 sqlite3.register_converter("TIMESTAMP", _convert_timestamp_iso)
 
 
-# ── Path resolution (XDG-respecting) ─────────────────────────
+# ── Path resolution (XDG-respecting, ADR-012 per-UID) ────────
+
+
+def _spectra_cache_root() -> Path:
+    """Return the unscoped Spectra cache root (the parent of the per-UID dir)."""
+    base = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
+    return Path(base) / "spectra"
+
+
+def _current_uid_segment() -> str:
+    """Return the effective UID rendered as a decimal string.
+
+    On Linux/macOS uses ``os.geteuid()``. Windows lacks the syscall,
+    so we fall back to ``"win"`` — the keyring-only secret remains the
+    integrity boundary, but per-user file isolation degrades to a single
+    shared dir until SPEC-010 is wired through composition root.
+    """
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None:
+        return "win"
+    return str(geteuid())
 
 
 def default_cache_path() -> Path:
-    """Return the default cache DB path under XDG_CACHE_HOME or ~/.cache."""
-    base = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
-    return Path(base) / "spectra" / "cache.db"
+    """Return the default cache DB path: ``$XDG/spectra/$UID/cache.db`` (ADR-012)."""
+    return _spectra_cache_root() / _current_uid_segment() / "cache.db"
+
+
+def legacy_cache_path() -> Path:
+    """Return the pre-ADR-012 unscoped path: ``$XDG/spectra/cache.db``."""
+    return _spectra_cache_root() / "cache.db"
+
+
+def migrate_legacy_cache() -> bool:
+    """Drop the pre-ADR-012 cache.db at the unscoped path.
+
+    Returns True when an old cache existed and was removed. The deletion
+    is intentional — re-keying the entire DB under the freshly generated
+    per-user secret would be more work than the warm cache is worth, and
+    the next run cold-caches naturally.
+    """
+    old = legacy_cache_path()
+    if not old.exists():
+        return False
+    try:
+        old.unlink()
+        # Best-effort cleanup of WAL/SHM siblings.
+        for suffix in ("-wal", "-shm", "-journal"):
+            sibling = old.with_name(old.name + suffix)
+            if sibling.exists():
+                sibling.unlink()
+    except OSError as exc:
+        _LOG.warning("SPEC-010: legacy cache removal failed: %s", exc)
+        return False
+    return True

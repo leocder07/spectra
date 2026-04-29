@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import logging
+import os
 import re
 import traceback
 from datetime import UTC, datetime, timedelta
@@ -23,8 +24,14 @@ from rich.table import Table
 from spectra import __version__
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
-from spectra.entities.errors import AgentError, GitError, SpectraRetryError
-from spectra.entities.models import CacheStats
+from spectra.adapters.pr_comment_renderer import render_pr_comment
+from spectra.entities.errors import (
+    AgentError,
+    GitError,
+    SecretDetectedError,
+    SpectraRetryError,
+)
+from spectra.entities.models import AnalysisReport, CacheStats
 from spectra.use_cases.interfaces import CachePort, is_local_path
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
@@ -395,6 +402,16 @@ def analyze(
         "--no-cache",
         help="Neither read nor write the cache (CI-safe)",
     ),
+    no_gitignore: bool = typer.Option(
+        False,
+        "--no-gitignore",
+        help="Do not honor .gitignore (.spectraignore is still applied)",
+    ),
+    allow_secrets: bool = typer.Option(
+        False,
+        "--allow-secrets",
+        help="Continue past pre-flight secret detection (WARN, not abort)",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -478,11 +495,16 @@ def analyze(
                 force=force,
                 no_cache=no_cache,
                 agent_overrides=overrides,
+                honor_gitignore=not no_gitignore,
+                allow_secrets=allow_secrets,
             )
         )
     except KeyboardInterrupt:
         console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
         raise typer.Exit(code=130) from None
+    except SecretDetectedError as exc:
+        _print_secret_detection(exc)
+        raise typer.Exit(code=1) from exc
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
@@ -506,6 +528,25 @@ def analyze(
             raise typer.Exit(code=1)
         if sc:
             console.print(f"  [{GREEN}]✓[/] Quality gate passed: {sc.overall_score:.0f} >= {min_score:.0f}")
+
+
+def _print_secret_detection(exc: SecretDetectedError) -> None:
+    """Render the SPEC-011 brand-voice failure block listing every match.
+
+    Format constraints (CLAUDE.md §Brand Voice):
+      - Header line ≤80 chars, no trailing period
+      - One line per finding: ``  [pattern] file:line``
+      - Closing hint suggests the documented escape hatches
+    """
+    findings = exc.findings
+    file_count = len({getattr(f, "file_path", "?") for f in findings})
+    console.print(f"[{RED}]✗[/] {exc.error.code}: {len(findings)} secrets found in {file_count} files")
+    for f in findings:
+        path = getattr(f, "file_path", "?")
+        line = getattr(f, "line", "?")
+        pat = getattr(f, "pattern_name", "?")
+        console.print(f"  [{RED}]•[/] [{AMBER}]{pat}[/] {path}:{line}")
+    console.print("  [dim]Add to .gitignore / .spectraignore, or rerun with [/][bold]--allow-secrets[/]")
 
 
 def _print_summary(
@@ -730,4 +771,91 @@ def _render_per_dim_hit_rate(stats: CacheStats) -> None:
     table.add_column("Hit rate")
     for dim, rate in sorted(stats.hit_rate_by_dimension.items()):
         table.add_row(dim, f"{rate:.0%}")
+    console.print(table)
+
+
+# ── spectra render subcommands ────────────────────────────────
+
+render_app = typer.Typer(help="Render reports for downstream tools (PR comments, etc.)")
+app.add_typer(render_app, name="render")
+
+
+@render_app.command("pr-comment")
+def render_pr_comment_cmd(
+    report_path: Path = typer.Argument(  # noqa: B008 — Typer needs the default at definition time
+        ...,
+        help="Path to a JSON AnalysisReport produced by `spectra analyze --format json`",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    ),
+) -> None:
+    """Emit a markdown-safe PR comment body to stdout.
+
+    Reads the JSON report at ``report_path``, validates it against the
+    ``AnalysisReport`` Pydantic model, and prints a sanitized markdown
+    body suitable for ``gh pr comment``. Output starts with the
+    ``<!-- SPECTRA -->`` sentinel so the GitHub Action's update-existing
+    comment path stays idempotent across re-runs.
+    """
+    try:
+        raw = report_path.read_text(encoding="utf-8")
+        report = AnalysisReport.model_validate_json(raw)
+    except (OSError, ValueError) as exc:
+        console.print(f"[{RED}]✗[/] Failed to load report: {exc}")
+        raise typer.Exit(code=1) from exc
+    typer.echo(render_pr_comment(report))
+
+
+# ── ADR-012: spectra cache doctor ────────────────────────────
+
+
+@cache_app.command("doctor")
+def cache_doctor() -> None:
+    """Diagnose the cache: path, UID, keyring backend, MAC verification rates."""
+    cache = _get_cache()
+    _render_doctor_environment(cache)
+    _render_doctor_row_counts(cache)
+
+
+def _render_doctor_environment(cache: CachePort) -> None:
+    """Render the environment table — path, UID, keyring backend status."""
+    db_path = getattr(cache, "db_path", Path("cache.db"))
+    has_secret = bool(getattr(cache, "has_secret", False))
+    backend_label = "OS keyring (HMAC enforced)" if has_secret else "disabled (no secret)"
+    table = Table(title="Spectra cache doctor", title_style=f"bold {VIOLET}")
+    table.add_column("Field", style=f"bold {AMBER}")
+    table.add_column("Value")
+    table.add_row("Cache file", str(db_path))
+    table.add_row("UID", _doctor_uid_label())
+    table.add_row("Keyring backend", backend_label)
+    console.print(table)
+
+
+def _doctor_uid_label() -> str:
+    """Return the effective UID label (or ``win`` on Windows)."""
+    geteuid = getattr(os, "geteuid", None)
+    return str(geteuid()) if geteuid else "win"
+
+
+def _render_doctor_row_counts(cache: CachePort) -> None:
+    """Render the per-table verified/failed table from ``count_rows``."""
+    counter = getattr(cache, "count_rows", None)
+    if counter is None:
+        console.print(f"  [{AMBER}]▸[/] count_rows unsupported by this cache")
+        return
+    counts = counter()
+    table = Table(title="MAC verification (per table)", title_style=f"bold {VIOLET}")
+    table.add_column("Table", style=f"bold {AMBER}")
+    table.add_column("Total", justify="right")
+    table.add_column("Verified", justify="right")
+    table.add_column("Failed", justify="right")
+    table.add_column("Verified %", justify="right")
+    for name, c in counts.items():
+        total = c["total"]
+        verified = c["verified"]
+        failed = c["failed"]
+        pct = f"{(verified / total):.0%}" if total else "—"
+        table.add_row(name, str(total), str(verified), str(failed), pct)
     console.print(table)

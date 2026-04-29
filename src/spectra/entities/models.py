@@ -113,6 +113,27 @@ class Finding(BaseModel, frozen=True):
         return self.severity in ("critical", "high", "medium")
 
 
+class SecretFinding(BaseModel, frozen=True):
+    """Pre-flight secret-scan match — distinct from a code-quality ``Finding``.
+
+    Pre-flight secrets are detected before any LLM call so they never land in
+    a prompt. They are surfaced as their own value object (not a ``Finding``)
+    because they are owned by the workspace boundary, not by an analysis
+    dimension, and they are the trigger for SPEC-011 abort behavior.
+
+    Attributes:
+        file_path: Repository-relative path of the file containing the secret.
+        line: 1-based line number of the match.
+        pattern_name: Stable identifier of the regex that matched
+            (e.g. ``aws_access_key``, ``github_pat``, ``private_key``).
+            Used for grouping in CLI output and tests; never the secret itself.
+    """
+
+    file_path: str
+    line: int = Field(ge=1)
+    pattern_name: str
+
+
 class DimensionScore(BaseModel, frozen=True):
     """Score for a single analysis dimension.
 
@@ -363,6 +384,25 @@ class CacheEntry(BaseModel, frozen=True):
     spectra_version: str
     schema_version: SchemaVersion
     computed_at: datetime
+
+
+class CacheSecret(BaseModel, frozen=True):
+    """Per-user 32-byte HMAC key bound to the cache adapter.
+
+    Wraps the random secret returned by ``SecretBackend``. Construction
+    enforces the 32-byte length contract — any other length is rejected
+    so a misconfigured backend cannot silently weaken the MAC strength.
+    The secret is never serialized to disk or surfaced in error messages;
+    the wrapping entity exists to keep the use-case layer free of raw
+    ``bytes`` plumbing.
+
+    Attributes:
+        value: 32 random bytes from ``secrets.token_bytes(32)``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value: bytes = Field(min_length=32, max_length=32)
 
 
 class CacheStats(BaseModel, frozen=True):

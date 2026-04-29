@@ -390,7 +390,8 @@ class TestRunAnalysis:
             await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
             # Verify security: tmpdir had restricted permissions
-            mock_chmod.assert_called_once_with(_TMP_SPECTRA_TEST, 0o700)
+            # (Plus the per-UID cache dir + cache.db, all chmodded by ADR-012.)
+            mock_chmod.assert_any_call(_TMP_SPECTRA_TEST, 0o700)
             # Verify cleanup of the cloned tmpdir (URL source ⇒ owns_workspace)
             mock_rmtree.assert_called_once_with(_TMP_SPECTRA_TEST, ignore_errors=True)
             mock_adapter.close.assert_called_once()
@@ -716,6 +717,33 @@ class TestBuildSarif:
         region = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]
         assert region["startLine"] == 1
 
+    def test_sarif_run_has_invocation_with_disclaimer_notification(self):
+        """SARIF run carries the indicative-analysis disclaimer in
+        ``invocations[0].notifications`` so SAST consumers see it natively
+        through the standard SARIF mechanism."""
+        from spectra.entities.disclaimer import DISCLAIMER_TEXT, DISCLAIMER_URL
+
+        sarif = _build_sarif(self._make_report())
+        run = sarif["runs"][0]
+        assert "invocations" in run
+        assert len(run["invocations"]) >= 1
+
+        notifications = run["invocations"][0].get("notifications", [])
+        disclaimer_notes = [n for n in notifications if n.get("level") == "note"]
+        assert disclaimer_notes, "disclaimer notification missing"
+
+        note = disclaimer_notes[0]
+        assert note["message"]["text"] == DISCLAIMER_TEXT
+        # Help URI surfaces the docs link to consumers that respect it.
+        assert note.get("descriptor", {}).get("helpUri") == DISCLAIMER_URL
+
+    def test_sarif_invocation_marks_execution_successful(self):
+        """The synthetic invocation must report executionSuccessful=True
+        (per SARIF 2.1.0 §3.20.7) so consumers do not flag it as a failure."""
+        sarif = _build_sarif(self._make_report())
+        invocation = sarif["runs"][0]["invocations"][0]
+        assert invocation.get("executionSuccessful") is True
+
     def test_provision_cache_only_returns_sqlite_adapter(self, tmp_path):
         """_provision_cache_only returns a usable SqliteCacheAdapter."""
         from spectra.infrastructure.cache_adapter import SqliteCacheAdapter
@@ -745,6 +773,61 @@ class TestBuildSarif:
             # Must not raise — the cache subcommands have no LLM dependency.
             cache = _provision_cache_only()
         assert cache is not None
+
+    def test_resolve_cache_secret_returns_none_on_keyring_failure(self):
+        """When keyring is unavailable the composition root returns None.
+
+        ADR-012 — the run continues with cache_port enabled but MAC
+        enforcement off. SPEC-010 is logged once; nothing is fatal.
+        """
+        from spectra.entities.errors import ERRORS, AgentError
+        from spectra.infrastructure.main import _resolve_cache_secret
+
+        def _fail(*_, **__):
+            err = AgentError(ERRORS["SPEC-010"])
+            err.__cause__ = RuntimeError("no keyring")
+            raise err
+
+        with patch("spectra.infrastructure.main.KeyringSecretAdapter") as mock_cls:
+            mock_cls.return_value.get = _fail
+            secret = _resolve_cache_secret()
+        assert secret is None
+
+    def test_resolve_cache_secret_returns_secret_on_keyring_success(self):
+        """When keyring works the secret is returned for the cache adapter."""
+        from spectra.entities.models import CacheSecret
+        from spectra.infrastructure.main import _resolve_cache_secret
+
+        seeded = CacheSecret(value=b"\x09" * 32)
+        with patch("spectra.infrastructure.main.KeyringSecretAdapter") as mock_cls:
+            mock_cls.return_value.get = lambda: seeded
+            secret = _resolve_cache_secret()
+        assert secret == seeded
+
+    def test_build_cache_adapter_drops_legacy_cache_db(self, tmp_path):
+        """ADR-012 migration: pre-PR cache.db is removed at startup."""
+        from spectra.infrastructure.main import _build_cache_adapter
+
+        legacy = tmp_path / "spectra" / "cache.db"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_bytes(b"legacy-cache-data")
+        new_path = tmp_path / "spectra" / "999" / "cache.db"
+
+        with (
+            patch.dict("os.environ", {"XDG_CACHE_HOME": str(tmp_path)}),
+            patch(
+                "spectra.infrastructure.main.default_cache_path",
+                return_value=new_path,
+            ),
+            patch(
+                "spectra.infrastructure.main._resolve_cache_secret",
+                return_value=None,
+            ),
+        ):
+            cache = _build_cache_adapter()
+        assert cache is not None
+        # Legacy file must be gone.
+        assert not legacy.exists()
 
     @pytest.mark.asyncio
     async def test_run_analysis_passes_resolved_configs_to_factory(self):

@@ -8,9 +8,10 @@ full-report storage keyed by ``RepoCacheKey``.
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,7 @@ from spectra.entities.errors import AgentError
 from spectra.entities.models import (
     AnalysisReport,
     BatchCacheKey,
+    CacheSecret,
     CacheStats,
     DimensionScore,
     FileLocation,
@@ -30,9 +32,6 @@ from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -810,3 +809,430 @@ class TestStatsExtendedBreakdown:
         stats = adapter.stats()
         assert stats.hit_rate_by_dimension["security"] == 1.0
         assert stats.hit_rate_by_dimension["quality"] == 0.0
+
+
+# ── ADR-012: Per-row HMAC ──────────────────────────────────────
+
+
+def _secret(value: bytes | None = None) -> CacheSecret:
+    """Build a CacheSecret with a deterministic or random 32-byte value."""
+    return CacheSecret(value=value or secrets.token_bytes(32))
+
+
+@pytest.fixture
+def hmac_adapter(cache_path: Path) -> SqliteCacheAdapter:
+    """Return an adapter with a stable per-test HMAC secret bound."""
+    return SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
+
+
+class TestMacColumnSchema:
+    def test_findings_cache_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_cache)")}
+        assert "mac" in cols
+
+    def test_full_report_cache_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(full_report_cache)")}
+        assert "mac" in cols
+
+    def test_findings_batches_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_batches)")}
+        assert "mac" in cols
+
+    def test_hit_log_does_not_have_mac_column(self, cache_path: Path):
+        """hit_log is telemetry, not authenticated payload."""
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(hit_log)")}
+        assert "mac" not in cols
+
+
+class TestHmacRoundTrip:
+    def test_findings_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        findings = (_make_finding(),)
+        hmac_adapter.put_findings("h", "security", findings, "m", "p")
+        assert hmac_adapter.get_findings("h", "security") == findings
+
+    def test_full_report_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        hmac_adapter.put_full_report(_key(), _report())
+        assert hmac_adapter.get_full_report(_key()) == _report()
+
+    def test_batch_findings_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        _bind_default_context(hmac_adapter)
+        findings = (_make_finding(),)
+        hmac_adapter.put_batch_findings(_batch_key(), findings)
+        assert hmac_adapter.get_batch_findings(_batch_key()) == findings
+
+
+class TestHmacTamperDetection:
+    def test_tampered_findings_value_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        # Mutate findings_json directly via raw SQLite — the MAC will no longer match.
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
+            conn.commit()
+        # Lookup must return miss (not the tampered payload).
+        assert hmac_adapter.get_findings("h", "security") is None
+        # And the row must be physically removed so the next put can succeed.
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_full_report_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.put_full_report(_key(), _report())
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE full_report_cache SET report_json = ?", ('{"tampered": true}',))
+            conn.commit()
+        assert hmac_adapter.get_full_report(_key()) is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM full_report_cache").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_batch_findings_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        _bind_default_context(hmac_adapter)
+        hmac_adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_batches SET findings_json = ?", ("[]",))
+            conn.commit()
+        assert hmac_adapter.get_batch_findings(_batch_key()) is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_batches").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_mac_column_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET mac = ?", (b"\x00" * 32,))
+            conn.commit()
+        assert hmac_adapter.get_findings("h", "security") is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
+        assert count == 0
+
+
+class TestHmacRekeyMigration:
+    def test_rotated_secret_invalidates_existing_rows(
+        self,
+        cache_path: Path,
+    ):
+        """Old rows fail HMAC under the new secret and are dropped on read."""
+        adapter_a = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
+        adapter_a.set_model_version("m")
+        adapter_a.set_prompt_version("security", "p")
+        adapter_a.put_findings("h", "security", (_make_finding(),), "m", "p")
+        adapter_a.close()
+
+        # Re-open with a different secret (simulates silent re-key after lost keyring entry).
+        adapter_b = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x02" * 32))
+        adapter_b.set_model_version("m")
+        adapter_b.set_prompt_version("security", "p")
+        # Old row's MAC was computed with secret-A; under secret-B it must fail.
+        assert adapter_b.get_findings("h", "security") is None
+        # And re-puts under the new secret must succeed.
+        adapter_b.put_findings("h", "security", (_make_finding(line=42, fid="F-NEW"),), "m", "p")
+        got = adapter_b.get_findings("h", "security")
+        assert got is not None
+        assert got[0].id == "F-NEW"
+
+
+class TestHmacBackwardCompat:
+    def test_adapter_without_secret_still_works(self, cache_path: Path):
+        """Adapter constructed without ``secret=`` runs in legacy no-MAC mode.
+
+        Preserves backward-compatibility for tests and headless callers
+        that explicitly opt out of HMAC enforcement.
+        """
+        adapter = SqliteCacheAdapter(db_path=cache_path)  # no secret
+        adapter.set_model_version("m")
+        adapter.set_prompt_version("security", "p")
+        adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        assert adapter.get_findings("h", "security") is not None
+
+
+# ── ADR-012: Per-UID directory layout ──────────────────────────
+
+
+class TestPerUidPath:
+    def test_default_cache_path_includes_uid_segment(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """``default_cache_path()`` puts cache.db under the current effective UID."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 4242, raising=False)
+        path = default_cache_path()
+        assert path == tmp_path / "spectra" / "4242" / "cache.db"
+
+    def test_default_cache_path_falls_back_to_home_cache(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """When XDG_CACHE_HOME is unset, falls back to ~/.cache/spectra/$UID/."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.setattr("os.geteuid", lambda: 99, raising=False)
+        path = default_cache_path()
+        assert path == tmp_path / ".cache" / "spectra" / "99" / "cache.db"
+
+    def test_cache_dir_created_with_mode_0700(
+        self,
+        tmp_path: Path,
+    ):
+        """SqliteCacheAdapter creates its parent dir with mode 0700."""
+        nested = tmp_path / "uid-7" / "cache.db"
+        SqliteCacheAdapter(db_path=nested)
+        # Mask out anything beyond the permission bits.
+        mode = nested.parent.stat().st_mode & 0o777
+        assert mode == 0o700, f"expected 0700, got {oct(mode)}"
+
+    def test_cache_db_chmodded_to_0600(
+        self,
+        tmp_path: Path,
+    ):
+        """The cache.db file is chmodded to 0600 after open."""
+        nested = tmp_path / "uid-7" / "cache.db"
+        SqliteCacheAdapter(db_path=nested)
+        mode = nested.stat().st_mode & 0o777
+        assert mode == 0o600, f"expected 0600, got {oct(mode)}"
+
+
+# ── ADR-012: Cross-user isolation ──────────────────────────────
+
+
+class TestCrossUserIsolation:
+    def test_two_uids_get_different_default_paths(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Adapters running as different UIDs land in different files."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 1001, raising=False)
+        path_a = default_cache_path()
+        monkeypatch.setattr("os.geteuid", lambda: 1002, raising=False)
+        path_b = default_cache_path()
+        assert path_a != path_b
+        assert "1001" in str(path_a)
+        assert "1002" in str(path_b)
+
+    def test_uid_b_cannot_read_uid_a_rows(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """UID-A's rows live in a separate file; UID-B's adapter cannot see them."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 1001, raising=False)
+        adapter_a = SqliteCacheAdapter(db_path=default_cache_path())
+        adapter_a.set_model_version("m")
+        adapter_a.set_prompt_version("security", "p")
+        adapter_a.put_findings("hash-uid-a", "security", (_make_finding(),), "m", "p")
+        adapter_a.close()
+
+        monkeypatch.setattr("os.geteuid", lambda: 1002, raising=False)
+        adapter_b = SqliteCacheAdapter(db_path=default_cache_path())
+        adapter_b.set_model_version("m")
+        adapter_b.set_prompt_version("security", "p")
+        # UID-B opened a different file under .../1002/cache.db.
+        assert adapter_b.get_findings("hash-uid-a", "security") is None
+
+
+# ── ADR-012: Old-path migration ────────────────────────────────
+
+
+class TestOldPathMigration:
+    def test_old_unscoped_cache_db_is_dropped_on_first_run(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Pre-ADR-012 ``$XDG_CACHE_HOME/spectra/cache.db`` is removed at startup."""
+        from spectra.infrastructure.cache_adapter import migrate_legacy_cache
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        old_db = tmp_path / "spectra" / "cache.db"
+        old_db.parent.mkdir(parents=True)
+        old_db.write_bytes(b"legacy-cache-bytes")
+        assert old_db.exists()
+
+        migrated = migrate_legacy_cache()
+
+        assert migrated is True
+        assert not old_db.exists()
+
+    def test_migrate_legacy_cache_returns_false_when_no_old_db(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """When no legacy cache exists, migration is a no-op."""
+        from spectra.infrastructure.cache_adapter import migrate_legacy_cache
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        assert migrate_legacy_cache() is False
+
+
+# ── ADR-012: cache row diagnostics for `spectra cache doctor` ──
+
+
+class TestCacheDoctorCounts:
+    def test_count_rows_returns_per_table_totals(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+    ):
+        """``count_rows`` returns total + verified + failed per data table."""
+        _bind_default_context(hmac_adapter)
+        hmac_adapter.set_repo_signature("sig")
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+        hmac_adapter.put_full_report(_key(), _report())
+        hmac_adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+
+        counts = hmac_adapter.count_rows()
+
+        assert counts["findings_cache"]["total"] == 1
+        assert counts["findings_cache"]["verified"] == 1
+        assert counts["findings_cache"]["failed"] == 0
+        assert counts["full_report_cache"]["total"] == 1
+        assert counts["full_report_cache"]["verified"] == 1
+        assert counts["findings_batches"]["total"] == 1
+        assert counts["findings_batches"]["verified"] == 1
+
+    def test_count_rows_marks_tampered_rows_as_failed(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        """Tampered rows show up in the ``failed`` bucket of ``count_rows``."""
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
+            conn.commit()
+
+        counts = hmac_adapter.count_rows()
+
+        assert counts["findings_cache"]["total"] == 1
+        assert counts["findings_cache"]["verified"] == 0
+        assert counts["findings_cache"]["failed"] == 1
+
+
+# ── ADR-012: KeyringSecretAdapter ──────────────────────────────
+
+
+class _FakeKeyring:
+    """Stand-in for the real ``keyring`` module — store + lookup in memory."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self._store: dict[tuple[str, str], str] = {}
+        self._fail = fail
+
+    @property
+    def backend_name(self) -> str:
+        return "fake-keyring" if not self._fail else "no-backend"
+
+    def get_password(self, service: str, account: str) -> str | None:
+        if self._fail:
+            msg = "no keyring backend available"
+            raise RuntimeError(msg)
+        return self._store.get((service, account))
+
+    def set_password(self, service: str, account: str, password: str) -> None:
+        if self._fail:
+            msg = "no keyring backend available"
+            raise RuntimeError(msg)
+        self._store[(service, account)] = password
+
+
+class TestKeyringSecretAdapter:
+    def test_first_call_generates_and_stores_a_32_byte_secret(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        secret = adapter.get()
+        assert isinstance(secret.value, bytes)
+        assert len(secret.value) == 32
+        # Persisted under (service, uid)
+        assert kr.get_password("spectra-cache-hmac", "123") is not None
+
+    def test_second_call_returns_the_same_secret(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        a = adapter.get()
+        b = adapter.get()
+        assert a.value == b.value
+
+    def test_missing_keyring_backend_raises_agent_error_spec_010(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring(fail=True)
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        with pytest.raises(AgentError) as exc:
+            adapter.get()
+        assert exc.value.error.code == "SPEC-010"
+
+    def test_existing_secret_in_keyring_is_loaded(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        # Pre-seed with a known secret.
+        seed = b"\x07" * 32
+        kr.set_password("spectra-cache-hmac", "123", seed.hex())
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        assert adapter.get().value == seed
+
+    def test_corrupted_keyring_value_silently_re_keys(self):
+        """A non-hex (or wrong-length) stored value triggers regeneration."""
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        kr.set_password("spectra-cache-hmac", "123", "not-hex-garbage")
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        secret = adapter.get()
+        assert len(secret.value) == 32
+        # Stored value is now valid hex of length 64.
+        stored = kr.get_password("spectra-cache-hmac", "123")
+        assert stored is not None
+        assert len(stored) == 64

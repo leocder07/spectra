@@ -18,6 +18,11 @@ All public symbols are re-exported here via ``__all__`` for convenient access
 from outer layers (e.g. ``from spectra.entities import Finding, ScoreCard``).
 """
 
+from spectra.entities.disclaimer import (
+    DISCLAIMER_TEXT,
+    DISCLAIMER_URL,
+    disclaimer_payload,
+)
 from spectra.entities.enums import (
     AgentRole,
     Dimension,
@@ -30,6 +35,7 @@ from spectra.entities.errors import (
     ERRORS,
     AgentError,
     GitError,
+    SecretDetectedError,
     SpectraError,
     SpectraRetryError,
     strip_code_fence,
@@ -47,6 +53,7 @@ from spectra.entities.models import (
     BatchCacheKey,
     BatchPrompt,
     CacheEntry,
+    CacheSecret,
     CacheStats,
     Codebase,
     DimensionScore,
@@ -56,6 +63,7 @@ from spectra.entities.models import (
     ModelId,
     RepoCacheKey,
     ScoreCard,
+    SecretFinding,
     TokenBudget,
     estimate_cost,
     score_to_grade,
@@ -63,6 +71,8 @@ from spectra.entities.models import (
 
 __all__ = [
     "DEFAULT_DIMENSION_SCORE",
+    "DISCLAIMER_TEXT",
+    "DISCLAIMER_URL",
     "ERRORS",
     "EXCELLENT_SCORE",
     "MIN_CONFIDENCE",
@@ -77,6 +87,7 @@ __all__ = [
     "BatchCacheKey",
     "BatchPrompt",
     "CacheEntry",
+    "CacheSecret",
     "CacheStats",
     "Codebase",
     "Dimension",
@@ -91,10 +102,13 @@ __all__ = [
     "RepoCacheKey",
     "SchemaVersion",
     "ScoreCard",
+    "SecretDetectedError",
+    "SecretFinding",
     "Severity",
     "SpectraError",
     "SpectraRetryError",
     "TokenBudget",
+    "disclaimer_payload",
     "estimate_cost",
     "score_to_grade",
     "strip_code_fence",

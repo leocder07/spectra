@@ -49,10 +49,12 @@ from spectra.adapters.cli_controller import (
     set_cache_provider,
 )
 from spectra.adapters.progress_reporter import RichProgressReporter
+from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
     AnalysisReport,
     AnalysisRequest,
+    CacheSecret,
     Codebase,
     RepoCacheKey,
 )
@@ -67,14 +69,19 @@ from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
     default_cache_path,
+    migrate_legacy_cache,
 )
 from spectra.infrastructure.git_adapter import GitAdapter
+from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
+from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
+from spectra.infrastructure.regex_secret_scanner import RegexSecretScanner
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import is_local_path
+from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
@@ -123,6 +130,9 @@ async def _run_analysis(
     force: bool = False,
     no_cache: bool = False,
     agent_overrides: dict[str, object] | None = None,
+    *,
+    honor_gitignore: bool = True,
+    allow_secrets: bool = False,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -139,6 +149,11 @@ async def _run_analysis(
         force: Bypass cache reads and force a fresh run (still writes the cache).
         no_cache: Disable cache reads and writes entirely (CI-safe).
         agent_overrides: Per-agent model/effort overrides from the CLI.
+        honor_gitignore: Honor ``.gitignore`` during pre-flight (default True).
+            Set False for the ``--no-gitignore`` escape hatch — ``.spectraignore``
+            is still applied.
+        allow_secrets: Bypass SPEC-011 abort on secret detection (default False).
+            When True, findings are logged as a warning and the pipeline proceeds.
 
     Returns:
         Completed analysis report.
@@ -146,6 +161,8 @@ async def _run_analysis(
     Raises:
         RuntimeError: If ``ANTHROPIC_API_KEY`` is not set.
         ReportError: If report rendering fails (SPEC-009).
+        SecretDetectedError: SPEC-011 when secrets are detected and
+            ``allow_secrets`` is False.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
@@ -182,6 +199,17 @@ async def _run_analysis(
         await git.validate_repo_size(workspace_dir)
         file_tree = await git.get_file_tree(workspace_dir)
         observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
+
+        # Stage 1.5: PREFLIGHT — honor .gitignore + .spectraignore, then secret scan.
+        # Filtered tree is the canonical input to every downstream stage so
+        # an excluded path can never leak into a prompt or the cache key.
+        file_tree = _run_preflight_stage(
+            workspace_dir,
+            file_tree,
+            observer,
+            honor_gitignore=honor_gitignore,
+            allow_secrets=allow_secrets,
+        )
 
         # Pre-read key source files by heuristic for specialist agents
         source_files = await _read_key_source_files(git, workspace_dir, file_tree)
@@ -233,7 +261,7 @@ async def _run_analysis(
         observer.on_stage_start("REPORT", "Rendering report")
         try:
             if output_format == "json":
-                data = json.dumps(report.model_dump(mode="json"), indent=2)
+                data = json.dumps(build_json_payload(report), indent=2)
                 Path(output_path).write_text(data, encoding="utf-8")
             elif output_format == "sarif":
                 sarif = _build_sarif(report)
@@ -272,17 +300,43 @@ def _provision_cache(*, no_cache: bool) -> SqliteCacheAdapter | None:
 def _build_cache_adapter() -> SqliteCacheAdapter | None:
     """Construct the SQLite cache adapter, or return None on I/O failure.
 
-    Phase 1 is purely additive: the cache is wired into the composition
-    root but not yet consumed by ``analyze_repository``. Failure to
-    initialize the cache must NEVER abort the run, so SPEC-010 is
-    swallowed here and the caller treats ``None`` as "no cache".
+    ADR-012 wires the per-user keyring secret in here: ``KeyringSecretAdapter``
+    fetches (or generates) the 32-byte HMAC key, and ``SqliteCacheAdapter``
+    enforces it on every read/write. If the keyring is unavailable the
+    cache is disabled for the run (SPEC-010 — never fatal).
+
+    Legacy cache rescue: any pre-ADR-012 ``cache.db`` at the unscoped
+    path is removed before the new adapter opens. The next run cold-caches.
     """
+    if migrate_legacy_cache():
+        logging.getLogger("spectra").info(
+            "Legacy cache.db removed; new per-user cache will be cold-warmed",
+        )
+    secret = _resolve_cache_secret()
     try:
-        return SqliteCacheAdapter(db_path=default_cache_path())
+        return SqliteCacheAdapter(db_path=default_cache_path(), secret=secret)
     except AgentError as exc:
         logging.getLogger("spectra").warning(
             "Cache disabled (%s); analysis will proceed without caching",
             exc.error.code,
+        )
+        return None
+
+
+def _resolve_cache_secret() -> CacheSecret | None:
+    """Fetch the per-user HMAC secret from the OS keyring; degrade to None."""
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None:
+        # Windows: per-user file isolation degraded; secret unavailable.
+        return None
+    uid = str(geteuid())
+    try:
+        return KeyringSecretAdapter(uid=uid).get()
+    except AgentError as exc:
+        logging.getLogger("spectra").warning(
+            "Cache MAC disabled (%s); keyring unavailable for UID %s",
+            exc.error.code,
+            uid,
         )
         return None
 
@@ -294,7 +348,8 @@ def _provision_cache_only() -> SqliteCacheAdapter:
     LLM wiring — it only manipulates the local SQLite cache. This factory
     is the seam the CLI controller calls via its ``cache_provider`` getter.
     """
-    return SqliteCacheAdapter(db_path=default_cache_path())
+    secret = _resolve_cache_secret()
+    return SqliteCacheAdapter(db_path=default_cache_path(), secret=secret)
 
 
 def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
@@ -361,6 +416,63 @@ def _bind_cache_run_context(cache: SqliteCacheAdapter) -> None:
         schema_version=SCHEMA_VERSION,
         spectra_version=_SPECTRA_VERSION,
     )
+
+
+# ── Pre-flight stage (Capability #6) ─────────────────────────
+
+
+def _run_preflight_stage(
+    workspace_dir: str,
+    file_tree: list[str],
+    observer: RichProgressReporter,
+    *,
+    honor_gitignore: bool,
+    allow_secrets: bool,
+) -> list[str]:
+    """Filter the file tree, scan for secrets, and surface the result.
+
+    Returns the filtered file list ready for downstream stages. Raises
+    ``SecretDetectedError`` (SPEC-011) when secrets are detected and
+    ``allow_secrets`` is False — the CLI catches that at the outer seam.
+
+    ``--allow-secrets`` is intentionally noisy: every detection is
+    rendered with severity-coloured text so the dev cannot miss it
+    even when bypassing the gate.
+    """
+    observer.on_stage_start("PREFLIGHT", "Scanning for secrets")
+    workspace_filter = PathspecFilterAdapter(honor_gitignore=honor_gitignore)
+    secret_scanner = RegexSecretScanner()
+    config = PreflightConfig(allow_secrets=allow_secrets)
+    result = run_preflight(workspace_dir, file_tree, workspace_filter, secret_scanner, config)
+    msg = _preflight_summary(file_tree, result.filtered_files, result.secret_findings)
+    observer.on_stage_complete("PREFLIGHT", msg)
+    if result.secret_findings:
+        _log_allowed_secrets(result.secret_findings)
+    return result.filtered_files
+
+
+def _preflight_summary(
+    original: list[str],
+    filtered: list[str],
+    findings: tuple[object, ...],
+) -> str:
+    """Compose the brand-voice ≤80-char success line for the PREFLIGHT stage."""
+    excluded = len(original) - len(filtered)
+    if findings:
+        return f"{excluded} files excluded, {len(findings)} secrets detected (allowed)"
+    return f"{excluded} files excluded, no secrets detected"
+
+
+def _log_allowed_secrets(findings: tuple[object, ...]) -> None:
+    """Emit a WARN log per allowed-secret finding so dev cannot miss them."""
+    log = logging.getLogger("spectra.preflight")
+    for finding in findings:
+        log.warning(
+            "SPEC-011 (allowed via --allow-secrets): %s:%s pattern=%s",
+            getattr(finding, "file_path", "?"),
+            getattr(finding, "line", "?"),
+            getattr(finding, "pattern_name", "?"),
+        )
 
 
 # ── Workspace helpers ────────────────────────────────────────
@@ -476,6 +588,45 @@ _SARIF_SEVERITY: dict[str, str] = {
 }
 
 
+def build_json_payload(report: AnalysisReport) -> dict[str, object]:
+    """Build the JSON output payload with the indicative-analysis disclaimer.
+
+    The disclaimer is a top-level data field so SAST consumers and
+    machine pipelines see it natively. It is always present and cannot
+    be dismissed (UI dismissal is HTML-only).
+
+    Args:
+        report: Completed analysis report.
+
+    Returns:
+        Dict ready for ``json.dumps`` — disclaimer first, then report fields.
+    """
+    return {
+        "disclaimer": disclaimer_payload(),
+        **report.model_dump(mode="json"),
+    }
+
+
+def _sarif_disclaimer_notification() -> dict[str, object]:
+    """SARIF ``notification`` carrying the indicative-analysis disclaimer.
+
+    Uses level=``note`` and a ``descriptor.helpUri`` that points at the
+    docs anchor — the standard SARIF mechanism for surfacing tool-level
+    advisories to consumers.
+    """
+    payload = disclaimer_payload()
+    return {
+        "level": "note",
+        "message": {"text": payload["text"]},
+        "descriptor": {
+            "id": "spectra/disclaimer/indicative-analysis",
+            "name": "IndicativeAnalysis",
+            "shortDescription": {"text": "Indicative analysis — not auditor-grade evidence."},
+            "helpUri": payload["url"],
+        },
+    }
+
+
 def _build_sarif(report: AnalysisReport) -> dict:
     """Build SARIF v2.1.0 output for GitHub Security tab integration.
 
@@ -521,6 +672,12 @@ def _build_sarif(report: AnalysisReport) -> dict:
                         "rules": [],
                     },
                 },
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "notifications": [_sarif_disclaimer_notification()],
+                    }
+                ],
                 "results": results,
             }
         ],

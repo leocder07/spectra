@@ -6,6 +6,10 @@
 
 **Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in under 5 minutes.** It runs 8 specialized Claude agents in parallel (Opus 4.7) so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
 
+#### <a id="disclaimer"></a>Disclaimer
+
+**Indicative analysis — not auditor-grade evidence.** Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows. Use Spectra as a fast directional signal — pair it with deterministic SAST/DAST tooling and a human reviewer for anything compliance-bound. The same notice ships in every HTML, JSON, and SARIF report ([source](src/spectra/entities/disclaimer.py)).
+
 <!-- TODO: 15-second hero GIF showing spectra analyze <repo> → grade pop -->
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
@@ -352,7 +356,7 @@ graph TB
 | Cost | $5-10 per analysis (Opus 4.7, full mode, real Anthropic spend) |
 | Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
-| Error codes | 10 typed (SPEC-001 to SPEC-010) |
+| Error codes | 11 typed (SPEC-001 to SPEC-011) |
 
 ---
 
@@ -419,6 +423,33 @@ The argument can be an HTTPS Git URL, a local path, or `.` for the current worki
 | `--min-score` | none | Quality gate — exit 1 if overall score is below this number |
 | `--force` | off | Bypass cache, force a fresh analysis |
 | `--no-cache` | off | Disable cache reads and writes for this run |
+| `--no-gitignore` | off | Do not honor `.gitignore` (`.spectraignore` is still applied) |
+| `--allow-secrets` | off | Continue past pre-flight secret detection (logs WARN) |
+
+### Pre-flight: secret scan + workspace filtering
+
+Spectra runs a fast pre-flight stage between INGEST and PLAN that:
+
+1. **Honors `.gitignore`** (root + every nested `.gitignore`) so excluded files
+   never reach a prompt or cache key. Use `--no-gitignore` to opt out.
+2. **Honors `.spectraignore`** — same `gitwildmatch` syntax — for Spectra-only
+   exclusions you don't want polluting your `.gitignore`. Always applied.
+3. **Scans for hard-coded secrets** with a curated regex list (AWS keys,
+   GitHub PATs, Anthropic keys, bearer tokens, Slack webhooks, RSA/OpenSSH
+   private keys, plus an `.env*` heuristic). On detection, fails with
+   `SPEC-011` listing every match. Override with `--allow-secrets` (CI-safe;
+   the run continues but every finding is logged at WARN).
+
+Example `.spectraignore`:
+
+```
+# Generated client SDKs we don't author
+clients/generated/
+# Vendored protobuf stubs
+**/proto/*_pb2.py
+# Large fixtures
+tests/fixtures/large_repo/
+```
 
 ### Per-agent model + effort
 
@@ -464,6 +495,56 @@ Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db` 
 | `spectra cache prune` | Physically delete stale rows that no current key matches — safe to run anytime |
 
 Cache I/O failures are never fatal — the pipeline degrades to no-cache for the rest of the run (see SPEC-010).
+
+---
+
+## Verifying releases
+
+Every release ships with two independent supply-chain attestations: SLSA L3 build provenance (via GitHub's attest-build-provenance) and a Sigstore keyless signature on every wheel. Both are produced inside the publish workflow and bound to the tag commit.
+
+### 1. Verify SLSA build provenance
+
+Confirms the artifact was built by `leocder07/spectra`'s publish workflow on the expected tag commit — defeats the tag-move attack class.
+
+```bash
+# Install once
+brew install gh   # or: see https://cli.github.com/
+
+# Download the wheel from PyPI (or the release page)
+pip download --no-deps spectra-ai==0.4.0 -d /tmp/spectra-verify
+
+# Verify provenance
+gh attestation verify /tmp/spectra-verify/spectra_ai-0.4.0-py3-none-any.whl \
+  --repo leocder07/spectra
+```
+
+Expected output: `Loaded digest sha256:... ✓ Verification succeeded!`
+
+### 2. Verify Sigstore signature
+
+Confirms the wheel was signed by the publish workflow's OIDC identity. Bundles are attached to each GitHub Release as `*.sigstore` assets.
+
+```bash
+# Install once
+pip install "sigstore>=3.0,<4.0"
+
+# Download wheel + bundle
+VER=0.4.0
+gh release download "v${VER}" --repo leocder07/spectra \
+  --pattern "spectra_ai-${VER}*.sigstore*"
+pip download --no-deps "spectra-ai==${VER}" -d .
+
+# Verify
+python -m sigstore verify identity \
+  --bundle "spectra_ai-${VER}-py3-none-any.whl.sigstore" \
+  --cert-identity "https://github.com/leocder07/spectra/.github/workflows/publish.yml@refs/tags/v${VER}" \
+  --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "spectra_ai-${VER}-py3-none-any.whl"
+```
+
+Expected output: `OK: spectra_ai-0.4.0-py3-none-any.whl`
+
+If either check fails, do not install — open an issue at https://github.com/leocder07/spectra/security/advisories/new.
 
 ---
 
