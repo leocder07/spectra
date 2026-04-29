@@ -110,7 +110,7 @@ def _import_default_backend() -> KeyringBackend:
         import keyring  # late import keeps optional dep cheap
     except ImportError as exc:
         raise _spec_010_keyring(exc) from exc
-    return keyring  # type: ignore[return-value]
+    return keyring
 
 
 def _spec_010_keyring(cause: BaseException) -> AgentError:
