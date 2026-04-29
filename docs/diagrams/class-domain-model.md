@@ -1,6 +1,6 @@
 # UML Class Diagram: Domain Model
 
-All Pydantic models, Protocol interfaces, and agent class hierarchy traced from source.
+All Pydantic models, Protocol interfaces, and agent class hierarchy traced from source. Updated for the cache pipeline (Phases 1-3) and the `PipelineContext` value object.
 
 ```mermaid
 classDiagram
@@ -58,6 +58,11 @@ classDiagram
         complete
         degraded
         failed
+    }
+
+    class SchemaVersion {
+        <<Literal>>
+        v1
     }
 
     %% ── Frozen Pydantic Models (models.py) ──
@@ -127,9 +132,6 @@ classDiagram
         +user_prompt: str
         +model: str
         +max_tokens: int
-        +adaptive_thinking: bool
-        +effort: str | None
-        +task_budget_tokens: int | None
     }
 
     class AnalysisReport {
@@ -176,15 +178,92 @@ classDiagram
         +remaining(used) int
     }
 
+    %% ── Cache Entities (Phase 1-3) ──
+    class CacheEntry {
+        <<frozen>>
+        +file_hash: str
+        +file_path: str
+        +dimension: Dimension
+        +findings: tuple~Finding~
+        +model_version: str
+        +prompt_version: str
+        +spectra_version: str
+        +schema_version: SchemaVersion
+        +computed_at: datetime
+    }
+
+    class CacheStats {
+        <<frozen>>
+        +total_entries: int
+        +total_repos: int
+        +db_size_bytes: int
+        +hit_rate_last_100: float [0-1]
+        +oldest_entry_at: datetime | None
+    }
+
+    class BatchPrompt {
+        <<frozen — Phase 3>>
+        +batch_id: str
+        +file_paths: tuple~str~
+        +file_hashes: tuple~str~
+        +prompt_text: str
+    }
+
+    class BatchCacheKey {
+        <<frozen — Phase 3>>
+        +batch_id: str
+        +dimension: Dimension
+        +model_version: str
+        +prompt_version: str
+        +schema_version: str
+        +spectra_version: str
+    }
+
+    class RepoCacheKey {
+        <<frozen — Phase 2>>
+        +repo_signature: str
+        +spectra_version: str
+        +model_versions: str
+        +prompt_versions: str
+        +schema_version: str
+    }
+
+    %% ── Use-case value objects (analyze_repository.py) ──
+    class PipelineContext {
+        <<dataclass frozen — facade input>>
+        +request: AnalysisRequest
+        +codebase: Codebase
+        +source_files: dict~str,str~
+        +specialists: list~AnalysisAgent~
+        +critique: AnalysisAgent | None
+        +meta_plan: AgentOutput
+        +observer: ProgressObserver
+        +token_budget: TokenBudget
+        +git_port: GitPort | None
+        +cache_port: CachePort | None
+        +cache_key_factory: Callable | None
+        +force_cache_bypass: bool
+        +cache_versions: CacheVersions | None
+    }
+
+    class CacheVersions {
+        <<dataclass frozen>>
+        +model_versions: str
+        +prompt_versions: str
+        +schema_version: str
+        +spectra_version: str
+    }
+
     %% ── Protocol Interfaces (interfaces.py) ──
     class LLMGateway {
         <<Protocol>>
-        +analyze(system_prompt, user_prompt, model, max_tokens, effort?)* str
-        +analyze_with_thinking(system_prompt, user_prompt, model, max_tokens, effort?, task_budget_tokens?)* str
+        +analyze(... effort?)* str
+        +analyze_with_thinking(... effort?, task_budget_tokens?)* str
     }
 
     class GitPort {
         <<Protocol>>
+        +prepare_workspace(source, target_dir)* str
         +clone(repo_url, target_dir)* None
         +get_file_tree(repo_dir)* list~str~
         +read_file(repo_dir, file_path)* str
@@ -210,6 +289,23 @@ classDiagram
         +on_agent_success(agent, duration)* None
         +on_agent_failure(agent, error)* None
         +on_error(stage, error)* None
+        +on_cache_lookup(dimension, hits, total)* None
+    }
+
+    class CachePort {
+        <<Protocol>>
+        +get_findings(file_hash, dimension)* tuple~Finding~ | None
+        +put_findings(file_hash, dimension, findings, model, prompt)* None
+        +compute_repo_signature(file_tree)* str
+        +stats()* CacheStats
+        +clear(repo_signature?)* int
+        +get_full_report(key)* AnalysisReport | None
+        +put_full_report(key, report)* None
+        +get_batch_findings(key)* tuple~Finding~ | None
+        +put_batch_findings(key, findings)* None
+        +record_hit(dimension, batch_id, hit)* None
+        +bind_run_context(model, prompt, schema, spectra)* None
+        +batch_key_for(batch_id, dimension)* BatchCacheKey | None
     }
 
     class AnalysisAgent {
@@ -233,43 +329,33 @@ classDiagram
         +execute_llm(prompt) str
         +parse_output(raw) dict
         +validate_output(parsed)* tuple~Finding~
-        +format_result(findings, raw, duration, tokens, score) AgentOutput
+        +format_result(...) AgentOutput
     }
 
     class MetaPrompter {
-        -_SYSTEM_PROMPT: str
         +__init__(gateway)
-        +validate_input(user_prompt) None
-        +build_prompt(user_prompt) str
-        +validate_output(parsed) tuple~Finding~
-        +get_plan(raw_output) dict
+        +execute_llm  effort=medium
     }
 
     class SpecialistAgent {
         -_dimension: Dimension
         -_id_prefix: str
         +__init__(role, gateway, dimension, id_prefix, system_prompt, model)
-        +validate_input(user_prompt) None
-        +build_prompt(user_prompt) str
-        +validate_output(parsed) tuple~Finding~
+        +execute_llm  effort=xhigh
     }
 
     class CritiqueAgent {
-        -_SYSTEM_PROMPT: str
         +__init__(gateway)
-        +validate_input(user_prompt) None
-        +build_prompt(user_prompt) str
-        +execute_llm(prompt) str
-        +validate_output(parsed) tuple~Finding~
-        +get_critique_result(raw_output) dict
+        +execute_llm  uses analyze_with_thinking
+        +effort=high
+        +task_budget=80_000
+        +adaptive thinking, summarized
     }
 
     %% ── Decorator Chain (infrastructure/) ──
     class AnthropicAdapter {
         -_client: AsyncAnthropic
-        -_last_usage: tuple~int, int~
-        -_closed: bool
-        +last_usage: tuple~int, int~
+        -_last_usage: tuple~int,int~
         +analyze(... effort?) str
         +analyze_with_thinking(... effort?, task_budget_tokens?) str
         +close() None
@@ -279,7 +365,6 @@ classDiagram
         -_inner: LLMGateway
         -_max_retries: int = 3
         -_backoff_base: float = 1.0
-        +last_usage: tuple~int, int~
         +analyze(... effort?) str
         +analyze_with_thinking(... effort?, task_budget_tokens?) str
     }
@@ -287,7 +372,6 @@ classDiagram
     class LoggingDecorator {
         -_inner: LLMGateway
         -_observer: ProgressObserver
-        +last_usage: tuple~int, int~
         +analyze(... effort?) str
         +analyze_with_thinking(... effort?, task_budget_tokens?) str
     }
@@ -300,6 +384,7 @@ classDiagram
 
     %% ── Infrastructure Adapters ──
     class GitAdapter {
+        +prepare_workspace(source, target_dir) str
         +clone(repo_url, target_dir) None
         +get_file_tree(repo_dir) list~str~
         +read_file(repo_dir, file_path) str
@@ -316,20 +401,49 @@ classDiagram
     }
 
     class RichProgressReporter {
-        +on_stage_start(stage, message) None
-        +on_stage_complete(stage, message) None
-        +on_agent_start(agent) None
-        +on_agent_success(agent, duration) None
-        +on_agent_failure(agent, error) None
-        +on_error(stage, error) None
+        +on_stage_start(...) None
+        +on_stage_complete(...) None
+        +on_agent_start(...) None
+        +on_agent_success(...) None
+        +on_agent_failure(...) None
+        +on_error(...) None
+        +on_cache_lookup(dimension, hits, total) None
+    }
+
+    class SqliteCacheAdapter {
+        -_conn: sqlite3.Connection
+        -_db_path: Path
+        -_run_versions: tuple | None
+        +get_findings(...) tuple~Finding~ | None
+        +put_findings(...) None
+        +get_full_report(key) AnalysisReport | None
+        +put_full_report(key, report) None
+        +get_batch_findings(key) tuple~Finding~ | None
+        +put_batch_findings(key, findings) None
+        +record_hit(dimension, batch_id, hit) None
+        +bind_run_context(...) None
+        +batch_key_for(batch_id, dim) BatchCacheKey | None
+        +compute_repo_signature(file_tree) str
+        +stats() CacheStats
+        +clear(repo_signature?) int
+        +close() None
     }
 
     %% ── Composition Relationships ──
     Finding *-- FileLocation : location
-    ScoreCard *-- DimensionScore : dimensions (1..6)
+    ScoreCard *-- DimensionScore : dimensions
     AnalysisReport *-- ScoreCard : score_card
-    AnalysisReport *-- Finding : findings (0..*)
-    AgentOutput *-- Finding : findings (0..*)
+    AnalysisReport *-- Finding : findings
+    AgentOutput *-- Finding : findings
+    CacheEntry --> Finding : findings
+
+    PipelineContext --> AnalysisRequest : request
+    PipelineContext --> Codebase : codebase
+    PipelineContext --> CachePort : cache_port (optional)
+    PipelineContext --> GitPort : git_port (optional)
+    PipelineContext --> ProgressObserver : observer
+    PipelineContext --> AnalysisAgent : specialists + critique
+    PipelineContext --> CacheVersions : cache_versions
 
     %% ── Inheritance ──
     BaseAgent <|-- MetaPrompter
@@ -344,6 +458,7 @@ classDiagram
     TokenPort <|.. TiktokenAdapter : implements
     ReportPort <|.. ReportAdapter : implements
     ProgressObserver <|.. RichProgressReporter : implements
+    CachePort <|.. SqliteCacheAdapter : implements
     AnalysisAgent <|.. BaseAgent : implements
 
     %% ── Dependencies ──
@@ -355,6 +470,18 @@ classDiagram
     AgentFactory ..> MetaPrompter : creates
     AgentFactory ..> SpecialistAgent : creates
     AgentFactory ..> CritiqueAgent : creates
+    SqliteCacheAdapter ..> CacheEntry : reads/writes
+    SqliteCacheAdapter ..> CacheStats : produces
+    SqliteCacheAdapter ..> RepoCacheKey : keys full_report_cache
+    SqliteCacheAdapter ..> BatchCacheKey : keys findings_batches
+    BuildBatchPrompts ..> BatchPrompt : produces
+
+    class BuildBatchPrompts {
+        <<helper · use_cases>>
+        +compute_file_hashes(git, codebase, paths) dict
+        +build_batch_prompts(ctx, plan, state, hashes) dict
+        +partition_by_cache(batches, cache, dim) tuple
+    }
 ```
 
 ## Key Design Patterns
@@ -363,89 +490,23 @@ classDiagram
 |---------|-------|---------|
 | **Decorator** | `LoggingDecorator` -> `RetryDecorator` -> `AnthropicAdapter` | Add logging + retry without modifying the adapter |
 | **Factory** | `AgentFactory.create(role)` | Centralize agent construction, hide concrete classes |
-| **Template Method** | `BaseAgent.run()` orchestrates `validate_input` -> `build_prompt` -> `execute_llm` -> `parse_output` -> `validate_output` -> `format_result` | Fixed lifecycle, subclasses customize steps |
+| **Template Method** | `BaseAgent.run()` orchestrates lifecycle | Fixed lifecycle, subclasses customize steps |
 | **Strategy** | `SpecialistAgent` parameterized by `dimension`, `id_prefix`, `system_prompt` | One class serves 6 different analysis dimensions |
-| **Protocol (Structural Subtyping)** | `LLMGateway`, `GitPort`, `TokenPort`, `ReportPort`, `ProgressObserver`, `AnalysisAgent` | Dependency inversion without ABC inheritance |
+| **Protocol (Structural Subtyping)** | `LLMGateway`, `GitPort`, `TokenPort`, `ReportPort`, `ProgressObserver`, `CachePort`, `AnalysisAgent` | Dependency inversion without ABC inheritance |
+| **Parameter Object** | `PipelineContext` (Fowler) | Replaces 8-param `analyze_repository` signature with one frozen value object |
+| **Repository / Cache** | `SqliteCacheAdapter` behind `CachePort` | Hides SQLite from the use-case layer; degrades to no-cache on SPEC-010 |
 
 ## Layer Compliance
 
 | Class | Layer | Imports From |
 |-------|-------|-------------|
-| `FileLocation`, `Finding`, `ScoreCard`, etc. | Layer 1 (entities) | Nothing from spectra |
-| `LLMGateway`, `GitPort`, `ProgressObserver` | Layer 2 (use_cases) | entities only |
+| `FileLocation`, `Finding`, `ScoreCard`, `CacheEntry`, `BatchPrompt`, `BatchCacheKey`, `RepoCacheKey` | Layer 1 (entities) | Nothing from spectra |
+| `LLMGateway`, `GitPort`, `ProgressObserver`, `CachePort`, `PipelineContext` | Layer 2 (use_cases) | entities only |
 | `RichProgressReporter`, `cli_controller` | Layer 3 (adapters) | entities + use_cases |
-| `AnthropicAdapter`, `AgentFactory`, `BaseAgent` | Layer 4 (infrastructure) | All inner layers |
+| `AnthropicAdapter`, `AgentFactory`, `BaseAgent`, `SqliteCacheAdapter` | Layer 4 (infrastructure) | All inner layers |
+
+The dependency rule is preserved end-to-end. Cache is additive: `CachePort` lives in Layer 2 with zero infrastructure imports; `SqliteCacheAdapter` lives in Layer 4 and may import from all inner layers.
 
 ---
 
-## Future (CachePort, In Flight)
-
-The incremental analysis design (see [ADR-006](../architecture/adr/ADR-006-cache-port-incremental-analysis.md) and [`../plans/incremental-analysis.md`](../plans/incremental-analysis.md)) adds a `CachePort` Protocol to Layer 2 and three new frozen entities to Layer 1. Phase 1 (port + adapter, no callers) is in flight in a parallel worktree as of 2026-04-29.
-
-```mermaid
-classDiagram
-    direction TB
-
-    class CachePort {
-        <<Protocol — interfaces.py (planned)>>
-        +get_findings(file_hash, dimension)* tuple~Finding~ | None
-        +put_findings(file_hash, dimension, findings, model_version, prompt_version)* None
-        +compute_repo_signature(file_tree)* str
-        +stats()* CacheStats
-        +clear(repo_signature?)* int
-    }
-
-    class CacheEntry {
-        <<frozen — planned>>
-        +file_hash: str
-        +file_path: str
-        +dimension: Dimension
-        +findings: tuple~Finding~
-        +model_version: str
-        +prompt_version: str
-        +spectra_version: str
-        +schema_version: str
-        +computed_at: datetime
-    }
-
-    class CacheStats {
-        <<frozen — planned>>
-        +total_entries: int
-        +total_repos: int
-        +db_size_bytes: int
-        +hit_rate_last_100: float
-        +oldest_entry_at: datetime | None
-    }
-
-    class BatchPrompt {
-        <<frozen — planned>>
-        +batch_id: str
-        +file_paths: tuple~str~
-        +file_hashes: tuple~str~
-        +prompt_text: str
-    }
-
-    class SqliteCacheAdapter {
-        <<Adapter — cache_adapter.py (planned)>>
-        -_conn: sqlite3.Connection
-        +get_findings(...) tuple~Finding~ | None
-        +put_findings(...) None
-        +compute_repo_signature(...) str
-        +stats() CacheStats
-        +clear(repo_signature?) int
-    }
-
-    CachePort <|.. SqliteCacheAdapter : implements (planned)
-    CacheEntry --> Finding : findings
-    SqliteCacheAdapter ..> CacheEntry : reads/writes rows as
-    SqliteCacheAdapter ..> CacheStats : produces
-
-    note for CachePort "Layer 2 port. Methods are sync —\ncache I/O is local SQLite, not networked."
-    note for SqliteCacheAdapter "Layer 4 adapter. Single-file ~/.cache/spectra/cache.db\nin WAL mode. Composite primary key:\n(file_hash, dimension, model_version, prompt_version, schema_version)"
-```
-
-The dependency rule is preserved: `CachePort` lives in Layer 2 with no infrastructure imports; `SqliteCacheAdapter` lives in Layer 4 and may import from all inner layers.
-
----
-
-*Last updated: 2026-04-29 — LLMGateway gained effort/task_budget_tokens; planned cache entities documented.*
+*Last updated: 2026-04-29 — added all cache entities (Phases 1-3), `PipelineContext` value object, `prepare_workspace` on `GitPort`, `on_cache_lookup` on `ProgressObserver`, `SchemaVersion` literal.*
