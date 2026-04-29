@@ -41,20 +41,13 @@ jobs:
       - name: Install spectra-ai
         run: pip install --upgrade "spectra-ai"
 
-      # NOTE: The CLI's URL validator currently REJECTS local paths
-      # (see src/spectra/adapters/cli_controller.py::_validate_repo_url).
-      # As a workaround we pass the PR's HEAD ref as an https URL so the
-      # ingest stage clones the same commit GitHub already checked out.
-      # TODO(spectra-ai): teach `spectra analyze` to accept a local path
-      # via a positional `.` argument and skip the clone step.
       - name: Run Spectra
         id: spectra
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set +e
-          REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
-          spectra analyze "${REPO_URL}" \
+          spectra analyze . \
             --quick \
             --format json \
             --output spectra-report.json

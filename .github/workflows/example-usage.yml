@@ -34,8 +34,7 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           # Optional — defaults to "." (the checked-out workspace).
-          # Today the CLI requires an https URL; "." resolves to the
-          # current GITHUB_REPOSITORY automatically.
+          # Pass a different path or an https URL to analyze something else.
           path: "."
 
           # Optional — "json" (default, recommended for CI) or "html".

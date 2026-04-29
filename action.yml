@@ -24,7 +24,7 @@ inputs:
     description: Anthropic API key. Pass via `${{ secrets.ANTHROPIC_API_KEY }}`.
     required: true
   path:
-    description: Path to the repo to analyze. Defaults to the current workspace.
+    description: Path or https URL to analyze. Defaults to the checked-out workspace (`.`).
     required: false
     default: "."
   format:
@@ -78,12 +78,6 @@ runs:
           pip install --upgrade "spectra-ai"
         fi
 
-    # NOTE: The CLI's URL validator currently rejects local paths and
-    # only accepts https:// URLs. We work around this by inferring the
-    # repo URL from $GITHUB_REPOSITORY when `path` is `.`. If the caller
-    # passes a non-default path we honor it as-is so the user can still
-    # supply a remote URL today.
-    # TODO(spectra-ai): teach the CLI to accept a local filesystem path.
     - name: Run Spectra
       id: run
       shell: bash
@@ -91,11 +85,7 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
       run: |
         set +e
-        if [ "${{ inputs.path }}" = "." ]; then
-          TARGET="https://github.com/${GITHUB_REPOSITORY}.git"
-        else
-          TARGET="${{ inputs.path }}"
-        fi
+        TARGET="${{ inputs.path }}"
 
         EXT="${{ inputs.format }}"
         REPORT_PATH="spectra-report.${EXT}"
