@@ -1,328 +1,405 @@
-# Spectra Leaderboard — Real OSS Scans
+# Spectra Leaderboard — Real OSS Scans (Full Mode)
 
 Live scans of well-known open-source projects, run with `spectra-ai==0.3.2`
-on Claude Opus 4.7 (`--quick --no-cache`). All findings link to the actual
-file:line on GitHub. No cherry-picking — each scan is one shot.
+on Claude Opus 4.7. **Full pipeline** (all 8 agents including the CritiqueAgent
+stage that filters false positives via adaptive thinking + task budget). All
+findings link to the actual file:line on GitHub. No cherry-picking — each
+scan is one shot.
+
+## 📄 Open the styled reports in your browser
+
+- [`anthropic-sdk-python.html`](reports/anthropic-sdk-python.html) — **B+** (85.6)
+- [`gstack.html`](reports/gstack.html) — **C** (72.7)
+- [`gbrain.html`](reports/gbrain.html) — **C+** (73.0)
+- [`gbrain-evals.html`](reports/gbrain-evals.html) — **C+** (76.1)
+- [`alphaclaw.html`](reports/alphaclaw.html) — **C+** (74.6)
+
+Each HTML report includes the animated scorecard, per-dimension breakdown,
+full findings list with severity, file:line, fix recommendation, estimated
+hours, agent attribution, and confidence — exactly what `spectra analyze`
+writes to `spectra-report.html` by default.
 
 ## Summary
 
-| Rank | Repo | Stars | Grade | Score | Findings | Critical | High | Cost | Wall |
-|---:|---|---:|:---:|---:|---:|---:|---:|---:|---:|
-| 1 | [`anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B** | 82.5 | 55 | 0 | 3 | $6.82 | 168s |
-| 2 | [`gstack`](https://github.com/garrytan/gstack) | 86k | **C** | 72.0 | 54 | 2 | 8 | $9.19 | 187s |
-| 3 | [`gbrain`](https://github.com/garrytan/gbrain) | 12k | **C-** | 68.5 | 72 | 0 | 10 | $4.90 | 188s |
-| 4 | [`gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+** | 75.2 | 62 | 1 | 9 | $17.29 | 188s |
-| 5 | [`alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+** | 73.2 | 63 | 0 | 9 | $4.86 | 162s |
+| # | Repo | Stars | Grade | Score | Findings | Critical | High | Wall | Cost | HTML | JSON |
+|---:|---|---:|:---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
+| 1 | [`anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+** | 85.6 | 50 | 0 | 0 | 248s | $7.41 | [📄](reports/anthropic-sdk-python.html) | [📦](../leaderboard-data/anthropic-sdk-python.json) |
+| 2 | [`gstack`](https://github.com/garrytan/gstack) | 86k | **C** | 72.7 | 49 | 1 | 7 | 190s | $9.16 | [📄](reports/gstack.html) | [📦](../leaderboard-data/gstack.json) |
+| 3 | [`gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+** | 73.0 | 61 | 0 | 7 | 264s | $5.25 | [📄](reports/gbrain.html) | [📦](../leaderboard-data/gbrain.json) |
+| 4 | [`gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+** | 76.1 | 55 | 1 | 6 | 276s | $6.32 | [📄](reports/gbrain-evals.html) | [📦](../leaderboard-data/gbrain-evals.json) |
+| 5 | [`alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+** | 74.6 | 50 | 0 | 7 | 234s | $5.30 | [📄](reports/alphaclaw.html) | [📦](../leaderboard-data/alphaclaw.json) |
 
-> **Note on cost:** v0.3.1 had a 3× cost-overstatement bug (Opus 4.7 prices were copied from the older Opus 4.0/4.1 rate card). The two scans done before that fix (anthropic-sdk-python, alphaclaw) are reported with the corrected cost (`raw ÷ 3`); scans done with v0.3.2+ are direct. Fix shipped in [PR #28](https://github.com/leocder07/spectra/pull/28).
+**Totals: 265 findings · 2 critical · 27 high · $33.44 real Anthropic spend across all 5 scans.**
+
+Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pricing ($5/M input + $25/M output) at the typical 70/30 input/output split. The earlier 3× cost-overstatement bug (PR #28) is fixed in v0.3.2.
 
 ---
 
-## `anthropic-sdk-python` — Grade B (82.5)
+## `anthropic-sdk-python` — Grade B+ (85.6)
 
-**Repo:** https://github.com/anthropics/anthropic-sdk-python
-**Findings:** 55 total · 🟠 3 high · 🟡 19 medium · 🟢 23 low · ⚪ 10 info
-**Wall-clock:** 168s · **Cost:** $6.82
+📄 **[Full HTML report](reports/anthropic-sdk-python.html)** · 📦 **[Raw JSON](../leaderboard-data/anthropic-sdk-python.json)** · 🔗 **[Repo on GitHub](https://github.com/anthropics/anthropic-sdk-python)**
 
-### Per-dimension
+**Findings:** 50 total — 🟡 16 medium · 🟢 20 low · ⚪ 14 info
+**Wall-clock:** 248s · **Cost:** $7.41 · **Tokens:** 673,411
 
-| Dimension | Grade | Score | Weight |
-|---|:---:|---:|---:|
-| Security | A | 90.0 | 25% |
-| Maintainability | A- | 87.2 | 10% |
-| Quality | B | 82.8 | 20% |
-| Performance | B | 81.6 | 10% |
-| Architecture | B- | 77.4 | 25% |
-| Documentation | C | 72.4 | 10% |
+### Per-dimension scores
 
-### Top findings (entry points → GitHub)
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Performance | A | 92.3 | 10% | 1 |
+| Security | A | 90.9 | 25% | 10 |
+| Maintainability | B+ | 85.9 | 10% | 10 |
+| Quality | B+ | 85.8 | 20% | 5 |
+| Architecture | B | 81.2 | 25% | 10 |
+| Documentation | C+ | 76.1 | 10% | 14 |
 
-- 🟠 **HIGH** · [`src/anthropic/_response.py`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_response.py)
-  - **JSONL decoder uses 64-byte chunk size for HTTP iteration**
-  - In `_response.py` and `_legacy_response.py`, when constructing JSONLDecoder/AsyncJSONLDecoder the underlying `iter_bytes`/`aiter_bytes` is invoked with `chunk_size=64`. Reading streaming HTTP bodies in 64-byte chunks dramatically increases the number of iterator wakeups, syscalls, and Python-level l…
-  - *Fix:* Increase the chunk_size for JSONL streaming to a more reasonable value (e.g. 8192 or omit to use httpx default). 64 bytes is far too small for network streams. Apply the same change in `_legacy_respon…
-  - *agent: `performance` · confidence: 0.90 · est: 0.5h*
+### Top findings (clickable entry points → GitHub)
 
-- 🟠 **HIGH** · [`helpers.md`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/helpers.md)
-  - **Streaming/agents SSE event list likely not reflected in helpers.md**
-  - Stream.__stream__ and AsyncStream.__stream__ in _streaming.py handle a large set of SSE event types including new agent/session/span events: user.message, user.interrupt, user.tool_confirmation, user.custom_tool_result, agent.message, agent.thinking, agent.tool_use, agent.tool_result, agent.mcp_tool…
-  - *Fix:* Audit helpers.md against the event list in src/anthropic/_streaming.py and add a dedicated section documenting agent.*, user.*, session.*, and span.* events, including which payload models each maps t…
-  - *agent: `documentation` · confidence: 0.80 · est: 6.0h*
-
-- 🟠 **HIGH** · [`examples/agents.py`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/examples/agents.py)
-  - **Examples directory likely missing coverage for agents, sessions, skills, and vaults**
-  - The PLAN file lists only examples/agents.py, examples/messages_stream.py, and examples/tools_runner.py for documentation review and explicitly flags 'examples coverage of new agents/sessions/skills/vaults' as a concern. The streaming code clearly supports session.* and span.* events, and pyproject.t…
-  - *Fix:* Add example scripts under examples/ for each new product surface: examples/sessions_basic.py, examples/sessions_streaming.py, examples/skills_create_and_run.py, and examples/vaults_secret_usage.py. En…
-  - *agent: `documentation` · confidence: 0.70 · est: 12.0h*
+- 🟡 **MEDIUM** · [`src/anthropic/_streaming.py:96`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_streaming.py#L96)
+  - **SSE event-name dispatch is a hand-maintained string ladder duplicated sync/async**
+  - Stream.__stream__ and AsyncStream.__stream__ both contain an enormous `or`-chain enumerating ~25 SSE event names (`message_start`, `agent.tool_use`, `session.deleted`, etc.). The list is duplicated verbatim in two places. Adding a new server-side event requires editing two locations; forgetting one …
+  - *Fix:* Define a module-level `_KNOWN_EVENT_TYPES: frozenset[str]` (or a small dispatch table) shared by both Stream and AsyncStream. The dispatch loop becomes `if sse.event in _KNOWN_EVENT_TYPES:` and the tw…
+  - *agent: `architecture` · confidence: 0.95 · est: 1.5h*
 
 - 🟡 **MEDIUM** · [`src/anthropic/_streaming.py`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_streaming.py)
-  - **Long, repeated SSE event-name string check in Stream and AsyncStream**
-  - Both Stream.__stream__ and AsyncStream.__stream__ contain a 30-line `if sse.event == "..." or sse.event == "..."` chain listing ~28 event names. This is duplicated verbatim between sync and async implementations and is brittle: adding a new event requires editing two places.
-  - *Fix:* Extract a module-level constant `_HANDLED_SSE_EVENTS: frozenset[str] = frozenset({...})` and use `if sse.event in _HANDLED_SSE_EVENTS:` in both implementations. Reduces 30 lines to 1 lookup and remove…
-  - *agent: `quality` · confidence: 0.98 · est: 0.5h*
+  - **Long stream event matching uses repetitive or-chain instead of set/lookup**
+  - Both Stream.__stream__ and AsyncStream.__stream__ in _streaming.py contain a large if-statement chaining 30+ string equality checks via `or` operators. This is duplicated between sync and async implementations and is hard to maintain — adding a new event type requires editing two places. Cyclomatic …
+  - *Fix:* Define a module-level frozenset of known event names (e.g., `_KNOWN_EVENTS = frozenset({...})`) and replace the chained or-comparisons with `if sse.event in _KNOWN_EVENTS:`. This reduces complexity, d…
+  - *agent: `quality` · confidence: 0.95 · est: 1.0h*
 
-- 🟡 **MEDIUM** · [`src/anthropic/_base_client.py:640`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_base_client.py#L640)
-  - **Massive duplication between SyncAPIClient and AsyncAPIClient**
-  - The `SyncAPIClient` (lines ~640-1000) and `AsyncAPIClient` (lines ~1100-1500) in `_base_client.py` contain near-identical implementations of `request()`, `_process_response()`, `_sleep_for_retry()`, all HTTP verb methods (get/post/put/patch/delete), and request-options preparation. The only meaningf…
-  - *Fix:* Since this is generator-emitted code, the duplication is acceptable but should be guarded by (a) automated parity tests asserting that public method signatures and behavior match between Sync/Async va…
-  - *agent: `architecture` · confidence: 0.95 · est: 8.0h*
+- 🟡 **MEDIUM** · [`src/anthropic/_legacy_response.py:188`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_legacy_response.py#L188)
+  - **Massive duplication between APIResponse and LegacyAPIResponse**
+  - _response.py and _legacy_response.py contain near-identical parsing logic in BaseAPIResponse._parse and LegacyAPIResponse._parse (handling of TypeAlias unwrap, Annotated unwrap, JSONLDecoder, stream_cls, NoneType, str/int/float/bool, httpx.Response, BaseModel coercion, content-type parsing). Both co…
+  - *Fix:* Extract a shared `_parse_to_python(response, cast_to, *, is_stream, stream_cls, client, options)` free function and call it from both LegacyAPIResponse._parse and BaseAPIResponse._parse. Keep the publ…
+  - *agent: `architecture` · confidence: 0.90 · est: 6.0h*
+
+- 🟡 **MEDIUM** · [`src/anthropic/_base_client.py:877`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_base_client.py#L877)
+  - **Sync/async request loop duplicated nearly verbatim in BaseClient subclasses**
+  - SyncAPIClient.request and AsyncAPIClient.request implement the same retry/backoff/timeout/HTTP-status-error pipeline (lines ~877-1004 vs ~1182-1320 in _base_client.py) with only `await`/`anyio.sleep` vs `time.sleep` differing. This is hundreds of lines of duplicated control flow — any change to retr…
+  - *Fix:* Factor the retry/error-handling pipeline into a generic helper that takes `send`/`sleep`/`close_response` callables (one sync set, one async set). Alternatively, push the loop body into pure functions…
+  - *agent: `architecture` · confidence: 0.90 · est: 12.0h*
 
 - 🟡 **MEDIUM** · [`src/anthropic/_base_client.py`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_base_client.py)
-  - **Duplicated _DefaultHttpxClient and _DefaultAsyncHttpxClient initialization logic**
-  - The synchronous _DefaultHttpxClient.__init__ and asynchronous _DefaultAsyncHttpxClient.__init__ contain ~30 lines of nearly identical socket option configuration, proxy mapping, and transport setup. Only the transport class differs (HTTPTransport vs AsyncHTTPTransport). This duplication makes mainte…
-  - *Fix:* Extract a shared helper function `_build_socket_options()` and `_build_proxy_mounts(transport_cls, kwargs)` that both classes call. Target ~15 lines of class-specific code.
-  - *agent: `quality` · confidence: 0.95 · est: 2.0h*
+  - **Significant code duplication between sync/async client implementations**
+  - The Anthropic and AsyncAnthropic classes in _client.py duplicate ~150 lines of nearly identical code (constructor, copy(), _make_status_error, _validate_headers, _api_key_auth, _bearer_auth, default_headers). Similar duplication exists between SyncAPIClient and AsyncAPIClient in _base_client.py for …
+  - *Fix:* Extract shared socket option / transport setup into a helper function. Acknowledge that some duplication is required between sync/async due to await semantics, but the transport/socket configuration b…
+  - *agent: `quality` · confidence: 0.90 · est: 4.0h*
 
+- 🟡 **MEDIUM** · [`src/anthropic/_client.py:168`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_client.py#L168)
+  - **`copy`/`with_options` parameters undocumented**
+  - `Anthropic.copy` and `AsyncAnthropic.copy` (aliased as `with_options`) accept a number of subtle parameters — `default_headers` vs `set_default_headers`, `default_query` vs `set_default_query`, and `_extra_kwargs` — whose mutual-exclusion semantics and merge behavior are non-obvious. The docstring i…
+  - *Fix:* Document each parameter in the `copy` docstring, explicitly explaining: (a) `default_headers` merges with existing headers while `set_default_headers` replaces them, (b) the same for query params, (c)…
+  - *agent: `documentation` · confidence: 0.90 · est: 1.5h*
+
+- 🟡 **MEDIUM** · [`src/anthropic/_exceptions.py:79`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_exceptions.py#L79)
+  - **Exception class hierarchy lacks docstrings on most concrete error types**
+  - In `_exceptions.py`, only `APIStatusError`, `APIError.body`, and `APITimeoutError` (via its message) carry any documentation. The eight concrete status-code subclasses (`BadRequestError`, `AuthenticationError`, `PermissionDeniedError`, `NotFoundError`, `ConflictError`, `RequestTooLargeError`, `Unpro…
+  - *Fix:* Add a one-paragraph docstring to each concrete exception class describing the API condition that produces it and reminding users of the available attributes. Also add a module-level docstring summariz…
+  - *agent: `documentation` · confidence: 0.90 · est: 1.5h*
+
+- 🟡 **MEDIUM** · [`src/anthropic/_constants.py:21`](https://github.com/anthropics/anthropic-sdk-python/blob/HEAD/src/anthropic/_constants.py#L21)
+  - **`MODEL_NONSTREAMING_TOKENS` constant is undocumented**
+  - `_constants.py` defines `MODEL_NONSTREAMING_TOKENS`, a model->token threshold map used by `_calculate_nonstreaming_timeout` to decide when streaming is required. There is no docstring explaining what the dictionary represents, when entries should be added, or how end users should interpret it. Becau…
+  - *Fix:* Add a comment/docstring above `MODEL_NONSTREAMING_TOKENS` explaining: the keys are model identifiers (including Bedrock/Vertex variants), the values are the maximum `max_tokens` allowed for non-stream…
+  - *agent: `documentation` · confidence: 0.90 · est: 0.5h*
 
 ---
 
-## `gstack` — Grade C (72.0)
+## `gstack` — Grade C (72.7)
 
-**Repo:** https://github.com/garrytan/gstack
-**Findings:** 54 total · 🔴 2 critical · 🟠 8 high · 🟡 22 medium · 🟢 16 low · ⚪ 6 info
-**Wall-clock:** 187s · **Cost:** $9.19
+📄 **[Full HTML report](reports/gstack.html)** · 📦 **[Raw JSON](../leaderboard-data/gstack.json)** · 🔗 **[Repo on GitHub](https://github.com/garrytan/gstack)**
 
-### Per-dimension
+**Findings:** 49 total — 🔴 1 critical · 🟠 7 high · 🟡 15 medium · 🟢 15 low · ⚪ 11 info
+**Wall-clock:** 190s · **Cost:** $9.16 · **Tokens:** 832,859
 
-| Dimension | Grade | Score | Weight |
-|---|:---:|---:|---:|
-| Security | B+ | 85.0 | 25% |
-| Documentation | B- | 77.7 | 10% |
-| Performance | B- | 77.1 | 10% |
-| Maintainability | C+ | 73.4 | 10% |
-| Architecture | D+ | 66.5 | 25% |
-| Quality | F | 56.4 | 20% |
+### Per-dimension scores
 
-### Top findings (entry points → GitHub)
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Documentation | A- | 89.6 | 10% | 12 |
+| Performance | B | 80.8 | 10% | 5 |
+| Maintainability | B- | 79.0 | 10% | 10 |
+| Security | C | 71.4 | 25% | 7 |
+| Architecture | C- | 67.2 | 25% | 10 |
+| Quality | D+ | 65.4 | 20% | 5 |
+
+### Top findings (clickable entry points → GitHub)
 
 - 🔴 **CRITICAL** · [`browse/src/cli.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/cli.ts)
-  - **Syntax error: stray code in disconnect handler**
-  - In browse/src/cli.ts within the 'disconnect' command handler, the JSON.stringify body call contains an orphaned `domains,` token left over from what appears to be a bad merge. This is invalid JavaScript/TypeScript and will fail to compile. The disconnect path is entirely broken until fixed.
-  - *Fix:* Remove the stray `domains,` line. The body should simply be `JSON.stringify({ command: 'disconnect', args: [] })`. Add a unit test that exercises the disconnect path so future merges don't reintroduce…
-  - *agent: `architecture` · confidence: 0.98 · est: 0.5h*
-
-- 🔴 **CRITICAL** · [`browse/src/cli.ts:700`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/cli.ts#L700)
   - **Syntax error in cli.ts disconnect handler — invalid JSON.stringify body**
-  - The disconnect command handler contains a malformed JSON.stringify call with a stray `domains,` token from a partial copy-paste. The body object has unbalanced braces and references an undefined `domains` variable. This is a parse-time syntax error that would prevent the file from loading.
-  - *Fix:* Remove the stray `domains,` line. The body should be: `JSON.stringify({ command: 'disconnect', args: [] })`. Add a regression test that imports the module to catch syntax errors at CI time.
-  - *agent: `quality` · confidence: 0.98 · est: 0.5h*
-
-- 🟠 **HIGH** · [`browse/src/server.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts)
-  - **server.ts is a 1500+ line god module mixing every cross-cutting concern**
-  - browse/src/server.ts owns: HTTP routing (~20 endpoints inline in one fetch handler), auth (root + scoped + SSE cookie + PTY cookie), tunnel lifecycle, ngrok integration, idle-timer + parent-watchdog, signal handling, buffer flushing, inspector SSE, batch dispatch, file serving, welcome page, command…
-  - *Fix:* Extract route handlers into a routes/ directory: routes/auth.ts (/connect, /token, /pair, /sse-session, /pty-session), routes/tunnel.ts (/tunnel/start, closeTunnel), routes/inspector.ts, routes/activi…
-  - *agent: `architecture` · confidence: 0.95 · est: 16.0h*
-
-- 🟠 **HIGH** · [`browse/src/server.ts:308`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts#L308)
-  - **handleCommandInternal exceeds 280 lines with very high cyclomatic complexity**
-  - handleCommandInternal in server.ts is ~280 lines long with deeply nested conditionals covering scope checks, domain checks, rate limits, tab pinning, ownership, watch-mode gating, read/write/meta dispatch, content filtering, audit logging, and error/restoration paths. Cyclomatic complexity is well a…
-  - *Fix:* Extract pure helpers: validateScopeAndDomain(tokenInfo, command, args), enforceRateLimit(tokenInfo, opts), pinTab(tabId), runReadWithHiddenStripping(...), wrapResultIfPageContent(...). Aim for a top-l…
-  - *agent: `quality` · confidence: 0.95 · est: 8.0h*
-
-- 🟠 **HIGH** · [`browse/src/server.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts)
-  - **AUTH_TOKEN exposed via /health endpoint enables token theft from any local browser**
-  - The /health endpoint returns the root AUTH_TOKEN unconditionally when in headed mode, or when the request Origin is a chrome-extension:// URL. The Origin header is set by browsers but can be spoofed by any non-browser local HTTP client (curl, malware), and any process on localhost can hit /health an…
-  - *Fix:* Replace the /health token leak with the existing /pty-session or a dedicated /bootstrap endpoint requiring proof of extension identity (e.g., a one-time bootstrap nonce written to a file with 0600 per…
-  - *agent: `security` · confidence: 0.92 · est: 6.0h*
-
-- 🟠 **HIGH** · [`browse/src/browser-manager.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/browser-manager.ts)
-  - **BrowserManager is a god class — 600+ lines, 30+ responsibilities**
-  - BrowserManager owns: launch/close, tab CRUD, ownership, viewport, headers, user agent, dialog handling, cookie origin tracking, watch mode, handoff (headless→headed), state save/restore, page event wiring, two-tier CDP mutex, ref maps, snapshot diffing, anti-bot stealth scripts, custom Chromium bina…
-  - *Fix:* Split into: BrowserLifecycle (launch/close/health), TabManager (tabs + ownership), SessionState (saveState/restoreState), HandoffController, CdpMutex (per-tab + global locks), AppRebrand (plist + icon…
-  - *agent: `architecture` · confidence: 0.90 · est: 24.0h*
-
-
----
-
-## `gbrain` — Grade C- (68.5)
-
-**Repo:** https://github.com/garrytan/gbrain
-**Findings:** 72 total · 🟠 10 high · 🟡 31 medium · 🟢 27 low · ⚪ 4 info
-**Wall-clock:** 188s · **Cost:** $4.90
-
-### Per-dimension
-
-| Dimension | Grade | Score | Weight |
-|---|:---:|---:|---:|
-| Performance | B+ | 83.4 | 10% |
-| Security | C+ | 73.1 | 25% |
-| Maintainability | C | 72.5 | 10% |
-| Architecture | C- | 69.7 | 25% |
-| Documentation | D+ | 65.2 | 10% |
-| Quality | F | 53.5 | 20% |
-
-### Top findings (entry points → GitHub)
-
-- 🟠 **HIGH** · [`src/commands/autopilot.ts:362`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/autopilot.ts#L362)
-  - **Engine abstraction leaks via unsafe casts (engine as any)**
-  - The BrainEngine interface is the architectural seam between PostgresEngine and PGLiteEngine, but call sites bypass it with `(engine as any).executeRaw?.(...)` and `(engine as any).connect?.()` (autopilot.ts:362, 393). This indicates either the interface is incomplete or callers are reaching into eng…
-  - *Fix:* Add `executeRaw<T>` and a `reconnect()` method to the BrainEngine interface (both engines already implement executeRaw based on usage). Remove the `as any` casts. If reconnect semantics differ, docume…
-  - *agent: `architecture` · confidence: 0.95 · est: 3.0h*
-
-- 🟠 **HIGH** · [`src/cli.ts:174`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L174)
-  - **Pervasive use of `as any` casts undermines TypeScript's type safety**
-  - Multiple files cast values through `any` to bypass type checking, defeating the purpose of TypeScript's strict mode. In cli.ts formatResult uses `result as any` repeatedly for every command branch, losing type guarantees on operation results. autopilot.ts uses `(engine as any).executeRaw?.(...)` and…
-  - *Fix:* Define discriminated union return types per operation and replace `as any` with proper type narrowing. Add `executeRaw`, `connect`, and `getHealth` to the BrainEngine interface so autopilot.ts doesn't…
-  - *agent: `quality` · confidence: 0.95 · est: 8.0h*
-
-- 🟠 **HIGH** · [`src/cli.ts:245`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L245)
-  - **handleCliOnly is a 250+ line dispatcher with high cyclomatic complexity**
-  - The handleCliOnly function in cli.ts uses a long sequence of if-statements followed by a switch, dispatching ~40 commands. Each command has its own dynamic import and small variations (some need engine, some don't, some don't disconnect). This monolithic function has cyclomatic complexity well over …
-  - *Fix:* Extract a command registry: `Map<string, { needsDb: boolean; disconnect: boolean; load: () => Promise<Handler> }>`. Replace the if-chain and switch with a single dispatch loop driven by the registry. …
-  - *agent: `quality` · confidence: 0.95 · est: 6.0h*
-
-- 🟠 **HIGH** · [`src/commands/autopilot.ts:96`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/autopilot.ts#L96)
-  - **runAutopilot is ~280 lines combining 5 distinct responsibilities**
-  - runAutopilot in autopilot.ts handles: lock-file management, worker child-process supervision (spawn + restart + crash counting), Minions dispatch loop, inline cycle fallback, no-worker liveness probe, health-based interval adaptation, and shutdown signal handling. This is a god function with cycloma…
-  - *Fix:* Extract: WorkerSupervisor class (spawn/restart/crash logic), DispatchLoop (the while loop body), LockManager (acquire/refresh/release), and ShutdownCoordinator. runAutopilot should orchestrate them in…
-  - *agent: `quality` · confidence: 0.95 · est: 12.0h*
-
-- 🟠 **HIGH** · [`src/cli.ts:380`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L380)
-  - **CLI help text omits documented commands (auth, agent, skillpack, skillify, etc.)**
-  - The printHelp() function in src/cli.ts is the canonical user-facing help, but it omits many commands present in CLI_ONLY and dispatched in handleCliOnly: 'auth', 'agent', 'skillpack', 'skillify', 'check-resolvable', 'routing-eval', 'apply-migrations', 'skillpack-check', 'resolvers', 'integrity', 're…
-  - *Fix:* Add a SUBAGENTS section (agent run/logs), an AUTH section (auth create/list/revoke/test), expand SETUP to include `apply-migrations` and `skillpack-check`, and add the missing utility commands (skilli…
-  - *agent: `documentation` · confidence: 0.95 · est: 3.0h*
-
-- 🟠 **HIGH** · [`src/cli.ts:26`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L26)
-  - **`reconcile-links` command not registered in CLI_ONLY but handled in switch**
-  - src/cli.ts handles `case 'reconcile-links':` in the handleCliOnly switch (with a v0.20.0 comment), but 'reconcile-links' is missing from the CLI_ONLY Set. This means the dispatcher never routes the command into handleCliOnly — it falls through to the shared-operations path and prints 'Unknown comman…
-  - *Fix:* Add 'reconcile-links' to the CLI_ONLY Set, or document that the command is unreleased. Also add it to printHelp() under the CODE INDEXING section. Add a smoke test asserting every case label in handle…
-  - *agent: `documentation` · confidence: 0.95 · est: 0.5h*
-
-
----
-
-## `gbrain-evals` — Grade C+ (75.2)
-
-**Repo:** https://github.com/garrytan/gbrain-evals
-**Findings:** 62 total · 🔴 1 critical · 🟠 9 high · 🟡 23 medium · 🟢 19 low · ⚪ 10 info
-**Wall-clock:** 188s · **Cost:** $17.29
-
-### Per-dimension
-
-| Dimension | Grade | Score | Weight |
-|---|:---:|---:|---:|
-| Security | A- | 89.5 | 25% |
-| Architecture | C+ | 76.1 | 25% |
-| Documentation | C+ | 75.3 | 10% |
-| Performance | C+ | 75.2 | 10% |
-| Maintainability | D+ | 63.0 | 10% |
-| Quality | D | 62.4 | 20% |
-
-### Top findings (entry points → GitHub)
-
-- 🔴 **CRITICAL** · [`package.json:24`](https://github.com/garrytan/gbrain-evals/blob/HEAD/package.json#L24)
-  - **Critical core dependency pinned to a moving git branch (master)**
-  - `gbrain` is the central library this benchmark consumes, but it is referenced as `github:garrytan/gbrain#master` — a branch ref, not a tag or commit SHA. Every fresh install can pull a different gbrain HEAD, silently changing benchmark results. This is the single largest reproducibility risk in the …
-  - *Fix:* Pin to a commit SHA or a versioned tag, e.g. `github:garrytan/gbrain#v0.3.1` or `github:garrytan/gbrain#<40-char-sha>`. For published benchmark runs, record the resolved SHA in the report metadata. Lo…
-  - *agent: `dependency` · confidence: 0.98 · est: 1.0h*
-
-- 🟠 **HIGH** · [`eval/generators/amara-life-gen.ts:413`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts#L413)
-  - **Bug in writeDocs: redundant/dead path-rewriting logic**
-  - writeDocs() in amara-life-gen.ts contains visibly broken path logic: `const path = join(CORPUS_ROOT, slugPath + '.md'.replace(/\.md$/, '') === slugPath ? slugPath : slugPath);` — the ternary always evaluates to `slugPath` (both branches), and `path` is then unused (`fullPath` is what's actually writ…
-  - *Fix:* Delete the dead `path` line entirely and rely on `fullPath`. Also note the docs slugs already end with .md (e.g. 'doc/novamind-investor-update.md'), so review whether the stored doc paths should match…
-  - *agent: `architecture` · confidence: 0.95 · est: 1.0h*
-
-- 🟠 **HIGH** · [`eval/generators/amara-life-gen.ts:405`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts#L405)
-  - **Broken docs path-mangling logic in writeDocs() is dead-code-equivalent**
-  - The expression `slugPath + '.md'.replace(/\.md$/, '') === slugPath ? slugPath : slugPath` always evaluates to `slugPath` regardless of the comparison (both branches are identical). This is buggy/confused code that does nothing useful. The variable `path` is then computed but never used — only `fullP…
-  - *Fix:* Remove the dead `path` variable and the no-op ternary. Just use `const fullPath = join(CORPUS_ROOT, slugPath); ensureDir(dirname(fullPath)); writeFileSync(fullPath, body);`
+  - In handlePairAgent's disconnect path, the body of fetch contains a stray `domains,` line inside JSON.stringify that references an undeclared variable in this scope, breaking compilation. This indicates either dead code from a bad merge or a broken disconnect flow that never actually runs/compiles. C…
+  - *Fix:* Remove the orphaned `domains,` line from the JSON.stringify({ command: 'disconnect', args: [] }) call. Add a build/typecheck step (tsc --noEmit) to the test script to catch syntax errors before commit…
   - *agent: `quality` · confidence: 0.95 · est: 0.5h*
 
-- 🟠 **HIGH** · [`eval/generators/amara-life-gen.ts`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts)
-  - **Sequential per-item LLM calls in amara-life generator (no concurrency)**
-  - The main generation loop in amara-life-gen.ts processes 50 emails + 300 slack + 8 meetings + 40 notes (398 LLM calls) strictly sequentially via `for...of` with `await callOpus()` inside. At ~5-10s per Opus call, this means 30-60 minutes of wall time for a full uncached run, dominated by network roun…
-  - *Fix:* Refactor the four sequential loops (emails, slack, meetings, notes) into a worker-pool pattern matching gen.ts (lines using `Promise.all(Array.from({length: concurrency}, () => worker()))`). Default c…
-  - *agent: `performance` · confidence: 0.92 · est: 3.0h*
+- 🟠 **HIGH** · [`browse/src/server.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts)
+  - **server.ts is a 1500+ line monolith mixing routing, business logic, and lifecycle**
+  - browse/src/server.ts is a single file containing: HTTP routing for ~20 endpoints, dual-listener tunnel management, ngrok integration, SSE streaming for activity + inspector, command dispatch with security pipeline (scope/domain/tab/rate/audit/wrapping), idle/parent-process watchdogs, signal handlers…
+  - *Fix:* Introduce a minimal route table (Map<{method, path}, handler>) and split handlers into route modules: routes/auth.ts (/connect, /pair, /token, /agents, /sse-session, /pty-session), routes/command.ts (…
+  - *agent: `architecture` · confidence: 0.95 · est: 20.0h*
 
-- 🟠 **HIGH** · [`package.json:1`](https://github.com/garrytan/gbrain-evals/blob/HEAD/package.json#L1)
-  - **No lockfile present (bun.lockb / package-lock.json not committed)**
-  - The provided files include package.json but no lockfile is visible. Without a committed lockfile (bun.lockb for Bun, or package-lock.json), dependency resolution is non-deterministic across contributors and CI. Combined with caret ranges (^0.30.0, ^2.4.5) and a git-ref dependency, two installs can p…
-  - *Fix:* Commit bun.lockb (or package-lock.json if mixing tooling) and add a CI step (e.g., `bun install --frozen-lockfile`) to enforce lockfile integrity. Document the lockfile in CONTRIBUTING.md.
-  - *agent: `dependency` · confidence: 0.90 · est: 1.0h*
+- 🟠 **HIGH** · [`browse/src/server.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts)
+  - **server.ts is a 1500+ line god module with mixed concerns**
+  - browse/src/server.ts handles HTTP routing, auth, tunnel management, SSE streaming, inspector state, PTY handshake, audit logging, idle/parent watchdogs, signal handling, port discovery, command dispatch, and lifecycle — all in one file. The makeFetchHandler closure alone spans hundreds of lines with…
+  - *Fix:* Extract route groups into modules: routes/auth.ts (/connect, /token, /pair), routes/inspector.ts, routes/sse.ts, routes/batch.ts, routes/tunnel.ts. Keep server.ts as the wiring layer (<300 lines). Thi…
+  - *agent: `quality` · confidence: 0.95 · est: 16.0h*
 
-- 🟠 **HIGH** · [`eval/runner/adapters/vector.test.ts:4`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/runner/adapters/vector.test.ts#L4)
-  - **Vector adapter integration tests gated/missing — no end-to-end coverage**
-  - vector.test.ts only unit-tests the pure cosine helper. The comment explicitly states 'VectorOnlyAdapter.init/query require a live embedding API key. Those end-to-end tests live in a smoke-test class and gate on OPENAI_API_KEY.' No such smoke-test file is provided/visible in this slice, so init() and…
-  - *Fix:* Add a fake/stub embedder injection point so init/query can be tested deterministically without API calls. Mock embedBatch/embed via DI or a test-mode config. Provides regression coverage without budge…
-  - *agent: `quality` · confidence: 0.85 · est: 4.0h*
+- 🟠 **HIGH** · [`browse/src/browser-manager.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/browser-manager.ts)
+  - **Unbounded response body buffering for network capture**
+  - In browser-manager.ts wirePageEvents(), every requestfinished event calls `await res.body()` which loads the full response body into memory just to compute its byte length. For pages that download large assets (videos, PDFs, large JSON), this allocates the full payload (potentially hundreds of MB) p…
+  - *Fix:* Use the Content-Length response header when present, or fall back to a size cap (e.g., skip body() for responses where headers indicate >1MB; or read response.headers()['content-length']). Never downl…
+  - *agent: `performance` · confidence: 0.95 · est: 1.5h*
 
+- 🟠 **HIGH** · [`browse/src/browser-manager.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/browser-manager.ts)
+  - **God object: BrowserManager has 40+ public methods spanning 8 unrelated concerns**
+  - BrowserManager in browser-manager.ts is a classic god object. It owns: lifecycle (launch/close/handoff), tab management, ownership/multi-agent isolation, dialog handling, cookie tracking, viewport/UA, watch mode, ref maps, snapshot diffing, frame context, two-tier CDP mutex, headed mode patches, ant…
+  - *Fix:* Extract focused collaborators: (1) TabRegistry (pages/sessions/ownership), (2) CdpMutex (two-tier locking), (3) HeadedBrandingService (plist/icon patching), (4) StateSerializer (saveState/restoreState…
+  - *agent: `architecture` · confidence: 0.92 · est: 24.0h*
+
+- 🟠 **HIGH** · [`browse/src/server.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/server.ts)
+  - **Auth token leaked via /health endpoint without origin restriction**
+  - The /health endpoint returns the daemon's root AUTH_TOKEN unconditionally when in headed mode, and to any caller whose Origin header starts with 'chrome-extension://'. The Origin header is client-controlled in non-browser contexts (curl, fetch from any process on the host), and any local process on …
+  - *Fix:* Remove the token from /health entirely. Use a separate authenticated bootstrap endpoint that requires either a one-time exchange code (similar to setup_key flow) or a filesystem-protected handoff (rea…
+  - *agent: `security` · confidence: 0.92 · est: 4.0h*
+
+- 🟠 **HIGH** · [`browse/src/browser-manager.ts`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/browser-manager.ts)
+  - **BrowserManager class spans 800+ lines with too many responsibilities**
+  - BrowserManager owns browser lifecycle, tab management, dialog handling, ownership tracking, viewport/UA state, watch mode, headed/handoff state, CDP locks (two-tier mutex), state save/restore, ref maps, frame context, cookie tracking, Chromium binary patching for branding, and stealth init scripts. …
+  - *Fix:* Split responsibilities: extract HeadedLauncher (plist+icon+UA), AntiDetectionScripts (stealth init), TabOwnership, CdpLockManager, StateSnapshotter. Keep BrowserManager focused on Browser/Context/Page…
+  - *agent: `quality` · confidence: 0.90 · est: 24.0h*
+
+- 🟠 **HIGH** · [`browse/src/cli.ts:478`](https://github.com/garrytan/gstack/blob/HEAD/browse/src/cli.ts#L478)
+  - **Module boundary violation: browse CLI imports host config via dynamic absolute path**
+  - browse/src/cli.ts dynamically imports hosts/index.ts using path.resolve(__dirname, '..', '..', 'hosts', 'index.ts'). This creates a hidden cross-module dependency from the browse subsystem (which compiles to a standalone binary) into the hosts/ registry. It bypasses the module system, breaks in comp…
+  - *Fix:* Either (a) extract host globalRoot resolution into a small data file (e.g., hosts/globals.json) that browse can read, (b) accept the globalRoot as a CLI argument from the calling skill, or (c) move th…
+  - *agent: `architecture` · confidence: 0.88 · est: 4.0h*
 
 ---
 
-## `alphaclaw` — Grade C+ (73.2)
+## `gbrain` — Grade C+ (73.0)
 
-**Repo:** https://github.com/garrytan/alphaclaw
-**Findings:** 63 total · 🟠 9 high · 🟡 23 medium · 🟢 24 low · ⚪ 7 info
-**Wall-clock:** 162s · **Cost:** $4.86
+📄 **[Full HTML report](reports/gbrain.html)** · 📦 **[Raw JSON](../leaderboard-data/gbrain.json)** · 🔗 **[Repo on GitHub](https://github.com/garrytan/gbrain)**
 
-### Per-dimension
+**Findings:** 61 total — 🟠 7 high · 🟡 26 medium · 🟢 22 low · ⚪ 6 info
+**Wall-clock:** 264s · **Cost:** $5.25 · **Tokens:** 477,328
 
-| Dimension | Grade | Score | Weight |
-|---|:---:|---:|---:|
-| Security | B | 81.4 | 25% |
-| Maintainability | C+ | 75.6 | 10% |
-| Architecture | C+ | 73.1 | 25% |
-| Documentation | C- | 69.6 | 10% |
-| Performance | C- | 69.0 | 10% |
-| Quality | D+ | 65.6 | 20% |
+### Per-dimension scores
 
-### Top findings (entry points → GitHub)
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Security | B+ | 86.5 | 25% | 7 |
+| Performance | B | 80.9 | 10% | 7 |
+| Documentation | C+ | 76.4 | 10% | 14 |
+| Maintainability | C+ | 73.9 | 10% | 8 |
+| Architecture | C- | 67.2 | 25% | 11 |
+| Quality | D- | 57.5 | 20% | 14 |
 
-- 🟠 **HIGH** · [`package.json`](https://github.com/garrytan/alphaclaw/blob/HEAD/package.json)
-  - **Dependency manifest files referenced in PLAN but not provided for analysis**
-  - The PLAN explicitly lists package.json, package-lock.json, .npmrc, patches/openclaw+2026.4.1.patch, scripts/apply-openclaw-patches.js, and .github/workflows/ci.yml as the focus files for dependency analysis. However, none of these files were included in the source code provided — only application so…
-  - *Fix:* Re-run the dependency analysis with the actual manifest files attached: package.json, package-lock.json, .npmrc, patches/openclaw+2026.4.1.patch, scripts/apply-openclaw-patches.js, and .github/workflo…
-  - *agent: `dependency` · confidence: 0.98 · est: 0.5h*
+### Top findings (clickable entry points → GitHub)
 
-- 🟠 **HIGH** · [`lib/public/js/app.js:96`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/app.js#L96)
-  - **App component is a god component composing all routes inline**
-  - lib/public/js/app.js is ~370 lines and directly composes every route (Agents, Browse, Chat, Cron, Envars, Models, Nodes, General, Doctor, Telegram, Usage, Watchdog, Webhooks), threads dozens of props per route, runs route-specific regex parsing inline (selectedAgentId, agentDetailTab, selectedCronJo…
-  - *Fix:* Extract a RouteShell/RouteSwitch component that owns route matching and pane selection. Move per-route prop wiring (e.g. AgentsPane, CronPane, ChatPane wrappers) into the routes/ folder so app.js only…
-  - *agent: `architecture` · confidence: 0.90 · est: 8.0h*
+- 🟠 **HIGH** · [`package.json:41`](https://github.com/garrytan/gbrain/blob/HEAD/package.json#L41)
+  - **@types/bun: latest — non-deterministic builds**
+  - `"@types/bun": "latest"` in devDependencies resolves to whatever is current at install time. While the lockfile pins the actual resolved version, this is an anti-pattern that defeats reproducibility for any contributor running `bun install` after lockfile drift, and signals to tools that any version…
+  - *Fix:* Replace `"latest"` with the currently-resolved version from bun.lock (e.g., `"^1.x.y"` matching the Bun runtime version). Pin both @types/bun and the implied Bun runtime in package.json's `engines` fi…
+  - *agent: `dependency` · confidence: 0.98 · est: 0.2h*
 
-- 🟠 **HIGH** · [`lib/public/js/components/google/index.js:215`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/google/index.js#L215)
-  - **postMessage handler accepts any origin for OAuth completion**
-  - The window message handler processes event.data.google === 'success' or 'error' without validating event.origin. Any page the user visits (or any iframe/popup) can postMessage to this window and trigger toast notifications, refresh of accounts, and force handleCheckApis with an attacker-supplied acc…
-  - *Fix:* Validate event.origin against window.location.origin (or an explicit allowlist) before processing message data. Example: if (event.origin !== window.location.origin) return;
-  - *agent: `security` · confidence: 0.90 · est: 0.5h*
+- 🟠 **HIGH** · [`src/commands/call.ts:2`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/call.ts#L2)
+  - **Command layer reaches into MCP transport (cross-layer dependency)**
+  - src/commands/call.ts imports handleToolCall from '../mcp/server.ts'. This inverts the expected layering: commands should depend on core (operations, engine), not on a transport adapter. The MCP server should depend on operations, and `gbrain call` should also dispatch through operations directly — n…
+  - *Fix:* Refactor `gbrain call` to import dispatchToolCall from src/mcp/dispatch.ts (or better: a renamed src/core/dispatch.ts since dispatch is transport-agnostic). Move dispatch.ts under src/core/ since it's…
+  - *agent: `architecture` · confidence: 0.95 · est: 2.0h*
+
+- 🟠 **HIGH** · [`src/cli.ts:153`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L153)
+  - **Pervasive use of 'any' type undermines TypeScript strictness**
+  - Despite TypeScript usage, the codebase contains numerous `as any` casts and `: any` type annotations in critical paths (cli.ts formatResult, mcp/server.ts request handlers, autopilot.ts engine probes, auth.ts error handling). This defeats the value of TypeScript's type system, particularly in the CL…
+  - *Fix:* Define explicit result types for each operation (GetPageResult, ListPagesResult, etc.) and replace `as any` casts with proper type narrowing. For MCP SDK width issues, create a local typed interface r…
+  - *agent: `quality` · confidence: 0.95 · est: 8.0h*
+
+- 🟠 **HIGH** · [`src/cli.ts:246`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L246)
+  - **Massive command dispatcher in cli.ts violates single responsibility**
+  - The handleCliOnly function in cli.ts is approximately 230 lines containing 30+ if/switch branches for command dispatch, each duplicating the dynamic-import pattern. This is a textbook God Function: high cyclomatic complexity (~30+), difficult to test, and adding/removing commands requires touching t…
+  - *Fix:* Extract to a command registry pattern: `commandRegistry.register({ name, needsEngine, lazyImport })`. Drive both CLI_ONLY membership and dispatch from one source of truth. Cuts ~200 lines and eliminat…
+  - *agent: `quality` · confidence: 0.95 · est: 6.0h*
+
+- 🟠 **HIGH** · [`src/commands/autopilot.ts:116`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/autopilot.ts#L116)
+  - **Long function with high complexity: runAutopilot**
+  - src/commands/autopilot.ts:runAutopilot is ~250 lines with worker spawn, lock file handling, signal handlers, dispatch loop, peer-liveness probe, health check, adaptive interval, and shutdown logic all interleaved. Cyclomatic complexity is high (>15 branches), and the function is impossible to unit-t…
+  - *Fix:* Extract: `acquireLock()`, `spawnManagedWorker(cliPath)`, `dispatchOneCycle(engine, mode)`, `runPeerLivenessProbe(engine)`, `runAdaptiveSleep(score, base)`. Each extraction unblocks unit testing. Aim f…
+  - *agent: `quality` · confidence: 0.95 · est: 8.0h*
+
+- 🟠 **HIGH** · [`src/cli.ts:22`](https://github.com/garrytan/gbrain/blob/HEAD/src/cli.ts#L22)
+  - **CLI dispatcher is a god-function with hardcoded command registry**
+  - src/cli.ts contains a 60+ entry CLI_ONLY Set and a giant switch/if-else chain in handleCliOnly that hardcodes every command name and its dynamic import path. Adding a command requires touching 3+ places (CLI_ONLY set, handleCliOnly switch, help text). This violates open-closed principle and is the s…
+  - *Fix:* Introduce a command registry pattern: each command module exports a CommandSpec { name, needsEngine, handler, help } and a barrel file aggregates them. Replace the switch with a Map lookup, mirroring …
+  - *agent: `architecture` · confidence: 0.93 · est: 8.0h*
+
+- 🟠 **HIGH** · [`src/commands/auth.ts:17`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/auth.ts#L17)
+  - **Auth command bypasses engine abstraction with raw postgres driver**
+  - src/commands/auth.ts imports `postgres` directly and uses raw SQL via the postgres tagged template, completely bypassing BrainEngine. This means: (a) the command will not work with PGLite brains despite the rest of the system supporting both engines, (b) it duplicates connection/config logic (DATABA…
+  - *Fix:* Refactor auth.ts to receive a BrainEngine and use engine.executeRaw() for the access_tokens CRUD. Either route through cli.ts's connectEngine() or expose a thin AuthRepository in core/ that both engin…
+  - *agent: `architecture` · confidence: 0.92 · est: 3.0h*
+
+- 🟡 **MEDIUM** · [`src/commands/agent.ts:167`](https://github.com/garrytan/gbrain/blob/HEAD/src/commands/agent.ts#L167)
+  - **Duplicated subagent data construction in agent.ts fanout path**
+  - In runFanout (src/commands/agent.ts), the SubagentHandlerData object construction is duplicated verbatim between the single-entry short-circuit and the N-entry loop (~12 lines each). This violates DRY and any future field added to subagent submission must be edited in both places.
+  - *Fix:* Extract `buildSubagentData(entry, flags, promptTemplate): SubagentHandlerData` and call it from both branches. Same for the `submitOpts` construction.
+  - *agent: `quality` · confidence: 0.95 · est: 1.0h*
+
+---
+
+## `gbrain-evals` — Grade C+ (76.1)
+
+📄 **[Full HTML report](reports/gbrain-evals.html)** · 📦 **[Raw JSON](../leaderboard-data/gbrain-evals.json)** · 🔗 **[Repo on GitHub](https://github.com/garrytan/gbrain-evals)**
+
+**Findings:** 55 total — 🔴 1 critical · 🟠 6 high · 🟡 27 medium · 🟢 19 low · ⚪ 2 info
+**Wall-clock:** 276s · **Cost:** $6.32 · **Tokens:** 574,385
+
+### Per-dimension scores
+
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Security | B+ | 85.4 | 25% | 8 |
+| Quality | B | 81.5 | 20% | 7 |
+| Documentation | C | 72.2 | 10% | 9 |
+| Architecture | C | 71.3 | 25% | 13 |
+| Performance | C | 70.4 | 10% | 10 |
+| Maintainability | D+ | 63.3 | 10% | 8 |
+
+### Top findings (clickable entry points → GitHub)
+
+- 🔴 **CRITICAL** · [`package.json:32`](https://github.com/garrytan/gbrain-evals/blob/HEAD/package.json#L32)
+  - **Git dependency pinned to mutable branch (master) instead of commit SHA**
+  - `gbrain` is sourced from `github:garrytan/gbrain#master` — pinning to a branch ref. Any push to master in the upstream repo silently changes what users install with no version bump, breaking reproducibility of every benchmark run and creating a supply-chain risk (a compromised or rewritten master wo…
+  - *Fix:* Pin gbrain to an immutable commit SHA: `"gbrain": "github:garrytan/gbrain#<40-char-sha>"`. Better, publish gbrain to npm (or a private registry) with semver and consume `"gbrain": "^X.Y.Z"`. Pair with…
+  - *agent: `dependency` · confidence: 0.98 · est: 1.0h*
+
+- 🟠 **HIGH** · [`eval/generators/amara-life-gen.ts:75`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts#L75)
+  - **Generator scripts assume undocumented .env.testing file with cross-worktree discovery**
+  - Both eval/generators/gen.ts and eval/generators/amara-life-gen.ts require a .env.testing file at the repo root and throw with a cryptic message instructing users to 'Copy it from a sibling worktree'. There is no documented onboarding path for a fresh contributor who has no sibling worktree. The .env…
+  - *Fix:* Provide an .env.testing.example template at the repo root listing required keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY) with placeholder values and a comment block. Document in eval/RUNBOOK.…
+  - *agent: `documentation` · confidence: 0.95 · est: 1.5h*
+
+- 🟠 **HIGH** · [`eval/runner/all.ts:90`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/runner/all.ts#L90)
+  - **Cat 5/8/9 'programmatic-only' runners lack external harness documentation**
+  - eval/runner/all.ts explicitly skips Cat 5 (provenance), Cat 8 (skill compliance), and Cat 9 (workflows) because they require runtime inputs (claims, probes, scenarios, pre-seeded state). The code says 'Run via runCatN({...}) from a harness' but no harness, example, or test fixture is referenced. A c…
+  - *Fix:* Add an example harness file (e.g., eval/runner/harness/programmatic-cats.ts) demonstrating how to invoke runCat5/runCat8/runCat9 with sample inputs, and document this in eval/RUNBOOK.md. At minimum, t…
+  - *agent: `documentation` · confidence: 0.92 · est: 4.0h*
+
+- 🟠 **HIGH** · [`eval/generators/amara-life-gen.ts`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts)
+  - **Sequential per-item LLM generation in amara-life-gen wastes wall time**
+  - All four item types (50 emails, 300 slack messages, 8 meetings, 40 notes — ~398 LLM calls total) are generated in serial `for...of await` loops. With Opus latency typically 5-15s per call, this means ~30-100 minutes of wall time even though Anthropic supports concurrent requests. The HARD_STOP_USD c…
+  - *Fix:* Wrap each batch (emails, slack, meetings, notes) with a bounded concurrency pool (e.g., `p-limit(6)` or hand-rolled worker queue like the one in `gen.ts`). Read concurrency from env (`BRAINBENCH_LLM_C…
+  - *agent: `performance` · confidence: 0.90 · est: 3.0h*
+
+- 🟠 **HIGH** · [`eval/runner/adapters/claude-sonnet-with-tools.ts:145`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/runner/adapters/claude-sonnet-with-tools.ts#L145)
+  - **Adapter interface contract violated by agent adapter**
+  - ClaudeSonnetWithToolsAdapter implements the Adapter interface but its query() method throws unconditionally. This is a Liskov Substitution violation — any code iterating over adapters generically (e.g., multi-adapter dispatch) must special-case this adapter. The interface should be split into Retrie…
+  - *Fix:* Introduce two interfaces: RetrievalAdapter (with query) and AgentAdapter (with runAgentLoop). Have ClaudeSonnetWithToolsAdapter implement only AgentAdapter. Update types.ts to export both, and let run…
+  - *agent: `architecture` · confidence: 0.88 · est: 4.0h*
+
+- 🟠 **HIGH** · [`package.json:30`](https://github.com/garrytan/gbrain-evals/blob/HEAD/package.json#L30)
+  - **Missing lockfile in repository**
+  - The provided file listing shows package.json but no bun.lockb, package-lock.json, or yarn.lock. Without a committed lockfile, dependency resolution is non-deterministic across developers, CI, and time — which directly undermines the BrainBench benchmark's reproducibility claims (the report includes …
+  - *Fix:* Run `bun install` and commit the resulting `bun.lockb` to the repo. Update .gitignore to ensure the lockfile is NOT ignored. Add a CI check that fails if the lockfile is out of sync (`bun install --fr…
+  - *agent: `dependency` · confidence: 0.85 · est: 0.5h*
+
+- 🟠 **HIGH** · [`eval/runner/adapters/claude-sonnet-with-tools.ts:270`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/runner/adapters/claude-sonnet-with-tools.ts#L270)
+  - **Agent loop appends full message history every turn — token cost grows quadratically**
+  - Each turn appends the full assistant response (including tool_use blocks) and tool_result blocks back into `messages`, then re-sends the entire history on the next call. Tool results can be large (search returning 10+ chunks of compiled_truth), so input tokens grow O(turns²). With turnCap=10 and lar…
+  - *Fix:* Apply `cache_control: { type: 'ephemeral' }` to the last static prefix of `messages` each turn (Anthropic's prompt-cache supports up to 4 cache breakpoints; one on system + one on the last assistant t…
+  - *agent: `performance` · confidence: 0.85 · est: 4.0h*
+
+- 🟡 **MEDIUM** · [`eval/generators/amara-life-gen.ts`](https://github.com/garrytan/gbrain-evals/blob/HEAD/eval/generators/amara-life-gen.ts)
+  - **Bug in writeDocs path construction — dead/confusing code**
+  - In amara-life-gen.ts writeDocs(), the line `const path = join(CORPUS_ROOT, slugPath + '.md'.replace(/\.md$/, '') === slugPath ? slugPath : slugPath);` is computed but never used (fullPath is built independently and used). The expression is also semantically nonsensical: `'.md'.replace(/\.md$/, '')` …
+  - *Fix:* Remove the unused `const path = ...` line entirely. Keep only `const fullPath = join(CORPUS_ROOT, slugPath);` and the writeFileSync call. Add a unit test that writeDocs writes to the expected paths.
+  - *agent: `quality` · confidence: 0.98 · est: 0.5h*
+
+---
+
+## `alphaclaw` — Grade C+ (74.6)
+
+📄 **[Full HTML report](reports/alphaclaw.html)** · 📦 **[Raw JSON](../leaderboard-data/alphaclaw.json)** · 🔗 **[Repo on GitHub](https://github.com/garrytan/alphaclaw)**
+
+**Findings:** 50 total — 🟠 7 high · 🟡 22 medium · 🟢 15 low · ⚪ 6 info
+**Wall-clock:** 234s · **Cost:** $5.30 · **Tokens:** 482,023
+
+### Per-dimension scores
+
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Security | B+ | 86.5 | 25% | 2 |
+| Maintainability | B+ | 83.8 | 10% | 5 |
+| Performance | B | 80.8 | 10% | 8 |
+| Architecture | C | 70.5 | 25% | 9 |
+| Documentation | C- | 67.8 | 10% | 13 |
+| Quality | D | 60.6 | 20% | 13 |
+
+### Top findings (clickable entry points → GitHub)
+
+- 🟠 **HIGH** · [`lib/public/js/app.js:217`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/app.js#L217)
+  - **Inconsistent routing strategy: hand-rolled conditionals bypass Switch/Route**
+  - Some routes (/general, /doctor, /telegram, /usage, /webhooks, /watchdog) are declared inside <Switch> with proper <Route> elements, while /agents, /chat, /cron, /envars, /models, /nodes are mounted via plain conditional rendering using location.startsWith(). This dual routing model means route prece…
+  - *Fix:* Pick one routing strategy (recommend wouter <Switch>/<Route>) and migrate all panes into it. The barrel in components/routes/index.js already exports route components — use them uniformly inside the S…
+  - *agent: `architecture` · confidence: 0.92 · est: 8.0h*
+
+- 🟠 **HIGH** · [`lib/public/js/app.js:64`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/app.js#L64)
+  - **Monolithic App component with excessive route-specific knowledge**
+  - lib/public/js/app.js acts as a god component: it owns location parsing for /agents, /chat, /cron, /envars, /models, /nodes, manually checks isXRoute booleans, extracts selectedAgentId/selectedCronJobId via regex, and mounts route components conditionally outside the Switch. This bypasses wouter-prea…
+  - *Fix:* Move all route mounting into the <Switch> with <Route> declarations and use route params (via wouter useParams) instead of regex parsing of location. Extract sidebar wiring into a separate AppShell co…
+  - *agent: `architecture` · confidence: 0.90 · est: 12.0h*
 
 - 🟠 **HIGH** · [`lib/public/js/app.js:47`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/app.js#L47)
-  - **App component exceeds 350 lines with deeply nested JSX and inline handlers**
-  - The App component in app.js spans roughly 300+ lines with deeply nested template literals, multiple inline IIFEs for route parsing, inline event handlers creating closures on every render, and conditional rendering for 7+ routes. Cyclomatic complexity is elevated by cascading isXxxRoute checks and t…
-  - *Fix:* Extract route parsing IIFEs into helper functions (e.g., parseSelectedAgentId(location)). Move the long Switch/Route block into a dedicated <AppRoutes> component. Lift inline onclick handlers (e.g., t…
-  - *agent: `quality` · confidence: 0.90 · est: 6.0h*
-
-- 🟠 **HIGH** · [`lib/public/js/components/doctor/index.js:36`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/doctor/index.js#L36)
-  - **DoctorTab component is a god-component with excessive state and effects**
-  - DoctorTab in lib/public/js/components/doctor/index.js is ~400 lines, manages 5 useState hooks, 4 useEffect hooks with complex interdependent dependency arrays, 3 polling subscriptions, multiple useMemo computations, and inline JSX rendering for run pills, banners, summaries, and findings. The interp…
-  - *Fix:* Extract a useDoctorRunSelection hook encapsulating run filter state and the three sync effects. Split rendering into <DoctorRunTabs>, <DoctorBanners>, and <DoctorEmptyState> sub-components. Move pure …
+  - **Massive App component with excessive responsibilities (~470 lines)**
+  - The App component in lib/public/js/app.js spans roughly 470 lines and orchestrates onboarding, sidebar, routing for 15+ routes, browse navigation, agent selection, chat sessions, doctor warnings, and UI settings persistence. It composes 5 hooks, contains 3 useEffects with mixed concerns, 3 inline II…
+  - *Fix:* Extract a RouteSwitcher component for the route ternaries, move route param derivation (selectedAgentId, agentDetailTab, selectedCronJobId) into a useRouteParams hook, and split the StatusBar/MobileTo…
   - *agent: `quality` · confidence: 0.90 · est: 8.0h*
 
-- 🟠 **HIGH** · [`lib/public/js/components/google/index.js:39`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/google/index.js#L39)
-  - **Google component has 15+ useState hooks indicating over-broad responsibility**
-  - Google component declares roughly 8 useState hooks plus delegates more state to two custom hooks (useGoogleAccounts, useGmailWatch). It mixes concerns: account expansion UI, scope editing per-account, API status checking, credentials modal state, add-account modal state, disconnect dialog, Gmail wiz…
-  - *Fix:* Extract per-account scope/API-status state into a useAccountScopes(accountId) hook. Split modal management into a useGoogleModals hook returning {credentials, addCompany, gmailWizard, disconnect}. Thi…
-  - *agent: `quality` · confidence: 0.85 · est: 8.0h*
+- 🟠 **HIGH** · [`lib/public/js/components/doctor/index.js:38`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/doctor/index.js#L38)
+  - **DoctorTab component exceeds 400 lines with deeply nested ternary rendering**
+  - lib/public/js/components/doctor/index.js DoctorTab is over 450 lines with 4 useEffects containing complex dependency-driven state synchronization (selectedRunFilter reset logic, pendingRunSelectionId reconciliation), 14+ useMemo/derived values, and multi-level nested ternary template rendering (show…
+  - *Fix:* Extract a useDoctorRunSelection hook to encapsulate run filter reconciliation. Move banner/empty-state/findings panels into separate sub-components. Replace nested ternaries with early returns or a sw…
+  - *agent: `quality` · confidence: 0.90 · est: 12.0h*
 
+- 🟠 **HIGH** · [`lib/public/js/app.js:215`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/app.js#L215)
+  - **Hash-router routes have no central documentation**
+  - lib/public/js/app.js declares the entire client-side route map (/general, /doctor, /telegram/:accountId, /providers, /watchdog, /usage, /usage/:sessionId, /webhooks, /webhooks/:hookName, /agents, /chat, /cron, /envars, /models, /nodes, /browse) inline in the App component. The plan explicitly flagge…
+  - *Fix:* Add a 'Routes' section to README.md or create docs/routes.md enumerating every hash route, its params, the component that renders it, and required state (e.g., onboarded). Optionally add a JSDoc block…
+  - *agent: `documentation` · confidence: 0.90 · est: 3.0h*
+
+- 🟠 **HIGH** · [`lib/public/js/components/google/index.js:30`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/google/index.js#L30)
+  - **Google component has 18+ state variables and 12+ handlers in one file**
+  - lib/public/js/components/google/index.js has 18+ pieces of useState and useMemo state (expandedAccountId, scopesByAccountId, savedScopesByAccountId, apiStatusByAccountId, checkingByAccountId, addMenuOpen, credentialsModalState, addCompanyModalOpen, savingAddCompany, disconnectAccountId, gmailWizardS…
+  - *Fix:* Extract a useGoogleAccountActions hook covering credential modal state and auth flows; extract a useApiStatusChecker hook for the apiStatus/checking maps. Move handleAddCompanyAccount/handleAddCompany…
+  - *agent: `quality` · confidence: 0.88 · est: 6.0h*
+
+- 🟠 **HIGH** · [`lib/plugin/usage-tracker/index.js:174`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/plugin/usage-tracker/index.js#L174)
+  - **Synchronous SQLite writes in usage-tracker block event loop on every LLM/tool event**
+  - writeUsageEvent() and writeToolEvent() use DatabaseSync (node:sqlite synchronous binding) on the hot path of every llm_output and tool_result_persist event. Each LLM completion triggers two sequential synchronous writes (insertUsageEventStmt.run + upsertUsageDailyStmt.run) which block the Node.js ev…
+  - *Fix:* Either (a) wrap the two writes in a single transaction (BEGIN/COMMIT) to halve the fsync cost; (b) batch events in memory and flush every N ms / N events; or (c) move writes to a worker_thread. Given …
+  - *agent: `performance` · confidence: 0.85 · est: 6.0h*
+
+- 🟡 **MEDIUM** · [`lib/public/js/components/telegram-workspace/index.js:33`](https://github.com/garrytan/alphaclaw/blob/HEAD/lib/public/js/components/telegram-workspace/index.js#L33)
+  - **Silent error swallowing in catch blocks**
+  - Multiple catch blocks silently swallow errors with empty bodies, hiding failures that could indicate genuine bugs. In app.js: `try { window.localStorage.clear(); ... } catch {}`. In telegram-workspace/index.js: `} catch {}` appears in 6 places (loadTelegramWorkspaceState, save/remove variants, boots…
+  - *Fix:* At minimum, log errors via console.warn or a logger. Distinguish between expected errors (e.g., JSON.parse on missing key) and unexpected ones. Avoid blanket `catch {}`.
+  - *agent: `quality` · confidence: 0.95 · est: 2.0h*
 
 ---
 
 ## Methodology
 
-- All scans use `--quick` (skips Stage 5 CritiqueAgent — ~3× faster, slightly less false-positive filtering).
-- All scans use `--no-cache` (cold-run, honest cost).
-- Models: all 8 agents on Claude Opus 4.7 with the per-role effort tuning from CLAUDE.md (meta=medium, specialists=xhigh, critique=high+task_budget).
+- All scans use **full mode** (8 agents including CritiqueAgent — `--no-cache` for honest cold-run cost).
+- Models: all 8 agents on Claude Opus 4.7 with per-role effort tuning (meta=medium, specialists=xhigh, critique=high+task_budget).
 - Per-dimension weights: Architecture 25%, Security 25%, Quality 20%, Documentation 10%, Maintainability 10%, Performance 10%.
-- Cost = sum of input + output tokens × Claude Opus 4.7 pricing ($5/M input, $25/M output) at the typical 70/30 input/output ratio.
-- Scans done 2026-04-29.
+- Cost = sum of input + output tokens × Opus 4.7 pricing ($5/M input, $25/M output) at the typical 70/30 split.
+- Scans done 2026-04-29 by Vivek Kumar.
 
 ## Reproduce
 
 ```bash
 pip install spectra-ai==0.3.2
 export ANTHROPIC_API_KEY=sk-ant-...
-spectra analyze https://github.com/<owner>/<repo> --quick --format json -o report.json
+spectra analyze https://github.com/<owner>/<repo>
+# default output is HTML; pass --format json -o report.json for CI integration
 ```
 
-Raw JSON outputs for every scan are in [`docs/leaderboard-data/`](../leaderboard-data/) — the source of truth for the table.
+Raw JSON outputs and full HTML reports are checked into [`docs/leaderboard-data/`](../leaderboard-data/) and [`docs/launch/reports/`](reports/) respectively — the source of truth for every number above.

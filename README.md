@@ -345,14 +345,31 @@ graph TB
 
 | Metric | Value |
 |--------|-------|
-| Tests | 1,096 passed |
+| Tests | 1,355 passed |
 | Coverage | 97% |
 | Agents | 8 (6 parallel + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 |
-| Cost | $1-10 per analysis |
+| Cost | $5-10 per analysis (Opus 4.7, full mode, real Anthropic spend) |
 | Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
 | Error codes | 10 typed (SPEC-001 to SPEC-010) |
+
+---
+
+## See It Run on Real Repos
+
+We scan well-known OSS projects on every release and check the results into the
+repo. **Real Anthropic API spend, no cherry-picking, one shot per repo.**
+
+| Repo | Stars | Grade | Findings | Cost | Report |
+|---|---:|:---:|---:|---:|:---:|
+| [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+ (86)** | 50 | $7.41 | [📄 HTML](docs/launch/reports/anthropic-sdk-python.html) · [📦 JSON](docs/leaderboard-data/anthropic-sdk-python.json) |
+| [`garrytan/gstack`](https://github.com/garrytan/gstack) | 86k | **C (73)** | 49 (1 critical) | $9.16 | [📄 HTML](docs/launch/reports/gstack.html) · [📦 JSON](docs/leaderboard-data/gstack.json) |
+| [`garrytan/gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+ (73)** | 61 | $5.25 | [📄 HTML](docs/launch/reports/gbrain.html) · [📦 JSON](docs/leaderboard-data/gbrain.json) |
+| [`garrytan/gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+ (76)** | 55 (1 critical) | $6.32 | [📄 HTML](docs/launch/reports/gbrain-evals.html) · [📦 JSON](docs/leaderboard-data/gbrain-evals.json) |
+| [`garrytan/alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+ (75)** | 50 | $5.30 | [📄 HTML](docs/launch/reports/alphaclaw.html) · [📦 JSON](docs/leaderboard-data/alphaclaw.json) |
+
+Full leaderboard with per-finding entry-point links: [`docs/launch/leaderboard.md`](docs/launch/leaderboard.md).
 
 ---
 
