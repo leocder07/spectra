@@ -1225,9 +1225,7 @@ def _collect_cc_gaps(
     gaps: list[dict[str, str]] = []
     for cat in cc_categories:
         gaps.extend(
-            {"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]}
-            for ctrl in cat["controls"]
-            if not ctrl["covered"]
+            {"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]} for ctrl in cat["controls"] if not ctrl["covered"]
         )
     return gaps
 
@@ -1399,9 +1397,7 @@ def _detect_copyleft_risk(
 ) -> dict[str, object]:
     """Identify copyleft licenses that may restrict distribution."""
     copyleft_patterns = {"GPL", "AGPL", "LGPL"}
-    found: list[str] = [
-        lic for lic in license_hits if any(cp in lic for cp in copyleft_patterns)
-    ]
+    found: list[str] = [lic for lic in license_hits if any(cp in lic for cp in copyleft_patterns)]
     return {
         "has_copyleft": len(found) > 0,
         "copyleft_licenses": found,
@@ -1785,12 +1781,8 @@ def _build_coverage_summary(
     report: AnalysisReport,
 ) -> dict[str, object]:
     """Build transparency data for the Analysis Coverage section."""
-    agent_names = [
-        _AGENT_ROLE_LABEL.get(r, r) for r in report.agents_used
-    ]
-    degraded_names = [
-        dim_label(d) for d in report.degraded_dimensions
-    ]
+    agent_names = [_AGENT_ROLE_LABEL.get(r, r) for r in report.agents_used]
+    degraded_names = [dim_label(d) for d in report.degraded_dimensions]
     return {
         "agents_used": agent_names,
         "agents_count": len(report.agents_used),

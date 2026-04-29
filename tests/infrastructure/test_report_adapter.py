@@ -1784,7 +1784,6 @@ class TestOWASP2025Coverage:
 # ── Parametrized Gini Coefficient ────────────────────────────
 
 
-
 class TestGiniCoefficientParametrized:
     @pytest.mark.parametrize(
         ("values", "expected_min", "expected_max"),
