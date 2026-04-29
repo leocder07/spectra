@@ -370,6 +370,32 @@ class CacheStats(BaseModel, frozen=True):
     oldest_entry_at: datetime | None = None
 
 
+class RepoCacheKey(BaseModel, frozen=True):
+    """Composite key for the repo-level full-report cache (Phase 2).
+
+    Bundles every signal that must invalidate a cached ``AnalysisReport``
+    when it changes. Two ``RepoCacheKey`` instances compare equal iff all
+    five fields match, so a model bump, prompt edit, schema change, or
+    spectra version update naturally misses the cache and forces a rerun.
+
+    Attributes:
+        repo_signature: Deterministic blake2b digest of the file tree.
+        spectra_version: ``spectra.__version__`` at write time.
+        model_versions: Canonical sort of model IDs across all 8 agents.
+        prompt_versions: blake2b digest of the shared guidance + each
+            specialist prompt + the critique system prompt.
+        schema_version: ``Finding`` schema version literal.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    repo_signature: str
+    spectra_version: str
+    model_versions: str
+    prompt_versions: str
+    schema_version: str  # plain str — matches the TEXT column in cache.db
+
+
 _GRADE_THRESHOLDS = [57, 60, 63, 67, 70, 73, 77, 80, 83, 87, 90, 95]
 _GRADE_LABELS: list[Grade] = [
     "F",

@@ -22,6 +22,7 @@ from spectra.entities.models import (
     DimensionScore,
     FileLocation,
     Finding,
+    RepoCacheKey,
     ScoreCard,
     TokenBudget,
     estimate_cost,
@@ -915,3 +916,67 @@ class TestCacheStats:
         )
         with pytest.raises(ValidationError):
             stats.total_entries = 99
+
+
+# ── RepoCacheKey ───────────────────────────────────────────────
+
+
+def _repo_cache_key(**overrides: object) -> RepoCacheKey:
+    """Build a RepoCacheKey with sane defaults so each test can override one field."""
+    base: dict[str, object] = {
+        "repo_signature": "abcd1234",
+        "spectra_version": "0.1.0",
+        "model_versions": "claude-opus-4-7|claude-opus-4-7",
+        "prompt_versions": "blake2b-of-prompts",
+        "schema_version": "v1",
+    }
+    base.update(overrides)
+    return RepoCacheKey(**base)  # type: ignore[arg-type]
+
+
+class TestRepoCacheKey:
+    def test_create_with_required_fields(self):
+        key = _repo_cache_key()
+        assert key.repo_signature == "abcd1234"
+        assert key.spectra_version == "0.1.0"
+        assert key.schema_version == "v1"
+
+    def test_frozen_immutability(self):
+        key = _repo_cache_key()
+        with pytest.raises(ValidationError):
+            key.repo_signature = "other"  # type: ignore[misc]
+
+    def test_equal_keys_compare_equal(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key()
+        assert a == b
+
+    def test_changing_repo_signature_breaks_equality(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key(repo_signature="ffff9999")
+        assert a != b
+
+    def test_changing_spectra_version_breaks_equality(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key(spectra_version="0.2.0")
+        assert a != b
+
+    def test_changing_model_versions_breaks_equality(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key(model_versions="claude-opus-5-0|claude-opus-5-0")
+        assert a != b
+
+    def test_changing_prompt_versions_breaks_equality(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key(prompt_versions="different-hash")
+        assert a != b
+
+    def test_changing_schema_version_breaks_equality(self):
+        a = _repo_cache_key()
+        b = _repo_cache_key(schema_version="v2")
+        assert a != b
+
+    def test_hashable(self):
+        # Frozen Pydantic models with hashable fields are hashable; needed for dict keys.
+        key = _repo_cache_key()
+        assert hash(key) == hash(_repo_cache_key())
