@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/tests-1%2C096_passed-22C55E?style=for-the-badge)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E?style=for-the-badge)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
-[![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.6-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
+[![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.7-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 
 [Installation](#installation) · [Try It](#try-it) · [How It Works](#how-it-works) · [Architecture](#architecture) · [Agent Roster](#agent-roster)
 
@@ -47,11 +47,14 @@ Open `spectra-report.html` when it's done.
 
 ```bash
 # Options
+spectra analyze .                            # Analyze the current working tree (no clone)
 spectra analyze <repo-url> --quick           # Skip critique pass (~40s)
 spectra analyze <repo-url> --format json     # Machine-readable output
 spectra analyze <repo-url> --format sarif    # SARIF for GitHub Security tab
 spectra analyze <repo-url> --min-score 70    # Quality gate (exit 1 if below)
 spectra analyze <repo-url> --output my.html  # Custom report path
+spectra analyze <repo-url> --force           # Bypass cache, force a fresh analysis
+spectra analyze <repo-url> --no-cache        # Disable cache reads and writes for this run
 ```
 
 ---
@@ -60,7 +63,7 @@ spectra analyze <repo-url> --output my.html  # Custom report path
 
 - **8 AI agents, 6 dimensions** — Architecture, Security, Quality, Documentation, Maintainability, Performance analyzed in parallel
 - **Under 5 minutes** — 6 specialists run concurrently via `asyncio.gather`, not sequentially
-- **Multi-model strategy** — Sonnet 4.5 for planning, Opus 4.6 for deep analysis, Opus 4.6 + Extended Thinking for critique
+- **Multi-model strategy** — Sonnet 4.5 for planning, Opus 4.7 for deep analysis, Opus 4.7 + Extended Thinking for critique
 - **False positive filtering** — CritiqueAgent uses extended thinking to validate every finding before it reaches the report
 - **Self-contained HTML reports** — Radar charts, interactive findings, keyboard navigation, file hotspot heatmaps — one file, works offline
 - **Due diligence frameworks** — OWASP Top 10, SOC 2 Trust Criteria, PCI DSS 4.0, NIST CSF 2.0, and Investment Readiness scoring
@@ -74,9 +77,9 @@ spectra analyze <repo-url> --output my.html  # Custom report path
 ```mermaid
 graph LR
     A[INGEST<br/>Clone repo] --> B[PLAN<br/>MetaPrompter<br/>Sonnet 4.5]
-    B --> C[ANALYZE<br/>6 Specialists<br/>Opus 4.6]
+    B --> C[ANALYZE<br/>6 Specialists<br/>Opus 4.7]
     C --> D[MERGE<br/>Deduplicate<br/>& Score]
-    D --> E[CRITIQUE<br/>CritiqueAgent<br/>Opus 4.6 + ET]
+    D --> E[CRITIQUE<br/>CritiqueAgent<br/>Opus 4.7 + ET]
     E --> F[REPORT<br/>HTML + Charts<br/>ScoreCard]
 
     style A fill:#7C3AED,stroke:#7C3AED,color:#fff
@@ -116,13 +119,13 @@ graph TD
 | Agent | Model | Role |
 |-------|-------|------|
 | **MetaPrompter** | Sonnet 4.5 | Reads file tree (never full code), builds analysis plan |
-| **ArchitectureAgent** | Opus 4.6 | Layering, coupling, dependency analysis |
-| **SecurityAgent** | Opus 4.6 | OWASP Top 10, CWE mapping, vulnerability detection |
-| **QualityAgent** | Opus 4.6 | Code smells, complexity, test coverage gaps |
-| **DocumentationAgent** | Opus 4.6 | API docs, README quality, inline comments |
-| **DependencyAgent** | Opus 4.6 | Supply chain, outdated packages, license risks |
-| **PerformanceAgent** | Opus 4.6 | N+1 queries, memory leaks, async anti-patterns |
-| **CritiqueAgent** | Opus 4.6 + Extended Thinking | Validates all findings, removes false positives |
+| **ArchitectureAgent** | Opus 4.7 | Layering, coupling, dependency analysis |
+| **SecurityAgent** | Opus 4.7 | OWASP Top 10, CWE mapping, vulnerability detection |
+| **QualityAgent** | Opus 4.7 | Code smells, complexity, test coverage gaps |
+| **DocumentationAgent** | Opus 4.7 | API docs, README quality, inline comments |
+| **DependencyAgent** | Opus 4.7 | Supply chain, outdated packages, license risks |
+| **PerformanceAgent** | Opus 4.7 | N+1 queries, memory leaks, async anti-patterns |
+| **CritiqueAgent** | Opus 4.7 + Extended Thinking | Validates all findings, removes false positives |
 
 ---
 
@@ -234,8 +237,8 @@ graph TB
 | Agent | Model | Why This Model |
 |-------|-------|----------------|
 | MetaPrompter | **Sonnet 4.5** | Fast planning from file tree — no deep reasoning needed |
-| 6 Specialists | **Opus 4.6** | Deep code understanding across all 6 dimensions |
-| CritiqueAgent | **Opus 4.6 + Extended Thinking** | Meta-reasoning to validate findings and reject false positives |
+| 6 Specialists | **Opus 4.7** | Deep code understanding across all 6 dimensions |
+| CritiqueAgent | **Opus 4.7 + Extended Thinking** | Meta-reasoning to validate findings and reject false positives |
 
 ### Key Capabilities Used
 
@@ -253,7 +256,7 @@ graph TB
 | Component | Technology |
 |-----------|-----------|
 | Language | Python 3.12+ |
-| AI Models | Claude Opus 4.6, Claude Sonnet 4.5 |
+| AI Models | Claude Opus 4.7, Claude Sonnet 4.5 |
 | AI SDK | `anthropic` Python SDK |
 | CLI Framework | Typer |
 | Terminal UI | Rich |
@@ -284,6 +287,8 @@ graph TB
 
 ## CI Integration
 
+Use the official GitHub Action — one step, no Python setup needed. See [docs/github-action.md](docs/github-action.md) for the full reference.
+
 ```yaml
 # .github/workflows/spectra-analyze.yml
 name: Spectra Analysis
@@ -295,11 +300,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: spectra-ai/spectra@v1
         with:
-          python-version: "3.12"
-      - run: pip install spectra-ai
-      - run: spectra analyze . --quick --format json --output spectra-report.json
+          min-score: 70
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -332,7 +335,7 @@ PRs welcome. Please follow the Clean Architecture dependency rule — it's enfor
 
 [![Anthropic Build Hackathon](https://img.shields.io/badge/Anthropic_Build-Hackathon_2025-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 
-Built with Claude Opus 4.6, Claude Sonnet 4.5, and Claude Code.
+Built with Claude Opus 4.7, Claude Sonnet 4.5, and Claude Code.
 
 **MIT License** · [Repository](https://github.com/leocder07/spectra)
 
