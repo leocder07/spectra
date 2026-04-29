@@ -597,3 +597,66 @@ class TestCLILocalPath:
         result = runner.invoke(app, ["analyze", "~/home-repo"])
         assert result.exit_code == 0, result.output
         factory.assert_called_once()
+
+
+# ── Phase 2: --force / --no-cache flags ──────────────────────
+
+
+class TestCLICacheFlags:
+    def test_force_flag_help_listed(self):
+        result = runner.invoke(app, ["analyze", "--help"])
+        assert "--force" in result.output
+
+    def test_no_cache_flag_help_listed(self):
+        result = runner.invoke(app, ["analyze", "--help"])
+        assert "--no-cache" in result.output
+
+    def test_cli_force_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--force"],
+        )
+        assert result.exit_code == 0
+        factory.assert_called_once()
+        assert factory.call_args.kwargs["force"] is True
+        assert factory.call_args.kwargs["no_cache"] is False
+
+    def test_cli_no_cache_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--no-cache"],
+        )
+        assert result.exit_code == 0
+        factory.assert_called_once()
+        assert factory.call_args.kwargs["force"] is False
+        assert factory.call_args.kwargs["no_cache"] is True
+
+    def test_cli_default_flags_off(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        assert kwargs["force"] is False
+        assert kwargs["no_cache"] is False
+
+    def test_force_and_no_cache_can_combine(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--force",
+                "--no-cache",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        assert kwargs["force"] is True
+        assert kwargs["no_cache"] is True

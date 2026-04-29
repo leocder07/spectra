@@ -210,6 +210,16 @@ def analyze(
         "--min-score",
         help="Minimum overall score to pass (exit 1 if below)",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Bypass repo-level cache and re-run all 8 agents",
+    ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Neither read nor write the cache (CI-safe)",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -244,6 +254,8 @@ def analyze(
                 skip_critique=quick,
                 output_format=fmt,
                 verbose=verbose,
+                force=force,
+                no_cache=no_cache,
             )
         )
     except KeyboardInterrupt:
