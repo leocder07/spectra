@@ -321,7 +321,7 @@ _SOC2_CRITERIA: dict[str, dict[str, object]] = {
     },
 }
 
-# ── SOC 2 Common Criteria Controls (CC1–CC9) ─────────────────
+# ── SOC 2 Common Criteria Controls (CC1-CC9) ─────────────────
 
 _SOC2_CONTROLS: dict[str, dict[str, object]] = {
     "CC1": {

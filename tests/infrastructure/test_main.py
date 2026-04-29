@@ -18,7 +18,13 @@ from spectra.entities.models import (
     Finding,
     ScoreCard,
 )
-from spectra.infrastructure.main import ReportError, _run_analysis, cli
+from spectra.infrastructure.main import (
+    _SARIF_SEVERITY,
+    ReportError,
+    _build_sarif,
+    _run_analysis,
+    cli,
+)
 
 # Test-only path constants computed at import time from the platform tempdir.
 # Avoids ruff S108 (hardcoded /tmp literal); these strings are mock return
@@ -476,9 +482,6 @@ class TestCli:
 
 
 # ── _build_sarif ─────────────────────────────────────────────
-
-
-from spectra.infrastructure.main import _SARIF_SEVERITY, _build_sarif
 
 
 class TestBuildSarif:
