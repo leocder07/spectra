@@ -36,6 +36,7 @@ from spectra.entities.models import (
     estimate_cost,
     score_to_grade,
 )
+from spectra.use_cases.injection_scanner import scan_files_for_injection
 from spectra.use_cases.interfaces import CachePort, GitPort, ProgressObserver
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
@@ -113,6 +114,11 @@ class _PipelineState:
     start_time: float = 0.0
     source_files: dict[str, str] | None = None
     analysis: _AnalysisResult | None = None
+    flagged_files: tuple[str, ...] = ()
+    """ADR-011 §3: paths whose content matched a prompt-injection marker
+    in the regex pre-flight. Empty when the repo is clean. Surfaced to
+    the CritiqueAgent as structured evidence — never used to gate the
+    pipeline."""
 
 
 @dataclass(frozen=True)
@@ -304,7 +310,14 @@ def _build_specialist_prompts(
     plan_output: AgentOutput,
     state: _PipelineState,
 ) -> dict[AgentRole, str]:
-    """Assemble prompt strings for each specialist."""
+    """Assemble prompt strings for each specialist.
+
+    ADR-011 §3: also runs the regex pre-flight scanner over any pre-read
+    source files and records the flagged paths on ``state``. Findings
+    from this pass flow into the CritiqueAgent as structured evidence;
+    file content is never modified or stripped.
+    """
+    _record_injection_preflight(state)
     full_tree = ctx.codebase.file_tree
     full_tree_text = "\n".join(full_tree)
     plan_ctx = _extract_plan_context(plan_output.raw_response)
@@ -321,6 +334,17 @@ def _build_specialist_prompts(
             parts.append(source_ctx)
         prompts[s.role] = "\n\n".join(p for p in parts if p)
     return prompts
+
+
+def _record_injection_preflight(state: _PipelineState) -> None:
+    """Run the synchronous regex scanner and record flagged paths on state.
+
+    No-op when source files have not been resolved yet (pre-Phase-3
+    paths or stub git ports). Bounded ≤200ms on 10MB by contract.
+    """
+    if not state.source_files:
+        return
+    state.flagged_files = scan_files_for_injection(state.source_files)
 
 
 def _filtered_tree(
@@ -664,6 +688,7 @@ async def _execute_critique(
         ctx.critique_agent,
         findings,
         ctx.observer,
+        state.flagged_files,
     )
     if out is not None:
         _track_output(state, out)
@@ -932,15 +957,17 @@ async def _run_critique_stage(
     critique_agent: AnalysisAgent,
     findings: tuple[Finding, ...],
     observer: ProgressObserver | None,
+    flagged_files: tuple[str, ...] = (),
 ) -> tuple[tuple[Finding, ...], tuple[str, ...], AgentOutput | None]:
-    """Run CritiqueAgent; return filtered findings + insights."""
+    """Run CritiqueAgent; return filtered findings + insights.
+
+    ``flagged_files`` (ADR-011 §3) flows in as structured evidence the
+    CritiqueAgent uses for its adversarial-input check (ADR-011 §2).
+    """
     _notify(observer, "on_agent_start", "critique")
-    findings_json = json.dumps(
-        [f.model_dump() for f in findings],
-        indent=2,
-    )
+    critique_input = _build_critique_input(findings, flagged_files)
     try:
-        critique_output = await critique_agent.run(findings_json)
+        critique_output = await critique_agent.run(critique_input)
     except Exception as exc:
         return _handle_critique_failure(observer, findings, exc)
 
@@ -955,6 +982,23 @@ async def _run_critique_stage(
         critique_output.raw_response,
     )
     return filtered, insights, critique_output
+
+
+def _build_critique_input(
+    findings: tuple[Finding, ...],
+    flagged_files: tuple[str, ...],
+) -> str:
+    """Compose the structured JSON payload sent to the CritiqueAgent.
+
+    Always emits a ``flagged_files`` array (possibly empty) so the
+    adversarial-check section in the system prompt has a stable shape
+    to consume.
+    """
+    payload = {
+        "findings": [f.model_dump() for f in findings],
+        "flagged_files": list(flagged_files),
+    }
+    return json.dumps(payload, indent=2)
 
 
 def _handle_critique_failure(
