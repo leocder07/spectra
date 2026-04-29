@@ -268,6 +268,12 @@ class RichProgressReporter:
         tag = _STAGE_TAGS.get(stage, "ERR!")
         self._console.print(f"[{RED}][{tag}][/] [{RED}]{error}[/]")
 
+    def on_cache_lookup(self, dimension: AgentRole, hits: int, total: int) -> None:
+        """Surface per-dimension batch-cache hit rate (Phase 3)."""
+        self._console.print(
+            f"[{VIOLET}][SCAN][/] [{AMBER}]▓▓▓░░░░░░░[/] [{CYAN}]{dimension}[/] cache [bold]{hits}/{total}[/] hits"
+        )
+
     def stop(self) -> None:
         """Clean up progress bars if still running."""
         self._stop_progress()

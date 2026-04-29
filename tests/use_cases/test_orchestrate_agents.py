@@ -282,3 +282,53 @@ class TestEvaluateResultsEdgeCases:
         assert successes[0].agent_role == "architecture"
         assert successes[1].agent_role == "quality"
         assert failed == ["security"]
+
+
+# ── Phase 3: run_specialists with BatchPrompt list per agent ──
+
+
+def _batch(batch_id: str, prompt_text: str = "p") -> object:
+    """Build a BatchPrompt — Layer 1 entity used by run_specialists in Phase 3."""
+    from spectra.entities.models import BatchPrompt
+
+    return BatchPrompt(
+        batch_id=batch_id,
+        file_paths=(f"src/{batch_id}.py",),
+        file_hashes=(f"hash-{batch_id}",),
+        prompt_text=prompt_text,
+    )
+
+
+class TestRunSpecialistsPhase3:
+    @pytest.mark.asyncio
+    async def test_run_specialists_runs_only_fresh_batches(self):
+        from spectra.use_cases.orchestrate_agents import run_specialists_batched
+
+        sec = _make_agent("security")
+        # Two fresh batches → two run() calls.
+        fresh = {"security": [_batch("a"), _batch("b")]}
+        results = await run_specialists_batched([sec], fresh)
+        assert sec.run.call_count == 2
+        assert "security" in results
+
+    @pytest.mark.asyncio
+    async def test_run_specialists_merges_cached_and_fresh_findings_into_agent_output(self):
+        from spectra.use_cases.orchestrate_agents import run_specialists_batched
+
+        f = _make_finding("security", line=99)
+        sec_output = AgentOutput(
+            agent_role="security",
+            findings=(f,),
+            tokens_used=100,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        sec = _make_agent("security", output=sec_output)
+        fresh = {"security": [_batch("only-fresh")]}
+        results = await run_specialists_batched([sec], fresh)
+        # Result contains the fresh-finding; merge with cached findings happens
+        # at the call site (analyze_repository) which combines this output with
+        # cached_findings from partition_by_cache.
+        out = results["security"]
+        assert isinstance(out, AgentOutput)
+        assert f in out.findings

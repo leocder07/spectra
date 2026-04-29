@@ -143,7 +143,7 @@ async def _run_analysis(
     # initialized once per process and closed cleanly on shutdown).
     git = GitAdapter()
     report_renderer = ReportAdapter()
-    cache = None if no_cache else _build_cache_adapter()
+    cache = _provision_cache(no_cache=no_cache)
 
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
@@ -233,6 +233,16 @@ async def _run_analysis(
 # ── Cache adapter construction ───────────────────────────────
 
 
+def _provision_cache(*, no_cache: bool) -> SqliteCacheAdapter | None:
+    """Build the cache adapter (when enabled) and bind the Phase 3 run context."""
+    if no_cache:
+        return None
+    cache = _build_cache_adapter()
+    if cache is not None:
+        _bind_cache_run_context(cache)
+    return cache
+
+
 def _build_cache_adapter() -> SqliteCacheAdapter | None:
     """Construct the SQLite cache adapter, or return None on I/O failure.
 
@@ -305,6 +315,16 @@ def _composite_prompt_versions() -> str:
         digest.update(SPECIALIST_CONFIGS[role][2].encode("utf-8"))
     digest.update(_CRITIQUE_PROMPT.encode("utf-8"))
     return digest.hexdigest()
+
+
+def _bind_cache_run_context(cache: SqliteCacheAdapter) -> None:
+    """Atomically bind the four versions used by every Phase 3 cache key."""
+    cache.bind_run_context(
+        model_versions=_composite_model_versions(),
+        prompt_versions=_composite_prompt_versions(),
+        schema_version=SCHEMA_VERSION,
+        spectra_version=_SPECTRA_VERSION,
+    )
 
 
 # ── Workspace helpers ────────────────────────────────────────
