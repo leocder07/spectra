@@ -43,6 +43,12 @@ from spectra.adapters.cli_controller import (
     cli_entry,
     set_analyzer_factory,
 )
+from spectra.adapters.pr_comment_renderer import (
+    PR_COMMENT_SENTINEL,
+    SUMMARY_MAX_CHARS,
+    TOP_FINDINGS_LIMIT,
+    render_pr_comment,
+)
 from spectra.adapters.progress_reporter import (
     AGENT_DISPLAY_NAMES,
     SPECTRA_THEME,
@@ -62,8 +68,12 @@ __all__ = [
     "GRADE_COLORS",
     "GRAY",
     "GREEN",
+    # PR comment renderer
+    "PR_COMMENT_SENTINEL",
     "RED",
     "SPECTRA_THEME",
+    "SUMMARY_MAX_CHARS",
+    "TOP_FINDINGS_LIMIT",
     "VIOLET",
     "RichProgressReporter",
     # CLI
@@ -72,5 +82,6 @@ __all__ = [
     "cli_entry",
     "dim_label",
     "present_scorecard",
+    "render_pr_comment",
     "set_analyzer_factory",
 ]

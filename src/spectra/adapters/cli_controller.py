@@ -23,8 +23,9 @@ from rich.table import Table
 from spectra import __version__
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
+from spectra.adapters.pr_comment_renderer import render_pr_comment
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
-from spectra.entities.models import CacheStats
+from spectra.entities.models import AnalysisReport, CacheStats
 from spectra.use_cases.interfaces import CachePort, is_local_path
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
@@ -731,3 +732,37 @@ def _render_per_dim_hit_rate(stats: CacheStats) -> None:
     for dim, rate in sorted(stats.hit_rate_by_dimension.items()):
         table.add_row(dim, f"{rate:.0%}")
     console.print(table)
+
+
+# ── spectra render subcommands ────────────────────────────────
+
+render_app = typer.Typer(help="Render reports for downstream tools (PR comments, etc.)")
+app.add_typer(render_app, name="render")
+
+
+@render_app.command("pr-comment")
+def render_pr_comment_cmd(
+    report_path: Path = typer.Argument(  # noqa: B008 — Typer needs the default at definition time
+        ...,
+        help="Path to a JSON AnalysisReport produced by `spectra analyze --format json`",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    ),
+) -> None:
+    """Emit a markdown-safe PR comment body to stdout.
+
+    Reads the JSON report at ``report_path``, validates it against the
+    ``AnalysisReport`` Pydantic model, and prints a sanitized markdown
+    body suitable for ``gh pr comment``. Output starts with the
+    ``<!-- SPECTRA -->`` sentinel so the GitHub Action's update-existing
+    comment path stays idempotent across re-runs.
+    """
+    try:
+        raw = report_path.read_text(encoding="utf-8")
+        report = AnalysisReport.model_validate_json(raw)
+    except (OSError, ValueError) as exc:
+        console.print(f"[{RED}]✗[/] Failed to load report: {exc}")
+        raise typer.Exit(code=1) from exc
+    typer.echo(render_pr_comment(report))
