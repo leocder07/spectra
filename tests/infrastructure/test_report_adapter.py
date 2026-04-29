@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
+import jinja2
 import pytest
 
 from spectra.adapters.brand import build_verdict
@@ -216,6 +218,43 @@ class TestReportAdapter:
         content = Path(path).read_text(encoding="utf-8")
         assert len(content) > 0
         Path(path).unlink()
+
+    def test_template_ships_inside_installed_package(self):
+        """Template must live INSIDE the spectra package so the wheel ships it.
+
+        Resolves the template via importlib.resources — the same API the
+        adapter uses in production. If the template lives outside the
+        package (repo root), this raises FileNotFoundError because the
+        wheel will not contain it for end users.
+        """
+        template_path = files("spectra") / "templates" / "report.html.j2"
+        assert template_path.is_file(), (
+            "report.html.j2 must ship inside the spectra package "
+            "(src/spectra/templates/) so it's included in the published wheel"
+        )
+
+    def test_template_loads_from_installed_package(self):
+        """ReportAdapter().render() must succeed with no extra config.
+
+        The default constructor must resolve the template from the
+        installed package — not via a brittle filesystem walk. This test
+        instantiates the adapter with NO arguments and renders a minimal
+        report. A TemplateNotFound exception means the template is not
+        being shipped or located correctly in the published wheel.
+        """
+        adapter = ReportAdapter()
+        report = _minimal_report()
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+            path = f.name
+        try:
+            adapter.render(report, path)
+        except jinja2.TemplateNotFound as exc:
+            pytest.fail(
+                f"Template not found via default loader: {exc}. "
+                "Templates must ship inside the package via package-data."
+            )
+        finally:
+            Path(path).unlink(missing_ok=True)
 
 
 # ── Badge SVG generation ─────────────────────────────────────

@@ -57,6 +57,11 @@ Changelog = "https://github.com/leocder07/spectra/releases"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Ship Jinja2 HTML report template inside the wheel so end users
+# (who pip install spectra-ai) get a working report renderer.
+spectra = ["templates/*.j2"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
