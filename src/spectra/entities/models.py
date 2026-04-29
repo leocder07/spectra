@@ -106,6 +106,27 @@ class Finding(BaseModel, frozen=True):
         return self.severity in ("critical", "high", "medium")
 
 
+class SecretFinding(BaseModel, frozen=True):
+    """Pre-flight secret-scan match — distinct from a code-quality ``Finding``.
+
+    Pre-flight secrets are detected before any LLM call so they never land in
+    a prompt. They are surfaced as their own value object (not a ``Finding``)
+    because they are owned by the workspace boundary, not by an analysis
+    dimension, and they are the trigger for SPEC-011 abort behavior.
+
+    Attributes:
+        file_path: Repository-relative path of the file containing the secret.
+        line: 1-based line number of the match.
+        pattern_name: Stable identifier of the regex that matched
+            (e.g. ``aws_access_key``, ``github_pat``, ``private_key``).
+            Used for grouping in CLI output and tests; never the secret itself.
+    """
+
+    file_path: str
+    line: int = Field(ge=1)
+    pattern_name: str
+
+
 class DimensionScore(BaseModel, frozen=True):
     """Score for a single analysis dimension.
 

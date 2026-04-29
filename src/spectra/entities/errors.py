@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from spectra.entities.models import SecretFinding
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,7 @@ ERRORS: dict[str, SpectraError] = {
     "SPEC-008": SpectraError("SPEC-008", "CritiqueAgent failed", retryable=False),
     "SPEC-009": SpectraError("SPEC-009", "Report render failed", retryable=False),
     "SPEC-010": SpectraError("SPEC-010", "Cache I/O failed", retryable=False),
+    "SPEC-011": SpectraError("SPEC-011", "Secret detected in workspace", retryable=False),
 }
 
 
@@ -88,6 +93,26 @@ class SpectraRetryError(Exception):
     def __init__(self, error: SpectraError) -> None:
         self.error = error
         super().__init__(f"{error.code}: {error.message}")
+
+
+class SecretDetectedError(Exception):
+    """Raised when the pre-flight secret scan finds one or more secrets (SPEC-011).
+
+    Block-by-default behavior: callers may override with ``--allow-secrets`` at
+    the CLI seam. The detected findings are surfaced on the exception so the
+    composition root can render a brand-voice failure message naming each file.
+
+    Attributes:
+        error: The underlying ``SpectraError`` (always SPEC-011).
+        findings: Tuple of ``SecretFinding`` value objects discovered in the
+            workspace. Empty tuple is technically valid but should never be
+            raised in practice — pre-flight only signals on a non-empty set.
+    """
+
+    def __init__(self, findings: tuple[SecretFinding, ...]) -> None:
+        self.error = ERRORS["SPEC-011"]
+        self.findings = findings
+        super().__init__(f"{self.error.code}: {self.error.message}")
 
 
 # Matches ```json ... ``` fenced blocks in LLM output
