@@ -1,0 +1,7 @@
+{
+  "id": "09-human-prompt-prefix",
+  "category": "role-prefix",
+  "injection_marker": "human:",
+  "expected_offending_path": "src/agent.py",
+  "description": "Inline 'human:' prefix attempting to seed a fake conversation turn."
+}
