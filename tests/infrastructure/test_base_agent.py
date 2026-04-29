@@ -95,12 +95,12 @@ class TestBaseAgent:
     @pytest.mark.asyncio
     async def test_execute_llm_passes_params(self, agent: StubAgent, mock_gateway: AsyncMock):
         await agent.execute_llm("test prompt")
-        mock_gateway.analyze.assert_called_once_with(
-            system_prompt="You are a test agent.",
-            user_prompt="test prompt",
-            model="test-model",
-            max_tokens=1000,
-        )
+        mock_gateway.analyze.assert_called_once()
+        call_kwargs = mock_gateway.analyze.call_args.kwargs
+        assert call_kwargs["system_prompt"] == "You are a test agent."
+        assert call_kwargs["user_prompt"] == "test prompt"
+        assert call_kwargs["model"] == "test-model"
+        assert call_kwargs["max_tokens"] == 1000
 
     def test_format_result_with_actual_tokens(self, agent: StubAgent):
         result = agent.format_result((), "response", 2.0, tokens_used=500)

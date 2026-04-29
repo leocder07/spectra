@@ -39,10 +39,10 @@ class TestCritiqueAgentInit:
         assert agent.role == "critique"
 
     def test_model_is_opus(self, agent: CritiqueAgent):
-        assert agent._model == "claude-opus-4-6"
+        assert agent._model == "claude-opus-4-7"
 
     def test_max_tokens(self, agent: CritiqueAgent):
-        assert agent._max_tokens == 16_000
+        assert agent._max_tokens == 64_000
 
     def test_system_prompt_contains_extended_thinking(self, agent: CritiqueAgent):
         assert "extended thinking" in agent._system_prompt.lower()
@@ -105,7 +105,7 @@ class TestExecuteLLM:
     async def test_passes_correct_model(self, agent: CritiqueAgent, mock_gateway: AsyncMock):
         await agent.execute_llm("test prompt")
         call_kwargs = mock_gateway.analyze_with_thinking.call_args
-        assert call_kwargs.kwargs.get("model") == "claude-opus-4-6" or call_kwargs[1].get("model") == "claude-opus-4-6"
+        assert call_kwargs.kwargs.get("model") == "claude-opus-4-7" or call_kwargs[1].get("model") == "claude-opus-4-7"
 
     @pytest.mark.asyncio
     async def test_passes_system_prompt(self, agent: CritiqueAgent, mock_gateway: AsyncMock):

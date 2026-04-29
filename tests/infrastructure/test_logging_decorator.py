@@ -29,12 +29,12 @@ class TestLoggingDecorator:
         decorator = LoggingDecorator(mock_gateway, mock_observer)
         result = await decorator.analyze("sys", "user", "model", 1000)
         assert result == "result"
-        mock_gateway.analyze.assert_called_once_with(
-            system_prompt="sys",
-            user_prompt="user",
-            model="model",
-            max_tokens=1000,
-        )
+        mock_gateway.analyze.assert_called_once()
+        call_kwargs = mock_gateway.analyze.call_args.kwargs
+        assert call_kwargs["system_prompt"] == "sys"
+        assert call_kwargs["user_prompt"] == "user"
+        assert call_kwargs["model"] == "model"
+        assert call_kwargs["max_tokens"] == 1000
 
     @pytest.mark.asyncio
     async def test_calls_observer_on_complete(self, mock_gateway: AsyncMock, mock_observer: MagicMock):

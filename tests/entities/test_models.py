@@ -367,7 +367,7 @@ class TestAgentContext:
             agent_role="architecture",
             system_prompt="You are an architecture analyst.",
             user_prompt="Analyze this codebase.",
-            model="claude-opus-4-6",
+            model="claude-opus-4-7",
             max_tokens=4096,
         )
         assert ctx.extended_thinking is False
@@ -377,7 +377,7 @@ class TestAgentContext:
             agent_role="critique",
             system_prompt="Critique all findings.",
             user_prompt="Validate these.",
-            model="claude-opus-4-6",
+            model="claude-opus-4-7",
             max_tokens=8192,
             extended_thinking=True,
         )

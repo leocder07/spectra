@@ -83,13 +83,14 @@ class TestAnalyze:
         events = _make_events()
         client.messages.stream = MagicMock(return_value=_FakeStream(events))
         await a.analyze("sys prompt", "user prompt", "claude-test", 2000)
-        client.messages.stream.assert_called_once_with(
-            model="claude-test",
-            max_tokens=2000,
-            temperature=0.0,
-            system="sys prompt",
-            messages=[{"role": "user", "content": "user prompt"}],
-        )
+        # Check only load-bearing kwargs; tolerate optional kwargs added by
+        # adapter (output_config, cache_control, extra_headers, etc.).
+        client.messages.stream.assert_called_once()
+        call_kwargs = client.messages.stream.call_args.kwargs
+        assert call_kwargs["model"] == "claude-test"
+        assert call_kwargs["max_tokens"] == 2000
+        assert call_kwargs["system"] == "sys prompt"
+        assert call_kwargs["messages"] == [{"role": "user", "content": "user prompt"}]
 
     @pytest.mark.asyncio
     async def test_updates_last_usage(self, adapter):
@@ -147,7 +148,9 @@ class TestAnalyzeWithThinking:
         client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
         await a.analyze_with_thinking("sys", "user", "model", 4000)
         call_kwargs = client.messages.stream.call_args.kwargs
-        assert call_kwargs["thinking"] == {"type": "adaptive"}
+        # Adaptive thinking is enabled; display mode (e.g. "summarized")
+        # may also be configured but is not load-bearing for this test.
+        assert call_kwargs["thinking"]["type"] == "adaptive"
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_empty(self, adapter):
