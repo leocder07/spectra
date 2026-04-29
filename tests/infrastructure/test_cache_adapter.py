@@ -1,8 +1,9 @@
-"""Tests for the SQLite cache adapter (Phase 1).
+"""Tests for the SQLite cache adapter (Phase 1 + Phase 2).
 
 Covers schema initialization, round-trip serialization, fine-grained
 invalidation by model/prompt/schema version, repo signature determinism,
-WAL mode for concurrent reads, and SPEC-010 fault handling.
+WAL mode for concurrent reads, SPEC-010 fault handling, and Phase 2's
+full-report storage keyed by ``RepoCacheKey``.
 """
 
 from __future__ import annotations
@@ -14,9 +15,14 @@ import pytest
 
 from spectra.entities.errors import AgentError
 from spectra.entities.models import (
+    AnalysisReport,
     CacheStats,
+    DimensionScore,
     FileLocation,
     Finding,
+    RepoCacheKey,
+    ScoreCard,
+    score_to_grade,
 )
 from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
@@ -299,3 +305,88 @@ class TestIoFailure:
 class TestSchemaVersionConstant:
     def test_schema_version_is_v1(self):
         assert SCHEMA_VERSION == "v1"
+
+
+# ── Full-report storage (Phase 2) ──────────────────────────────
+
+
+def _scorecard(overall: float = 80.0) -> ScoreCard:
+    """Build a minimal ScoreCard so we can construct AnalysisReport in tests."""
+    dim = DimensionScore(
+        dimension="security",
+        score=overall,
+        grade=score_to_grade(overall),
+        findings_count=0,
+        weight=1.0,
+    )
+    return ScoreCard(
+        overall_score=overall,
+        overall_grade=score_to_grade(overall),
+        dimensions=(dim,),
+        total_findings=0,
+    )
+
+
+def _report(repo_url: str = "https://github.com/test/repo") -> AnalysisReport:
+    return AnalysisReport(
+        repo_url=repo_url,
+        repo_name="repo",
+        score_card=_scorecard(),
+        findings=(_make_finding(),),
+        analysis_duration_seconds=12.3,
+        total_tokens_used=1234,
+        total_cost_usd=0.01,
+        agents_used=("security",),
+    )
+
+
+def _key(**overrides: object) -> RepoCacheKey:
+    base: dict[str, object] = {
+        "repo_signature": "deadbeefdeadbeefdeadbeefdeadbeef",
+        "spectra_version": "0.1.0",
+        "model_versions": "claude-opus-4-7|claude-opus-4-7",
+        "prompt_versions": "prompt-hash-v1",
+        "schema_version": "v1",
+    }
+    base.update(overrides)
+    return RepoCacheKey(**base)  # type: ignore[arg-type]
+
+
+class TestFullReportRoundTrip:
+    def test_full_report_round_trip(self, adapter: SqliteCacheAdapter):
+        key = _key()
+        report = _report()
+        adapter.put_full_report(key, report)
+        loaded = adapter.get_full_report(key)
+        assert loaded == report
+
+    def test_full_report_miss_returns_none(self, adapter: SqliteCacheAdapter):
+        assert adapter.get_full_report(_key()) is None
+
+    def test_full_report_invalidates_on_spectra_version(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report())
+        assert adapter.get_full_report(_key(spectra_version="0.2.0")) is None
+
+    def test_full_report_invalidates_on_model_version(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report())
+        bumped = _key(model_versions="claude-opus-5-0|claude-opus-5-0")
+        assert adapter.get_full_report(bumped) is None
+
+    def test_full_report_invalidates_on_prompt_version(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report())
+        assert adapter.get_full_report(_key(prompt_versions="other-hash")) is None
+
+    def test_full_report_invalidates_on_schema_version(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report())
+        assert adapter.get_full_report(_key(schema_version="v2")) is None
+
+    def test_full_report_invalidates_on_repo_signature(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report())
+        assert adapter.get_full_report(_key(repo_signature="00000000")) is None
+
+    def test_put_overwrites_same_key(self, adapter: SqliteCacheAdapter):
+        adapter.put_full_report(_key(), _report(repo_url="https://github.com/old/old"))
+        adapter.put_full_report(_key(), _report(repo_url="https://github.com/new/new"))
+        loaded = adapter.get_full_report(_key())
+        assert loaded is not None
+        assert loaded.repo_url == "https://github.com/new/new"
