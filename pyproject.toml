@@ -38,6 +38,8 @@ dependencies = [
     "httpx>=0.27,<1.0",
     # ADR-012: per-user cache HMAC secret stored in OS keyring
     "keyring>=24,<26",
+    # #6 pre-flight: gitignore + .spectraignore semantics
+    "pathspec>=0.12,<1.0",
 ]
 
 [project.optional-dependencies]
