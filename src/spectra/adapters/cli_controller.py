@@ -19,6 +19,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from spectra import __version__
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
@@ -183,7 +184,7 @@ def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
 def _version_callback(value: bool) -> None:
     """Print version and exit when --version/-v is passed."""
     if value:
-        console.print(f"[bold {VIOLET}]spectra[/] v0.1.0 [dim]// codebase intelligence[/]")
+        console.print(f"[bold {VIOLET}]spectra[/] v{__version__} [dim]// codebase intelligence[/]")
         raise typer.Exit
 
 

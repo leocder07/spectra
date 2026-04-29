@@ -590,10 +590,12 @@ class TestBuildSarif:
 
     def test_sarif_tool_driver(self):
         """SARIF run contains Spectra tool driver metadata."""
+        from spectra import __version__
+
         sarif = _build_sarif(self._make_report())
         driver = sarif["runs"][0]["tool"]["driver"]
         assert driver["name"] == "Spectra"
-        assert driver["version"] == "0.1.0"
+        assert driver["version"] == __version__
         assert "informationUri" in driver
 
     def test_sarif_zero_findings_empty_results(self):
