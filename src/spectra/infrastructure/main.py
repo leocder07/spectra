@@ -246,7 +246,7 @@ async def _read_key_source_files(
         try:
             content = await git_port.read_file(clone_dir, path)
             tokens = counter.count(content)
-        except Exception:  # noqa: BLE001, S112
+        except Exception:  # noqa: S112
             continue
         if total_tokens + tokens > _MAX_HEURISTIC_TOKENS:
             break

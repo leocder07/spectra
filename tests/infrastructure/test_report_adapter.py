@@ -23,13 +23,13 @@ from spectra.infrastructure.report_adapter import (
     _build_coverage_summary,
     _build_executive_summary,
     _build_spectrum_segments,
-    _compute_roi,
-    _concentration_rating,
     _complexity_component_score,
     _complexity_indicators,
     _complexity_risk_level,
-    _compute_issue_concentration,
     _compute_file_concentration,
+    _compute_issue_concentration,
+    _compute_roi,
+    _concentration_rating,
     _critical_count,
     _critical_findings_score,
     _dd_compliance_mapping,
@@ -1783,7 +1783,6 @@ class TestOWASP2025Coverage:
 
 # ── Parametrized Gini Coefficient ────────────────────────────
 
-import pytest  # noqa: E811 — re-import for parametrize visibility
 
 
 class TestGiniCoefficientParametrized:

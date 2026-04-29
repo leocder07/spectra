@@ -12,17 +12,13 @@ import pytest
 
 from spectra.entities.errors import ERRORS
 from spectra.entities.models import (
-    AgentOutput,
     AnalysisReport,
-    AnalysisRequest,
-    Codebase,
     DimensionScore,
-    Finding,
     FileLocation,
+    Finding,
     ScoreCard,
 )
 from spectra.infrastructure.main import ReportError, _run_analysis, cli
-
 
 # ── ReportError ───────────────────────────────────────────────
 
@@ -466,7 +462,7 @@ class TestCli:
 # ── _build_sarif ─────────────────────────────────────────────
 
 
-from spectra.infrastructure.main import _build_sarif, _SARIF_SEVERITY
+from spectra.infrastructure.main import _SARIF_SEVERITY, _build_sarif
 
 
 class TestBuildSarif:
