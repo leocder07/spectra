@@ -8,6 +8,7 @@ full-report storage keyed by ``RepoCacheKey``.
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -18,6 +19,7 @@ from spectra.entities.errors import AgentError
 from spectra.entities.models import (
     AnalysisReport,
     BatchCacheKey,
+    CacheSecret,
     CacheStats,
     DimensionScore,
     FileLocation,
@@ -810,3 +812,168 @@ class TestStatsExtendedBreakdown:
         stats = adapter.stats()
         assert stats.hit_rate_by_dimension["security"] == 1.0
         assert stats.hit_rate_by_dimension["quality"] == 0.0
+
+
+# ── ADR-012: Per-row HMAC ──────────────────────────────────────
+
+
+def _secret(value: bytes | None = None) -> CacheSecret:
+    """Build a CacheSecret with a deterministic or random 32-byte value."""
+    return CacheSecret(value=value or secrets.token_bytes(32))
+
+
+@pytest.fixture
+def hmac_adapter(cache_path: Path) -> SqliteCacheAdapter:
+    """Return an adapter with a stable per-test HMAC secret bound."""
+    return SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
+
+
+class TestMacColumnSchema:
+    def test_findings_cache_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_cache)")}
+        assert "mac" in cols
+
+    def test_full_report_cache_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(full_report_cache)")}
+        assert "mac" in cols
+
+    def test_findings_batches_has_mac_column(self, cache_path: Path):
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_batches)")}
+        assert "mac" in cols
+
+    def test_hit_log_does_not_have_mac_column(self, cache_path: Path):
+        """hit_log is telemetry, not authenticated payload."""
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(hit_log)")}
+        assert "mac" not in cols
+
+
+class TestHmacRoundTrip:
+    def test_findings_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        findings = (_make_finding(),)
+        hmac_adapter.put_findings("h", "security", findings, "m", "p")
+        assert hmac_adapter.get_findings("h", "security") == findings
+
+    def test_full_report_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        hmac_adapter.put_full_report(_key(), _report())
+        assert hmac_adapter.get_full_report(_key()) == _report()
+
+    def test_batch_findings_round_trip_with_secret(self, hmac_adapter: SqliteCacheAdapter):
+        _bind_default_context(hmac_adapter)
+        findings = (_make_finding(),)
+        hmac_adapter.put_batch_findings(_batch_key(), findings)
+        assert hmac_adapter.get_batch_findings(_batch_key()) == findings
+
+
+class TestHmacTamperDetection:
+    def test_tampered_findings_value_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        # Mutate findings_json directly via raw SQLite — the MAC will no longer match.
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
+            conn.commit()
+        # Lookup must return miss (not the tampered payload).
+        assert hmac_adapter.get_findings("h", "security") is None
+        # And the row must be physically removed so the next put can succeed.
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_full_report_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.put_full_report(_key(), _report())
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE full_report_cache SET report_json = ?", ('{"tampered": true}',))
+            conn.commit()
+        assert hmac_adapter.get_full_report(_key()) is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM full_report_cache").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_batch_findings_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        _bind_default_context(hmac_adapter)
+        hmac_adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_batches SET findings_json = ?", ("[]",))
+            conn.commit()
+        assert hmac_adapter.get_batch_findings(_batch_key()) is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_batches").fetchone()[0]
+        assert count == 0
+
+    def test_tampered_mac_column_returns_miss_and_drops_row(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET mac = ?", (b"\x00" * 32,))
+            conn.commit()
+        assert hmac_adapter.get_findings("h", "security") is None
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
+        assert count == 0
+
+
+class TestHmacRekeyMigration:
+    def test_rotated_secret_invalidates_existing_rows(
+        self,
+        cache_path: Path,
+    ):
+        """Old rows fail HMAC under the new secret and are dropped on read."""
+        adapter_a = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
+        adapter_a.set_model_version("m")
+        adapter_a.set_prompt_version("security", "p")
+        adapter_a.put_findings("h", "security", (_make_finding(),), "m", "p")
+        adapter_a.close()
+
+        # Re-open with a different secret (simulates silent re-key after lost keyring entry).
+        adapter_b = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x02" * 32))
+        adapter_b.set_model_version("m")
+        adapter_b.set_prompt_version("security", "p")
+        # Old row's MAC was computed with secret-A; under secret-B it must fail.
+        assert adapter_b.get_findings("h", "security") is None
+        # And re-puts under the new secret must succeed.
+        adapter_b.put_findings("h", "security", (_make_finding(line=42, fid="F-NEW"),), "m", "p")
+        got = adapter_b.get_findings("h", "security")
+        assert got is not None
+        assert got[0].id == "F-NEW"
+
+
+class TestHmacBackwardCompat:
+    def test_adapter_without_secret_still_works(self, cache_path: Path):
+        """Adapter constructed without ``secret=`` runs in legacy no-MAC mode.
+
+        Preserves backward-compatibility for tests and headless callers
+        that explicitly opt out of HMAC enforcement.
+        """
+        adapter = SqliteCacheAdapter(db_path=cache_path)  # no secret
+        adapter.set_model_version("m")
+        adapter.set_prompt_version("security", "p")
+        adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
+        assert adapter.get_findings("h", "security") is not None
