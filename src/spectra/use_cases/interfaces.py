@@ -18,6 +18,7 @@ Helpers:
 
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003 — used by Protocol signatures at runtime
 from pathlib import Path
 from typing import Protocol
 
@@ -280,6 +281,26 @@ class CachePort(Protocol):
 
     def clear(self, repo_signature: str | None = None) -> int:
         """Purge entries; return the count removed."""
+        ...
+
+    def clear_all(self) -> int:
+        """Purge every cache table and return the total rows deleted (Phase 4)."""
+        ...
+
+    def clear_by_repo(self, repo_signature: str) -> int:
+        """Purge rows tagged with ``repo_signature``; return rows deleted (Phase 4)."""
+        ...
+
+    def prune_older_than(
+        self,
+        cutoff: datetime,
+        include_hit_log: bool = False,
+    ) -> dict[str, int]:
+        """GC rows whose ``computed_at`` is older than ``cutoff`` (Phase 4).
+
+        Returns a ``{table_name: rows_deleted}`` map for the data tables;
+        ``hit_log`` is included only when ``include_hit_log=True``.
+        """
         ...
 
     def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
