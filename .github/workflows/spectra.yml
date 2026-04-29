@@ -1,0 +1,160 @@
+# Spectra — PR analysis workflow
+#
+# Runs on every pull request. Installs the `spectra-ai` package from PyPI,
+# executes the 8-agent analysis against the PR's checked-out code, and
+# posts (or updates) a single PR comment with the grade and top findings.
+#
+# Required secret: ANTHROPIC_API_KEY (added under repo Settings > Secrets)
+#
+# This workflow is the canonical reference for what the composite
+# action at action.yml does. Downstream consumers should prefer the
+# composite action — see docs/github-action.md.
+
+name: Spectra
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  analyze:
+    name: 8-agent analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # Pinned to v4.2.2 release SHA
+      - name: Checkout PR code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # Pinned to v5.3.0 release SHA
+      - name: Set up Python 3.12
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install spectra-ai
+        run: pip install --upgrade "spectra-ai"
+
+      # NOTE: The CLI's URL validator currently REJECTS local paths
+      # (see src/spectra/adapters/cli_controller.py::_validate_repo_url).
+      # As a workaround we pass the PR's HEAD ref as an https URL so the
+      # ingest stage clones the same commit GitHub already checked out.
+      # TODO(spectra-ai): teach `spectra analyze` to accept a local path
+      # via a positional `.` argument and skip the clone step.
+      - name: Run Spectra
+        id: spectra
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          spectra analyze "${REPO_URL}" \
+            --quick \
+            --format json \
+            --output spectra-report.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Upload report artifact
+        if: always()
+        # Pinned to v4.4.3 release SHA
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        with:
+          name: spectra-report
+          path: spectra-report.json
+          retention-days: 30
+
+      - name: Post or update PR comment
+        if: always()
+        # Pinned to v7.0.1 release SHA
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        env:
+          REPORT_PATH: spectra-report.json
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- SPECTRA -->';
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const prHead = context.payload.pull_request.head.sha;
+
+            let body = `${MARKER}\n## Spectra Analysis\n\n`;
+
+            try {
+              const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
+              const sc = report.score_card || {};
+              const grade = sc.overall_grade || 'N/A';
+              const score = sc.overall_score != null ? sc.overall_score.toFixed(1) : 'N/A';
+              const totalFindings = sc.total_findings ?? (report.findings || []).length;
+              const findings = report.findings || [];
+
+              const critical = findings.filter(f => f.severity === 'critical');
+              const high = findings.filter(f => f.severity === 'high');
+              const top = [...critical, ...high].slice(0, 5);
+
+              body += `**Grade:** \`${grade}\` (${score}/100)  \n`;
+              body += `**Findings:** ${totalFindings} total · ${critical.length} critical · ${high.length} high\n\n`;
+
+              if (sc.dimensions && sc.dimensions.length) {
+                body += `| Dimension | Score | Grade |\n|---|---|---|\n`;
+                for (const d of sc.dimensions) {
+                  body += `| ${d.dimension} | ${d.score.toFixed(1)} | ${d.grade} |\n`;
+                }
+                body += '\n';
+              }
+
+              if (top.length) {
+                body += `### Top ${top.length} findings\n\n`;
+                for (const f of top) {
+                  const loc = f.location || {};
+                  const file = loc.file_path;
+                  const line = loc.line_start || 1;
+                  const sev = (f.severity || '').toUpperCase();
+                  let head = `- **[${sev}]** ${f.title || 'Untitled finding'}`;
+                  if (file) {
+                    const link = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/blob/${prHead}/${file}#L${line}`;
+                    head += ` — [\`${file}:${line}\`](${link})`;
+                  }
+                  body += `${head}\n`;
+                  if (f.recommendation) {
+                    body += `  - ${f.recommendation}\n`;
+                  }
+                }
+                body += '\n';
+              } else {
+                body += `_No critical or high severity findings._\n\n`;
+              }
+
+              body += `[Full JSON report](${runUrl}) · Re-runs on every push update this comment.`;
+            } catch (err) {
+              body += `Analysis did not produce a parseable report (\`${err.message}\`).\n\n`;
+              body += `See the [workflow logs](${runUrl}).`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

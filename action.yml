@@ -1,0 +1,220 @@
+# Spectra — GitHub composite Action
+#
+# Reference this from any repo as:
+#   uses: spectra-ai/spectra@v1
+#
+# What it does:
+#   1. Installs `spectra-ai` from PyPI on the runner's Python.
+#   2. Runs `spectra analyze` against the target repo.
+#   3. Optionally posts (or updates) a PR comment with the grade
+#      and top critical findings, idempotent across re-runs.
+#
+# Caller must grant: `contents: read` and (if comment-on-pr is true)
+# `pull-requests: write`.
+
+name: Spectra
+description: 8 AI agents analyze your repository in under 5 minutes — Clean Architecture, Security, Quality, Docs, Maintainability, Performance.
+author: spectra-ai
+branding:
+  icon: layers
+  color: purple
+
+inputs:
+  anthropic-api-key:
+    description: Anthropic API key. Pass via `${{ secrets.ANTHROPIC_API_KEY }}`.
+    required: true
+  path:
+    description: Path to the repo to analyze. Defaults to the current workspace.
+    required: false
+    default: "."
+  format:
+    description: Output format — `json` (recommended for CI) or `html`.
+    required: false
+    default: "json"
+  quick-mode:
+    description: When `true`, skip the CritiqueAgent stage for faster results (~60s vs ~3min).
+    required: false
+    default: "false"
+  comment-on-pr:
+    description: When `true` and the workflow runs on a `pull_request` event, post or update a PR comment with the findings.
+    required: false
+    default: "true"
+  python-version:
+    description: Python version to install on the runner.
+    required: false
+    default: "3.12"
+  spectra-version:
+    description: Specific `spectra-ai` version to install. Defaults to latest.
+    required: false
+    default: ""
+
+outputs:
+  grade:
+    description: Overall grade (e.g. `A-`, `B+`).
+    value: ${{ steps.parse.outputs.grade }}
+  score:
+    description: Overall numeric score from 0 to 100.
+    value: ${{ steps.parse.outputs.score }}
+  findings-json:
+    description: Path on the runner to the raw JSON report.
+    value: ${{ steps.run.outputs.report_path }}
+
+runs:
+  using: composite
+  steps:
+    # Pinned to v5.3.0
+    - name: Set up Python
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+
+    - name: Install spectra-ai
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.spectra-version }}" ]; then
+          pip install --upgrade "spectra-ai==${{ inputs.spectra-version }}"
+        else
+          pip install --upgrade "spectra-ai"
+        fi
+
+    # NOTE: The CLI's URL validator currently rejects local paths and
+    # only accepts https:// URLs. We work around this by inferring the
+    # repo URL from $GITHUB_REPOSITORY when `path` is `.`. If the caller
+    # passes a non-default path we honor it as-is so the user can still
+    # supply a remote URL today.
+    # TODO(spectra-ai): teach the CLI to accept a local filesystem path.
+    - name: Run Spectra
+      id: run
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+      run: |
+        set +e
+        if [ "${{ inputs.path }}" = "." ]; then
+          TARGET="https://github.com/${GITHUB_REPOSITORY}.git"
+        else
+          TARGET="${{ inputs.path }}"
+        fi
+
+        EXT="${{ inputs.format }}"
+        REPORT_PATH="spectra-report.${EXT}"
+
+        QUICK_FLAG=""
+        if [ "${{ inputs.quick-mode }}" = "true" ]; then
+          QUICK_FLAG="--quick"
+        fi
+
+        spectra analyze "${TARGET}" \
+          ${QUICK_FLAG} \
+          --format "${EXT}" \
+          --output "${REPORT_PATH}"
+        EXIT_CODE=$?
+        set -e
+
+        echo "report_path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+        echo "exit_code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+    - name: Parse grade and score
+      id: parse
+      shell: bash
+      run: |
+        REPORT="${{ steps.run.outputs.report_path }}"
+        if [ "${{ inputs.format }}" = "json" ] && [ -f "${REPORT}" ]; then
+          GRADE=$(python3 -c "import json; r=json.load(open('${REPORT}')); print(r.get('score_card',{}).get('overall_grade','N/A'))")
+          SCORE=$(python3 -c "import json; r=json.load(open('${REPORT}')); print(r.get('score_card',{}).get('overall_score','0'))")
+        else
+          GRADE="N/A"
+          SCORE="0"
+        fi
+        echo "grade=${GRADE}" >> "$GITHUB_OUTPUT"
+        echo "score=${SCORE}" >> "$GITHUB_OUTPUT"
+
+    # Pinned to v7.0.1
+    - name: Post or update PR comment
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' && inputs.format == 'json' }}
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+      env:
+        REPORT_PATH: ${{ steps.run.outputs.report_path }}
+      with:
+        script: |
+          const fs = require('fs');
+          const MARKER = '<!-- SPECTRA -->';
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const prHead = context.payload.pull_request.head.sha;
+
+          let body = `${MARKER}\n## Spectra Analysis\n\n`;
+
+          try {
+            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
+            const sc = report.score_card || {};
+            const grade = sc.overall_grade || 'N/A';
+            const score = sc.overall_score != null ? sc.overall_score.toFixed(1) : 'N/A';
+            const totalFindings = sc.total_findings ?? (report.findings || []).length;
+            const findings = report.findings || [];
+
+            const critical = findings.filter(f => f.severity === 'critical');
+            const high = findings.filter(f => f.severity === 'high');
+            const top = [...critical, ...high].slice(0, 5);
+
+            body += `**Grade:** \`${grade}\` (${score}/100)  \n`;
+            body += `**Findings:** ${totalFindings} total · ${critical.length} critical · ${high.length} high\n\n`;
+
+            if (sc.dimensions && sc.dimensions.length) {
+              body += `| Dimension | Score | Grade |\n|---|---|---|\n`;
+              for (const d of sc.dimensions) {
+                body += `| ${d.dimension} | ${d.score.toFixed(1)} | ${d.grade} |\n`;
+              }
+              body += '\n';
+            }
+
+            if (top.length) {
+              body += `### Top ${top.length} findings\n\n`;
+              for (const f of top) {
+                const loc = f.location || {};
+                const file = loc.file_path;
+                const line = loc.line_start || 1;
+                const sev = (f.severity || '').toUpperCase();
+                let head = `- **[${sev}]** ${f.title || 'Untitled finding'}`;
+                if (file) {
+                  const link = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/blob/${prHead}/${file}#L${line}`;
+                  head += ` — [\`${file}:${line}\`](${link})`;
+                }
+                body += `${head}\n`;
+                if (f.recommendation) {
+                  body += `  - ${f.recommendation}\n`;
+                }
+              }
+              body += '\n';
+            } else {
+              body += `_No critical or high severity findings._\n\n`;
+            }
+
+            body += `[Workflow run](${runUrl}) · Re-runs on this PR update this comment.`;
+          } catch (err) {
+            body += `Analysis did not produce a parseable report (\`${err.message}\`).\n\n`;
+            body += `See the [workflow logs](${runUrl}).`;
+          }
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const existing = comments.find(c => c.body && c.body.includes(MARKER));
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
