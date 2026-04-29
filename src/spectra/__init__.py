@@ -11,6 +11,6 @@ Usage::
     spectra analyze https://github.com/org/repo --quick
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = ["__version__"]
