@@ -774,6 +774,61 @@ class TestBuildSarif:
             cache = _provision_cache_only()
         assert cache is not None
 
+    def test_resolve_cache_secret_returns_none_on_keyring_failure(self):
+        """When keyring is unavailable the composition root returns None.
+
+        ADR-012 — the run continues with cache_port enabled but MAC
+        enforcement off. SPEC-010 is logged once; nothing is fatal.
+        """
+        from spectra.entities.errors import ERRORS, AgentError
+        from spectra.infrastructure.main import _resolve_cache_secret
+
+        def _fail(*_, **__):
+            err = AgentError(ERRORS["SPEC-010"])
+            err.__cause__ = RuntimeError("no keyring")
+            raise err
+
+        with patch("spectra.infrastructure.main.KeyringSecretAdapter") as mock_cls:
+            mock_cls.return_value.get = _fail
+            secret = _resolve_cache_secret()
+        assert secret is None
+
+    def test_resolve_cache_secret_returns_secret_on_keyring_success(self):
+        """When keyring works the secret is returned for the cache adapter."""
+        from spectra.entities.models import CacheSecret
+        from spectra.infrastructure.main import _resolve_cache_secret
+
+        seeded = CacheSecret(value=b"\x09" * 32)
+        with patch("spectra.infrastructure.main.KeyringSecretAdapter") as mock_cls:
+            mock_cls.return_value.get = lambda: seeded
+            secret = _resolve_cache_secret()
+        assert secret == seeded
+
+    def test_build_cache_adapter_drops_legacy_cache_db(self, tmp_path):
+        """ADR-012 migration: pre-PR cache.db is removed at startup."""
+        from spectra.infrastructure.main import _build_cache_adapter
+
+        legacy = tmp_path / "spectra" / "cache.db"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_bytes(b"legacy-cache-data")
+        new_path = tmp_path / "spectra" / "999" / "cache.db"
+
+        with (
+            patch.dict("os.environ", {"XDG_CACHE_HOME": str(tmp_path)}),
+            patch(
+                "spectra.infrastructure.main.default_cache_path",
+                return_value=new_path,
+            ),
+            patch(
+                "spectra.infrastructure.main._resolve_cache_secret",
+                return_value=None,
+            ),
+        ):
+            cache = _build_cache_adapter()
+        assert cache is not None
+        # Legacy file must be gone.
+        assert not legacy.exists()
+
     @pytest.mark.asyncio
     async def test_run_analysis_passes_resolved_configs_to_factory(self):
         """When --model is set, AgentFactory receives the resolved configs dict."""
