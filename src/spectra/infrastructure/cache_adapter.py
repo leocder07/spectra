@@ -756,6 +756,76 @@ class SqliteCacheAdapter:
         """Return the on-disk cache.db path (used by ``cache stats`` CLI)."""
         return self._db_path
 
+    @property
+    def has_secret(self) -> bool:
+        """True when ADR-012 HMAC enforcement is active for this adapter."""
+        return self._secret is not None
+
+    # ── ADR-012: cache doctor diagnostics ─────────────────────
+
+    def count_rows(self) -> dict[str, dict[str, int]]:
+        """Return per-table totals + verified/failed MAC counts.
+
+        Powers ``spectra cache doctor``. When no secret is bound (legacy
+        mode) every row counts as ``verified`` since MAC is not enforced.
+        """
+        with _guard_io():
+            return {table: self._count_table(table) for table in _ALL_TABLES}
+
+    def _count_table(self, table: str) -> dict[str, int]:
+        """Walk one cache table, classifying each row by MAC verification."""
+        if table == "findings_cache":
+            return self._count_findings_cache()
+        if table == "full_report_cache":
+            return self._count_full_report_cache()
+        if table == "findings_batches":
+            return self._count_findings_batches()
+        return {"total": 0, "verified": 0, "failed": 0}
+
+    def _count_findings_cache(self) -> dict[str, int]:
+        """Verify every row in findings_cache against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT file_hash, dimension, model_version, prompt_version, "
+            "schema_version, findings_json, mac FROM findings_cache",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=5)
+
+    def _count_full_report_cache(self) -> dict[str, int]:
+        """Verify every row in full_report_cache against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT repo_signature, spectra_version, model_versions, "
+            "prompt_versions, schema_version, report_json, mac FROM full_report_cache",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=5)
+
+    def _count_findings_batches(self) -> dict[str, int]:
+        """Verify every row in findings_batches against its stored MAC."""
+        rows = self._conn.execute(
+            "SELECT batch_id, dimension, model_version, prompt_version, "
+            "schema_version, spectra_version, findings_json, mac FROM findings_batches",
+        ).fetchall()
+        return self._tally_rows(rows, key_width=6)
+
+    def _tally_rows(
+        self,
+        rows: list[tuple[object, ...]],
+        *,
+        key_width: int,
+    ) -> dict[str, int]:
+        """Bucket ``rows`` into total / verified / failed by MAC verification."""
+        verified = sum(1 for r in rows if self._row_mac_ok(r, key_width=key_width))
+        return {"total": len(rows), "verified": verified, "failed": len(rows) - verified}
+
+    def _row_mac_ok(self, row: tuple[object, ...], *, key_width: int) -> bool:
+        """Recompute the MAC for one row and compare to the stored value."""
+        if self._secret is None:
+            return True
+        key_parts = tuple(str(p) for p in row[:key_width])
+        payload = str(row[key_width])
+        stored_mac = row[key_width + 1]
+        expected = _compute_mac(self._secret, key_parts, payload)
+        return _mac_matches(expected, stored_mac)
+
 
 # ── Module-level helpers (kept tiny, single-purpose) ──────────
 

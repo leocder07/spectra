@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json as _json
 import logging
+import os
 import re
 import traceback
 from datetime import UTC, datetime, timedelta
@@ -766,3 +767,56 @@ def render_pr_comment_cmd(
         console.print(f"[{RED}]✗[/] Failed to load report: {exc}")
         raise typer.Exit(code=1) from exc
     typer.echo(render_pr_comment(report))
+
+
+# ── ADR-012: spectra cache doctor ────────────────────────────
+
+
+@cache_app.command("doctor")
+def cache_doctor() -> None:
+    """Diagnose the cache: path, UID, keyring backend, MAC verification rates."""
+    cache = _get_cache()
+    _render_doctor_environment(cache)
+    _render_doctor_row_counts(cache)
+
+
+def _render_doctor_environment(cache: CachePort) -> None:
+    """Render the environment table — path, UID, keyring backend status."""
+    db_path = getattr(cache, "db_path", Path("cache.db"))
+    has_secret = bool(getattr(cache, "has_secret", False))
+    backend_label = "OS keyring (HMAC enforced)" if has_secret else "disabled (no secret)"
+    table = Table(title="Spectra cache doctor", title_style=f"bold {VIOLET}")
+    table.add_column("Field", style=f"bold {AMBER}")
+    table.add_column("Value")
+    table.add_row("Cache file", str(db_path))
+    table.add_row("UID", _doctor_uid_label())
+    table.add_row("Keyring backend", backend_label)
+    console.print(table)
+
+
+def _doctor_uid_label() -> str:
+    """Return the effective UID label (or ``win`` on Windows)."""
+    geteuid = getattr(os, "geteuid", None)
+    return str(geteuid()) if geteuid else "win"
+
+
+def _render_doctor_row_counts(cache: CachePort) -> None:
+    """Render the per-table verified/failed table from ``count_rows``."""
+    counter = getattr(cache, "count_rows", None)
+    if counter is None:
+        console.print(f"  [{AMBER}]▸[/] count_rows unsupported by this cache")
+        return
+    counts = counter()
+    table = Table(title="MAC verification (per table)", title_style=f"bold {VIOLET}")
+    table.add_column("Table", style=f"bold {AMBER}")
+    table.add_column("Total", justify="right")
+    table.add_column("Verified", justify="right")
+    table.add_column("Failed", justify="right")
+    table.add_column("Verified %", justify="right")
+    for name, c in counts.items():
+        total = c["total"]
+        verified = c["verified"]
+        failed = c["failed"]
+        pct = f"{(verified / total):.0%}" if total else "—"
+        table.add_row(name, str(total), str(verified), str(failed), pct)
+    console.print(table)

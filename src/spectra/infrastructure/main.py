@@ -54,6 +54,7 @@ from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
     AnalysisReport,
     AnalysisRequest,
+    CacheSecret,
     Codebase,
     RepoCacheKey,
 )
@@ -68,8 +69,10 @@ from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
     default_cache_path,
+    migrate_legacy_cache,
 )
 from spectra.infrastructure.git_adapter import GitAdapter
+from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
@@ -273,17 +276,43 @@ def _provision_cache(*, no_cache: bool) -> SqliteCacheAdapter | None:
 def _build_cache_adapter() -> SqliteCacheAdapter | None:
     """Construct the SQLite cache adapter, or return None on I/O failure.
 
-    Phase 1 is purely additive: the cache is wired into the composition
-    root but not yet consumed by ``analyze_repository``. Failure to
-    initialize the cache must NEVER abort the run, so SPEC-010 is
-    swallowed here and the caller treats ``None`` as "no cache".
+    ADR-012 wires the per-user keyring secret in here: ``KeyringSecretAdapter``
+    fetches (or generates) the 32-byte HMAC key, and ``SqliteCacheAdapter``
+    enforces it on every read/write. If the keyring is unavailable the
+    cache is disabled for the run (SPEC-010 — never fatal).
+
+    Legacy cache rescue: any pre-ADR-012 ``cache.db`` at the unscoped
+    path is removed before the new adapter opens. The next run cold-caches.
     """
+    if migrate_legacy_cache():
+        logging.getLogger("spectra").info(
+            "Legacy cache.db removed; new per-user cache will be cold-warmed",
+        )
+    secret = _resolve_cache_secret()
     try:
-        return SqliteCacheAdapter(db_path=default_cache_path())
+        return SqliteCacheAdapter(db_path=default_cache_path(), secret=secret)
     except AgentError as exc:
         logging.getLogger("spectra").warning(
             "Cache disabled (%s); analysis will proceed without caching",
             exc.error.code,
+        )
+        return None
+
+
+def _resolve_cache_secret() -> CacheSecret | None:
+    """Fetch the per-user HMAC secret from the OS keyring; degrade to None."""
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None:
+        # Windows: per-user file isolation degraded; secret unavailable.
+        return None
+    uid = str(geteuid())
+    try:
+        return KeyringSecretAdapter(uid=uid).get()
+    except AgentError as exc:
+        logging.getLogger("spectra").warning(
+            "Cache MAC disabled (%s); keyring unavailable for UID %s",
+            exc.error.code,
+            uid,
         )
         return None
 
@@ -295,7 +324,8 @@ def _provision_cache_only() -> SqliteCacheAdapter:
     LLM wiring — it only manipulates the local SQLite cache. This factory
     is the seam the CLI controller calls via its ``cache_provider`` getter.
     """
-    return SqliteCacheAdapter(db_path=default_cache_path())
+    secret = _resolve_cache_secret()
+    return SqliteCacheAdapter(db_path=default_cache_path(), secret=secret)
 
 
 def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:

@@ -1107,3 +1107,132 @@ class TestOldPathMigration:
 
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
         assert migrate_legacy_cache() is False
+
+
+# ── ADR-012: cache row diagnostics for `spectra cache doctor` ──
+
+
+class TestCacheDoctorCounts:
+    def test_count_rows_returns_per_table_totals(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+    ):
+        """``count_rows`` returns total + verified + failed per data table."""
+        _bind_default_context(hmac_adapter)
+        hmac_adapter.set_repo_signature("sig")
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+        hmac_adapter.put_full_report(_key(), _report())
+        hmac_adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+
+        counts = hmac_adapter.count_rows()
+
+        assert counts["findings_cache"]["total"] == 1
+        assert counts["findings_cache"]["verified"] == 1
+        assert counts["findings_cache"]["failed"] == 0
+        assert counts["full_report_cache"]["total"] == 1
+        assert counts["full_report_cache"]["verified"] == 1
+        assert counts["findings_batches"]["total"] == 1
+        assert counts["findings_batches"]["verified"] == 1
+
+    def test_count_rows_marks_tampered_rows_as_failed(
+        self,
+        hmac_adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        """Tampered rows show up in the ``failed`` bucket of ``count_rows``."""
+        hmac_adapter.set_model_version("m")
+        hmac_adapter.set_prompt_version("security", "p")
+        hmac_adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
+            conn.commit()
+
+        counts = hmac_adapter.count_rows()
+
+        assert counts["findings_cache"]["total"] == 1
+        assert counts["findings_cache"]["verified"] == 0
+        assert counts["findings_cache"]["failed"] == 1
+
+
+# ── ADR-012: KeyringSecretAdapter ──────────────────────────────
+
+
+class _FakeKeyring:
+    """Stand-in for the real ``keyring`` module — store + lookup in memory."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self._store: dict[tuple[str, str], str] = {}
+        self._fail = fail
+
+    @property
+    def backend_name(self) -> str:
+        return "fake-keyring" if not self._fail else "no-backend"
+
+    def get_password(self, service: str, account: str) -> str | None:
+        if self._fail:
+            msg = "no keyring backend available"
+            raise RuntimeError(msg)
+        return self._store.get((service, account))
+
+    def set_password(self, service: str, account: str, password: str) -> None:
+        if self._fail:
+            msg = "no keyring backend available"
+            raise RuntimeError(msg)
+        self._store[(service, account)] = password
+
+
+class TestKeyringSecretAdapter:
+    def test_first_call_generates_and_stores_a_32_byte_secret(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        secret = adapter.get()
+        assert isinstance(secret.value, bytes)
+        assert len(secret.value) == 32
+        # Persisted under (service, uid)
+        assert kr.get_password("spectra-cache-hmac", "123") is not None
+
+    def test_second_call_returns_the_same_secret(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        a = adapter.get()
+        b = adapter.get()
+        assert a.value == b.value
+
+    def test_missing_keyring_backend_raises_agent_error_spec_010(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring(fail=True)
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        with pytest.raises(AgentError) as exc:
+            adapter.get()
+        assert exc.value.error.code == "SPEC-010"
+
+    def test_existing_secret_in_keyring_is_loaded(self):
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        # Pre-seed with a known secret.
+        seed = b"\x07" * 32
+        kr.set_password("spectra-cache-hmac", "123", seed.hex())
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        assert adapter.get().value == seed
+
+    def test_corrupted_keyring_value_silently_re_keys(self):
+        """A non-hex (or wrong-length) stored value triggers regeneration."""
+        from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+
+        kr = _FakeKeyring()
+        kr.set_password("spectra-cache-hmac", "123", "not-hex-garbage")
+        adapter = KeyringSecretAdapter(uid="123", backend=kr)
+        secret = adapter.get()
+        assert len(secret.value) == 32
+        # Stored value is now valid hex of length 64.
+        stored = kr.get_password("spectra-cache-hmac", "123")
+        assert stored is not None
+        assert len(stored) == 64
