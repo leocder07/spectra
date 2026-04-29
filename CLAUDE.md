@@ -66,19 +66,31 @@ Layer 4 (infrastructure/)   → imports from all inner layers
 - `Literal` types for enums: `Severity = Literal["critical", "high", "medium", "low", "info"]`
 - Export everything from `__init__.py` with `__all__`
 
+### Cache Subsystem
+
+- **`CachePort` (Layer 2) + `SqliteCacheAdapter` (Layer 4).** Single `cache.db` under `${XDG_CACHE_HOME:-~/.cache}/spectra/` in WAL mode. The use-case layer never imports `sqlite3`.
+- **Three caches, one DB.** `findings_cache` (per-file, Phase 1), `full_report_cache` (per-repo+versions, Phase 2 short-circuits Stages 3-5), `findings_batches` (per-`focus_area` batch, Phase 3 — the killer feature). Plus `hit_log` for telemetry.
+- **Composite-key invalidation, no policy.** Every key bundles `(content, dimension, model, prompt, schema, spectra)`. A stale row never matches a current-context lookup; physical deletion is deferred to `spectra cache prune` (Phase 4 — in flight, see PR #19).
+- **`bind_run_context` once at composition root.** Atomic four-tuple binding (`model_versions, prompt_versions, schema_version, spectra_version`) — eliminates the half-bound state.
+- **Telemetry:** `record_hit` writes to `hit_log` per lookup; `ProgressObserver.on_cache_lookup(dim, hits, total)` surfaces the per-dimension tally in the terminal. `CacheStats.hit_rate_last_100` is the rolling rate.
+- **Failure mode:** SPEC-010 — cache I/O errors degrade to no-cache for the rest of the run. **Cache failures are never fatal.**
+
 ---
 
 ## 8 Agents (6 Parallel Specialists)
 
 ```
-Stage 1: INGEST     → Clone repo, extract file tree (GitPython)
+Stage 1: INGEST     → GitPort.prepare_workspace (clone HTTPS or validate local path)
 Stage 2: PLAN       → MetaPrompter (Opus 4.7 effort=medium, file tree ONLY ≤5K tokens, NEVER full code)
-Stage 3: ANALYZE    → 6 Specialists in PARALLEL via asyncio.gather:
+Stage 2½: CACHE     → Phase 2 — get_full_report(RepoCacheKey); HIT short-circuits Stages 3-5
+Stage 3: ANALYZE    → Phase 3 — partition_by_cache splits batches into cached + fresh
+                       Run only fresh BatchPrompts in PARALLEL via asyncio.gather:
                        Architecture + Security + Quality + Documentation + Dependency + Performance
                        (all Opus 4.7, effort=xhigh)
-Stage 4: MERGE      → Deduplicate findings, cross-reference, compute scores
+                       put_batch_findings(BatchCacheKey) on each success
+Stage 4: MERGE      → Deduplicate findings (cached UNION fresh), cross-reference, compute scores
 Stage 5: CRITIQUE   → CritiqueAgent (Opus 4.7, ADAPTIVE THINKING + task_budget, validates ALL findings)
-Stage 6: REPORT     → Render HTML via Jinja2 + Excalidraw diagrams
+Stage 6: REPORT     → put_full_report(RepoCacheKey, report) write-back, then render HTML/JSON/SARIF
 ```
 
 ### Agent Hard Rules
@@ -124,18 +136,20 @@ spectra/
 │       ├── entities/                  # Layer 1 — ZERO spectra imports
 │       │   ├── __init__.py            # __all__ barrel export
 │       │   ├── enums.py              # Literal type aliases
-│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-009)
-│       │   └── models.py             # Pydantic frozen models
+│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-010)
+│       │   └── models.py             # Pydantic frozen models (incl. CacheEntry,
+│       │                              # CacheStats, BatchPrompt, BatchCacheKey, RepoCacheKey)
 │       ├── use_cases/                 # Layer 2 — entities/ only
 │       │   ├── __init__.py
-│       │   ├── interfaces.py         # Protocol classes (ports)
-│       │   ├── analyze_repository.py # Facade — orchestrates 6 stages
+│       │   ├── interfaces.py         # Protocol classes (ports — incl. CachePort)
+│       │   ├── analyze_repository.py # Facade — accepts a single PipelineContext
 │       │   ├── orchestrate_agents.py # asyncio.gather parallel execution
 │       │   └── manage_token_budget.py
 │       ├── adapters/                  # Layer 3
 │       │   ├── __init__.py
-│       │   ├── cli_controller.py     # Typer app
-│       │   ├── progress_reporter.py  # Rich Progress (implements ProgressObserver)
+│       │   ├── cli_controller.py     # Typer app (analyze, cache stats|clear|prune)
+│       │   ├── progress_reporter.py  # Rich Progress (implements ProgressObserver,
+│       │   │                          # incl. on_cache_lookup hook)
 │       │   └── analysis_presenter.py # Rich Console ScoreCard display
 │       └── infrastructure/            # Layer 4
 │           ├── __init__.py
@@ -143,9 +157,11 @@ spectra/
 │           ├── anthropic_adapter.py   # Implements LLMGateway (async)
 │           ├── retry_decorator.py     # Exponential backoff (1s/2s/4s, max 3)
 │           ├── logging_decorator.py   # Structured logging
-│           ├── git_adapter.py         # GitPython (implements GitPort)
+│           ├── git_adapter.py         # GitPython (implements GitPort,
+│           │                          # incl. prepare_workspace for local paths)
 │           ├── tiktoken_adapter.py    # Token counting (implements TokenPort)
 │           ├── report_adapter.py      # Jinja2 (implements ReportPort)
+│           ├── cache_adapter.py       # SQLite WAL (implements CachePort)
 │           └── agents/
 │               ├── __init__.py
 │               ├── base_agent.py      # ABC Template Method
@@ -185,6 +201,7 @@ spectra/
 | SPEC-007 | Pipeline | No | 2+ agents failed |
 | SPEC-008 | Critique | No | CritiqueAgent failed |
 | SPEC-009 | Report | No | Template render failed |
+| SPEC-010 | Cache | No (degrade) | Cache I/O failed — pipeline runs without cache for the rest of the run |
 
 ---
 
