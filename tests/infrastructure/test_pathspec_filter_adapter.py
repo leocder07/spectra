@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
