@@ -1,0 +1,1060 @@
+{
+  "repo_url": "https://github.com/anthropics/anthropic-sdk-python",
+  "repo_name": "anthropic-sdk-python",
+  "score_card": {
+    "overall_score": 82.5,
+    "overall_grade": "B",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 77.4,
+        "grade": "B-",
+        "findings_count": 12,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 90.0,
+        "grade": "A",
+        "findings_count": 5,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 82.8,
+        "grade": "B",
+        "findings_count": 7,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 72.4,
+        "grade": "C",
+        "findings_count": 12,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 87.2,
+        "grade": "A-",
+        "findings_count": 11,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 81.6,
+        "grade": "B",
+        "findings_count": 8,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 55
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Massive duplication between SyncAPIClient and AsyncAPIClient",
+      "description": "The `SyncAPIClient` (lines ~640-1000) and `AsyncAPIClient` (lines ~1100-1500) in `_base_client.py` contain near-identical implementations of `request()`, `_process_response()`, `_sleep_for_retry()`, all HTTP verb methods (get/post/put/patch/delete), and request-options preparation. The only meaningful difference is `await`/`async`. Similarly, `Anthropic` and `AsyncAnthropic` in `_client.py` are ~95% duplicated (init, copy, auth_headers, _make_status_error, _validate_headers). This is a deliberate trade-off in Stainless-generated SDKs (avoids `asyncify` overhead and keeps stack traces clean), but it doubles the maintenance surface and increases the risk of drift between sync/async behavior (e.g. retry logic, header handling, error mapping). Any bug-fix must be applied in two places.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 640,
+        "line_end": 1500
+      },
+      "recommendation": "Since this is generator-emitted code, the duplication is acceptable but should be guarded by (a) automated parity tests asserting that public method signatures and behavior match between Sync/Async variants, and (b) a single source-of-truth helper module for retry-decision (`_should_retry`, `_calculate_retry_timeout`) and status-error mapping that both clients delegate to. The status-error mapping in `_make_status_error` is already duplicated between Anthropic and AsyncAnthropic \u2014 extract to a module-level function.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Hardcoded SSE event-type list duplicated in Stream and AsyncStream",
+      "description": "In `_streaming.py`, both `Stream.__stream__` and `AsyncStream.__stream__` contain an identical, manually-maintained chain of 25+ `or` comparisons for SSE event names (message_start, agent.tool_use, session.status_running, etc.). This couples the generic streaming abstraction to a concrete event taxonomy that mixes message-level events with agent/session/span events. Adding a new event type requires editing two places, and forgetting to update one will silently drop events on either sync or async clients. The streaming layer should not need to know the event names \u2014 it's a layering violation between generic SSE infrastructure and Anthropic-specific event semantics.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 75,
+        "line_end": 130
+      },
+      "recommendation": "Replace the hardcoded `or`-chain with a module-level frozenset of known event names (e.g. `_TYPED_EVENTS = frozenset({...})`) shared by both Stream classes, OR \u2014 preferably \u2014 have `_make_sse_decoder()` / a client-supplied policy decide which events get the `data['type'] = sse.event` injection. The injection logic itself is identical between sync and async; extract to a helper `_process_sse_event(sse, cast_to, response, process_data)` returning an Optional yielded value.",
+      "agent_role": "architecture",
+      "confidence": 0.93,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Circular import risk between client, streaming, and lib.streaming",
+      "description": "`_streaming.py` performs runtime imports of `lib.streaming.MessageStream` and `lib.streaming.AsyncMessageStream` inside metaclass `__instancecheck__` methods (`_SyncStreamMeta`, `_AsyncStreamMeta`) solely to support a deprecated `isinstance()` path. Meanwhile `lib/streaming/*` necessarily imports `Stream`/`AsyncStream` from `_streaming`. Because `__instancecheck__` runs on every `isinstance(x, Stream)` call, this triggers an import on every check (after the first it's cached, but the cyclic dependency still exists at module-load order). `extract_stream_chunk_type` also has a function-local import of `Stream`/`AsyncStream` from `_base_client`, indicating circular-dependency workarounds throughout.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 27,
+        "line_end": 45
+      },
+      "recommendation": "Remove the deprecated `isinstance` shim in the next major version (it has been deprecated for some time per the warning text). In the meantime, document the circular dependency in an ADR and consider moving the `MessageStream` base class to a shared internal module that both `_streaming` and `lib.streaming` depend on, breaking the cycle.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "LegacyAPIResponse and APIResponse have ~80% duplicated _parse logic",
+      "description": "`_legacy_response.LegacyAPIResponse._parse` (lines ~190-330) and `_response.BaseAPIResponse._parse` (lines ~95-260) implement nearly identical type-resolution logic: TypeAlias unwrapping, Annotated unwrapping, JSONLDecoder/AsyncJSONLDecoder handling, stream-class dispatch, primitive coercion (str/int/float/bool), httpx.Response handling, BaseModel validation, and content-type checking. The only material differences are the legacy class returns properties as values vs. methods and uses `HttpxBinaryResponseContent` instead of the new binary types. This duplication means parsing bug-fixes and new type support must be applied in two response hierarchies.",
+      "location": {
+        "file_path": "src/anthropic/_legacy_response.py",
+        "line_start": 190,
+        "line_end": 330
+      },
+      "recommendation": "Extract a shared `_parse_response_data(cast_to, response, stream, stream_cls, default_stream_cls, strict_validation, client)` free function that both `LegacyAPIResponse._parse` and `BaseAPIResponse._parse` delegate to. This makes the legacy class a thin wrapper while preserving its API surface for the deprecation period.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Resource layer is a thin shim that bypasses encapsulation",
+      "description": "`SyncAPIResource` / `AsyncAPIResource` in `_resource.py` simply rebind `client.get`, `client.post`, etc. as private attributes (`self._get = client.get`). This is not an abstraction \u2014 it's just method aliasing. The resource layer adds no behavior (only `_sleep`), no policy enforcement, and no separation of concerns; concrete resources (e.g. `messages.py`, `beta.py`) directly call client HTTP verbs and construct `FinalRequestOptions`. This means the resource layer cannot intercept requests for cross-cutting concerns (telemetry, auth refresh, request shaping) without modifying every resource individually. It also leaks the HTTP transport through what should be a domain interface.",
+      "location": {
+        "file_path": "src/anthropic/_resource.py",
+        "line_start": 12,
+        "line_end": 40
+      },
+      "recommendation": "Either (a) accept that this is a Stainless-generated thin layer and document it as such in an ADR, removing pretense of abstraction, OR (b) introduce a request-pipeline concept where resources go through a small policy chain (`self._client._execute(operation)`) so cross-cutting concerns like Bedrock/Vertex auth refresh, MCP tool injection, or logging hooks have a single insertion point instead of subclass overrides scattered across `lib/bedrock/_client.py`, `lib/vertex/_client.py`.",
+      "agent_role": "architecture",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Cloud-provider extension done by client subclassing rather than a strategy/adapter",
+      "description": "Bedrock, Vertex, AWS, and Foundry integrations are exposed by full subclasses of `Anthropic`/`AsyncAnthropic` (e.g. `AnthropicBedrock`, `AnthropicVertex`). Each must replicate the entire constructor surface, override `auth_headers`, `_prepare_options`/`_prepare_request`, and `default_headers`. There is no formal extension point or `AuthProvider` / `RequestSigner` interface \u2014 providers hook in by overriding base-client methods. This makes it hard to (a) compose providers (e.g. Vertex over a custom HTTP transport with extra auth), (b) add new providers without touching the base client, and (c) test provider-specific signing in isolation.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 50,
+        "line_end": 250
+      },
+      "recommendation": "Introduce a `RequestPreparer` (or `AuthProvider`) Protocol with methods `prepare_options(options)`, `prepare_request(request)`, `auth_headers()`. The base `Anthropic` client would accept an optional `request_preparer` argument; Bedrock/Vertex would supply concrete preparers instead of subclassing. The current subclasses can remain as convenience wrappers that wire up the right preparer, preserving backward compatibility.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "`_client.py` mixes generated SDK code and hand-written boundaries without clear delineation",
+      "description": "`_client.py` is annotated `# File generated from our OpenAPI spec by Stainless` (line 1), but the file is referenced as a hand-modifiable extension point by `lib/bedrock/_client.py` and `lib/vertex/_client.py` (which subclass `Anthropic`/`AsyncAnthropic`). There is no programmatic distinction between methods that will be regenerated (e.g. `messages`, `beta`, `models` cached_properties) and methods that may be hand-edited (auth, status-error mapping). A regeneration could silently revert custom edits. The same concern applies to `_constants.py` where `MODEL_NONSTREAMING_TOKENS` looks hand-maintained but lives in a generated file.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 1,
+        "line_end": 5
+      },
+      "recommendation": "Use generated/hand-written file split (e.g. `_client_generated.py` + `_client.py` extending it) or codegen markers (`# BEGIN MANUAL` / `# END MANUAL`) that the Stainless tooling preserves on regeneration. Document the split in CONTRIBUTING.md so external contributors don't edit regenerated regions.",
+      "agent_role": "architecture",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "`__init__.py` references `beta_tool`/`beta_async_tool` in `__all__` before their import",
+      "description": "In `src/anthropic/__init__.py`, `__all__` lists `beta_tool` and `beta_async_tool` (lines ~78-79), but the actual import `from .lib.tools import beta_tool, beta_async_tool` happens *after* the `__all__` declaration and after the `if not _t.TYPE_CHECKING` block. This works at runtime because the `__locals` loop runs after all imports complete, but it makes the contract between `__all__` and imports fragile: re-ordering or adding a `_setup_logging()` call between `__all__` and the import would break re-export. Also, `from .lib.vertex import *` and `from .lib.bedrock import *` use star-imports without explicit names in `__all__`, making the public surface non-obvious to readers and tooling.",
+      "location": {
+        "file_path": "src/anthropic/__init__.py",
+        "line_start": 50,
+        "line_end": 95
+      },
+      "recommendation": "Move all imports above the `__all__` declaration, replace `from .lib.vertex import *` / `from .lib.bedrock import *` with explicit named imports (vertex/bedrock submodules already export `__all__` lists), and have a single canonical `__all__` that matches actual imports. This also helps static analyzers and IDE auto-import.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Pagination layer hardcodes a back-pointer to the client, preventing testability",
+      "description": "`BaseSyncPage` / `BaseAsyncPage` in `_base_client.py` hold a `_client: SyncAPIClient` / `AsyncAPIClient` private attribute via Pydantic `PrivateAttr`, and `get_next_page()` calls `self._client._request_api_list(...)`. This couples page models tightly to the concrete client classes \u2014 pages cannot be constructed independently for testing, mocking, or hand-paginated workflows. The pagination protocol should be a Protocol/interface (`SupportsRequestApiList`) rather than a concrete class binding.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 240,
+        "line_end": 295
+      },
+      "recommendation": "Define a `_PageRequester(Protocol)` with `_request_api_list(...)` and type `_client` as the protocol. Tests can then supply a fake. This is a small, low-risk change.",
+      "agent_role": "architecture",
+      "confidence": 0.72,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "`BaseClient._make_status_error` raises NotImplementedError but is not abstract",
+      "description": "`BaseClient._make_status_error` (line ~430 in `_base_client.py`) raises `NotImplementedError()` but the class is not declared `abc.ABC` and the method is not marked `@abstractmethod`. This means a subclass that forgets to implement it will only fail at runtime when an HTTP error occurs, not at class instantiation. Given that `BaseClient` is generic over httpx client/stream types and only meant to be subclassed, formalizing the abstract contract would catch errors earlier and document the extension point clearly.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 425,
+        "line_end": 435
+      },
+      "recommendation": "Either declare `BaseClient(ABC, Generic[...])` and decorate `_make_status_error` with `@abstractmethod`, or change the docstring to explicitly mark it as a hook intended to be overridden, with a comment explaining why ABC is not used (e.g. multiple-inheritance interactions with Generic).",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Status-code-to-exception mapping duplicated and not table-driven",
+      "description": "Both `Anthropic._make_status_error` and `AsyncAnthropic._make_status_error` in `_client.py` use a chain of 9 `if response.status_code == X` branches (400/401/403/404/409/413/422/429/529, plus `>= 500`). The two implementations are byte-identical. This pattern is brittle (adding 504/503 status codes requires editing both methods) and not extensible by Bedrock/Vertex subclasses without re-overriding the entire method.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 220,
+        "line_end": 260
+      },
+      "recommendation": "Define a module-level `_STATUS_TO_EXCEPTION: dict[int, type[APIStatusError]] = {400: BadRequestError, 401: AuthenticationError, ...}` and reduce both `_make_status_error` methods to a single 5-line lookup with `>= 500` fallback. This eliminates the duplication and makes adding new status codes a one-line change.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-011",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "BaseClient mixes transport, retry, serialization, and platform-detection responsibilities",
+      "description": "`BaseClient` in `_base_client.py` (lines ~300-630) is a ~330-line god-class that owns: URL building, header construction (including auth, idempotency, retry-count), multipart serialization, query-string serialization, platform/arch detection, retry-after parsing, exponential backoff calculation, response validation strategy selection, and SSE decoder construction. Each of these is a separate concern with different lifecycles and test surfaces. Extracting `RetryPolicy`, `RequestBuilder`, and `PlatformInfo` collaborators would significantly improve testability and let providers (Bedrock/Vertex) override one concern without affecting others.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 300,
+        "line_end": 630
+      },
+      "recommendation": "Phase 1 (low-risk): extract pure functions already on the class \u2014 `_calculate_retry_timeout`, `_parse_retry_after_header`, `_should_retry`, `_serialize_multipartform` \u2014 into a `_retry.py` and `_serializers.py` module, called by the class. Phase 2: introduce `RetryPolicy` and `RequestBuilder` collaborators injected via constructor with sensible defaults. This is a multi-release refactor but pays off as more provider variants are added.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Potential header/credential exposure in debug logs",
+      "description": "When DEBUG-level logging is enabled, the SDK logs full request options (model_dump of FinalRequestOptions) and the response.headers object. While the request body is dumped via model_dump (which excludes 'content' under v1), no explicit redaction is applied to sensitive headers such as `X-Api-Key`, `Authorization`, AWS SigV4 `Authorization` signatures, or `anthropic-vertex` bearer tokens before they would appear in built request headers used downstream. Although `_build_request` itself does not log headers, response headers are logged at debug level which can include `set-cookie` or upstream auth echoes. CWE-532: Insertion of Sensitive Information into Log File.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a redaction helper that filters out sensitive headers (X-Api-Key, Authorization, x-amz-security-token, Cookie, Set-Cookie) before logging. Document that DEBUG logs may contain sensitive data and recommend production deployments not enable DEBUG for the `anthropic` logger.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "User-controllable base_url with no scheme/host validation enables credential exfiltration",
+      "description": "`Anthropic.__init__` accepts `base_url` from the `ANTHROPIC_BASE_URL` env var or constructor argument with no validation that the scheme is `https://` or that the host resolves to an Anthropic endpoint. Because `auth_headers` (X-Api-Key / Bearer) are merged into `default_headers` and sent on every request, a misconfigured `ANTHROPIC_BASE_URL` (e.g., http://attacker.example) will transmit the API key in plaintext or to an attacker. CWE-918: SSRF / CWE-319: Cleartext Transmission of Sensitive Information.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 91,
+        "line_end": 95
+      },
+      "recommendation": "Warn (or raise) when `base_url` uses a non-https scheme, or document explicitly that overriding `base_url` will forward credentials. Consider adding an opt-in `allow_insecure_base_url=False` flag and stripping auth headers when the scheme is `http://` and the host is not localhost.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "File upload helpers read entire file into memory without size limits",
+      "description": "`_transform_file` / `read_file_content` invoke `pathlib.Path(file).read_bytes()` (and the async variant via `anyio.Path(file).read_bytes()`), which reads the entire user-supplied file into memory. There is no size cap or content-type validation. A malicious or accidental large path can cause memory exhaustion (DoS). The path is taken from caller input so on its own this is a client-side concern, but for SDK users embedding this in servers it is an under-documented risk. CWE-400: Uncontrolled Resource Consumption; CWE-434 indirectly (no content-type validation at this layer\u2014Anthropic API performs the actual validation).",
+      "location": {
+        "file_path": "src/anthropic/_files.py",
+        "line_start": 41,
+        "line_end": 44
+      },
+      "recommendation": "Document the in-memory read behavior, or expose a streaming variant. Recommend that callers validate file size and MIME type before passing to `to_httpx_files`.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Header validation accepts arbitrary user-supplied auth values without sanitization",
+      "description": "`_validate_headers` only checks presence/absence of `Authorization` / `X-Api-Key`. The `api_key` and `auth_token` values from environment variables are inserted verbatim into request headers. If a user accidentally sets `ANTHROPIC_API_KEY` to a value containing newline characters, this could enable HTTP header injection (CWE-93) \u2014 though httpx itself rejects invalid headers, defense-in-depth validation in the SDK would surface configuration errors earlier.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Validate that `api_key` and `auth_token` do not contain CR/LF characters at construction time and raise a clear error.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "info",
+      "title": "MCP / AWS / Vertex auth modules referenced in PLAN were not provided",
+      "description": "The analysis plan listed `src/anthropic/lib/aws/_auth.py`, `src/anthropic/lib/aws/_credentials.py`, `src/anthropic/lib/bedrock/_auth.py`, `src/anthropic/lib/vertex/_auth.py`, `src/anthropic/lib/_extras/_google_auth.py`, and `src/anthropic/lib/tools/mcp.py` for review, but their source was not included in the analyzed_code block. Cannot evaluate AWS SigV4 implementation, GCP credential storage, or MCP server URL/SSRF handling without the file contents.",
+      "location": {
+        "file_path": "src/anthropic/lib/tools/mcp.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the security review with these files included to verify SigV4 signing, credential caching, and MCP URL validation/SSRF protections.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Duplicated _DefaultHttpxClient and _DefaultAsyncHttpxClient initialization logic",
+      "description": "The synchronous _DefaultHttpxClient.__init__ and asynchronous _DefaultAsyncHttpxClient.__init__ contain ~30 lines of nearly identical socket option configuration, proxy mapping, and transport setup. Only the transport class differs (HTTPTransport vs AsyncHTTPTransport). This duplication makes maintenance error-prone \u2014 any change to socket options or proxy logic must be made in two places.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract a shared helper function `_build_socket_options()` and `_build_proxy_mounts(transport_cls, kwargs)` that both classes call. Target ~15 lines of class-specific code.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Duplicated _make_status_error logic in Anthropic and AsyncAnthropic",
+      "description": "Both Anthropic._make_status_error and AsyncAnthropic._make_status_error contain identical 25-line if/elif ladders mapping status codes to exception types. Any new error code must be added in two places.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract a module-level function `_status_code_to_error(status_code, err_msg, response, body)` and have both classes delegate to it.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "construct_type() has high cyclomatic complexity",
+      "description": "construct_type() in _models.py is ~70 lines with branches for TypeAliasType, Annotated, Union (with discriminator handling), dict, BaseModel, list, float, datetime, date \u2014 roughly 12+ branching paths. This makes it difficult to reason about and test exhaustively. The nested try/except around discriminated unions hides errors silently.",
+      "location": {
+        "file_path": "src/anthropic/_models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Split into per-type handlers (e.g., _construct_union, _construct_dict, _construct_list, _construct_model) dispatched from a thin construct_type. Replace bare `except Exception: pass` with logging at debug level so silent failures are observable.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Long, repeated SSE event-name string check in Stream and AsyncStream",
+      "description": "Both Stream.__stream__ and AsyncStream.__stream__ contain a 30-line `if sse.event == \"...\" or sse.event == \"...\"` chain listing ~28 event names. This is duplicated verbatim between sync and async implementations and is brittle: adding a new event requires editing two places.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract a module-level constant `_HANDLED_SSE_EVENTS: frozenset[str] = frozenset({...})` and use `if sse.event in _HANDLED_SSE_EVENTS:` in both implementations. Reduces 30 lines to 1 lookup and removes duplication.",
+      "agent_role": "quality",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "ruff target-version mismatches project's requires-python",
+      "description": "pyproject.toml sets `requires-python = \">= 3.9\"` and pyright `pythonVersion = \"3.9\"`, but `[tool.ruff] target-version = \"py38\"`. This causes ruff to lint against a stricter (older) Python target than the project supports, potentially missing modernization opportunities (e.g., FA102 already flags missing `from __future__ import annotations` only relative to py38 rules).",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Align `target-version` with `requires-python`: set to `\"py39\"`. This unlocks py39-specific lint rules and prevents misleading suggestions.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Test files referenced in plan are not visible; cannot confirm coverage of hand-written lib/",
+      "description": "The PLAN focus listed tests/conftest.py, tests/test_streaming.py, tests/lib/streaming/test_messages.py, tests/lib/tools/test_runners.py, tests/test_transform.py and src/anthropic/_utils/_transform.py, but their contents were not included in the analyzed source. As a result, no concrete claims about test coverage gaps for hand-written lib/streaming and lib/tools modules can be made from evidence.",
+      "location": {
+        "file_path": "tests/conftest.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Provide the test files and _utils/_transform.py for a thorough coverage/quality review of hand-written code paths versus generated code.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Typo in error message: missing f-string prefix",
+      "description": "In async_to_httpx_files, the TypeError message uses placeholder syntax without an f-string: `\"Unexpected file type input {type(files)}, expected mapping or sequence\"`. The literal `{type(files)}` will be shown to users instead of the actual type. The synchronous version (to_httpx_files) correctly uses an f-string.",
+      "location": {
+        "file_path": "src/anthropic/_files.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add the `f` prefix: `raise TypeError(f\"Unexpected file type input {type(files)}, expected mapping or sequence\")`.",
+      "agent_role": "quality",
+      "confidence": 0.99,
+      "validated_by_critique": false,
+      "estimated_hours": 0.1,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "Streaming/agents SSE event list likely not reflected in helpers.md",
+      "description": "Stream.__stream__ and AsyncStream.__stream__ in _streaming.py handle a large set of SSE event types including new agent/session/span events: user.message, user.interrupt, user.tool_confirmation, user.custom_tool_result, agent.message, agent.thinking, agent.tool_use, agent.tool_result, agent.mcp_tool_use, agent.mcp_tool_result, agent.custom_tool_use, agent.thread_context_compacted, session.status_running, session.status_idle, session.status_rescheduled, session.status_terminated, session.error, session.deleted, span.model_request_start, span.model_request_end. helpers.md is the canonical place to document streaming helpers/events but the PLAN explicitly flags 'helpers/tools doc accuracy' and 'examples coverage of new agents/sessions/skills/vaults' as concerns. If helpers.md only documents the legacy message_* / content_block_* events, users of the new agents and sessions APIs have no documented streaming surface.",
+      "location": {
+        "file_path": "helpers.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Audit helpers.md against the event list in src/anthropic/_streaming.py and add a dedicated section documenting agent.*, user.*, session.*, and span.* events, including which payload models each maps to. Provide a table of event name -> resulting object type, and add at least one streaming example per family (agents, sessions).",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "Examples directory likely missing coverage for agents, sessions, skills, and vaults",
+      "description": "The PLAN file lists only examples/agents.py, examples/messages_stream.py, and examples/tools_runner.py for documentation review and explicitly flags 'examples coverage of new agents/sessions/skills/vaults' as a concern. The streaming code clearly supports session.* and span.* events, and pyproject.toml excludes examples like examples/memory/basic.py and examples/mcp_*.py, suggesting feature areas are present in code but no runnable examples for sessions, skills, or vaults are listed. Without end-to-end examples, users cannot easily adopt these new resources.",
+      "location": {
+        "file_path": "examples/agents.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add example scripts under examples/ for each new product surface: examples/sessions_basic.py, examples/sessions_streaming.py, examples/skills_create_and_run.py, and examples/vaults_secret_usage.py. Ensure they are imported in CI or at least lint-checked, and link them prominently from README.md's 'Examples' section.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "auth_token / ANTHROPIC_AUTH_TOKEN authentication path is undocumented in client docstring",
+      "description": "Anthropic.__init__ supports both api_key (X-Api-Key) and auth_token (Authorization: Bearer ...), and _validate_headers permits either. The constructor docstring mentions both env vars but does not explain when to use auth_token vs api_key, or that you can explicitly omit one header via Omit. Users on Bedrock/Vertex/Foundry or OAuth-style flows need this to be clearly explained. README setup/auth completeness is called out in the PLAN.",
+      "location": {
+        "file_path": "src/anthropic/_client.py",
+        "line_start": 60,
+        "line_end": 95
+      },
+      "recommendation": "Expand the Anthropic and AsyncAnthropic constructor docstrings to describe (a) the precedence between api_key and auth_token, (b) the resulting headers, and (c) how to omit one header using `omit`. Mirror the explanation in the README 'Authentication' section and link to it from api.md.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "AnthropicFoundry / AsyncAnthropicFoundry exported but undocumented in top-level docs",
+      "description": "src/anthropic/__init__.py exports AnthropicFoundry and AsyncAnthropicFoundry from .lib.foundry, and the PLAN lists src/anthropic/lib/foundry.md as in-scope. There is no visible README section, top-level docstring, or api.md cross-reference describing how Foundry differs from Anthropic / AnthropicAWS / AnthropicVertex / AnthropicBedrock clients. Users discovering the symbol via auto-complete have no inline guidance.",
+      "location": {
+        "file_path": "src/anthropic/__init__.py",
+        "line_start": 85,
+        "line_end": 92
+      },
+      "recommendation": "Add a short module-level docstring to src/anthropic/lib/foundry/__init__.py summarizing setup (env vars, auth, base URL), link it from README under a 'Microsoft Foundry' section alongside AWS/Vertex/Bedrock, and ensure src/anthropic/lib/foundry.md has an end-to-end usage snippet plus a comparison table with the other cloud variants.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "transform_schema and beta_tool / beta_async_tool exported without inline documentation",
+      "description": "__init__.py exports transform_schema, beta_tool, and beta_async_tool, but none of them carry visible docstrings here, and pyproject.toml excludes src/anthropic/lib/_parse/_transform.py and src/anthropic/lib/tools/_beta_functions.py from mypy. tools.md is supposed to document the tools helpers, but there is no signal in the visible code that these public symbols have docstrings explaining their parameters, return types, or relationship to client.messages tool runners. PLAN flags 'helpers/tools doc accuracy' as a concern.",
+      "location": {
+        "file_path": "src/anthropic/__init__.py",
+        "line_start": 44,
+        "line_end": 90
+      },
+      "recommendation": "Add Google-style docstrings to beta_tool, beta_async_tool, and transform_schema describing inputs (callable signature requirements, schema source), outputs (BetaTool/BetaToolUnion-compatible objects), and at least one usage example. Cross-link these from tools.md and ensure tools.md examples are import-tested in CI.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Several public exception classes are missing from __all__ and exception docs",
+      "description": "_exceptions.py defines RequestTooLargeError (413), ServiceUnavailableError (503), OverloadedError (529), and DeadlineExceededError (504), and _client._make_status_error returns RequestTooLargeError and OverloadedError for those status codes. However, __all__ in _exceptions.py only lists BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError, ConflictError, UnprocessableEntityError, RateLimitError, InternalServerError. Users following api.md / README error-handling docs will not see RequestTooLargeError, OverloadedError, ServiceUnavailableError, or DeadlineExceededError, even though the client may raise them.",
+      "location": {
+        "file_path": "src/anthropic/_exceptions.py",
+        "line_start": 14,
+        "line_end": 28
+      },
+      "recommendation": "Add RequestTooLargeError, ServiceUnavailableError, OverloadedError, and DeadlineExceededError to __all__ in _exceptions.py and to the README/api.md error table. Document the corresponding HTTP status codes and recommended retry behavior for each.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Long-request timeout error message references README anchor that must be kept in sync",
+      "description": "_calculate_nonstreaming_timeout raises with the message 'See https://github.com/anthropics/anthropic-sdk-python#long-requests for more details' and APITimeoutError points to docs.anthropic.com/en/api/errors#long-requests. If README.md does not currently have a '#long-requests' anchor (or it has been renamed), users hitting this error land on a broken link.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Verify README.md contains a '## Long requests' section (anchor `#long-requests`) covering streaming requirements, the 10-minute non-streaming threshold, and MODEL_NONSTREAMING_TOKENS overrides. Add a CI link-check step (e.g., lychee) to prevent regressions.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "MODEL_NONSTREAMING_TOKENS table is undocumented",
+      "description": "_constants.py defines MODEL_NONSTREAMING_TOKENS with per-model max_tokens thresholds that change client behavior (forcing streaming), but there is no docstring, no README mention, and no api.md entry visible. Users who hit the 'Streaming is required ...' error will not know which models have specific thresholds vs. the default 128k extrapolation.",
+      "location": {
+        "file_path": "src/anthropic/_constants.py",
+        "line_start": 18,
+        "line_end": 28
+      },
+      "recommendation": "Add a docstring above MODEL_NONSTREAMING_TOKENS explaining its semantics, and document the 'long requests' behavior in README.md including a small table of models with per-model limits.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "DEFAULT_TIMEOUT/DEFAULT_MAX_RETRIES/DEFAULT_CONNECTION_LIMITS are public but undocumented",
+      "description": "These constants are re-exported from anthropic but lack any docstring explaining values (10 minutes timeout, 5s connect, 2 retries, 1000/100 connection limits). They are surfaced as part of the public API in __all__ and are commonly referenced in client tuning advice.",
+      "location": {
+        "file_path": "src/anthropic/_constants.py",
+        "line_start": 5,
+        "line_end": 16
+      },
+      "recommendation": "Add module/attribute docstrings describing each constant and link to a README 'Configuration' section that shows how to override them via Anthropic(timeout=..., max_retries=...) or DefaultHttpxClient.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Generated-code workflow not obviously surfaced for contributors",
+      "description": "Multiple files (_client.py, _constants.py, _resource.py, _exceptions.py, __init__.py) carry the comment 'File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.' This is the right pattern, but the PLAN flags 'contributor guide for generated-code workflow' as a concern. Without a clear CONTRIBUTING.md section explaining which files are generated, where to add hand-written code (lib/, examples/, tests/), and how to regenerate, contributors will edit generated files and lose changes.",
+      "location": {
+        "file_path": "CONTRIBUTING.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure CONTRIBUTING.md contains a clearly titled section like 'Generated vs. hand-written code' that (a) lists generated paths (most of src/anthropic/ except src/anthropic/lib/), (b) explains that PRs editing generated files will be overwritten, (c) directs contributors to open issues for spec changes, and (d) documents how to run/regenerate locally if applicable. Add a one-line pointer to that section from each generated header is fine, but the section itself must exist.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "BaseModel.to_dict / to_json docstrings claim use_api_names defaults but parameter naming differs from Pydantic",
+      "description": "BaseModel.to_dict and BaseModel.to_json provide custom signatures (use_api_names instead of by_alias, exclude_unset defaulting to True). The docstrings explain the API-name behavior well, but they do not mention the divergence from pydantic's model_dump defaults (exclude_unset=False upstream) which is a frequent source of confusion when users compare to standard pydantic output. README/api.md likely don't call this out either.",
+      "location": {
+        "file_path": "src/anthropic/_models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a 'Differences from pydantic.BaseModel.model_dump' note in the to_dict / to_json docstrings (and a short README subsection) explicitly stating that exclude_unset defaults to True and that keys default to API names.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-013",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "CHANGELOG cannot be validated against new agent/session/skill/vault surfaces",
+      "description": "Per the PLAN, CHANGELOG.md is in scope, and the code clearly contains many new event types (agent.*, session.*, span.*) plus AnthropicFoundry. CHANGELOG content is not provided here, so we can't verify whether these additions are itemized with version numbers, breaking-change callouts (e.g., the deprecated isinstance behavior on Stream/AsyncStream), or migration notes.",
+      "location": {
+        "file_path": "CHANGELOG.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Audit CHANGELOG.md to ensure each minor release that introduced agents, sessions, skills, vaults, Foundry, beta_tool, transform_schema, RequestTooLargeError, OverloadedError, and DeadlineExceededError has a corresponding entry. Mark the Stream/AsyncStream isinstance deprecation explicitly under a 'Deprecations' subsection.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Lower bound on pydantic allows known-vulnerable v1 versions",
+      "description": "The `pydantic>=1.9.0, <3` lower bound permits very old Pydantic 1.x releases (1.9.0 was released April 2022). Older 1.x versions have had known issues (e.g. CVE-2024-3772 affects pydantic <2.4.0/<1.10.13 with ReDoS in email validation). While most users will pull a newer version, the floor allows resolution to vulnerable releases in fresh installs without lock files.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 12,
+        "line_end": 12
+      },
+      "recommendation": "Raise the floor to `pydantic>=1.10.17,<3` (or `>=1.10.13`) so installs cannot resolve to ReDoS-affected pydantic v1 releases. Document the supported minimum in CONTRIBUTING/README.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Very wide httpx version range (0.25.0 to <1)",
+      "description": "`httpx>=0.25.0, <1` spans a long compatibility window. Code in `_base_client.py` reaches into `httpx._config.DEFAULT_TIMEOUT_CONFIG` (a private import) with a fallback, and uses `HTTPTransport(socket_options=...)` which is only available in newer httpx versions. The wide range means user resolutions can land on httpx 0.25.x where some kwargs (e.g. `socket_options`) on `HTTPTransport` may not behave identically, leading to runtime surprises rather than install-time failure.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 11,
+        "line_end": 11
+      },
+      "recommendation": "Tighten the floor to the minimum httpx version actually exercised in CI (e.g. `httpx>=0.27.0,<1`) and document the supported window. Add a CI matrix job pinning to the floor version to catch regressions.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Reliance on private httpx API (`httpx._config`)",
+      "description": "`_base_client.py` imports `DEFAULT_TIMEOUT_CONFIG` from `httpx._config`, a private module. Combined with the wide `httpx<1` range, any minor httpx release that renames or restructures `_config` will break the SDK at import or runtime. There is a fallback to `Timeout(5.0)`, but it silently changes behavior (different default than upstream).",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 84,
+        "line_end": 95
+      },
+      "recommendation": "Replace the private import with a public-API path (e.g. inspect `httpx.Timeout()` defaults via `httpx.Client().timeout`), or pin httpx to a known-tested minor range. At minimum, log a warning when the fallback is taken so silent drift is detectable.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Optional `bedrock`/`aws` extras duplicate dependencies",
+      "description": "The `aws` and `bedrock` extras declare identical pins: `boto3 >= 1.28.57` and `botocore >= 1.31.57`. Maintaining two extras with the same content invites drift (one bumped, the other forgotten). Also, both have an open upper bound, allowing a future boto3 major to land unvetted.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 41,
+        "line_end": 42
+      },
+      "recommendation": "Define one canonical extra and alias the other (e.g. `bedrock = [\"anthropic[aws]\"]`), and add an explicit upper bound such as `boto3 >= 1.28.57, < 2`, `botocore >= 1.31.57, < 2`.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Unbounded upper version on `google-auth` extra is fine, but `sniffio` has no version pin",
+      "description": "`sniffio` is listed without any version specifier, which means any version (including pre-1.0 or future breaking releases) is acceptable. While sniffio is small and stable, lacking a floor and ceiling is inconsistent with the rest of the dependency block (every other entry has explicit bounds).",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 15,
+        "line_end": 15
+      },
+      "recommendation": "Pin to a tested range, e.g. `sniffio>=1.3.0,<2`, for parity with the other declared bounds and to prevent surprise majors.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Optional `mcp` extra has open upper bound and platform constraint",
+      "description": "`mcp = [\"mcp>=1.0; python_version >= '3.10'\"]` has no upper bound. The `mcp` package is young and pre-1.x in its API stability practices; a future minor change could break SDK integration. The `pydantic-v1` group also conflicts with `mcp` (declared in `[tool.uv].conflicts`), which is good \u2014 but still no upper bound for safety.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 43,
+        "line_end": 43
+      },
+      "recommendation": "Add an upper bound such as `mcp>=1.0,<2; python_version >= '3.10'` and document supported MCP versions.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Python 3.9 support window \u2014 EOL approaching",
+      "description": "`requires-python = \">= 3.9\"` and pyright is configured for `pythonVersion = \"3.9\"`. Python 3.9 reaches end-of-life in October 2025. Continuing to support it past EOL means inheriting CVE risk from the runtime itself and constraining typing/feature usage (e.g. `from __future__ import annotations` is needed throughout). The `target-version = \"py38\"` in `[tool.ruff]` is also stale relative to `requires-python`.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 21,
+        "line_end": 21
+      },
+      "recommendation": "Plan a 3.9 drop after Oct 2025; align `[tool.ruff].target-version` with `requires-python` (currently `py38` while requires-python is 3.9). Add a deprecation note in the README.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Build-system pin to exact hatchling version",
+      "description": "`requires = [\"hatchling==1.26.3\", \"hatch-fancy-pypi-readme\"]` pins hatchling to an exact patch version. This is reproducible but means consumers building from sdist must resolve that exact hatchling version, blocking patch security updates to the build backend. `hatch-fancy-pypi-readme` has no version pin at all.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 76,
+        "line_end": 76
+      },
+      "recommendation": "Use a compatible-release pin: `hatchling~=1.26` and pin hatch-fancy-pypi-readme to a tested minor, e.g. `hatch-fancy-pypi-readme>=24.1,<25`.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-008",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Dev dependencies use exact pins for some tools but unpinned for others \u2014 inconsistent",
+      "description": "In the `dev` group, `pyright==1.1.399`, `mypy==1.17`, and `http-snapshot[httpx]==0.1.8` are pinned exactly while `respx`, `pytest`, `pytest-asyncio`, `ruff`, `time-machine`, `boto3-stubs`, etc. are unpinned or floor-only. Inconsistent strictness makes CI failures harder to attribute (e.g. a new ruff release can silently break lint without lockfile regeneration).",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 50,
+        "line_end": 67
+      },
+      "recommendation": "Apply consistent floors and ceilings to all dev tools (e.g. `ruff>=0.6,<1`, `pytest>=8,<9`). The lock file mitigates day-to-day drift, but `pyproject.toml` should still document the supported tool ranges.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-009",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "`aiohttp` extra has no version constraint",
+      "description": "`aiohttp = [\"aiohttp\", \"httpx_aiohttp>=0.1.9\"]` leaves `aiohttp` completely unconstrained. aiohttp has had several CVEs historically (e.g. CVE-2024-23334 path traversal in static files, CVE-2024-30251 DoS, fixed in 3.9.2/3.9.4). Without a floor, fresh installs can resolve to vulnerable older versions if other constraints permit it.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 39,
+        "line_end": 39
+      },
+      "recommendation": "Pin aiohttp with a security-aware floor and upper bound, e.g. `aiohttp>=3.9.4,<4`. Add `httpx_aiohttp>=0.1.9,<1` for the upper bound too.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-010",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Strong supply-chain hygiene: lock files committed and PyPI index pinned",
+      "description": "Positive finding: `[tool.uv]` pins the index to `https://pypi.org/simple` as the default to prevent contributor-config-driven index switching, and both `uv.lock` and `requirements-dev.lock` are present. `required-version = \">=0.9\"` for uv ensures consistent resolver behavior. The `conflicts` declarations between pydantic-v1/v2 groups and the mcp extra are explicit and reduce ambiguity.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 46,
+        "line_end": 50
+      },
+      "recommendation": "Maintain this practice. Consider adding hash verification (`uv lock --frozen` in CI) and publishing/consuming SBOM artifacts (e.g. CycloneDX via `cyclonedx-py`) for downstream consumers.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "JSONL decoder reaccumulates buffer per line, causing O(N\u00b2) memory copies",
+      "description": "In both JSONLDecoder.__decode__ and AsyncJSONLDecoder.__decode__, each chunk is split with splitlines(keepends=True), and each line is appended to `buf` via `buf += line`. The `endswith` check is then performed on the entire accumulated buffer. For a single chunk that contains multiple complete JSON lines, the buffer will grow line-by-line and `endswith` is called on increasingly larger byte strings, and the entire buffer is parsed \u2014 but more importantly, `buf = b''` is only reset when endswith matches, so partial-then-complete cases can accumulate. While usually small, with large streamed JSONL responses this is unnecessary copying. A cleaner approach is to track a partial buffer and split chunks directly on newline boundaries.",
+      "location": {
+        "file_path": "src/anthropic/_decoders/jsonl.py",
+        "line_start": 40,
+        "line_end": 50
+      },
+      "recommendation": "Split each chunk on newline once, prepend any leftover partial line to the first segment, parse all complete lines (segments[:-1]), and keep segments[-1] as the new partial buffer. This avoids repeated bytes concatenation and per-line endswith checks on a growing buffer.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "JSONL decoder uses 64-byte chunk size for HTTP iteration",
+      "description": "In `_response.py` and `_legacy_response.py`, when constructing JSONLDecoder/AsyncJSONLDecoder the underlying `iter_bytes`/`aiter_bytes` is invoked with `chunk_size=64`. Reading streaming HTTP bodies in 64-byte chunks dramatically increases the number of iterator wakeups, syscalls, and Python-level loop iterations relative to httpx's default (typically larger). For high-throughput JSONL endpoints this can multiply CPU time and reduce streaming throughput significantly.",
+      "location": {
+        "file_path": "src/anthropic/_response.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Increase the chunk_size for JSONL streaming to a more reasonable value (e.g. 8192 or omit to use httpx default). 64 bytes is far too small for network streams. Apply the same change in `_legacy_response.py`.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "SSE chunk accumulator uses repeated bytes concatenation in hot path",
+      "description": "SSEDecoder._iter_chunks / _aiter_chunks accumulate streaming bytes via `data += line` line-by-line and check `data.endswith((b'\\r\\r', b'\\n\\n', b'\\r\\n\\r\\n'))` after every line. For SSE streams with many small lines per event (and many events per chunk), this performs O(N\u00b2) byte copies per event boundary. Given that SSE is the primary streaming path for messages.create(stream=True), this is on the hot path for every streaming response.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 390,
+        "line_end": 400
+      },
+      "recommendation": "Use a bytearray for accumulation (`data.extend(line)`) or accumulate a list of bytes and use `b''.join(...)` when an event boundary is found. Also consider scanning the chunk directly for the double-newline boundary instead of splitlines+endswith, which would avoid double iteration.",
+      "agent_role": "performance",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Stream event dispatch uses long if/elif chain with string equality on hot path",
+      "description": "Stream.__stream__ and AsyncStream.__stream__ check `sse.event` against ~25 distinct string literals via chained `or` comparisons for every SSE event. This is evaluated for every event in every streaming response. Using a frozenset membership check would be O(1) average vs. up to 25 string comparisons per event, and `if is_dict(data) and \"type\" not in data: data[\"type\"] = sse.event` is also evaluated per event. With high event throughput (e.g., long messages with many content_block_delta events), this contributes measurable overhead.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 70,
+        "line_end": 110
+      },
+      "recommendation": "Replace the chained `or sse.event == ...` with a module-level frozenset and use `if sse.event in _DISPATCH_EVENTS:`. This both improves performance and reduces code duplication between Stream and AsyncStream.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "AsyncHttpxClientWrapper.__del__ schedules aclose on the running loop, often misfires",
+      "description": "AsyncHttpxClientWrapper.__del__ calls `asyncio.get_running_loop().create_task(self.aclose())`. If the GC runs the finalizer when no loop is running (common case at interpreter shutdown or in sync code paths), `get_running_loop()` raises and the exception is swallowed by the bare `except`, leaking the underlying connection pool and any keepalive sockets. In long-running services this causes a slow socket/file-descriptor leak when AsyncAnthropic clients are created and discarded without explicit `await client.close()`.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 1029,
+        "line_end": 1037
+      },
+      "recommendation": "Document that AsyncAnthropic must be explicitly closed (or used as an async context manager) and emit a ResourceWarning in __del__ when the client is not closed. Optionally, attempt to close the underlying transport synchronously if possible. Avoid silently swallowing the exception without diagnostics.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Retry idempotency-key reused identically across all retries of a request",
+      "description": "In `request()` the idempotency key is generated once on the input options and reused across every retry attempt. While this is correct for true idempotency semantics, combined with `model_copy(input_options)` on every retry iteration the entire FinalRequestOptions pydantic model is deep-copied per retry attempt, which for large request bodies (e.g. multi-MB messages with cached content blocks) is non-trivial. With max_retries=2 default, this is a small overhead, but for users setting math.inf-style retries on long-running operations it adds up.",
+      "location": {
+        "file_path": "src/anthropic/_base_client.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Consider only copying options on the second and subsequent retry iterations (the first iteration can use the original), and/or use `model_copy(deep=False)` (the default) consistently. Document the expected per-retry overhead.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Streaming response not closed on early exit from `_iter_events`-style generators",
+      "description": "Stream.__stream__ wraps the iteration in a try/finally that closes the response, which is good. However, if a consumer breaks out of `for event in stream:` without calling `stream.close()` and without using a context manager, the generator is only finalized when garbage-collected, which on PyPy or under reference-counting delays is non-deterministic. The pattern is correct (and `__exit__` closes), but the SDK could log a warning when a Stream is GC'd without being closed/exhausted to surface resource leaks earlier.",
+      "location": {
+        "file_path": "src/anthropic/_streaming.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a `__del__` on Stream/AsyncStream that warns (ResourceWarning) when the underlying response is not closed, similar to httpx's own Response.__del__ behavior.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-010",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Bedrock/JSONL decoders create fresh decoder per response without buffer pooling",
+      "description": "Each new streaming response constructs a fresh SSEDecoder/JSONLDecoder with its own bytes buffer. For very high request rates this contributes minor allocator pressure (many short-lived bytearray/bytes objects). Not a meaningful issue for typical workloads.",
+      "location": {
+        "file_path": "src/anthropic/_decoders/jsonl.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No action required unless profiling shows allocator pressure. If needed, switch internal buffer to a reusable bytearray.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 167.96,
+  "total_tokens_used": 641578,
+  "total_cost_usd": 20.4678,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 1
+}
