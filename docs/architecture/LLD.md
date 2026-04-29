@@ -11,27 +11,25 @@
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| `entities/models.py` | Frozen Pydantic domain models | `Finding`, `ScoreCard`, `AnalysisReport`, `Codebase`, `TokenBudget`, `AgentOutput` |
-| `entities/enums.py` | Literal type aliases | `Severity`, `Dimension`, `Grade`, `AgentRole`, `PipelineState` |
+| `entities/models.py` | Frozen Pydantic domain models | `Finding`, `ScoreCard`, `AnalysisReport`, `Codebase`, `TokenBudget`, `AgentOutput`, `CacheEntry`, `CacheStats`, `BatchPrompt`, `BatchCacheKey`, `RepoCacheKey` |
+| `entities/enums.py` | Literal type aliases | `Severity`, `Dimension`, `Grade`, `AgentRole`, `PipelineState`, `SchemaVersion` |
 | `entities/errors.py` | Structured error hierarchy | `SpectraError`, `ERRORS` registry, `AgentError`, `GitError`, `SpectraRetryError` |
 
 ### Layer 2 — Use Cases (imports entities only)
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| `use_cases/interfaces.py` | Protocol interfaces (ports) | `LLMGateway` (now with `effort` + `task_budget_tokens` kwargs), `GitPort`, `TokenPort`, `ReportPort`, `ProgressObserver` |
-| `use_cases/analyze_repository.py` | 6-stage pipeline facade | `analyze_repository()` (~998 lines) |
+| `use_cases/interfaces.py` | Protocol interfaces (ports) | `LLMGateway` (with `effort` + `task_budget_tokens` kwargs), `GitPort` (with `prepare_workspace`), `TokenPort`, `ReportPort`, `ProgressObserver` (with `on_cache_lookup`), `CachePort`. Also exports `is_local_path` classifier. |
+| `use_cases/analyze_repository.py` | 6-stage pipeline facade — accepts a single `PipelineContext` value object | `analyze_repository(ctx: PipelineContext) → AnalysisReport`, `PipelineContext`, `CacheVersions`, `compute_file_hashes`, `build_batch_prompts`, `partition_by_cache` |
 | `use_cases/orchestrate_agents.py` | Parallel agent execution | `run_specialists()`, `evaluate_results()` |
 | `use_cases/manage_token_budget.py` | Token budget allocation | `allocate_specialist_budgets()`, `DIMENSION_WEIGHTS` |
-
-> **Planned (Cache Phase 1, in flight):** `CachePort` Protocol added to `interfaces.py`; see [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md).
 
 ### Layer 3 — Adapters (imports entities + use_cases)
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| `adapters/cli_controller.py` | Typer CLI entry point | `app`, `analyze` command |
-| `adapters/progress_reporter.py` | Rich terminal progress | `RichProgressReporter` (implements `ProgressObserver`) |
+| `adapters/cli_controller.py` | Typer CLI entry point | `app`, `analyze` command, `cache stats|clear|prune` subcommands (Phase 4 — in flight, see PR #19) |
+| `adapters/progress_reporter.py` | Rich terminal progress | `RichProgressReporter` (implements `ProgressObserver`, including `on_cache_lookup`) |
 | `adapters/analysis_presenter.py` | ScoreCard terminal display | `AnalysisPresenter` |
 
 ### Layer 4 — Infrastructure (imports all inner layers)
@@ -42,9 +40,10 @@
 | `infrastructure/anthropic_adapter.py` | Anthropic API client | `AnthropicAdapter` (implements `LLMGateway`) |
 | `infrastructure/retry_decorator.py` | Exponential backoff | `RetryDecorator` (implements `LLMGateway`) |
 | `infrastructure/logging_decorator.py` | Call metrics logging | `LoggingDecorator` (implements `LLMGateway`) |
-| `infrastructure/git_adapter.py` | Git operations + security | `GitAdapter` (implements `GitPort`) |
+| `infrastructure/git_adapter.py` | Git operations + security | `GitAdapter` (implements `GitPort`, including `prepare_workspace`) |
 | `infrastructure/tiktoken_adapter.py` | Token counting | `TiktokenAdapter` (implements `TokenPort`) |
 | `infrastructure/report_adapter.py` | Jinja2 HTML rendering | `ReportAdapter` (implements `ReportPort`) |
+| `infrastructure/cache_adapter.py` | SQLite cache | `SqliteCacheAdapter` (implements `CachePort`), `default_cache_path()`, `SCHEMA_VERSION` |
 | `infrastructure/agents/base_agent.py` | ABC Template Method | `BaseAgent` |
 | `infrastructure/agents/agent_factory.py` | Agent creation dispatch | `AgentFactory` |
 | `infrastructure/agents/meta_prompter.py` | Planning agent (Opus 4.7, `effort=medium`) | `MetaPrompter` |
@@ -52,9 +51,34 @@
 | `infrastructure/agents/specialist_prompts.py` | System prompts (6 dimensions) | `SPECIALIST_CONFIGS`, `_OPUS = "claude-opus-4-7"` |
 | `infrastructure/agents/critique_agent.py` | Validation agent (Opus 4.7, `effort=high`, `task_budget=80K`) | `CritiqueAgent`, `_TASK_BUDGET_TOKENS` |
 
-> **Planned (Cache Phase 1, in flight):** `infrastructure/cache_adapter.py` (`SqliteCacheAdapter`) implementing `CachePort`. See [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md).
-
 > Component interaction diagram: [`diagrams/lld-component-interaction.md`](../diagrams/lld-component-interaction.md)
+> Class diagram: [`diagrams/class-domain-model.md`](../diagrams/class-domain-model.md)
+
+---
+
+## `PipelineContext` value object
+
+`analyze_repository(ctx: PipelineContext) → AnalysisReport` — a single frozen dataclass replaces what used to be an 8-parameter facade signature (Fowler "Replace Long Parameter List with Parameter Object"). Everything the pipeline needs is on `ctx`:
+
+```python
+@dataclass(frozen=True)
+class PipelineContext:
+    request: AnalysisRequest
+    codebase: Codebase
+    source_files: dict[str, str]
+    specialists: list[AnalysisAgent]
+    critique: AnalysisAgent | None
+    meta_plan: AgentOutput
+    observer: ProgressObserver
+    token_budget: TokenBudget
+    git_port: GitPort | None              # Phase 3 — needed for file hashing
+    cache_port: CachePort | None          # None when --no-cache
+    cache_key_factory: Callable | None    # builds RepoCacheKey from a signature
+    force_cache_bypass: bool = False      # set by --force
+    cache_versions: CacheVersions | None  # four-tuple for Phase 3 keys
+```
+
+Cache wiring is **optional**: `cache_port=None` (the wiring used when `--no-cache` is passed) skips both the read and the write paths cleanly. `force_cache_bypass=True` ignores any hit on read but still refreshes the cache on a successful run. This keeps every `if cache_port is not None` check at a single layer (the facade) rather than spreading through every helper.
 
 ---
 
@@ -115,9 +139,104 @@ Two breaking changes vs the pre-Opus-4.7 protocol:
 
 `AnthropicAdapter` sets `thinking={"type": "adaptive", "display": "summarized"}` for `analyze_with_thinking` and packages `effort` / `task_budget` into `output_config` (see `anthropic_adapter.py:240-265`).
 
-See [ADR-005](adr/ADR-005-opus-4-7-migration.md) for the migration rationale and the per-agent effort tuning.
+See [ADR-005](adr/ADR-005-opus-4-7-migration.md) for the migration rationale and per-agent effort tuning. See [`diagrams/lld-decorator-chain.md`](../diagrams/lld-decorator-chain.md) for the dedicated decorator-chain LLD.
 
-> Decorator diagrams: [`diagrams/design-patterns-catalog.md`](../diagrams/design-patterns-catalog.md) (Pattern #2)
+---
+
+## `CachePort` and `SqliteCacheAdapter`
+
+### Port surface (`use_cases/interfaces.py`)
+
+```python
+class CachePort(Protocol):
+    # Phase 1 — per-file row
+    def get_findings(self, file_hash: str, dimension: Dimension) -> tuple[Finding, ...] | None: ...
+    def put_findings(self, file_hash, dimension, findings, model_version, prompt_version) -> None: ...
+
+    # Phase 2 — full report
+    def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None: ...
+    def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None: ...
+
+    # Phase 3 — per-batch
+    def get_batch_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None: ...
+    def put_batch_findings(self, key: BatchCacheKey, findings: tuple[Finding, ...]) -> None: ...
+
+    # Phase 3 — run-context binding (atomic four-tuple)
+    def bind_run_context(self, model_versions, prompt_versions, schema_version, spectra_version) -> None: ...
+    def batch_key_for(self, batch_id: str, dimension: Dimension) -> BatchCacheKey | None: ...
+
+    # Phase 3 — telemetry
+    def record_hit(self, dimension: Dimension, batch_id: str, hit: bool) -> None: ...
+
+    # Maintenance
+    def compute_repo_signature(self, file_tree: tuple[str, ...]) -> str: ...
+    def stats(self) -> CacheStats: ...
+    def clear(self, repo_signature: str | None = None) -> int: ...
+```
+
+All methods are synchronous — the cache is local I/O, not networked. Lookups return `None` on miss rather than raising. Serious I/O failures raise `AgentError(SPEC-010)` so callers can degrade gracefully.
+
+### Adapter (`infrastructure/cache_adapter.py`)
+
+`SqliteCacheAdapter` opens a single SQLite connection at `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db`, sets `PRAGMA journal_mode=WAL`, and creates four tables idempotently (`CREATE TABLE IF NOT EXISTS`):
+
+| Table | PK | Indexes | Notes |
+|-------|----|---------|-------|
+| `findings_cache` | `(file_hash, dimension, model_version, prompt_version, schema_version)` | `idx_repo`, `idx_age` | Phase 1 row format |
+| `full_report_cache` | `(repo_signature, spectra_version, model_versions, prompt_versions, schema_version)` | — | Phase 2 short-circuit |
+| `findings_batches` | `(batch_id, dimension, model_version, prompt_version, schema_version, spectra_version)` | — | Phase 3 per-batch |
+| `hit_log` | (no PK; append-only) | — | Telemetry; Phase 4 will add `dimension`, `batch_id` columns |
+
+Every fallible I/O is wrapped in `_guard_io()`, which converts `sqlite3.Error` and `OSError` into `AgentError(SPEC-010)`.
+
+### Invalidation matrix
+
+| Trigger | Detection | Tables affected | Scope |
+|---------|-----------|-----------------|-------|
+| `--force` | CLI: `force_cache_bypass=True` | All reads bypassed; writes still occur | Whole run |
+| `--no-cache` | Composition root: `cache_port=None` | All reads + writes skipped | Whole run |
+| `spectra.__version__` bump | `spectra_version` in key differs | `full_report_cache`, `findings_batches` | Whole repo |
+| Model version change | `model_version` in key differs | All findings tables | Per dimension (or whole repo for full-report) |
+| Prompt version bump | `prompt_version` in key differs | All findings tables | Per dimension |
+| Schema version bump | `SchemaVersion` literal in key differs | All findings tables | Whole repo |
+| File content change | `blake2b(file)` differs → new `file_hash` / `batch_id` | `findings_cache`, `findings_batches` | Per file (and its batch) |
+| File deleted | `repo_signature` changes | `full_report_cache` | Whole repo |
+| Row >N days old | `computed_at < now - N` | All findings tables | Per row (lazy GC, Phase 4 `prune`) |
+
+Stale rows are never matched by current-context lookups; physical deletion is deferred to `spectra cache prune` (Phase 4 — in flight, see PR #19).
+
+### Cache CLI subcommands (Phase 4 — in flight)
+
+```bash
+spectra cache stats                      # show CacheStats: total_entries, total_repos,
+                                          #   db_size_bytes, hit_rate_last_100, oldest_entry_at
+spectra cache clear [<repo>]             # purge one repo (by URL or signature) or all
+spectra cache prune --older-than 30d     # delete rows where computed_at < now - N
+```
+
+These land with PR #19. The `hit_log` table will gain `dimension` and `batch_id` columns to support per-dimension hit-rate breakdowns. The `bind_run_context` API and `record_hit` calls already in flight on every cache lookup require no changes — Phase 4 is purely additive in scope.
+
+> Cache subsystem deep-dive: [`diagrams/cache-architecture.md`](../diagrams/cache-architecture.md) · [`diagrams/excalidraw/cache-schema.excalidraw`](../diagrams/excalidraw/cache-schema.excalidraw)
+> ADRs: [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md) · [ADR-009](adr/ADR-009-batch-granularity-per-focus-area.md)
+
+---
+
+## `GitPort.prepare_workspace` (local-path branch)
+
+```python
+class GitPort(Protocol):
+    async def prepare_workspace(self, source: str, target_dir: str) -> str:
+        """Resolve source into a usable on-disk repository directory.
+
+        For HTTPS URLs, clones into target_dir and returns it.
+        For local paths, validates the directory holds a git checkout
+        and returns its absolute path (target_dir is ignored).
+        """
+```
+
+`is_local_path(source)` (also exported from `interfaces.py`) is the pure classifier the adapter and the CLI controller share. Local paths are anything starting with `/`, `./`, `../`, `~`, `file://`, or the literal `.`, plus relative names that resolve to existing directories. Remote schemes (`https://`, `git@`, `ssh://`, `git://`) are always classified as non-local.
+
+`GitAdapter.prepare_workspace` rejects path-traversal segments, symlinked directories, and paths missing a `.git/` subdirectory — the same security envelope as `clone()`.
 
 ---
 
@@ -148,10 +267,10 @@ Each subclass overrides specific steps:
 
 ## Parallel Execution Model
 
-`orchestrate_agents.py` runs 6 specialists concurrently:
+`orchestrate_agents.py` runs the 6 specialists concurrently — but only on the **fresh** batches after `partition_by_cache` has split out the cached findings:
 
 ```python
-# orchestrate_agents.py — simplified
+# Simplified — full code in analyze_repository.py and orchestrate_agents.py
 async def run_specialists(agents, prompts, timeout=120):
     sem = asyncio.Semaphore(4)  # max 4 concurrent API calls
 
@@ -171,6 +290,7 @@ async def run_specialists(agents, prompts, timeout=120):
 - `wait_for(timeout=120)` per agent — individual timeout doesn't cancel siblings
 - `return_exceptions=True` — failures are captured, not propagated
 - `evaluate_results()` counts failures: 0-1 → merging, 2+ → degraded
+- Phase 3 packs the `BatchPrompt` text into the existing prompt slot — the agent itself doesn't know about batches
 
 > Parallel execution diagram: [`diagrams/state-agent-lifecycle.md`](../diagrams/state-agent-lifecycle.md) (Specialist Agent section)
 
@@ -181,9 +301,12 @@ async def run_specialists(agents, prompts, timeout=120):
 ### Stage 1: INGEST
 
 ```
-repo_url → git.clone() → git.validate_repo_size() → git.get_file_tree()
+source → git.prepare_workspace() → repo_dir
+    → git.validate_repo_size() → git.get_file_tree()
     → _read_key_source_files(top 20 files, ≤100K tokens) → Codebase
 ```
+
+`prepare_workspace` is the polymorphic entrypoint: HTTPS URLs trigger `clone(...)`, local paths get validated and returned in place.
 
 **File selection heuristic** (`main.py`):
 1. Priority files: `README.md`, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`
@@ -201,15 +324,42 @@ Codebase.file_tree (text) → MetaPrompter.run() → AgentOutput
 
 MetaPrompter receives **file tree only** (never source code). Max 5K tokens. Uses **Opus 4.7 with `effort=medium`** — planning is structured JSON extraction, not deep reasoning, so the medium-effort setting keeps latency and cost low while still benefiting from Opus 4.7's instruction following.
 
-### Stage 3: ANALYZE
+### Stage 2½: CACHE (Phase 2 short-circuit)
 
 ```
-plan + source_files → _build_specialist_prompts() → 6 prompts
-    → orchestrate_agents.run_specialists() → 6x AgentOutput (or Exception)
-    → evaluate_results() → (successes[], failed_roles[], PipelineState)
+key = RepoCacheKey(
+    repo_signature=cache.compute_repo_signature(file_tree),
+    spectra_version=spectra.__version__,
+    model_versions=...,
+    prompt_versions=...,
+    schema_version="v1",
+)
+if not force_cache_bypass:
+    cached = cache.get_full_report(key)
+    if cached is not None:
+        return cached    # short-circuit — Stages 3-5 skipped, Stage 6 still renders
 ```
 
-Each specialist receives: filtered file tree + plan context + relevant source code. All six run **Opus 4.7 with `effort=xhigh`** (Anthropic's recommended setting for coding/agentic workloads). `xhigh` is one tier below `max` and gives the model significant reasoning headroom without the cost ceiling of `max`.
+### Stage 3: ANALYZE (Phase 3 per-batch caching)
+
+```
+plan + source_files → build_batch_prompts(plan)
+    → dict[AgentRole, list[BatchPrompt]]    # one batch per focus_area, fallback: 1 per dim
+
+for spec in specialists:
+    cached_per_role[role], fresh_per_role[role] = partition_by_cache(batches, cache, dim)
+
+run_specialists(agents, fresh batches only, timeout=120s)
+    → asyncio.gather → AgentOutput per fresh batch
+
+for each (role, batch, fresh_findings):
+    cache.put_batch_findings(BatchCacheKey, fresh_findings)
+
+_assemble_phase3_result: merge cached + fresh findings per role
+evaluate_results: → (successes, failed_roles, PipelineState)
+```
+
+Each specialist receives: filtered file tree + plan context + relevant source code. All six run **Opus 4.7 with `effort=xhigh`** (Anthropic's recommended setting for coding/agentic workloads).
 
 ### Stage 4: MERGE
 
@@ -219,7 +369,7 @@ successes → _merge_findings() → dict.fromkeys dedup via Finding.__hash__
     → tuple[Finding, ...] (deduplicated, path-validated)
 ```
 
-**Finding deduplication**: Two `Finding` objects are equal when they share `(file_path, line_start, dimension)`. Enforced by `Finding.__hash__` and `__eq__` at `models.py:83-95`. Dedup uses `dict.fromkeys()` for O(n) single-pass with insertion-order preservation.
+**Finding deduplication**: Two `Finding` objects are equal when they share `(file_path, line_start, dimension)`. Enforced by `Finding.__hash__` and `__eq__` at `models.py:83-95`. Dedup uses `dict.fromkeys()` for O(n) single-pass with insertion-order preservation. Cached findings and fresh findings flow through the same deduplication.
 
 **Hallucination detection**: `_validate_finding_paths()` checks every `finding.location.file_path` against the actual file tree. Findings referencing non-existent files are removed. Count tracked in `AnalysisReport.hallucination_removed_count`.
 
@@ -235,21 +385,22 @@ findings_json → _should_run_critique() → if eligible:
 
 **Skip conditions**: `--quick` flag, degraded state (2+ failures), no budget remaining.
 
-CritiqueAgent uses **Opus 4.7 with adaptive thinking** (`thinking={"type": "adaptive", "display": "summarized"}`), `effort="high"`, `max_tokens=64_000`, and `task_budget_tokens=80_000` (beta header `task-budgets-2026-03-13`). The `task_budget` is a hard cumulative cap on thinking + output tokens — the model decides how to split between deeper reasoning and longer output, but the total cannot exceed the budget. `display: "summarized"` keeps the SDK from streaming raw chain-of-thought back to the client, so the parser only sees the final answer. Target: <5% false positive rate. Returns: `validated_findings[]`, `rejected_findings[]`, `severity_adjustments[]`, `cross_cutting_insights[]`.
+CritiqueAgent uses **Opus 4.7 with adaptive thinking** (`thinking={"type": "adaptive", "display": "summarized"}`), `effort="high"`, `max_tokens=64_000`, and `task_budget_tokens=80_000` (beta header `task-budgets-2026-03-13`). The `task_budget` is a hard cumulative cap on thinking + output tokens — the model decides how to split between deeper reasoning and longer output, but the total cannot exceed the budget. `display: "summarized"` keeps the SDK from streaming raw chain-of-thought back to the client, so the parser only sees the final answer. Target: <5% false positive rate.
 
 See [ADR-008](adr/ADR-008-adaptive-thinking-supersedes-extended.md) for the terminology change ("extended" → "adaptive" thinking) and the rationale for `task_budget` over the deprecated `budget_tokens`.
 
-### Stage 6: REPORT
+### Stage 6: REPORT (with Phase 2 cache write-back)
 
 ```
 findings + ScoreCard → AnalysisReport
+    → if cache_port: cache.put_full_report(RepoCacheKey, report)
     → HTML: ReportAdapter.render() (Jinja2 template)
     → JSON: json.dumps(report.model_dump())
     → SARIF: _build_sarif() (SARIF v2.1.0)
 ```
 
 > Full data flow diagram: [`diagrams/lld-data-flow.md`](../diagrams/lld-data-flow.md)
-> Full sequence diagram: [`diagrams/sequence-analysis-pipeline.md`](../diagrams/sequence-analysis-pipeline.md)
+> Full sequence diagram (with cache decision points): [`diagrams/sequence-analysis-pipeline.md`](../diagrams/sequence-analysis-pipeline.md)
 
 ---
 
@@ -266,16 +417,17 @@ findings + ScoreCard → AnalysisReport
 | SPEC-007 | Pipeline | No | — | 2+ agents failed |
 | SPEC-008 | Critique | No | — | CritiqueAgent failed (fallback: raw findings) |
 | SPEC-009 | Report | No | — | Template render failed |
+| SPEC-010 | Cache | No (degrade) | — | Cache I/O failed — pipeline degrades to no-cache for the rest of the run |
 
-All errors are instances of `SpectraError` (frozen dataclass) with `retryable` and `max_retries` metadata. The `RetryDecorator` at `retry_decorator.py:91-94` inspects `exc.error.retryable` before deciding to retry or propagate.
+All errors are instances of `SpectraError` (frozen dataclass) with `retryable` and `max_retries` metadata. The `RetryDecorator` at `retry_decorator.py:91-94` inspects `exc.error.retryable` before deciding to retry or propagate. Cache errors (SPEC-010) are caught at the call site and never propagate to the user.
 
 **Error class hierarchy**:
-- `AgentError(Exception)` — carries `SpectraError`, raised by agents
+- `AgentError(Exception)` — carries `SpectraError`, raised by agents and the cache adapter
 - `GitError(Exception)` — carries `SpectraError`, raised by `GitAdapter`
 - `SpectraRetryError(Exception)` — carries `SpectraError`, caught by `RetryDecorator`
 
 > State transitions on error: [`diagrams/state-pipeline.md`](../diagrams/state-pipeline.md)
-> Error path sequence: [`diagrams/sequence-analysis-pipeline.md`](../diagrams/sequence-analysis-pipeline.md) (Error Path section)
+> Error path sequence: [`diagrams/sequence-analysis-pipeline.md`](../diagrams/sequence-analysis-pipeline.md) (Error Path + SPEC-010 sections)
 
 ---
 
@@ -299,24 +451,26 @@ Maintainability: 500,000 × 0.10 = 50,000 tokens
 Performance:  500,000 × 0.10 = 50,000 tokens
 ```
 
-Token counting uses tiktoken's `cl100k_base` encoding via `TiktokenAdapter` with hash-based caching for O(1) repeat lookups.
+Token counting uses tiktoken's `cl100k_base` encoding via `TiktokenAdapter` with hash-based caching for O(1) repeat lookups. On a warm-cache run only the fresh batches consume specialist budget.
 
 ---
 
 ## Git Security Hardening
 
-`GitAdapter` at `git_adapter.py` implements 8 layers of security:
+`GitAdapter` at `git_adapter.py` implements 8 layers of security across both `clone()` and `prepare_workspace()`:
 
 | Layer | Protection | Limit |
 |-------|-----------|-------|
 | 1. Protocol | HTTPS only | Rejects `git://`, `ssh://`, `file://` |
 | 2. SSRF | `_is_private_ip()` check | Blocks RFC 1918, loopback, link-local |
 | 3. URL | Length cap | 2,048 characters max |
-| 4. Path traversal | Path sanitization | Blocks `../`, absolute paths |
-| 5. Symlinks | Symlink blocking | Rejects symlinked files |
+| 4. Path traversal | Path sanitization | Blocks `../`, absolute path injection in source |
+| 5. Symlinks | Symlink blocking | Rejects symlinked directories (local-path branch too) |
 | 6. Size | File and repo limits | 10K files, 100MB total, 1MB per file |
 | 7. Clone | Hardened git clone | `depth=1`, hooks disabled, no submodules, 60s timeout |
 | 8. Read | Read timeout | 5 seconds per file |
+
+`prepare_workspace` for local paths goes through layers 4, 5, 6, 8 — protocol/SSRF/URL/clone don't apply.
 
 ---
 
@@ -341,12 +495,12 @@ The HTML report (`templates/report.html.j2`) rendered by `ReportAdapter` include
 | Port (Layer 2) | Adapter (Layer 3/4) | Protocol Methods |
 |----------------|-------------------|-----------------|
 | `LLMGateway` | `AnthropicAdapter` | `analyze(... effort=)`, `analyze_with_thinking(... effort=, task_budget_tokens=)` |
-| `GitPort` | `GitAdapter` | `clone()`, `get_file_tree()`, `read_file()`, `validate_repo_size()` |
+| `GitPort` | `GitAdapter` | `prepare_workspace()`, `clone()`, `get_file_tree()`, `read_file()`, `validate_repo_size()` |
 | `TokenPort` | `TiktokenAdapter` | `count()`, `fits_budget()` |
 | `ReportPort` | `ReportAdapter` | `render()` |
-| `ProgressObserver` | `RichProgressReporter` | `on_stage_start()`, `on_stage_complete()`, `on_agent_*()`, `on_error()` |
+| `ProgressObserver` | `RichProgressReporter` | `on_stage_start()`, `on_stage_complete()`, `on_agent_*()`, `on_error()`, `on_cache_lookup()` |
 | `AnalysisAgent` | `BaseAgent` subclasses | `run()`, `role` property |
-| `CachePort` *(planned)* | `SqliteCacheAdapter` *(planned)* | `get_findings()`, `put_findings()`, `compute_repo_signature()`, `stats()`, `clear()` |
+| `CachePort` | `SqliteCacheAdapter` | `get/put_findings()`, `get/put_full_report()`, `get/put_batch_findings()`, `bind_run_context()`, `batch_key_for()`, `record_hit()`, `compute_repo_signature()`, `stats()`, `clear()` |
 
 All ports use Python's `Protocol` (PEP 544) for structural subtyping — adapters satisfy ports by having matching method signatures, no explicit inheritance required.
 
@@ -359,16 +513,21 @@ All ports use Python's `Protocol` (PEP 544) for structural subtyping — adapter
 
 All domain entities are **frozen Pydantic models** (`frozen=True`):
 
-| Entity | Key Fields | Hash/Eq |
-|--------|-----------|---------|
-| `Finding` | id, dimension, severity, location, confidence | `(file_path, line_start, dimension)` |
-| `FileLocation` | file_path, line_start, line_end | Default |
-| `DimensionScore` | dimension, score, grade, weight | Default |
-| `ScoreCard` | overall_score, overall_grade, dimensions | Default |
-| `AgentOutput` | agent_role, findings, tokens_used, duration | Default |
-| `AnalysisReport` | score_card, findings, is_degraded, insights | Default |
-| `Codebase` | repo_url, repo_name, file_tree | Default |
-| `TokenBudget` | total=800K, meta=5K, specialists=500K, critique=200K | Default |
+| Entity | Key Fields | Hash/Eq | Notes |
+|--------|-----------|---------|-------|
+| `Finding` | id, dimension, severity, location, confidence | `(file_path, line_start, dimension)` | Hashable for O(n) dedup |
+| `FileLocation` | file_path, line_start, line_end | Default | |
+| `DimensionScore` | dimension, score, grade, weight | Default | |
+| `ScoreCard` | overall_score, overall_grade, dimensions | Default | |
+| `AgentOutput` | agent_role, findings, tokens_used, duration | Default | |
+| `AnalysisReport` | score_card, findings, is_degraded, insights | Default | Cached as `report_json` in `full_report_cache` |
+| `Codebase` | repo_url, repo_name, file_tree | Default | `local_path` is the absolute repo dir from `prepare_workspace` |
+| `TokenBudget` | total=800K, meta=5K, specialists=500K, critique=200K | Default | |
+| `CacheEntry` | file_hash, file_path, dimension, findings, model_version, prompt_version, spectra_version, schema_version, computed_at | Default | One row in `findings_cache` |
+| `CacheStats` | total_entries, total_repos, db_size_bytes, hit_rate_last_100, oldest_entry_at | Default | Surfaced by `spectra cache stats` |
+| `BatchPrompt` | batch_id, file_paths, file_hashes, prompt_text | Default | Phase 3 batch unit |
+| `BatchCacheKey` | batch_id, dimension, model_version, prompt_version, schema_version, spectra_version | Default | Composite key for `findings_batches` |
+| `RepoCacheKey` | repo_signature, spectra_version, model_versions, prompt_versions, schema_version | Default | Composite key for `full_report_cache` |
 
 Immutability guarantees:
 - Thread safety across parallel agent execution
@@ -380,22 +539,8 @@ Immutability guarantees:
 
 ---
 
-## Planned Entities (Cache Phase 1, In Flight)
-
-Two new frozen Pydantic entities are landing as part of the incremental analysis design (see [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md) and [`../plans/incremental-analysis.md`](../plans/incremental-analysis.md)):
-
-| Entity | Key Fields | Purpose |
-|--------|-----------|---------|
-| `CacheEntry` | `file_hash`, `file_path`, `dimension`, `findings`, `model_version`, `prompt_version`, `spectra_version`, `schema_version`, `computed_at` | One row in `findings_cache`; reusable only if all version components match |
-| `CacheStats` | `total_entries`, `total_repos`, `db_size_bytes`, `hit_rate_last_100`, `oldest_entry_at` | Aggregate metrics surfaced by `spectra cache stats` |
-| `BatchPrompt` | `batch_id`, `file_paths`, `file_hashes`, `prompt_text` | Per-`focus_area` batch sent to a specialist (Phase 3) |
-
-A `SchemaVersion` literal alias goes into `entities/enums.py` and is bumped whenever `Finding`/`AgentOutput` shapes change — the change to the literal becomes part of every cache key, automatically invalidating stale rows.
-
----
-
 *See [HLD.md](HLD.md) for system-level architecture, design decisions, and technology stack.*
 
 ---
 
-*Last updated: 2026-04-29 — Opus 4.7 surface (effort + task_budget), CachePort planned entities, GitHub Action distribution.*
+*Last updated: 2026-04-29 — `CachePort` and `SqliteCacheAdapter` documented (Phases 1-3 shipped, Phase 4 in flight); `GitPort.prepare_workspace` for local paths; `PipelineContext` value object; `ProgressObserver.on_cache_lookup` hook; SPEC-010 added.*
