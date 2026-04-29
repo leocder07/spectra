@@ -30,6 +30,7 @@ from spectra.entities.enums import Dimension, SchemaVersion
 from spectra.entities.errors import ERRORS, AgentError
 from spectra.entities.models import (
     AnalysisReport,
+    BatchCacheKey,
     CacheStats,
     Finding,
     RepoCacheKey,
@@ -88,6 +89,27 @@ CREATE TABLE IF NOT EXISTS full_report_cache (
         model_versions,
         prompt_versions,
         schema_version
+    )
+)
+"""
+
+_CREATE_BATCH_FINDINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS findings_batches (
+    batch_id         TEXT NOT NULL,
+    dimension        TEXT NOT NULL,
+    model_version    TEXT NOT NULL,
+    prompt_version   TEXT NOT NULL,
+    schema_version   TEXT NOT NULL,
+    spectra_version  TEXT NOT NULL,
+    findings_json    TEXT NOT NULL,
+    computed_at      TIMESTAMP NOT NULL,
+    PRIMARY KEY (
+        batch_id,
+        dimension,
+        model_version,
+        prompt_version,
+        schema_version,
+        spectra_version
     )
 )
 """
@@ -158,6 +180,7 @@ class SqliteCacheAdapter:
         self._prompt_versions: dict[str, str] = {}
         self._schema_version: SchemaVersion = SCHEMA_VERSION
         self._repo_signature = _NO_REPO_SIGNATURE
+        self._run_versions: tuple[str, str, str, str] | None = None
         self._conn = self._open_connection()
         self._init_schema()
 
@@ -183,6 +206,7 @@ class SqliteCacheAdapter:
             self._conn.execute(_CREATE_AGE_INDEX)
             self._conn.execute(_CREATE_HIT_LOG)
             self._conn.execute(_CREATE_FULL_REPORT_TABLE)
+            self._conn.execute(_CREATE_BATCH_FINDINGS_TABLE)
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
@@ -210,6 +234,46 @@ class SqliteCacheAdapter:
     def set_repo_signature(self, repo_signature: str) -> None:
         """Tag subsequent writes with the given repo signature."""
         self._repo_signature = repo_signature
+
+    # ── Phase 3: atomic run-context binding ───────────────────
+
+    def bind_run_context(
+        self,
+        model_versions: str,
+        prompt_versions: str,
+        schema_version: str,
+        spectra_version: str,
+    ) -> None:
+        """Atomically set the four versions used by every Phase 3 cache key.
+
+        Eliminates the intermediate-inconsistent-state failure mode of
+        the Phase 1 set_* setters: composition-root callers configure the
+        cache exactly once at startup. Stored as a tuple so subsequent
+        get/put inherit the four versions atomically.
+        """
+        self._run_versions = (
+            model_versions,
+            prompt_versions,
+            schema_version,
+            spectra_version,
+        )
+
+    def batch_key_for(
+        self,
+        batch_id: str,
+        dimension: Dimension,
+    ) -> BatchCacheKey | None:
+        """Build a BatchCacheKey from the bound run context, or None."""
+        if self._run_versions is None:
+            return None
+        return BatchCacheKey(
+            batch_id=batch_id,
+            dimension=dimension,
+            model_version=self._run_versions[0],
+            prompt_version=self._run_versions[1],
+            schema_version=self._run_versions[2],
+            spectra_version=self._run_versions[3],
+        )
 
     # ── Port methods ──────────────────────────────────────────
 
@@ -328,6 +392,43 @@ class SqliteCacheAdapter:
         with _guard_io():
             self._conn.execute(_UPSERT_FULL_REPORT_SQL, params)
 
+    # ── Phase 3: per-batch findings storage ───────────────────
+
+    def get_batch_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
+        """Return cached findings for ``key`` or ``None`` on miss."""
+        with _guard_io():
+            row = self._conn.execute(
+                _SELECT_BATCH_FINDINGS_SQL,
+                _batch_key_params(key),
+            ).fetchone()
+        if row is None:
+            return None
+        return _deserialize_findings(row[0])
+
+    def put_batch_findings(
+        self,
+        key: BatchCacheKey,
+        findings: tuple[Finding, ...],
+    ) -> None:
+        """Persist ``findings`` under the composite ``key`` (latest write wins)."""
+        params = _batch_upsert_params(key, findings)
+        with _guard_io():
+            self._conn.execute(_UPSERT_BATCH_FINDINGS_SQL, params)
+
+    def record_hit(
+        self,
+        dimension: Dimension,
+        batch_id: str,
+        hit: bool,
+    ) -> None:
+        """Append a row to ``hit_log`` — non-blocking telemetry."""
+        del dimension, batch_id  # rolled-up tally; future Phase 4 will fan out
+        with _guard_io():
+            self._conn.execute(
+                "INSERT INTO hit_log (ts, hit) VALUES (?, ?)",
+                (datetime.now(UTC), 1 if hit else 0),
+            )
+
     # ── Private helpers ───────────────────────────────────────
 
     def _prompt_for(self, dimension: Dimension) -> str:
@@ -427,6 +528,54 @@ def _full_report_upsert_params(
         key.prompt_versions,
         key.schema_version,
         report.model_dump_json(),
+        datetime.now(UTC),
+    )
+
+
+_SELECT_BATCH_FINDINGS_SQL = """
+SELECT findings_json
+FROM findings_batches
+WHERE batch_id = ?
+  AND dimension = ?
+  AND model_version = ?
+  AND prompt_version = ?
+  AND schema_version = ?
+  AND spectra_version = ?
+"""
+
+_UPSERT_BATCH_FINDINGS_SQL = """
+INSERT OR REPLACE INTO findings_batches (
+    batch_id, dimension, model_version, prompt_version,
+    schema_version, spectra_version, findings_json, computed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def _batch_key_params(key: BatchCacheKey) -> tuple[str, ...]:
+    """Pack a BatchCacheKey into the lookup parameter tuple."""
+    return (
+        key.batch_id,
+        key.dimension,
+        key.model_version,
+        key.prompt_version,
+        key.schema_version,
+        key.spectra_version,
+    )
+
+
+def _batch_upsert_params(
+    key: BatchCacheKey,
+    findings: tuple[Finding, ...],
+) -> tuple[object, ...]:
+    """Pack key + findings into the upsert parameter tuple."""
+    return (
+        key.batch_id,
+        key.dimension,
+        key.model_version,
+        key.prompt_version,
+        key.schema_version,
+        key.spectra_version,
+        _serialize_findings(findings),
         datetime.now(UTC),
     )
 
