@@ -4,6 +4,13 @@
 # Set up the publisher at:
 #   https://pypi.org/manage/project/spectra-ai/settings/publishing/
 #
+# Supply-chain hardening (Q1 #7 — SLSA L3):
+#   - actions/attest-build-provenance@v2 generates SLSA L3 provenance
+#     for every wheel + sdist published.
+#   - sigstore-python signs each wheel; .sigstore bundles are uploaded
+#     as release assets and (optionally) as a workflow artifact.
+#   - Verification instructions live in README.md → "Verifying releases".
+#
 # To trigger: git tag v0.1.0 && git push origin v0.1.0
 
 name: Publish to PyPI
@@ -15,7 +22,8 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for OIDC trusted publishing
+  id-token: write  # Required for OIDC trusted publishing AND Sigstore signing
+  attestations: write  # Required for actions/attest-build-provenance
 
 jobs:
   # ──────────────────────────────────────────────
@@ -43,6 +51,15 @@ jobs:
         run: |
           pip install twine
           twine check dist/*
+
+      # ─── SLSA L3 provenance (Q1 #7) ──────────────────────────────
+      # Generates a signed SLSA Provenance v1.0 attestation for every
+      # artifact in dist/. Verification:
+      #   gh attestation verify dist/spectra_ai-*.whl --repo leocder07/spectra
+      - name: Generate SLSA build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -94,3 +111,55 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ──────────────────────────────────────────────
+  # Job 4: Sigstore-sign the published wheels (Q1 #7)
+  # ──────────────────────────────────────────────
+  # Runs after publish so the signed bundles match what landed on PyPI.
+  # Signatures are uploaded as release assets — verification:
+  #   python -m sigstore verify identity \
+  #     --bundle spectra_ai-<ver>.whl.sigstore \
+  #     --cert-identity https://github.com/leocder07/spectra/.github/workflows/publish.yml@refs/tags/v<ver> \
+  #     --cert-oidc-issuer https://token.actions.githubusercontent.com \
+  #     spectra_ai-<ver>.whl
+  sign:
+    name: Sigstore-sign wheels
+    runs-on: ubuntu-latest
+    needs: [publish]
+    permissions:
+      contents: write   # upload signatures as release assets
+      id-token: write   # OIDC token for keyless Sigstore signing
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install sigstore-python
+        run: pip install "sigstore>=3.0,<4.0"
+
+      - name: Sign wheels and sdist with Sigstore (keyless, OIDC)
+        run: python -m sigstore sign dist/*.whl dist/*.tar.gz
+
+      - name: Upload signatures as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigstore-bundles
+          path: dist/*.sigstore*
+
+      - name: Attach signatures to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF##*/}"
+          # Create the release if it doesn't exist yet, then upload bundles.
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+                 --title "$tag" --notes "Signed release. See README → Verifying releases."
+          gh release upload "$tag" dist/*.sigstore* --repo "$GITHUB_REPOSITORY" --clobber

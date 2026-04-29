@@ -471,6 +471,56 @@ Cache I/O failures are never fatal — the pipeline degrades to no-cache for the
 
 ---
 
+## Verifying releases
+
+Every release ships with two independent supply-chain attestations: SLSA L3 build provenance (via GitHub's attest-build-provenance) and a Sigstore keyless signature on every wheel. Both are produced inside the publish workflow and bound to the tag commit.
+
+### 1. Verify SLSA build provenance
+
+Confirms the artifact was built by `leocder07/spectra`'s publish workflow on the expected tag commit — defeats the tag-move attack class.
+
+```bash
+# Install once
+brew install gh   # or: see https://cli.github.com/
+
+# Download the wheel from PyPI (or the release page)
+pip download --no-deps spectra-ai==0.4.0 -d /tmp/spectra-verify
+
+# Verify provenance
+gh attestation verify /tmp/spectra-verify/spectra_ai-0.4.0-py3-none-any.whl \
+  --repo leocder07/spectra
+```
+
+Expected output: `Loaded digest sha256:... ✓ Verification succeeded!`
+
+### 2. Verify Sigstore signature
+
+Confirms the wheel was signed by the publish workflow's OIDC identity. Bundles are attached to each GitHub Release as `*.sigstore` assets.
+
+```bash
+# Install once
+pip install "sigstore>=3.0,<4.0"
+
+# Download wheel + bundle
+VER=0.4.0
+gh release download "v${VER}" --repo leocder07/spectra \
+  --pattern "spectra_ai-${VER}*.sigstore*"
+pip download --no-deps "spectra-ai==${VER}" -d .
+
+# Verify
+python -m sigstore verify identity \
+  --bundle "spectra_ai-${VER}-py3-none-any.whl.sigstore" \
+  --cert-identity "https://github.com/leocder07/spectra/.github/workflows/publish.yml@refs/tags/v${VER}" \
+  --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
+  "spectra_ai-${VER}-py3-none-any.whl"
+```
+
+Expected output: `OK: spectra_ai-0.4.0-py3-none-any.whl`
+
+If either check fails, do not install — open an issue at https://github.com/leocder07/spectra/security/advisories/new.
+
+---
+
 ## Contributing
 
 ```bash
