@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 from typer.testing import CliRunner
@@ -11,6 +11,9 @@ from typer.testing import CliRunner
 from spectra.adapters.cli_controller import app, set_analyzer_factory
 from spectra.entities.errors import ERRORS, AgentError, GitError, SpectraRetryError
 from spectra.entities.models import DimensionScore, ScoreCard, score_to_grade
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 runner = CliRunner()
 
@@ -587,7 +590,7 @@ class TestCLILocalPath:
 
     def test_tilde_path_accepted(self, tmp_path, monkeypatch):
         """A `~`-prefixed path expands and is accepted as a local path."""
-        repo = _make_local_repo(tmp_path / "home-repo")
+        _make_local_repo(tmp_path / "home-repo")
         monkeypatch.setenv("HOME", str(tmp_path))
         factory = AsyncMock(return_value=_fake_report())
         set_analyzer_factory(factory)

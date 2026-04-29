@@ -111,10 +111,7 @@ def _is_private_ip(hostname: str) -> bool:
     except (socket.gaierror, OSError):
         # Fail-closed: unresolvable host is treated as blocked.
         return True
-    return any(
-        _is_blocked_address(ipaddress.ip_address(info[4][0]))
-        for info in resolved
-    )
+    return any(_is_blocked_address(ipaddress.ip_address(info[4][0])) for info in resolved)
 
 
 def _hardened_git_env() -> dict[str, str]:
@@ -367,6 +364,4 @@ class GitAdapter:
     @staticmethod
     def _walk_tree(repo_dir: str) -> list[str]:
         root = Path(repo_dir)
-        return sorted(
-            str(p.relative_to(root)) for p in _iter_real_files(root)
-        )
+        return sorted(str(p.relative_to(root)) for p in _iter_real_files(root))

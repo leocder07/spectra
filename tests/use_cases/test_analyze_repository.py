@@ -17,7 +17,6 @@ from spectra.entities.models import (
     Finding,
     estimate_cost,
 )
-from spectra.use_cases.interfaces import is_local_path
 from spectra.use_cases.analyze_repository import (
     _apply_critique,
     _build_source_context,
@@ -34,6 +33,7 @@ from spectra.use_cases.analyze_repository import (
     _validate_finding_paths,
     analyze_repository,
 )
+from spectra.use_cases.interfaces import is_local_path
 
 
 def _finding(dim: str, sev: str, line: int = 10) -> Finding:

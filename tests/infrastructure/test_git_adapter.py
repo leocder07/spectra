@@ -404,9 +404,7 @@ class TestCloneSSRFGuards:
     """Defence-in-depth: DNS that resolves to bad addrs must reject the clone."""
 
     @pytest.mark.asyncio
-    async def test_clone_rejects_host_resolving_to_unspecified(
-        self, adapter: GitAdapter, tmp_path, monkeypatch
-    ):
+    async def test_clone_rejects_host_resolving_to_unspecified(self, adapter: GitAdapter, tmp_path, monkeypatch):
         """If hostname resolves to 0.0.0.0, clone must be rejected."""
         import socket
 
@@ -418,14 +416,10 @@ class TestCloneSSRFGuards:
             fake_getaddrinfo,
         )
         with pytest.raises(GitError):
-            await adapter.clone(
-                "https://evil.example.com/repo.git", str(tmp_path / "out")
-            )
+            await adapter.clone("https://evil.example.com/repo.git", str(tmp_path / "out"))
 
     @pytest.mark.asyncio
-    async def test_clone_fails_closed_on_dns_resolution_error(
-        self, adapter: GitAdapter, tmp_path, monkeypatch
-    ):
+    async def test_clone_fails_closed_on_dns_resolution_error(self, adapter: GitAdapter, tmp_path, monkeypatch):
         """DNS resolution failure must fail-closed (reject) before clone_from.
 
         Verifies the SSRF guard rejects unresolvable hosts *before* invoking
@@ -441,9 +435,7 @@ class TestCloneSSRFGuards:
             "spectra.infrastructure.git_adapter.socket.getaddrinfo",
             raising_getaddrinfo,
         )
-        with patch(
-            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
-        ) as mock_clone:
+        with patch("spectra.infrastructure.git_adapter.git.Repo.clone_from") as mock_clone:
             with pytest.raises(GitError):
                 await adapter.clone(
                     "https://nonexistent-host-xyz.invalid/repo.git",
@@ -459,9 +451,7 @@ class TestCloneEnvHardening:
     """Clone must not inherit user's GIT_* env or credential helpers."""
 
     @pytest.mark.asyncio
-    async def test_clone_passes_explicit_env_disabling_prompts(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_clone_passes_explicit_env_disabling_prompts(self, adapter: GitAdapter, tmp_path):
         """clone_from must be called with env={...} disabling credential UI.
 
         A malicious URL must not be able to coax git into prompting the user,
@@ -470,13 +460,9 @@ class TestCloneEnvHardening:
         """
         from unittest.mock import MagicMock, patch
 
-        with patch(
-            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
-        ) as mock_clone:
+        with patch("spectra.infrastructure.git_adapter.git.Repo.clone_from") as mock_clone:
             mock_clone.return_value = MagicMock()
-            await adapter.clone(
-                "https://github.com/test/repo.git", str(tmp_path / "out")
-            )
+            await adapter.clone("https://github.com/test/repo.git", str(tmp_path / "out"))
             kwargs = mock_clone.call_args.kwargs
             env = kwargs.get("env")
             assert env is not None, "clone_from must pass an explicit env"
@@ -487,20 +473,14 @@ class TestCloneEnvHardening:
             assert env.get("GIT_SSL_NO_VERIFY") == "false"
 
     @pytest.mark.asyncio
-    async def test_clone_env_isolates_home_and_xdg_config(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_clone_env_isolates_home_and_xdg_config(self, adapter: GitAdapter, tmp_path):
         """HOME / XDG_CONFIG_HOME must be neutralized so ~/.netrc and
         ~/.gitconfig (incl. credential.helper) do not leak in."""
         from unittest.mock import MagicMock, patch
 
-        with patch(
-            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
-        ) as mock_clone:
+        with patch("spectra.infrastructure.git_adapter.git.Repo.clone_from") as mock_clone:
             mock_clone.return_value = MagicMock()
-            await adapter.clone(
-                "https://github.com/test/repo.git", str(tmp_path / "out")
-            )
+            await adapter.clone("https://github.com/test/repo.git", str(tmp_path / "out"))
             env = mock_clone.call_args.kwargs.get("env") or {}
             # HOME and XDG_CONFIG_HOME must be present and point somewhere
             # other than the user's real home.
@@ -520,9 +500,7 @@ class TestIntermediateSymlinkBypass:
     """Catch attacks where an intermediate dir (not the leaf) is a symlink."""
 
     @pytest.mark.asyncio
-    async def test_read_file_rejects_intermediate_symlink_dir(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_read_file_rejects_intermediate_symlink_dir(self, adapter: GitAdapter, tmp_path):
         """repo/foo/link/file.txt where foo/link -> /etc must be blocked."""
         import os
 
@@ -541,9 +519,7 @@ class TestIntermediateSymlinkBypass:
             await adapter.read_file(str(repo), "foo/link/file.txt")
 
     @pytest.mark.asyncio
-    async def test_read_file_rejects_symlink_to_temp_clone_internal(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_read_file_rejects_symlink_to_temp_clone_internal(self, adapter: GitAdapter, tmp_path):
         """Even if symlink target is *inside* repo_dir, it must still be blocked."""
         import os
 
@@ -561,9 +537,7 @@ class TestIntermediateSymlinkBypass:
             await adapter.read_file(str(repo), "src/escape")
 
     @pytest.mark.asyncio
-    async def test_walk_tree_does_not_traverse_symlinked_dirs(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_walk_tree_does_not_traverse_symlinked_dirs(self, adapter: GitAdapter, tmp_path):
         """rglob follows symlinked directories — must use os.walk(followlinks=False)."""
         import os
 
@@ -578,14 +552,10 @@ class TestIntermediateSymlinkBypass:
         tree = await adapter.get_file_tree(str(repo))
         # leaked.txt must NOT appear under linkdir/ — the directory traversal
         # should not follow the symlink at all.
-        assert not any("linkdir" in p for p in tree), (
-            f"Symlinked dir was traversed: {tree}"
-        )
+        assert not any("linkdir" in p for p in tree), f"Symlinked dir was traversed: {tree}"
 
     @pytest.mark.asyncio
-    async def test_validate_repo_size_does_not_traverse_symlinked_dirs(
-        self, adapter: GitAdapter, tmp_path
-    ):
+    async def test_validate_repo_size_does_not_traverse_symlinked_dirs(self, adapter: GitAdapter, tmp_path):
         """_check_size must not double-count via symlinked dirs (followlinks=False)."""
         import os
 
