@@ -70,7 +70,7 @@ Layer 4 (infrastructure/)   → imports from all inner layers
 
 - **`CachePort` (Layer 2) + `SqliteCacheAdapter` (Layer 4).** Single `cache.db` under `${XDG_CACHE_HOME:-~/.cache}/spectra/` in WAL mode. The use-case layer never imports `sqlite3`.
 - **Three caches, one DB.** `findings_cache` (per-file, Phase 1), `full_report_cache` (per-repo+versions, Phase 2 short-circuits Stages 3-5), `findings_batches` (per-`focus_area` batch, Phase 3 — the killer feature). Plus `hit_log` for telemetry.
-- **Composite-key invalidation, no policy.** Every key bundles `(content, dimension, model, prompt, schema, spectra)`. A stale row never matches a current-context lookup; physical deletion is deferred to `spectra cache prune` (Phase 4 — in flight, see PR #19).
+- **Composite-key invalidation, no policy.** Every key bundles `(content, dimension, model, prompt, schema, spectra)`. A stale row never matches a current-context lookup; physical deletion is deferred to `spectra cache prune` (Phase 4 — shipped in PR #19).
 - **`bind_run_context` once at composition root.** Atomic four-tuple binding (`model_versions, prompt_versions, schema_version, spectra_version`) — eliminates the half-bound state.
 - **Telemetry:** `record_hit` writes to `hit_log` per lookup; `ProgressObserver.on_cache_lookup(dim, hits, total)` surfaces the per-dimension tally in the terminal. `CacheStats.hit_rate_last_100` is the rolling rate.
 - **Failure mode:** SPEC-010 — cache I/O errors degrade to no-cache for the rest of the run. **Cache failures are never fatal.**

@@ -131,7 +131,7 @@ The cache pipeline (Phases 1–4) and the local-path branch are entirely additiv
 | `SPEC-010: Cache I/O failed` | 1 | `entities/errors.py` |
 | `PipelineContext` value object | 2 | `use_cases/analyze_repository.py` |
 | `prepare_workspace(source, target_dir)` (local-path) | 2 (port) + 4 (impl) | `interfaces.py` + `git_adapter.py` |
-| `spectra cache stats|clear|prune` CLI subcommands | 3 | `adapters/cli_controller.py` *(Phase 4 — in flight)* |
+| `spectra cache stats|clear|prune` CLI subcommands | 3 | `adapters/cli_controller.py` *(Phase 4 — shipped in PR #19)* |
 
 ## Composition Root
 

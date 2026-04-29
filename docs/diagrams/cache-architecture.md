@@ -126,7 +126,7 @@ The composite primary key on every table makes invalidation a *no-op*: a stale r
 | File deleted | Path absent from new `file_tree` → different `repo_signature` | `full_report_cache` | Whole repo |
 | Row >N days old | `computed_at < now - N` | All findings tables | Per row (lazy GC via Phase 4 `spectra cache prune`) |
 
-Physical deletion of stale rows is deferred to `spectra cache prune` (Phase 4 — in flight, see PR #19). The cache grows only as fast as you analyze new content; pruning is a maintenance task, not a hot-path operation.
+Physical deletion of stale rows is deferred to `spectra cache prune` (Phase 4 — shipped in PR #19). The cache grows only as fast as you analyze new content; pruning is a maintenance task, not a hot-path operation.
 
 ## Run-context binding
 
@@ -170,7 +170,7 @@ flowchart LR
     E --> I
     H --> J[total_entries · total_repos<br/>db_size_bytes · oldest_entry_at]
 
-    K[spectra cache stats CLI<br/>Phase 4 in flight] --> H
+    K[spectra cache stats CLI<br/>Phase 4 shipped] --> H
 ```
 
 The terminal sees a per-dimension tally during ANALYZE (e.g. `security cache 7/8 hits`); the rolling rate is exposed via `spectra cache stats` once Phase 4 lands.

@@ -62,7 +62,7 @@ Two layers of telemetry:
 - **Adapter-level.** `record_hit(dimension, batch_id, hit: bool)` is called on every `get_batch_findings` lookup. It appends a row to the `hit_log` table. `CacheStats.hit_rate_last_100` reads `SELECT hit FROM hit_log ORDER BY ts DESC LIMIT 100` and computes the rolling rate.
 - **Pipeline-level.** `ProgressObserver.on_cache_lookup(dimension, hits, total)` is called once per dimension after `partition_by_cache` runs. The terminal sees a per-dimension tally — e.g. `security cache 7/8 hits`.
 
-The Phase 4 CLI subcommand `spectra cache stats` (in flight, see PR #19) surfaces `CacheStats` to the user as the operational signal for "is the cache working?".
+The Phase 4 CLI subcommand `spectra cache stats` (shipped in PR #19) surfaces `CacheStats` to the user as the operational signal for "is the cache working?".
 
 ### 4. Fallback policy when no `focus_areas`
 

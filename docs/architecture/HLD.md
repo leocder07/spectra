@@ -137,7 +137,7 @@ The composite primary key on every findings table makes invalidation a no-op: a 
 - model/prompt/schema version bump → corresponding key field mismatches
 - file content change → new `blake2b(file)` → new `file_hash` → new `batch_id`
 - file deleted → `repo_signature` changes → `full_report_cache` miss
-- row >N days old → lazy GC via `spectra cache prune` (Phase 4 — in flight, see PR #19)
+- row >N days old → lazy GC via `spectra cache prune` (Phase 4 — shipped in PR #19)
 
 ### Run-context binding (Phase 3)
 
@@ -149,9 +149,9 @@ The composite primary key on every findings table makes invalidation a no-op: a 
 spectra analyze <source>          # cache-aware (default)
 spectra analyze <source> --force  # bypass reads, still write
 spectra analyze <source> --no-cache  # neither read nor write (CI mode)
-spectra cache stats               # rolling hit rate, repos tracked, DB size  (Phase 4 — in flight)
-spectra cache clear [<repo>]      # purge one repo or all                    (Phase 4 — in flight)
-spectra cache prune --older-than 30d  # delete rows older than N days        (Phase 4 — in flight)
+spectra cache stats               # rolling hit rate, repos tracked, DB size  (Phase 4 — shipped)
+spectra cache clear [<repo>]      # purge one repo or all                    (Phase 4 — shipped)
+spectra cache prune --older-than 30d  # delete rows older than N days        (Phase 4 — shipped)
 ```
 
 ### Observability
@@ -347,4 +347,4 @@ This repo's own CI does **not** run `spectra-ai/spectra@v1` on its own pull requ
 
 ---
 
-*Last updated: 2026-04-29 — incremental cache subsystem (Phases 1-3 shipped, Phase 4 in flight); GitHub Action distribution + non-dogfood decision; PipelineContext value object; local-path branch via `prepare_workspace`.*
+*Last updated: 2026-04-29 — incremental cache subsystem (Phases 1-3 shipped, Phase 4 shipped); GitHub Action distribution + non-dogfood decision; PipelineContext value object; local-path branch via `prepare_workspace`.*

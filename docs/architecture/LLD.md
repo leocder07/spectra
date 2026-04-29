@@ -28,7 +28,7 @@
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| `adapters/cli_controller.py` | Typer CLI entry point | `app`, `analyze` command, `cache stats|clear|prune` subcommands (Phase 4 — in flight, see PR #19) |
+| `adapters/cli_controller.py` | Typer CLI entry point | `app`, `analyze` command, `cache stats|clear|prune` subcommands (Phase 4 — shipped in PR #19) |
 | `adapters/progress_reporter.py` | Rich terminal progress | `RichProgressReporter` (implements `ProgressObserver`, including `on_cache_lookup`) |
 | `adapters/analysis_presenter.py` | ScoreCard terminal display | `AnalysisPresenter` |
 
@@ -203,9 +203,9 @@ Every fallible I/O is wrapped in `_guard_io()`, which converts `sqlite3.Error` a
 | File deleted | `repo_signature` changes | `full_report_cache` | Whole repo |
 | Row >N days old | `computed_at < now - N` | All findings tables | Per row (lazy GC, Phase 4 `prune`) |
 
-Stale rows are never matched by current-context lookups; physical deletion is deferred to `spectra cache prune` (Phase 4 — in flight, see PR #19).
+Stale rows are never matched by current-context lookups; physical deletion is deferred to `spectra cache prune` (Phase 4 — shipped in PR #19).
 
-### Cache CLI subcommands (Phase 4 — in flight)
+### Cache CLI subcommands (Phase 4 — shipped)
 
 ```bash
 spectra cache stats                      # show CacheStats: total_entries, total_repos,
@@ -214,7 +214,7 @@ spectra cache clear [<repo>]             # purge one repo (by URL or signature) 
 spectra cache prune --older-than 30d     # delete rows where computed_at < now - N
 ```
 
-These land with PR #19. The `hit_log` table will gain `dimension` and `batch_id` columns to support per-dimension hit-rate breakdowns. The `bind_run_context` API and `record_hit` calls already in flight on every cache lookup require no changes — Phase 4 is purely additive in scope.
+These shipped in PR #19. The `hit_log` table gained `dimension` and `batch_id` columns to support per-dimension hit-rate breakdowns. The `bind_run_context` API and `record_hit` calls already in place on every cache lookup required no changes — Phase 4 was purely additive in scope.
 
 > Cache subsystem deep-dive: [`diagrams/cache-architecture.md`](../diagrams/cache-architecture.md) · [`diagrams/excalidraw/cache-schema.excalidraw`](../diagrams/excalidraw/cache-schema.excalidraw)
 > ADRs: [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md) · [ADR-009](adr/ADR-009-batch-granularity-per-focus-area.md)
@@ -543,4 +543,4 @@ Immutability guarantees:
 
 ---
 
-*Last updated: 2026-04-29 — `CachePort` and `SqliteCacheAdapter` documented (Phases 1-3 shipped, Phase 4 in flight); `GitPort.prepare_workspace` for local paths; `PipelineContext` value object; `ProgressObserver.on_cache_lookup` hook; SPEC-010 added.*
+*Last updated: 2026-04-29 — `CachePort` and `SqliteCacheAdapter` documented (Phases 1-3 shipped, Phase 4 shipped); `GitPort.prepare_workspace` for local paths; `PipelineContext` value object; `ProgressObserver.on_cache_lookup` hook; SPEC-010 added.*
