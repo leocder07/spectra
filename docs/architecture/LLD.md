@@ -19,10 +19,12 @@
 
 | Module | Purpose | Key Exports |
 |--------|---------|-------------|
-| `use_cases/interfaces.py` | Protocol interfaces (ports) | `LLMGateway`, `GitPort`, `TokenPort`, `ReportPort`, `ProgressObserver` |
+| `use_cases/interfaces.py` | Protocol interfaces (ports) | `LLMGateway` (now with `effort` + `task_budget_tokens` kwargs), `GitPort`, `TokenPort`, `ReportPort`, `ProgressObserver` |
 | `use_cases/analyze_repository.py` | 6-stage pipeline facade | `analyze_repository()` (~998 lines) |
 | `use_cases/orchestrate_agents.py` | Parallel agent execution | `run_specialists()`, `evaluate_results()` |
 | `use_cases/manage_token_budget.py` | Token budget allocation | `allocate_specialist_budgets()`, `DIMENSION_WEIGHTS` |
+
+> **Planned (Cache Phase 1, in flight):** `CachePort` Protocol added to `interfaces.py`; see [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md).
 
 ### Layer 3 — Adapters (imports entities + use_cases)
 
@@ -45,10 +47,12 @@
 | `infrastructure/report_adapter.py` | Jinja2 HTML rendering | `ReportAdapter` (implements `ReportPort`) |
 | `infrastructure/agents/base_agent.py` | ABC Template Method | `BaseAgent` |
 | `infrastructure/agents/agent_factory.py` | Agent creation dispatch | `AgentFactory` |
-| `infrastructure/agents/meta_prompter.py` | Planning agent | `MetaPrompter` |
-| `infrastructure/agents/specialist_agent.py` | Parameterized specialist | `SpecialistAgent` |
-| `infrastructure/agents/specialist_prompts.py` | System prompts (6 dimensions) | `SPECIALIST_CONFIGS` |
-| `infrastructure/agents/critique_agent.py` | Validation agent | `CritiqueAgent` |
+| `infrastructure/agents/meta_prompter.py` | Planning agent (Opus 4.7, `effort=medium`) | `MetaPrompter` |
+| `infrastructure/agents/specialist_agent.py` | Parameterized specialist (Opus 4.7, `effort=xhigh`) | `SpecialistAgent` |
+| `infrastructure/agents/specialist_prompts.py` | System prompts (6 dimensions) | `SPECIALIST_CONFIGS`, `_OPUS = "claude-opus-4-7"` |
+| `infrastructure/agents/critique_agent.py` | Validation agent (Opus 4.7, `effort=high`, `task_budget=80K`) | `CritiqueAgent`, `_TASK_BUDGET_TOKENS` |
+
+> **Planned (Cache Phase 1, in flight):** `infrastructure/cache_adapter.py` (`SqliteCacheAdapter`) implementing `CachePort`. See [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md).
 
 > Component interaction diagram: [`diagrams/lld-component-interaction.md`](../diagrams/lld-component-interaction.md)
 
@@ -63,14 +67,14 @@ Agent.execute_llm()
     → LoggingDecorator    (timing + metrics → ProgressObserver)
         → RetryDecorator  (backoff 1s/2s/4s + jitter, max 3 retries)
             → AnthropicAdapter  (streaming HTTP via httpx, 10 connection pool)
-                → Claude API
+                → Claude API (Opus 4.7)
 ```
 
 | Layer | Class | File | Responsibility |
 |-------|-------|------|----------------|
 | Outermost | `LoggingDecorator` | `logging_decorator.py:39` | Logs model, duration, token count; sanitizes secrets |
 | Middle | `RetryDecorator` | `retry_decorator.py:21` | Exponential backoff with jitter; only retries `SpectraRetryError(retryable=True)` |
-| Innermost | `AnthropicAdapter` | `anthropic_adapter.py:49` | Streaming HTTP calls; maps SDK exceptions to SPEC-002/003 |
+| Innermost | `AnthropicAdapter` | `anthropic_adapter.py:49` | Streaming HTTP calls; sets `output_config.effort` and `task_budget` (when supplied); maps SDK exceptions to SPEC-002/003 |
 
 All three satisfy `LLMGateway` Protocol via structural subtyping — no explicit inheritance. The factory holds a single reference to the outermost decorator. All 8 agents share this gateway instance.
 
@@ -80,6 +84,38 @@ adapter = AnthropicAdapter(api_key=api_key)
 retry   = RetryDecorator(adapter, max_retries=3, backoff_base=1.0)
 gateway = LoggingDecorator(retry, observer=observer)
 ```
+
+### LLMGateway Protocol — Opus 4.7 surface
+
+```python
+class LLMGateway(Protocol):
+    async def analyze(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        max_tokens: int,
+        effort: str | None = None,                # "low|medium|high|xhigh|max"
+    ) -> str: ...
+
+    async def analyze_with_thinking(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,    # min 20_000; activates beta header
+    ) -> str: ...
+```
+
+Two breaking changes vs the pre-Opus-4.7 protocol:
+- `temperature` removed entirely — Opus 4.7 rejects it (HTTP 400). Reasoning depth is steered exclusively by `effort`.
+- `analyze_with_thinking` no longer takes `budget_tokens` (the deprecated per-call thinking budget); it now takes `task_budget_tokens` (the cumulative loop budget) which Anthropic gates behind the beta header `task-budgets-2026-03-13`.
+
+`AnthropicAdapter` sets `thinking={"type": "adaptive", "display": "summarized"}` for `analyze_with_thinking` and packages `effort` / `task_budget` into `output_config` (see `anthropic_adapter.py:240-265`).
+
+See [ADR-005](adr/ADR-005-opus-4-7-migration.md) for the migration rationale and the per-agent effort tuning.
 
 > Decorator diagrams: [`diagrams/design-patterns-catalog.md`](../diagrams/design-patterns-catalog.md) (Pattern #2)
 
@@ -163,7 +199,7 @@ Codebase.file_tree (text) → MetaPrompter.run() → AgentOutput
     → allocate_specialist_budgets() → dict[Dimension, int]
 ```
 
-MetaPrompter receives **file tree only** (never source code). Max 5K tokens. Uses Sonnet 4.5 for cost efficiency since planning doesn't need deep reasoning.
+MetaPrompter receives **file tree only** (never source code). Max 5K tokens. Uses **Opus 4.7 with `effort=medium`** — planning is structured JSON extraction, not deep reasoning, so the medium-effort setting keeps latency and cost low while still benefiting from Opus 4.7's instruction following.
 
 ### Stage 3: ANALYZE
 
@@ -173,7 +209,7 @@ plan + source_files → _build_specialist_prompts() → 6 prompts
     → evaluate_results() → (successes[], failed_roles[], PipelineState)
 ```
 
-Each specialist receives: filtered file tree + plan context + relevant source code. All use Opus 4.6.
+Each specialist receives: filtered file tree + plan context + relevant source code. All six run **Opus 4.7 with `effort=xhigh`** (Anthropic's recommended setting for coding/agentic workloads). `xhigh` is one tier below `max` and gives the model significant reasoning headroom without the cost ceiling of `max`.
 
 ### Stage 4: MERGE
 
@@ -199,7 +235,9 @@ findings_json → _should_run_critique() → if eligible:
 
 **Skip conditions**: `--quick` flag, degraded state (2+ failures), no budget remaining.
 
-CritiqueAgent uses adaptive thinking (Opus 4.6). Target: <5% false positive rate. Returns: `validated_findings[]`, `rejected_findings[]`, `severity_adjustments[]`, `cross_cutting_insights[]`.
+CritiqueAgent uses **Opus 4.7 with adaptive thinking** (`thinking={"type": "adaptive", "display": "summarized"}`), `effort="high"`, `max_tokens=64_000`, and `task_budget_tokens=80_000` (beta header `task-budgets-2026-03-13`). The `task_budget` is a hard cumulative cap on thinking + output tokens — the model decides how to split between deeper reasoning and longer output, but the total cannot exceed the budget. `display: "summarized"` keeps the SDK from streaming raw chain-of-thought back to the client, so the parser only sees the final answer. Target: <5% false positive rate. Returns: `validated_findings[]`, `rejected_findings[]`, `severity_adjustments[]`, `cross_cutting_insights[]`.
+
+See [ADR-008](adr/ADR-008-adaptive-thinking-supersedes-extended.md) for the terminology change ("extended" → "adaptive" thinking) and the rationale for `task_budget` over the deprecated `budget_tokens`.
 
 ### Stage 6: REPORT
 
@@ -302,12 +340,13 @@ The HTML report (`templates/report.html.j2`) rendered by `ReportAdapter` include
 
 | Port (Layer 2) | Adapter (Layer 3/4) | Protocol Methods |
 |----------------|-------------------|-----------------|
-| `LLMGateway` | `AnthropicAdapter` | `analyze()`, `analyze_with_thinking()` |
+| `LLMGateway` | `AnthropicAdapter` | `analyze(... effort=)`, `analyze_with_thinking(... effort=, task_budget_tokens=)` |
 | `GitPort` | `GitAdapter` | `clone()`, `get_file_tree()`, `read_file()`, `validate_repo_size()` |
 | `TokenPort` | `TiktokenAdapter` | `count()`, `fits_budget()` |
 | `ReportPort` | `ReportAdapter` | `render()` |
 | `ProgressObserver` | `RichProgressReporter` | `on_stage_start()`, `on_stage_complete()`, `on_agent_*()`, `on_error()` |
 | `AnalysisAgent` | `BaseAgent` subclasses | `run()`, `role` property |
+| `CachePort` *(planned)* | `SqliteCacheAdapter` *(planned)* | `get_findings()`, `put_findings()`, `compute_repo_signature()`, `stats()`, `clear()` |
 
 All ports use Python's `Protocol` (PEP 544) for structural subtyping — adapters satisfy ports by having matching method signatures, no explicit inheritance required.
 
@@ -341,4 +380,22 @@ Immutability guarantees:
 
 ---
 
+## Planned Entities (Cache Phase 1, In Flight)
+
+Two new frozen Pydantic entities are landing as part of the incremental analysis design (see [ADR-006](adr/ADR-006-cache-port-incremental-analysis.md) and [`../plans/incremental-analysis.md`](../plans/incremental-analysis.md)):
+
+| Entity | Key Fields | Purpose |
+|--------|-----------|---------|
+| `CacheEntry` | `file_hash`, `file_path`, `dimension`, `findings`, `model_version`, `prompt_version`, `spectra_version`, `schema_version`, `computed_at` | One row in `findings_cache`; reusable only if all version components match |
+| `CacheStats` | `total_entries`, `total_repos`, `db_size_bytes`, `hit_rate_last_100`, `oldest_entry_at` | Aggregate metrics surfaced by `spectra cache stats` |
+| `BatchPrompt` | `batch_id`, `file_paths`, `file_hashes`, `prompt_text` | Per-`focus_area` batch sent to a specialist (Phase 3) |
+
+A `SchemaVersion` literal alias goes into `entities/enums.py` and is bumped whenever `Finding`/`AgentOutput` shapes change — the change to the literal becomes part of every cache key, automatically invalidating stale rows.
+
+---
+
 *See [HLD.md](HLD.md) for system-level architecture, design decisions, and technology stack.*
+
+---
+
+*Last updated: 2026-04-29 — Opus 4.7 surface (effort + task_budget), CachePort planned entities, GitHub Action distribution.*
