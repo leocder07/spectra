@@ -93,6 +93,27 @@ class ReportError(Exception):
         super().__init__(f"{error.code}: {error.message}")
 
 
+def _build_agents(
+    gateway: object,
+    agent_overrides: dict[str, object] | None,
+    *,
+    skip_critique: bool,
+) -> tuple[object, list[object], object | None]:
+    """Resolve per-agent configs from CLI overrides and build all 8 agents.
+
+    Returns:
+        ``(meta_prompter, specialists, critique_agent)``. ``critique_agent``
+        is ``None`` when ``skip_critique`` is True.
+    """
+    configs = resolve_agent_configs(agent_overrides or {})
+    factory = AgentFactory(gateway=gateway, configs=configs)  # type: ignore[arg-type]
+    return (
+        factory.create("meta_prompter"),
+        factory.create_specialists(),
+        None if skip_critique else factory.create("critique"),
+    )
+
+
 async def _run_analysis(
     repo_url: str,
     output_path: str,
@@ -175,16 +196,11 @@ async def _run_analysis(
 
         # ── DI Wiring: Agent Factory ──────────────────────────────
         # AgentFactory creates all 8 agents with the decorated gateway.
-        # MetaPrompter (Opus 4.7, medium effort) plans from file tree only.
-        # 6 specialists (Opus 4.7, effort=xhigh) run in parallel via asyncio.gather.
-        # CritiqueAgent (Opus 4.7, adaptive thinking + task budget) validates findings.
-        # CLI overrides (--model / --<role>-effort / --model-overrides JSON) are
-        # merged here into a per-role AgentRunConfig map and threaded into the factory.
-        configs = resolve_agent_configs(agent_overrides or {})
-        factory = AgentFactory(gateway=gateway, configs=configs)
-        meta_prompter = factory.create("meta_prompter")
-        specialists = factory.create_specialists()
-        critique_agent = None if skip_critique else factory.create("critique")
+        # CLI overrides (--model / --<role>-effort / --model-overrides JSON)
+        # are merged into a per-role AgentRunConfig map and threaded through.
+        meta_prompter, specialists, critique_agent = _build_agents(
+            gateway, agent_overrides, skip_critique=skip_critique
+        )
 
         # ── Pipeline Stages 2-5 ──────────────────────────────────
         # Delegates to analyze_repository() which orchestrates:

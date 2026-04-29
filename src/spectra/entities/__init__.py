@@ -62,20 +62,16 @@ from spectra.entities.models import (
 )
 
 __all__ = [
-    # constants
     "DEFAULT_DIMENSION_SCORE",
-    # errors
     "ERRORS",
     "EXCELLENT_SCORE",
     "MIN_CONFIDENCE",
     "PASSING_SCORE",
-    # models
     "AgentContext",
     "AgentError",
     "AgentOutput",
-    "AgentRunConfig",
-    # enums
     "AgentRole",
+    "AgentRunConfig",
     "AnalysisReport",
     "AnalysisRequest",
     "BatchCacheKey",

@@ -746,10 +746,9 @@ class TestBuildSarif:
             cache = _provision_cache_only()
         assert cache is not None
 
-    def test_run_analysis_passes_resolved_configs_to_factory(self):
+    @pytest.mark.asyncio
+    async def test_run_analysis_passes_resolved_configs_to_factory(self):
         """When --model is set, AgentFactory receives the resolved configs dict."""
-        import asyncio
-
         finding = Finding(
             id="a-001",
             dimension="architecture",
@@ -802,12 +801,10 @@ class TestBuildSarif:
             mock_factory.create = MagicMock()
             mock_factory.create_specialists = MagicMock(return_value=[])
 
-            asyncio.run(
-                _run_analysis(
-                    "https://github.com/test/repo",
-                    _TMP_OUT_HTML,
-                    agent_overrides={"global_model": "claude-sonnet-4-6"},
-                )
+            await _run_analysis(
+                "https://github.com/test/repo",
+                _TMP_OUT_HTML,
+                agent_overrides={"global_model": "claude-sonnet-4-6"},
             )
 
             # AgentFactory should have been called with a configs kwarg
@@ -819,10 +816,9 @@ class TestBuildSarif:
             assert configs["meta_prompter"].model == "claude-opus-4-7"
             assert configs["critique"].model == "claude-opus-4-7"
 
-    def test_run_analysis_no_overrides_uses_defaults(self):
+    @pytest.mark.asyncio
+    async def test_run_analysis_no_overrides_uses_defaults(self):
         """When no overrides given, AgentFactory still gets default configs."""
-        import asyncio
-
         from spectra.entities.models import _DEFAULT_AGENT_CONFIGS
 
         finding = Finding(
@@ -876,7 +872,7 @@ class TestBuildSarif:
             mock_factory.create = MagicMock()
             mock_factory.create_specialists = MagicMock(return_value=[])
 
-            asyncio.run(_run_analysis("https://github.com/test/repo", _TMP_OUT_HTML))
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
             call_kwargs = mock_factory_cls.call_args.kwargs
             configs = call_kwargs.get("configs")

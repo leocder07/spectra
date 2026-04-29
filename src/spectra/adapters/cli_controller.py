@@ -8,6 +8,7 @@ callable via `set_analyzer_factory()` before the CLI runs.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import re
 import traceback
@@ -25,6 +26,7 @@ from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
 from spectra.entities.models import CacheStats
 from spectra.use_cases.interfaces import CachePort, is_local_path
+from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -97,6 +99,31 @@ def _derive_display_name(source: str) -> str:
     return source.rstrip("/").split("/")[-1].removesuffix(".git")
 
 
+# ── Per-agent model + effort allowed values ──────────────────
+# Validation lives in the entities layer (AgentRunConfig); we duplicate
+# the friendly allowed-list here only to fail fast with helpful errors
+# before booting the analyzer chain.
+_ALLOWED_MODELS: tuple[str, ...] = (
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+)
+_ALLOWED_EFFORTS: tuple[str, ...] = ("low", "medium", "high", "xhigh", "max")
+_PER_AGENT_ROLES: tuple[str, ...] = (
+    "meta",
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance",
+    "critique",
+)
+# CLI uses "meta" but the entity layer uses "meta_prompter" — alias at the seam.
+_CLI_TO_ROLE: dict[str, str] = {"meta": "meta_prompter"}
+
+
 _DEFAULT_OUTPUT = Path("spectra-report.html")
 _OUTPUT_OPTION = typer.Option(
     _DEFAULT_OUTPUT,
@@ -160,6 +187,39 @@ def _print_banner() -> None:
     console.print(_SCAN_LINE)
 
 
+def _validate_model(value: str | None) -> None:
+    """Reject unknown model identifiers with a friendly allowed-list."""
+    if value is None or value in _ALLOWED_MODELS:
+        return
+    allowed = ", ".join(_ALLOWED_MODELS)
+    console.print(f"[{RED}]✗[/] Invalid model: {value!r}: not allowed: use one of: {allowed}")
+    raise typer.Exit(code=1)
+
+
+def _validate_effort(value: str | None) -> None:
+    """Reject unknown effort levels with a friendly allowed-list."""
+    if value is None or value in _ALLOWED_EFFORTS:
+        return
+    allowed = ", ".join(_ALLOWED_EFFORTS)
+    console.print(f"[{RED}]✗[/] Invalid effort: {value!r}: not allowed: use one of: {allowed}")
+    raise typer.Exit(code=1)
+
+
+def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str]:
+    """Parse a JSON override string; exit 1 with a helpful error on failure."""
+    if not spec:
+        return {}
+    try:
+        parsed = _json.loads(spec)
+    except _json.JSONDecodeError as exc:
+        console.print(f"[{RED}]✗[/] Invalid JSON for --{label}: {exc.msg}")
+        raise typer.Exit(code=1) from exc
+    if not isinstance(parsed, dict):
+        console.print(f"[{RED}]✗[/] --{label} must be a JSON object")
+        raise typer.Exit(code=1)
+    return {str(k): str(v) for k, v in parsed.items()}
+
+
 def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
     """Validate CLI inputs and exit with code 1 on any error.
 
@@ -179,6 +239,105 @@ def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
     if _analyzer_factory is None:
         console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
         raise typer.Exit(code=1)
+
+
+def _gather_and_validate_overrides(
+    model_effort: tuple[str | None, str | None],
+    per_role_models: dict[str, str | None],
+    per_role_efforts: dict[str, str | None],
+    json_overrides: tuple[str | None, str | None],
+) -> dict[str, object]:
+    """Validate every CLI input then build the resolver-ready overrides dict.
+
+    Calls ``resolve_agent_configs`` once eagerly to catch composite errors
+    (e.g. ``--documentation-model claude-haiku-4-5 --documentation-effort max``)
+    before booting the analyzer chain, so users see a friendly CLI error.
+    """
+    global_model, global_effort = model_effort
+    json_model_str, json_effort_str = json_overrides
+    _validate_model(global_model)
+    _validate_effort(global_effort)
+    _validate_per_role_values(per_role_models, _validate_model)
+    _validate_per_role_values(per_role_efforts, _validate_effort)
+    json_models = _parse_overrides_json(json_model_str, "model-overrides")
+    json_efforts = _parse_overrides_json(json_effort_str, "effort-overrides")
+    overrides = _collect_agent_overrides(
+        global_model,
+        global_effort,
+        {
+            "models": per_role_models,
+            "efforts": per_role_efforts,
+            "json_models": json_models,
+            "json_efforts": json_efforts,
+        },
+    )
+    _eager_validate_overrides(overrides)
+    return overrides
+
+
+def _validate_per_role_values(
+    values: dict[str, str | None],
+    validator: Callable[[str | None], None],
+) -> None:
+    """Run ``validator`` on every non-None value in the dict."""
+    for value in values.values():
+        validator(value)
+
+
+def _eager_validate_overrides(overrides: dict[str, object]) -> None:
+    """Call resolve_agent_configs eagerly so composite errors surface in the CLI."""
+    try:
+        resolve_agent_configs(overrides)
+    except (ValueError, TypeError) as exc:
+        console.print(f"[{RED}]✗[/] Invalid agent config: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+def _collect_agent_overrides(
+    global_model: str | None,
+    global_effort: str | None,
+    per_role: dict[str, dict[str, str | None]],
+) -> dict[str, object]:
+    """Build the overrides dict consumed by ``resolve_agent_configs``.
+
+    Args:
+        global_model: Value of ``--model`` (specialists only).
+        global_effort: Value of ``--effort`` (specialists only).
+        per_role: Map keyed by ``{"models": {...}, "efforts": {...}, "json_models": ..., "json_efforts": ...}``.
+
+    Returns:
+        Dict ready to pass to ``resolve_agent_configs``.
+    """
+    models = _normalize_role_keys(per_role.get("models") or {})
+    efforts = _normalize_role_keys(per_role.get("efforts") or {})
+    # JSON wins over per-flag — overlay last
+    models.update(_normalize_role_keys(per_role.get("json_models") or {}))
+    efforts.update(_normalize_role_keys(per_role.get("json_efforts") or {}))
+    return _build_overrides_dict(global_model, global_effort, models, efforts)
+
+
+def _build_overrides_dict(
+    global_model: str | None,
+    global_effort: str | None,
+    models: dict[str, str],
+    efforts: dict[str, str],
+) -> dict[str, object]:
+    """Compose the overrides dict, omitting empty keys for cleaner test asserts."""
+    out: dict[str, object] = {}
+    if global_model:
+        out["global_model"] = global_model
+    if global_effort:
+        out["global_effort"] = global_effort
+    if models:
+        out["models"] = models
+    if efforts:
+        out["efforts"] = efforts
+    return out
+
+
+def _normalize_role_keys(d: dict[str, str | None]) -> dict[str, str]:
+    """Translate CLI role names ('meta') to entity role names; drop None values."""
+    return {_CLI_TO_ROLE.get(k, k): v for k, v in d.items() if v is not None}
 
 
 def _version_callback(value: bool) -> None:
@@ -241,6 +400,28 @@ def analyze(
         "--verbose",
         help="Show debug output",
     ),
+    model: str | None = typer.Option(None, "--model", help="Default model for the 6 specialists"),
+    effort: str | None = typer.Option(None, "--effort", help="Default effort for the 6 specialists"),
+    meta_model: str | None = typer.Option(None, "--meta-model", help="Override MetaPrompter model"),
+    meta_effort: str | None = typer.Option(None, "--meta-effort", help="Override MetaPrompter effort"),
+    critique_model: str | None = typer.Option(None, "--critique-model", help="Override CritiqueAgent model"),
+    critique_effort: str | None = typer.Option(None, "--critique-effort", help="Override CritiqueAgent effort"),
+    architecture_model: str | None = typer.Option(None, "--architecture-model", help="Override architecture model"),
+    architecture_effort: str | None = typer.Option(None, "--architecture-effort", help="Override architecture effort"),
+    security_model: str | None = typer.Option(None, "--security-model", help="Override security model"),
+    security_effort: str | None = typer.Option(None, "--security-effort", help="Override security effort"),
+    quality_model: str | None = typer.Option(None, "--quality-model", help="Override quality model"),
+    quality_effort: str | None = typer.Option(None, "--quality-effort", help="Override quality effort"),
+    documentation_model: str | None = typer.Option(None, "--documentation-model", help="Override documentation model"),
+    documentation_effort: str | None = typer.Option(
+        None, "--documentation-effort", help="Override documentation effort"
+    ),
+    dependency_model: str | None = typer.Option(None, "--dependency-model", help="Override dependency model"),
+    dependency_effort: str | None = typer.Option(None, "--dependency-effort", help="Override dependency effort"),
+    performance_model: str | None = typer.Option(None, "--performance-model", help="Override performance model"),
+    performance_effort: str | None = typer.Option(None, "--performance-effort", help="Override performance effort"),
+    model_overrides: str | None = typer.Option(None, "--model-overrides", help="JSON: {role: model}"),
+    effort_overrides: str | None = typer.Option(None, "--effort-overrides", help="JSON: {role: effort}"),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -250,6 +431,30 @@ def analyze(
         )
 
     _validate_analyze_inputs(repo_url, fmt)
+    overrides = _gather_and_validate_overrides(
+        model_effort=(model, effort),
+        per_role_models={
+            "meta": meta_model,
+            "critique": critique_model,
+            "architecture": architecture_model,
+            "security": security_model,
+            "quality": quality_model,
+            "documentation": documentation_model,
+            "dependency": dependency_model,
+            "performance": performance_model,
+        },
+        per_role_efforts={
+            "meta": meta_effort,
+            "critique": critique_effort,
+            "architecture": architecture_effort,
+            "security": security_effort,
+            "quality": quality_effort,
+            "documentation": documentation_effort,
+            "dependency": dependency_effort,
+            "performance": performance_effort,
+        },
+        json_overrides=(model_overrides, effort_overrides),
+    )
 
     _print_banner()
     repo_name = _derive_display_name(repo_url)
@@ -272,6 +477,7 @@ def analyze(
                 verbose=verbose,
                 force=force,
                 no_cache=no_cache,
+                agent_overrides=overrides,
             )
         )
     except KeyboardInterrupt:

@@ -51,9 +51,7 @@ class TestResolveAgentConfigs:
         assert resolved["critique"].model == "claude-opus-4-7"
 
     def test_meta_critique_unaffected_by_global_specialist_effort(self):
-        resolved = resolve_agent_configs(
-            {"global_model": "claude-sonnet-4-6", "global_effort": "low"}
-        )
+        resolved = resolve_agent_configs({"global_model": "claude-sonnet-4-6", "global_effort": "low"})
         assert resolved["meta_prompter"].effort == "medium"
         assert resolved["critique"].effort == "high"
 

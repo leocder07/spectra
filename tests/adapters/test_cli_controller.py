@@ -928,3 +928,222 @@ class TestCachePruneCommand:
         assert result.exit_code == 1
         assert "duration" in result.output.lower() or "older-than" in result.output.lower()
         assert len(port.prune_calls) == 0
+
+
+# ── Per-agent model + effort overrides ───────────────────────
+
+
+class TestCLIModelEffortFlags:
+    def test_cli_model_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--model", "claude-sonnet-4-6"],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides is not None
+        assert overrides.get("global_model") == "claude-sonnet-4-6"
+
+    def test_cli_effort_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--model",
+                "claude-sonnet-4-6",
+                "--effort",
+                "high",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides.get("global_effort") == "high"
+
+    def test_cli_per_agent_security_model_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--security-model",
+                "claude-opus-4-6",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides["models"]["security"] == "claude-opus-4-6"
+
+    def test_cli_per_agent_documentation_effort_flag_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--documentation-effort",
+                "low",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides["efforts"]["documentation"] == "low"
+
+    def test_cli_meta_and_critique_flags_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--meta-effort",
+                "low",
+                "--critique-model",
+                "claude-opus-4-6",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides["efforts"]["meta_prompter"] == "low"
+        assert overrides["models"]["critique"] == "claude-opus-4-6"
+
+    def test_cli_model_overrides_json_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--model-overrides",
+                '{"security":"claude-opus-4-6","documentation":"claude-haiku-4-5"}',
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides["models"]["security"] == "claude-opus-4-6"
+        assert overrides["models"]["documentation"] == "claude-haiku-4-5"
+
+    def test_cli_effort_overrides_json_parsed(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--effort-overrides",
+                '{"security":"max","quality":"low"}',
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        assert overrides["efforts"]["security"] == "max"
+        assert overrides["efforts"]["quality"] == "low"
+
+    def test_cli_invalid_model_returns_error(self):
+        set_analyzer_factory(AsyncMock(return_value=None))
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--model", "gpt-4"],
+        )
+        assert result.exit_code == 1
+        assert "claude-opus-4-7" in result.output  # Allowed list shown
+
+    def test_cli_invalid_effort_returns_error(self):
+        set_analyzer_factory(AsyncMock(return_value=None))
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--effort",
+                "ultra",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "low" in result.output  # Allowed effort levels referenced
+
+    def test_cli_max_effort_on_haiku_returns_error(self):
+        set_analyzer_factory(AsyncMock(return_value=None))
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--documentation-model",
+                "claude-haiku-4-5",
+                "--documentation-effort",
+                "max",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "max" in result.output.lower() or "opus" in result.output.lower()
+
+    def test_cli_json_overrides_take_precedence_over_per_flag(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--security-model",
+                "claude-opus-4-6",
+                "--model-overrides",
+                '{"security":"claude-sonnet-4-6"}',
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        # JSON wins
+        assert overrides["models"]["security"] == "claude-sonnet-4-6"
+
+    def test_cli_no_flags_keeps_existing_behavior(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        overrides = kwargs.get("agent_overrides")
+        # Either omitted entirely or empty
+        assert (
+            overrides is None
+            or overrides == {}
+            or (
+                not overrides.get("global_model")
+                and not overrides.get("global_effort")
+                and not overrides.get("models")
+                and not overrides.get("efforts")
+            )
+        )
+
+    def test_cli_invalid_model_overrides_json_returns_error(self):
+        set_analyzer_factory(AsyncMock(return_value=None))
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--model-overrides",
+                "not-json",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "json" in result.output.lower() or "invalid" in result.output.lower()

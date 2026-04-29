@@ -62,8 +62,7 @@ def resolve_agent_configs(
     global_effort = _coerce_optional_str(overrides.get("global_effort"))
 
     return {
-        role: _resolve_one(role, per_model, per_effort, global_model, global_effort)
-        for role in _DEFAULT_AGENT_CONFIGS
+        role: _resolve_one(role, per_model, per_effort, global_model, global_effort) for role in _DEFAULT_AGENT_CONFIGS
     }
 
 

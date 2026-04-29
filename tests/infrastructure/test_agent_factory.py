@@ -125,9 +125,7 @@ class TestAgentFactoryWithConfigs:
             "documentation": AgentRunConfig(model="claude-haiku-4-5", effort="low"),
             "dependency": AgentRunConfig(model="claude-sonnet-4-6", effort="high"),
             "performance": AgentRunConfig(model="claude-opus-4-6", effort="xhigh"),
-            "critique": AgentRunConfig(
-                model="claude-opus-4-6", effort="high", task_budget_tokens=80_000
-            ),
+            "critique": AgentRunConfig(model="claude-opus-4-6", effort="high", task_budget_tokens=80_000),
         }
         factory = AgentFactory(gateway=gateway, configs=configs)
         assert factory.create("meta_prompter")._model == "claude-haiku-4-5"
