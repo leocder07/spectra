@@ -746,6 +746,142 @@ class TestBuildSarif:
             cache = _provision_cache_only()
         assert cache is not None
 
+    def test_run_analysis_passes_resolved_configs_to_factory(self):
+        """When --model is set, AgentFactory receives the resolved configs dict."""
+        import asyncio
+
+        finding = Finding(
+            id="a-001",
+            dimension="architecture",
+            severity="info",
+            title="T",
+            description="D",
+            location=FileLocation(file_path="f.py", line_start=1),
+            recommendation="R",
+            agent_role="architecture",
+            confidence=0.8,
+        )
+        dim_score = DimensionScore(dimension="architecture", score=85.0, grade="B+", findings_count=1, weight=1.0)
+        score_card = ScoreCard(overall_score=85.0, overall_grade="B+", dimensions=(dim_score,), total_findings=1)
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=score_card,
+            findings=(finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=("architecture",),
+        )
+
+        mock_git = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
+        mock_git.validate_repo_size = AsyncMock()
+        mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+
+        mock_reporter = MagicMock()
+        mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
+        mock_adapter = MagicMock()
+        mock_adapter.close = AsyncMock()
+
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-real-key-12345"}),
+            patch("spectra.infrastructure.main.GitAdapter", return_value=mock_git),
+            patch("spectra.infrastructure.main.ReportAdapter", return_value=mock_reporter),
+            patch("spectra.infrastructure.main.AnthropicAdapter", return_value=mock_adapter),
+            patch("spectra.infrastructure.main.RichProgressReporter"),
+            patch("spectra.infrastructure.main.RetryDecorator"),
+            patch("spectra.infrastructure.main.LoggingDecorator"),
+            patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
+            patch("spectra.infrastructure.main.analyze_repository", return_value=report),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
+            patch("os.chmod"),
+            patch("shutil.rmtree"),
+        ):
+            mock_factory = mock_factory_cls.return_value
+            mock_factory.create = MagicMock()
+            mock_factory.create_specialists = MagicMock(return_value=[])
+
+            asyncio.run(
+                _run_analysis(
+                    "https://github.com/test/repo",
+                    _TMP_OUT_HTML,
+                    agent_overrides={"global_model": "claude-sonnet-4-6"},
+                )
+            )
+
+            # AgentFactory should have been called with a configs kwarg
+            call_kwargs = mock_factory_cls.call_args.kwargs
+            assert "configs" in call_kwargs
+            configs = call_kwargs["configs"]
+            assert configs["security"].model == "claude-sonnet-4-6"
+            # Meta + critique unaffected
+            assert configs["meta_prompter"].model == "claude-opus-4-7"
+            assert configs["critique"].model == "claude-opus-4-7"
+
+    def test_run_analysis_no_overrides_uses_defaults(self):
+        """When no overrides given, AgentFactory still gets default configs."""
+        import asyncio
+
+        from spectra.entities.models import _DEFAULT_AGENT_CONFIGS
+
+        finding = Finding(
+            id="a-001",
+            dimension="architecture",
+            severity="info",
+            title="T",
+            description="D",
+            location=FileLocation(file_path="f.py", line_start=1),
+            recommendation="R",
+            agent_role="architecture",
+            confidence=0.8,
+        )
+        dim_score = DimensionScore(dimension="architecture", score=85.0, grade="B+", findings_count=1, weight=1.0)
+        score_card = ScoreCard(overall_score=85.0, overall_grade="B+", dimensions=(dim_score,), total_findings=1)
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=score_card,
+            findings=(finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=("architecture",),
+        )
+
+        mock_git = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
+        mock_git.validate_repo_size = AsyncMock()
+        mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_reporter = MagicMock()
+        mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
+        mock_adapter = MagicMock()
+        mock_adapter.close = AsyncMock()
+
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-real-key-12345"}),
+            patch("spectra.infrastructure.main.GitAdapter", return_value=mock_git),
+            patch("spectra.infrastructure.main.ReportAdapter", return_value=mock_reporter),
+            patch("spectra.infrastructure.main.AnthropicAdapter", return_value=mock_adapter),
+            patch("spectra.infrastructure.main.RichProgressReporter"),
+            patch("spectra.infrastructure.main.RetryDecorator"),
+            patch("spectra.infrastructure.main.LoggingDecorator"),
+            patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
+            patch("spectra.infrastructure.main.analyze_repository", return_value=report),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
+            patch("os.chmod"),
+            patch("shutil.rmtree"),
+        ):
+            mock_factory = mock_factory_cls.return_value
+            mock_factory.create = MagicMock()
+            mock_factory.create_specialists = MagicMock(return_value=[])
+
+            asyncio.run(_run_analysis("https://github.com/test/repo", _TMP_OUT_HTML))
+
+            call_kwargs = mock_factory_cls.call_args.kwargs
+            configs = call_kwargs.get("configs")
+            assert configs == _DEFAULT_AGENT_CONFIGS
+
     def test_sarif_is_json_serializable(self):
         """SARIF output can be serialized to JSON without errors."""
         finding = Finding(
