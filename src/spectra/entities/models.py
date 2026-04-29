@@ -361,13 +361,27 @@ class CacheStats(BaseModel, frozen=True):
         db_size_bytes: On-disk size of ``cache.db``.
         hit_rate_last_100: Rolling cache hit rate over the last 100 lookups.
         oldest_entry_at: Earliest ``computed_at`` across all rows.
+        full_report_entries: Phase 2 ``full_report_cache`` row count.
+        batch_entries: Phase 3 ``findings_batches`` row count.
+        hit_log_entries: Telemetry ``hit_log`` row count.
+        hit_rate_by_dimension: Rolling per-dimension hit rate (last 100 lookups
+            per dimension). Empty for dimensions with no logged lookups.
+        most_recent_activity_at: Most recent ``computed_at`` across all
+            cache rows; ``None`` for an empty cache.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     total_entries: int
     total_repos: int
     db_size_bytes: int
     hit_rate_last_100: float = Field(ge=0.0, le=1.0)
     oldest_entry_at: datetime | None = None
+    full_report_entries: int = 0
+    batch_entries: int = 0
+    hit_log_entries: int = 0
+    hit_rate_by_dimension: dict[Dimension, float] = Field(default_factory=dict)
+    most_recent_activity_at: datetime | None = None
 
 
 class BatchPrompt(BaseModel, frozen=True):
