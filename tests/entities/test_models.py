@@ -374,18 +374,8 @@ class TestAgentContext:
             model="claude-opus-4-7",
             max_tokens=4096,
         )
-        assert ctx.extended_thinking is False
-
-    def test_extended_thinking_flag(self):
-        ctx = AgentContext(
-            agent_role="critique",
-            system_prompt="Critique all findings.",
-            user_prompt="Validate these.",
-            model="claude-opus-4-7",
-            max_tokens=8192,
-            extended_thinking=True,
-        )
-        assert ctx.extended_thinking is True
+        assert ctx.agent_role == "architecture"
+        assert ctx.max_tokens == 4096
 
 
 # ── AnalysisReport ──────────────────────────────────────────────

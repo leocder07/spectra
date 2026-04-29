@@ -202,7 +202,6 @@ class AgentContext(BaseModel, frozen=True):
         user_prompt: User prompt with repository data.
         model: Anthropic model identifier.
         max_tokens: Maximum tokens for the response.
-        extended_thinking: Whether to enable extended thinking.
     """
 
     agent_role: AgentRole
@@ -210,7 +209,6 @@ class AgentContext(BaseModel, frozen=True):
     user_prompt: str
     model: str
     max_tokens: int
-    extended_thinking: bool = False
 
 
 class AnalysisReport(BaseModel, frozen=True):
