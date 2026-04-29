@@ -1080,7 +1080,32 @@ class TestBatchPrompt:
         b = _batch_prompt()
         with pytest.raises(ValidationError):
             b.batch_id = "x"  # type: ignore[misc]
-        assert hash(b) == hash(_batch_prompt())
+        # NB: hash equality not asserted because nonce field defaults to a
+        # fresh random token per instance (ADR-011 §1).
+
+    def test_batch_prompt_nonce_default_is_random(self):
+        # ADR-011 §1: nonce must be unguessable per call so an attacker
+        # cannot pre-craft a closing fence inside their own source.
+        a = _batch_prompt()
+        b = _batch_prompt()
+        assert a.nonce
+        assert b.nonce
+        assert a.nonce != b.nonce
+
+    def test_batch_prompt_nonce_minimum_length(self):
+        # secrets.token_urlsafe(16) yields ~22 chars of base64-url —
+        # a hard lower bound discourages accidental shrinking.
+        b = _batch_prompt()
+        assert len(b.nonce) >= 16
+
+    def test_batch_prompt_nonce_explicit_value_preserved(self):
+        b = _batch_prompt(nonce="explicit-nonce-value")
+        assert b.nonce == "explicit-nonce-value"
+
+    def test_batch_prompt_nonce_immutable(self):
+        b = _batch_prompt(nonce="explicit-nonce")
+        with pytest.raises(ValidationError):
+            b.nonce = "tampered"  # type: ignore[misc]
 
 
 # ── BatchCacheKey (Phase 3) ───────────────────────────────────
