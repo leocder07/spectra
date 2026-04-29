@@ -9,8 +9,8 @@ from spectra.infrastructure.git_adapter import (
     _MAX_FILE_COUNT,
     _MAX_FILE_SIZE,
     _MAX_TOTAL_BYTES,
-    _is_private_ip,
     GitAdapter,
+    _is_private_ip,
 )
 
 
@@ -386,7 +386,7 @@ class TestIsPrivateIp:
 
     def test_unspecified_0_0_0_0_blocked(self):
         """0.0.0.0 (unspecified) must be blocked."""
-        assert _is_private_ip("0.0.0.0") is True
+        assert _is_private_ip("0.0.0.0") is True  # noqa: S104
 
     def test_multicast_blocked(self):
         """Multicast addresses must be blocked."""
@@ -411,7 +411,7 @@ class TestCloneSSRFGuards:
         import socket
 
         def fake_getaddrinfo(host, *_args, **_kwargs):
-            return [(socket.AF_INET, 0, 0, "", ("0.0.0.0", 0))]
+            return [(socket.AF_INET, 0, 0, "", ("0.0.0.0", 0))]  # noqa: S104
 
         monkeypatch.setattr(
             "spectra.infrastructure.git_adapter.socket.getaddrinfo",
@@ -452,6 +452,67 @@ class TestCloneSSRFGuards:
             mock_clone.assert_not_called()
 
 
+# ── Hardened git clone subprocess env ────────────────────────
+
+
+class TestCloneEnvHardening:
+    """Clone must not inherit user's GIT_* env or credential helpers."""
+
+    @pytest.mark.asyncio
+    async def test_clone_passes_explicit_env_disabling_prompts(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """clone_from must be called with env={...} disabling credential UI.
+
+        A malicious URL must not be able to coax git into prompting the user,
+        invoking ssh-agent, reading ~/.netrc, or pulling cached credentials
+        via credential.helper. The subprocess env must be explicitly scrubbed.
+        """
+        from unittest.mock import MagicMock, patch
+
+        with patch(
+            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
+        ) as mock_clone:
+            mock_clone.return_value = MagicMock()
+            await adapter.clone(
+                "https://github.com/test/repo.git", str(tmp_path / "out")
+            )
+            kwargs = mock_clone.call_args.kwargs
+            env = kwargs.get("env")
+            assert env is not None, "clone_from must pass an explicit env"
+            assert env.get("GIT_TERMINAL_PROMPT") == "0"
+            assert env.get("GIT_ASKPASS") == "/bin/true"
+            assert env.get("GCM_INTERACTIVE") == "Never"
+            # Must NOT silently disable TLS verification.
+            assert env.get("GIT_SSL_NO_VERIFY") == "false"
+
+    @pytest.mark.asyncio
+    async def test_clone_env_isolates_home_and_xdg_config(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """HOME / XDG_CONFIG_HOME must be neutralized so ~/.netrc and
+        ~/.gitconfig (incl. credential.helper) do not leak in."""
+        from unittest.mock import MagicMock, patch
+
+        with patch(
+            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
+        ) as mock_clone:
+            mock_clone.return_value = MagicMock()
+            await adapter.clone(
+                "https://github.com/test/repo.git", str(tmp_path / "out")
+            )
+            env = mock_clone.call_args.kwargs.get("env") or {}
+            # HOME and XDG_CONFIG_HOME must be present and point somewhere
+            # other than the user's real home.
+            import os as _os
+
+            real_home = _os.path.expanduser("~")
+            assert "HOME" in env
+            assert env["HOME"] != real_home
+            assert "XDG_CONFIG_HOME" in env
+            assert env["XDG_CONFIG_HOME"] != _os.path.join(real_home, ".config")
+
+
 # ── TOCTOU + intermediate-symlink bypass ─────────────────────
 
 
@@ -476,7 +537,7 @@ class TestIntermediateSymlinkBypass:
 
         # The leaf file.txt is NOT a symlink, but the intermediate "link" is.
         # Today this slips past leaf-only is_symlink() and resolve() follows it.
-        with pytest.raises(ValueError, match="[Ss]ymlink"):
+        with pytest.raises(ValueError, match=r"[Ss]ymlink"):
             await adapter.read_file(str(repo), "foo/link/file.txt")
 
     @pytest.mark.asyncio
@@ -496,7 +557,7 @@ class TestIntermediateSymlinkBypass:
         os.symlink(str(secret_dir / "config"), str(repo / "src" / "escape"))
 
         # The leaf IS a symlink — should be blocked by existing leaf check.
-        with pytest.raises(ValueError, match="[Ss]ymlink"):
+        with pytest.raises(ValueError, match=r"[Ss]ymlink"):
             await adapter.read_file(str(repo), "src/escape")
 
     @pytest.mark.asyncio

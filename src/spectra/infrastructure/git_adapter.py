@@ -30,8 +30,11 @@ Security hardening applied at multiple layers:
    exhaustion (zip-bomb style repos).
 
 7. **Clone hardening** — Clones are shallow (``depth=1``), disable Git
-   hooks (``core.hooksPath=/dev/null``), skip submodules, and enforce a
-   60-second timeout to prevent hanging on slow or malicious remotes.
+   hooks (``core.hooksPath=/dev/null``), skip submodules, enforce a
+   60-second timeout, AND run with a scrubbed environment via
+   ``_hardened_git_env()``. The subprocess cannot prompt the user, invoke
+   ``ssh-askpass`` / Git Credential Manager, read ``~/.netrc`` /
+   ``~/.gitconfig`` / ``credential.helper``, or silently disable TLS.
 
 8. **Read timeout** — ``read_file()`` uses a 5-second ``asyncio.wait_for``
    to avoid blocking on special device files or FUSE mounts.
@@ -43,12 +46,17 @@ import asyncio
 import ipaddress
 import os
 import socket
+import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import git
 
 from spectra.entities.errors import ERRORS, GitError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _MAX_FILE_COUNT = 10_000
 _MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MB
@@ -59,13 +67,16 @@ _MAX_URL_LENGTH = 2048  # prevent abuse via extremely long URLs
 _MAX_CLONES_PER_HOUR = 30  # rate-limiting advisory constant
 
 
-def _is_blocked_address(addr: ipaddress._BaseAddress) -> bool:
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+
+def _is_blocked_address(addr: _IPAddress) -> bool:
     """Return True if ``addr`` is in any SSRF-sensitive range.
 
     Blocks: private (RFC 1918), loopback, link-local, multicast,
     unspecified (``0.0.0.0``, ``::``), and IETF-reserved ranges.
     """
-    return (
+    return bool(
         addr.is_private
         or addr.is_loopback
         or addr.is_link_local
@@ -105,6 +116,33 @@ def _is_private_ip(hostname: str) -> bool:
     )
 
 
+def _hardened_git_env() -> dict[str, str]:
+    """Return a scrubbed env for ``git clone`` subprocesses.
+
+    Neutralizes credential prompts, helper invocations, and configuration
+    inheritance so a malicious URL cannot:
+
+    - trigger a terminal prompt for credentials,
+    - invoke ``ssh-askpass`` or Git Credential Manager UI,
+    - read ``~/.netrc``, ``~/.gitconfig``, or any ``credential.helper``,
+    - silently disable TLS verification.
+
+    HOME and XDG_CONFIG_HOME are pointed at a fresh tmpdir so user-level
+    git config is invisible to the subprocess.
+    """
+    sandbox = tempfile.mkdtemp(prefix="spectra-git-home-")
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/bin/true",
+        "SSH_ASKPASS": "/bin/true",
+        "GCM_INTERACTIVE": "Never",
+        "GIT_SSL_NO_VERIFY": "false",
+        "HOME": sandbox,
+        "XDG_CONFIG_HOME": sandbox,
+    }
+
+
 def _reject_symlinks_in_path(target: Path, root: Path, requested: str) -> None:
     """Reject if ``target`` or ANY parent up to ``root`` is a symlink.
 
@@ -125,12 +163,12 @@ def _reject_symlinks_in_path(target: Path, root: Path, requested: str) -> None:
         if current.is_symlink():
             msg = f"Symlink blocked: {requested}"
             raise ValueError(msg)
-        if current == root or current.parent == current:
+        if current in (root, current.parent):
             return
         current = current.parent
 
 
-def _iter_real_files(root: Path):
+def _iter_real_files(root: Path) -> Iterator[Path]:
     """Yield every real file under ``root`` without following symlinked dirs.
 
     ``Path.rglob`` follows directory symlinks; ``os.walk(followlinks=False)``
@@ -181,6 +219,7 @@ class GitAdapter:
         if not hostname or _is_private_ip(hostname):
             raise GitError(ERRORS["SPEC-001"])
         loop = asyncio.get_running_loop()
+        env = _hardened_git_env()
         try:
             await asyncio.wait_for(
                 loop.run_in_executor(
@@ -189,6 +228,7 @@ class GitAdapter:
                         repo_url,
                         target_dir,
                         depth=1,
+                        env=env,
                         allow_unsafe_options=True,
                         multi_options=[
                             "--config core.hooksPath=/dev/null",
@@ -262,11 +302,9 @@ class GitAdapter:
     @staticmethod
     def _check_size(repo_dir: str) -> None:
         root = Path(repo_dir)
-        count = 0
         total_bytes = 0
-        for file_path in _iter_real_files(root):
-            count += 1
-            if count > _MAX_FILE_COUNT:
+        for index, file_path in enumerate(_iter_real_files(root), start=1):
+            if index > _MAX_FILE_COUNT:
                 msg = f"Repository exceeds {_MAX_FILE_COUNT} file limit"
                 raise ValueError(msg)
             total_bytes += file_path.stat().st_size
