@@ -1,0 +1,1366 @@
+{
+  "repo_url": "https://github.com/garrytan/gbrain",
+  "repo_name": "gbrain",
+  "score_card": {
+    "overall_score": 68.5,
+    "overall_grade": "C-",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 69.7,
+        "grade": "C-",
+        "findings_count": 12,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 73.1,
+        "grade": "C+",
+        "findings_count": 10,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 53.5,
+        "grade": "F",
+        "findings_count": 14,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 65.2,
+        "grade": "D+",
+        "findings_count": 14,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 72.5,
+        "grade": "C",
+        "findings_count": 11,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 83.4,
+        "grade": "B+",
+        "findings_count": 11,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 72
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "Massive switch-based command dispatch in cli.ts violates open/closed principle",
+      "description": "src/cli.ts contains a hardcoded Set of 50+ CLI-only command names plus an if-else chain followed by a switch statement that manually wires every command to its handler. Adding a new command requires editing CLI_ONLY, adding an if/case branch, and the dynamic import. This mirrors what the operations registry already solves for shared ops \u2014 but CLI-only commands have no analogous registry, creating two divergent dispatch paths. The result is a ~250-line god-function (handleCliOnly) that grows with every release and is a known source of regressions (e.g., 'repos' alias, 'reconcile-links' wedged into the switch).",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 23,
+        "line_end": 23
+      },
+      "recommendation": "Introduce a CLI command registry analogous to operations: each command module exports a descriptor { name, needsEngine, handler, help }, and cli.ts iterates the registry. This collapses CLI_ONLY, the if-chain, and the switch into a single map lookup and matches the existing operations/cliHints pattern.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "Engine abstraction leaks via unsafe casts (engine as any)",
+      "description": "The BrainEngine interface is the architectural seam between PostgresEngine and PGLiteEngine, but call sites bypass it with `(engine as any).executeRaw?.(...)` and `(engine as any).connect?.()` (autopilot.ts:362, 393). This indicates either the interface is incomplete or callers are reaching into engine-specific behavior. Either way, the type system cannot enforce the abstraction, and PGLite/Postgres divergence can creep in unnoticed.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 362,
+        "line_end": 393
+      },
+      "recommendation": "Add `executeRaw<T>` and a `reconnect()` method to the BrainEngine interface (both engines already implement executeRaw based on usage). Remove the `as any` casts. If reconnect semantics differ, document them in the interface JSDoc.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Layering violation: src/commands imports from src/mcp",
+      "description": "src/commands/call.ts imports `handleToolCall` from '../mcp/server.ts'. The intended layering (commands \u2192 core, mcp \u2192 core) is inverted here: commands depends on mcp, which itself depends on core. This couples the CLI 'call' command to the MCP transport's backward-compat shim and means changes to mcp/server.ts can break CLI commands. The shared dispatch logic should live in core or a dedicated dispatch module that both transports consume.",
+      "location": {
+        "file_path": "src/commands/call.ts",
+        "line_start": 2,
+        "line_end": 2
+      },
+      "recommendation": "Move `handleToolCall` (or the underlying op-lookup + validate + execute logic) from src/mcp/server.ts into src/core/ (e.g., src/core/operations-dispatch.ts). Have both src/mcp/server.ts and src/commands/call.ts import from core. This restores the unidirectional dependency: transports \u2192 core, commands \u2192 core.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "src/core/index.ts barrel export is incomplete vs package.json exports",
+      "description": "package.json declares 17 sub-path exports (./engine, ./minions, ./search/hybrid, ./extract, etc.), but src/core/index.ts only re-exports BrainEngine, PostgresEngine, types, and markdown helpers. PGLiteEngine, the engine factory, minions, resolvers, and output/validators are absent from the main barrel. Consumers of `import 'gbrain'` get an inconsistent surface vs. consumers of `import 'gbrain/minions'`. This makes the public API discoverability poor and invites consumers to deep-import from internal paths.",
+      "location": {
+        "file_path": "src/core/index.ts",
+        "line_start": 1,
+        "line_end": 4
+      },
+      "recommendation": "Decide whether src/core/index.ts is the canonical public surface. If yes, re-export all stable APIs (engine-factory, minions barrel, resolvers barrel, output/validators barrel). If no, document that consumers must use sub-path exports and move the existing main field accordingly. The current half-and-half state is the worst of both options.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "MCP server uses `any` cast to escape SDK type widening",
+      "description": "src/mcp/server.ts:25 casts the request handler signature to `any` to deal with MCP SDK 1.29's widened response type. While documented, this disables type checking on the entire dispatch path \u2014 exactly the layer where MCP's untrusted/remote callers' input is converted to operation calls. A typed adapter that explicitly maps to the legacy `{ content, isError? }` shape would preserve safety.",
+      "location": {
+        "file_path": "src/mcp/server.ts",
+        "line_start": 25,
+        "line_end": 28
+      },
+      "recommendation": "Define a local `LegacyToolCallResult` type matching `{ content: ContentBlock[]; isError?: boolean }` and have dispatchToolCall return it. Cast only the return value at the SDK boundary, not the whole handler. This preserves type-safety inside dispatch while allowing the SDK shape to be widened.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Migration system split across two unrelated locations",
+      "description": "Per the analysis plan, migration logic lives in BOTH `src/commands/migrations/` (orchestrator/feature-pitch migrations, registered in commands/migrations/index.ts) AND `src/core/migrate.ts` (schema migrations). apply-migrations.ts notes this divergence: 'apply-migrations runs orchestrator migrations only; schema migrations run via connectEngine() / initSchema()'. Users hit Issue 1 from the v0.18.0 field report because they assumed one CLI handled both. The pre-flight warning bandage in apply-migrations.ts (lines ~226-251) confirms the design pain.",
+      "location": {
+        "file_path": "src/commands/apply-migrations.ts",
+        "line_start": 226,
+        "line_end": 251
+      },
+      "recommendation": "Unify under a single `src/core/migrations/` module with two registries (schema, orchestrator) sharing a common Migration interface and runner. `gbrain apply-migrations` should run both phases in dependency order (schema first), and the user-visible warning workaround can be deleted.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "auth.ts bypasses the BrainEngine abstraction with direct postgres client",
+      "description": "src/commands/auth.ts opens its own `postgres()` connection using DATABASE_URL/GBRAIN_DATABASE_URL env vars rather than going through the engine factory. This means: (1) PGLite users cannot manage tokens via this command, (2) connection pool/retry/RLS settings configured in the engine layer are bypassed, (3) the access_tokens table is implicitly Postgres-only with no architectural marker. Other CLI-only commands (doctor, dream) correctly use connectEngine().",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 17,
+        "line_end": 30
+      },
+      "recommendation": "Refactor auth.ts to take a BrainEngine like other commands, using engine.executeRaw or a typed accessor. If access_tokens is intentionally Postgres-only (server-mode feature), gate the command on engine type with a clear error rather than silently reading raw env vars. Move the standalone-script entry point to a separate file or document why it's required.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Autopilot embeds child-process supervision logic that overlaps with Minions supervisor",
+      "description": "src/commands/autopilot.ts re-implements crash-loop tracking, stable-run reset windows, SIGTERM drain, and graceful shutdown for the worker child (lines 282-340). The codebase already has src/core/minions/supervisor.ts which presumably does the same for in-process workers. Two parallel supervision implementations means bug fixes (like the stable-run reset window matching MinionSupervisor.ts:471-476 \u2014 explicitly noted in code) must be kept in sync manually. This is a structural duplication, not a tactical one.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 282,
+        "line_end": 340
+      },
+      "recommendation": "Extract a generic ProcessSupervisor primitive in src/core/process-supervisor.ts that both autopilot (external `gbrain jobs work` child) and MinionSupervisor (in-process workers) consume. Centralize crash count, stable-run window, drain timeout, and SIGTERM handling. The autopilot file should shrink to mostly install/uninstall + config-loading code.",
+      "agent_role": "architecture",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "cli.ts has scattered, inline imports instead of a deferred-import registry",
+      "description": "Every command path in cli.ts uses inline `await import('./commands/X.ts')`. The pattern is consistent (good for tree-shaking and startup time) but uncoordinated \u2014 there's no central place to find which commands exist, and tooling (e.g., --tools-json, help generation) cannot enumerate them without parsing the file. The cliOps Map is built from operations[], but CLI_ONLY commands have no analogous registry.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 175,
+        "line_end": 360
+      },
+      "recommendation": "Pair this with the command-registry refactor (finding #1): each command descriptor would carry a `loader: () => Promise<{ run: ... }>` so dynamic imports remain, but the registry becomes the single source of truth. Help text, --tools-json, and CLI_ONLY can all be derived from the registry.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Engine factory boundary not enforced \u2014 operations may downcast",
+      "description": "BrainEngine is the abstraction, but several places accept `engine: any` style or do feature-detection (`(engine as any).getCallersOf`, `getCalleesOf` in code-callers.ts/code-callees.ts assume these methods exist on BrainEngine). If only PostgresEngine implements call-graph methods, PGLite users get runtime errors. The interface should declare these as either required (both engines implement) or optional (with a capability flag).",
+      "location": {
+        "file_path": "src/commands/code-callers.ts",
+        "line_start": 60,
+        "line_end": 64
+      },
+      "recommendation": "Audit BrainEngine interface for completeness. Methods like getCallersOf/getCalleesOf/getHealth should either be in the base interface (both engines implement) or behind a capability check (`engine.capabilities.has('call_graph')`). Avoid runtime-only feature detection on the engine surface.",
+      "agent_role": "architecture",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Resolver and minions barrel exports are well-structured (positive finding)",
+      "description": "src/core/resolvers/index.ts and src/core/minions/index.ts demonstrate good barrel-export hygiene: types and concrete classes re-exported with a comment noting the SDK contract ('Import from gbrain/resolvers ... rather than reaching into ./interface or ./registry directly'). This is the pattern the rest of core/ should follow. The `_resetDefaultRegistry` test hook is correctly prefixed to signal non-public status.",
+      "location": {
+        "file_path": "src/core/resolvers/index.ts",
+        "line_start": 1,
+        "line_end": 28
+      },
+      "recommendation": "No change needed \u2014 adopt this pattern in src/core/index.ts (see finding #4) and any other emerging plugin extension points.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-011",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "OperationContext's `remote` flag is the only authorization signal",
+      "description": "Both src/cli.ts and src/mcp/server.ts construct OperationContext with a single `remote: boolean` flag to distinguish trusted (CLI) from untrusted (MCP) callers. agent.ts adds an out-of-band `allowProtectedSubmit: true` flag at the queue layer. As authorization needs grow (token scopes, tenant isolation, RLS context), a single boolean will not scale and will likely be supplemented by ad-hoc flags in each call site. The current model works but is approaching its complexity ceiling.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 138,
+        "line_end": 147
+      },
+      "recommendation": "Consider introducing a CallerIdentity / AuthContext object on OperationContext: { source: 'cli'|'mcp'|'http'; trusted: boolean; tokenName?: string; scopes?: string[]; tenant?: string }. Operations can branch on capabilities rather than a single remote flag. Defer until the next auth-related feature, but flag it as a known seam.",
+      "agent_role": "architecture",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Token comparison vulnerable to timing attacks via SHA-256 hash lookup",
+      "description": "The auth system hashes tokens with SHA-256 and stores the hash in `access_tokens.token_hash`. While the hashing prevents direct DB exposure, SHA-256 is a fast hash unsuitable for credential verification \u2014 an attacker with DB read access can brute-force tokens offline far faster than with bcrypt/argon2. Additionally, token lookup likely uses a direct equality match on the hash, which is fine here only because the hash itself is computed from the candidate token (no per-user salt means precomputed rainbow tables are feasible if token format becomes predictable). CWE-916: Use of Password Hash With Insufficient Computational Effort.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 30,
+        "line_end": 35
+      },
+      "recommendation": "Tokens generated via `randomBytes(32)` (256 bits of entropy) are strong enough that SHA-256 is acceptable for unguessable random tokens \u2014 but document this assumption. If the format ever shortens, switch to a slow KDF (argon2id) or HMAC with a server-side pepper. Consider adding a per-token random salt column.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "`auth test` command exposes bearer token via process arguments",
+      "description": "The `gbrain auth test <url> --token <token>` command takes the bearer token as a CLI argument. Process arguments are visible in `ps`, shell history, and process listings on shared systems, leaking the credential. CWE-214: Invocation of Process Using Visible Sensitive Information. OWASP A07:2021.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 119,
+        "line_end": 124
+      },
+      "recommendation": "Read the token from an environment variable (e.g., `GBRAIN_TEST_TOKEN`) or prompt interactively (TTY readline with echo off) instead of accepting `--token` on the command line. At minimum, document the risk and accept `--token-file <path>` as an alternative.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "`auth test` does not enforce HTTPS for remote MCP smoke tests",
+      "description": "The `auth test` command sends a bearer token to whatever URL the user provides via `fetch(url, ...)` with no scheme validation. If a user accidentally tests an `http://` endpoint, the token traverses the network in plaintext. CWE-319: Cleartext Transmission of Sensitive Information. OWASP A02:2021.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 134,
+        "line_end": 152
+      },
+      "recommendation": "Reject non-`https://` URLs unless they target `localhost`/`127.0.0.1`. Print a clear error: `auth test refuses non-HTTPS URLs (got: http://...). Use https:// or localhost.`",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Environment variables `DATABASE_URL`/`GBRAIN_DATABASE_URL` may contain credentials and are passed to `postgres()` without TLS enforcement",
+      "description": "`getDatabaseUrl()` reads connection URLs from the environment and passes them directly to `postgres(url)`. If the URL omits `sslmode=require`, the connection may fall back to plaintext to a remote DB. Combined with token-management operations (creating credentials), this could leak token hashes over the wire. CWE-319.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 22,
+        "line_end": 29
+      },
+      "recommendation": "When a remote (non-localhost) database URL is detected, force `ssl: 'require'` in the `postgres()` options, or refuse to connect if the URL has no SSL hint and is not pointing at localhost.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-005",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Autopilot wrapper script sources user shell profile, enabling code injection from any tampered rc file",
+      "description": "The generated wrapper at `~/.gbrain/autopilot-run.sh` runs `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null || true`. Any process that can write to the user's `~/.zshrc` or `~/.bashrc` (e.g., a low-privilege malware foothold) gains arbitrary code execution under the autopilot daemon's identity at every restart. While this matches typical shell behavior, daemons should not source interactive rc files. CWE-426: Untrusted Search Path / CWE-15: External Control of System or Configuration Setting.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 367,
+        "line_end": 376
+      },
+      "recommendation": "Replace the rc-source approach with explicit env var passthrough. Read needed keys (e.g., `ANTHROPIC_API_KEY`) from `~/.gbrain/autopilot.env` (mode 0600), and document this in the install help. Avoid `source`-ing interactive shell rc files in a daemon context.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Autopilot install/uninstall edits user bootstrap scripts via line-counted regex with a fixed marker version",
+      "description": "Uninstall logic in `uninstallDaemon()` removes the marker line `# gbrain:autopilot v0.11.0` and skips the next line. If a future version changes the marker (e.g., `v0.12.0`), uninstall silently fails to remove the injection (orphaned cruft) or corrupts the bootstrap if the next line is unrelated. While not directly exploitable, this affects integrity of host configuration files. CWE-664: Improper Control of a Resource Through its Lifetime.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 696,
+        "line_end": 712
+      },
+      "recommendation": "Use start/end markers (`# BEGIN gbrain:autopilot ... # END gbrain:autopilot`) and remove everything between them, version-independent. Add a unit test that round-trips install + uninstall.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-007",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Crontab manipulation via temporary file with predictable path",
+      "description": "`installCrontab` and `uninstallDaemon` write the new crontab to `~/.gbrain/crontab.tmp` (a fixed, predictable path), then invoke `crontab '<tmpFile>'`. A local attacker who can write to `~/.gbrain/` can race the file between write and `crontab` invocation to substitute arbitrary cron entries (TOCTOU). CWE-367: Time-of-check Time-of-use Race Condition. CWE-377: Insecure Temporary File.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 627,
+        "line_end": 636
+      },
+      "recommendation": "Use `fs.mkdtempSync()` to create a unique tmp dir with mode 0700 inside `~/.gbrain/`, write the file there, and unlink the dir afterward. Alternatively, pipe the new crontab to `crontab -` via stdin to avoid a tmp file entirely.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "info",
+      "title": "`apply-migrations` postinstall executes migrations during `bun install`",
+      "description": "`package.json` has `\"postinstall\": \"command -v gbrain >/dev/null 2>&1 && gbrain apply-migrations --yes --non-interactive ...\"`. Postinstall scripts run automatically on `bun install`/`npm install`. While the script gates on the binary being on PATH and the code correctly no-ops when no brain is configured, postinstall hooks are a known supply-chain risk vector and should be audited carefully (CWE-1357: Reliance on Insufficiently Trustworthy Component). The current implementation is reasonable; surfacing this as informational so it stays on the radar.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 36,
+        "line_end": 36
+      },
+      "recommendation": "Document the postinstall behavior prominently in SECURITY.md. Consider migrating to an opt-in `gbrain doctor` invocation guided by the docs rather than auto-running migrations on every install.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-010",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "MCP `handleToolCall` legacy path runs as `remote: false` (trusted) regardless of caller",
+      "description": "`handleToolCall` in `src/mcp/server.ts` is documented as 'trusted local path' and constructs `OperationContext` with `remote: false`, bypassing remote-caller confinements (e.g., cwd-locked file_upload, possibly other guardrails). It's used by `gbrain call` (CLI). However, it remains an exported function \u2014 if any future HTTP/MCP entry point accidentally imports `handleToolCall` instead of `dispatchToolCall`, remote callers gain trusted-mode privileges. CWE-732: Incorrect Permission Assignment / CWE-863: Incorrect Authorization.",
+      "location": {
+        "file_path": "src/mcp/server.ts",
+        "line_start": 33,
+        "line_end": 50
+      },
+      "recommendation": "Rename `handleToolCall` to `handleToolCallTrusted` to make the privilege level obvious at every call site, and add an internal-only ESLint rule or comment-based guard preventing its import from `src/mcp/http-transport.ts` or any HTTP-facing module.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-011",
+      "dimension": "security",
+      "severity": "info",
+      "title": "CLI stdin reads from `/dev/stdin` without platform check",
+      "description": "`parseOpArgs()` in `src/cli.ts` reads stdin via `readFileSync('/dev/stdin', 'utf-8')`. On Windows, `/dev/stdin` does not exist; the CLI will throw a confusing error rather than gracefully reporting unsupported stdin. While not a security vulnerability, it surfaces an information-leak via error messages on a platform mismatch (CWE-209). 5MB cap is properly enforced.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 134,
+        "line_end": 142
+      },
+      "recommendation": "Use `process.stdin` with a chunked reader and an early size check, avoiding the platform-specific `/dev/stdin` path.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "Pervasive use of `as any` casts undermines TypeScript's type safety",
+      "description": "Multiple files cast values through `any` to bypass type checking, defeating the purpose of TypeScript's strict mode. In cli.ts formatResult uses `result as any` repeatedly for every command branch, losing type guarantees on operation results. autopilot.ts uses `(engine as any).executeRaw?.(...)` and `(engine as any).connect?.()` to call methods that should be on the engine interface. This pattern is widespread (15+ occurrences across the analyzed files) and indicates the BrainEngine type is incomplete or being routinely circumvented.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 174,
+        "line_end": 256
+      },
+      "recommendation": "Define discriminated union return types per operation and replace `as any` with proper type narrowing. Add `executeRaw`, `connect`, and `getHealth` to the BrainEngine interface so autopilot.ts doesn't need casts. Consider an ESLint rule banning `as any` and require explicit unknown + type guards.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "handleCliOnly is a 250+ line dispatcher with high cyclomatic complexity",
+      "description": "The handleCliOnly function in cli.ts uses a long sequence of if-statements followed by a switch, dispatching ~40 commands. Each command has its own dynamic import and small variations (some need engine, some don't, some don't disconnect). This monolithic function has cyclomatic complexity well over 30 and mixes multiple concerns: command routing, lifecycle management, error handling for missing DB, and special-case handling for serve/autopilot/dream/doctor.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 245,
+        "line_end": 484
+      },
+      "recommendation": "Extract a command registry: `Map<string, { needsDb: boolean; disconnect: boolean; load: () => Promise<Handler> }>`. Replace the if-chain and switch with a single dispatch loop driven by the registry. Target <30 lines per dispatch path and complexity \u226410.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Duplicated subagent data construction across fan-out and single-path",
+      "description": "In agent.ts runFanout, the SubagentHandlerData object literal with the spread of optional flags (subagent_def, model, max_turns, allowed_tools) is duplicated nearly verbatim in three places: runAgentRun (lines 116-119), the manifest.length===1 short-circuit (lines 173-180), and the N-entry loop (lines 197-204). Each copy adds maintenance risk; adding a new flag requires editing three identical spreads.",
+      "location": {
+        "file_path": "src/commands/agent.ts",
+        "line_start": 173,
+        "line_end": 204
+      },
+      "recommendation": "Extract a helper `buildSubagentData(prompt: string, flags: RunFlags, inputVars?: Record<string, unknown>): SubagentHandlerData` and call it from all three sites. Same for `buildSubmitOpts(flags, parentJobId?)`.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Silent error swallowing with empty catch blocks loses diagnostic information",
+      "description": "Many catches use `catch { /* best-effort */ }` or `catch { /* swallow */ }` without logging. Examples: autopilot.ts has 10+ swallowed catches (mkdirSync, unlinkSync, kill, parse errors), apply-migrations.ts swallows ledger-write failure on throw path (line 311), agent-logs.ts catches JSON parse errors silently, auth.ts test() has `catch { /* skip non-JSON lines */ }`. While many are appropriate (idempotent cleanup), there is no consistent pattern distinguishing true best-effort from bugs being hidden.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Adopt a convention: best-effort cleanup uses `catch { /* best-effort: <reason> */ }` with an explicit reason. For non-cleanup paths, log via the existing logError helper at debug level. Audit current catches and add reasons to each silent block.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "runAutopilot is ~280 lines combining 5 distinct responsibilities",
+      "description": "runAutopilot in autopilot.ts handles: lock-file management, worker child-process supervision (spawn + restart + crash counting), Minions dispatch loop, inline cycle fallback, no-worker liveness probe, health-based interval adaptation, and shutdown signal handling. This is a god function with cyclomatic complexity around 25+ and many interleaved state variables (stopping, workerProc, crashCount, lastWorkerStartTime, consecutiveErrors, noWorkerConsecutiveIdle).",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 96,
+        "line_end": 380
+      },
+      "recommendation": "Extract: WorkerSupervisor class (spawn/restart/crash logic), DispatchLoop (the while loop body), LockManager (acquire/refresh/release), and ShutdownCoordinator. runAutopilot should orchestrate them in <50 lines.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Code-callers and code-callees CLIs are near-identical duplicates",
+      "description": "src/commands/code-callers.ts and src/commands/code-callees.ts share ~90% of their structure: identical parseFlag, shouldEmitJson, argument parsing, error handling, and output formatting. The only meaningful differences are the engine method called (getCallersOf vs getCalleesOf), the error code string, and the output label. This duplication will diverge over time.",
+      "location": {
+        "file_path": "src/commands/code-callees.ts",
+        "line_start": 1,
+        "line_end": 80
+      },
+      "recommendation": "Extract a shared `runCodeEdgeQuery(engine, args, { direction: 'callers' | 'callees', method, label })` function and reduce each command to a 5-line wrapper.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "auth.ts test() function repeats fetch boilerplate three times",
+      "description": "The test() function in auth.ts contains three nearly-identical fetch blocks (initialize, tools/list, tools/call) with the same headers, error handling pattern (if !res.ok \u2192 console.error \u2192 process.exit(1)), and try/catch shape. Each block is ~25 lines; abstracting them would shrink the function from ~120 lines to ~40.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 121,
+        "line_end": 245
+      },
+      "recommendation": "Extract `mcpRequest(url, token, method, params, id)` helper that encapsulates headers, error handling, and SSE/JSON response parsing. Each test step becomes a 3-line call.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "Test script does not exercise key files; analyzed code lacks visible test coverage",
+      "description": "package.json's `test` script runs three shell linters + typecheck + `bun test`. None of the analyzed source files (cli.ts, autopilot.ts, agent.ts, apply-migrations.ts, auth.ts, code-callers.ts, code-callees.ts, code-def.ts, backlinks.ts, check-resolvable.ts, check-update.ts) have visible accompanying test files in the provided set. The `__testing` exports (parseArgs, buildPlan, indexCompleted, statusForVersion in apply-migrations; parseRunFlags in agent; parseSince/formatAudit/formatMessage/dumpSince in agent-logs) suggest tests exist, but coverage of the orchestration paths (handleCliOnly, runAutopilot, runFanout, install/uninstall daemon, fan-out fall-back, error paths) is unclear.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 25,
+        "line_end": 26
+      },
+      "recommendation": "Add coverage reporting (`bun test --coverage`) and target \u226570% for src/commands/. Specifically, integration-test handleCliOnly with mock engines, runAutopilot's worker-restart logic with fake spawn, and the apply-migrations wedged/retry/partial state transitions.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Inconsistent error handling: process.exit scattered through library code",
+      "description": "Library-level functions call process.exit directly throughout commands/, mixing CLI concerns with logic. Examples: auth.ts (10+ exits inside create/list/revoke/test), apply-migrations.ts (5+ exits in runApplyMigrations), check-resolvable.ts (exits in runCheckResolvable), code-callers/callees/def (exit on missing symbol). This makes the functions un-testable in-process and prevents callers from catching errors. Compare with backlinks.ts which correctly factored runBacklinksCore (throws) vs. runBacklinks (CLI-level exits).",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Apply the backlinks.ts pattern globally: factor each command into a core function that throws structured errors (use existing errors.ts envelope) and a thin CLI wrapper that catches and exits. This unblocks unit tests and library reuse.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Dead code and confusing variable in runCodeDef",
+      "description": "In code-def.ts runCodeDef, line 95 computes `symbol = args.find((a) => !a.startsWith('--') && args.indexOf(a) > 0)` but the result is unused \u2014 line 97 recomputes via `positional[0]`. The first line is dead code and the indexOf-based predicate is also incorrect (would skip args[0]).",
+      "location": {
+        "file_path": "src/commands/code-def.ts",
+        "line_start": 94,
+        "line_end": 97
+      },
+      "recommendation": "Delete line 95 entirely. Keep only the positional-based extraction.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Off-by-one risk and string-comparison correctness in dumpSince timestamp filter",
+      "description": "agent-logs.ts dumpSince() uses lexicographic string comparison on ISO timestamps (`if (sinceIso && e.ts <= sinceIso)`) which works ONLY if all timestamps are in identical format (Z timezone, same fractional precision). If audit JSONL writes use millisecond precision while DB toISOString uses different precision, or if any non-Z timezone is introduced, the comparison silently produces wrong results. There's no validation that ts strings are normalized.",
+      "location": {
+        "file_path": "src/commands/agent-logs.ts",
+        "line_start": 80,
+        "line_end": 95
+      },
+      "recommendation": "Either parse to Date for comparison (`new Date(e.ts).getTime() <= new Date(sinceIso).getTime()`) or assert/normalize the format at ingestion. Add a unit test with mixed-format timestamps to lock in the contract.",
+      "agent_role": "quality",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "SQL injection risk via string interpolation in findCodeDef",
+      "description": "code-def.ts findCodeDef builds the IN clause for symbol_type via template-string interpolation: `cc.symbol_type IN ('${DEF_TYPES.join(\"','\")}', 'export statement')`. While DEF_TYPES is currently a hardcoded array (safe today), this pattern is dangerous: a future refactor that takes types from user input would introduce SQL injection. Also, the `whereLang` interpolation pattern is brittle \u2014 splicing params at index 1 mid-array is error-prone.",
+      "location": {
+        "file_path": "src/commands/code-def.ts",
+        "line_start": 47,
+        "line_end": 67
+      },
+      "recommendation": "Use parameterized array binding (`= ANY($N::text[])`) and pass DEF_TYPES as a parameter. Restructure the language filter using a stable parameter index rather than splice + dynamic $N.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-012",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Naming inconsistency: snake_case keys mixed with camelCase TypeScript identifiers",
+      "description": "Param/data objects mix conventions inconsistently. operations.ts params use snake_case (dry_run, max_turns, on_child_fail, allowed_tools, parent_job_id) while RunFlags uses camelCase (subagentDef, maxTurns, fanoutManifest). Conversions happen inline (e.g. cli.ts line 119 `arg.slice(2).replace(/-/g, '_')`). This means readers must remember which side of the boundary they're on. Some objects mix both (autopilot.ts: `repoPath` next to `idempotency_key`).",
+      "location": {
+        "file_path": "src/commands/agent.ts",
+        "line_start": 78,
+        "line_end": 88
+      },
+      "recommendation": "Document and enforce a boundary: external (CLI, JSON, DB columns) = snake_case; internal TypeScript = camelCase. Add adapter functions at boundaries. Lint rule could enforce snake_case keys only in declared boundary types.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-013",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Magic numbers without named constants for timing and retry limits",
+      "description": "Throughout autopilot.ts and apply-migrations.ts, timing/limit literals are hardcoded inline: `5_000_000` (cli.ts MAX_STDIN \u2014 has constant \u2713), 35_000 (drain timeout), 10_000 (worker restart backoff), 5 (crash cap, error cap), 600_000 (lock staleness 10min), 24*60*60*1000 (24h timeout), 2*60*1000 (probe lookback). Most lack inline comments explaining the choice. autopilot.ts has STABLE_RUN_RESET_MS and NO_WORKER_WARN_TICKS as named constants \u2014 apply this consistently.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 215,
+        "line_end": 225
+      },
+      "recommendation": "Extract: WORKER_RESTART_BACKOFF_MS = 10_000, WORKER_DRAIN_TIMEOUT_MS = 35_000, CRASH_CAP = 5, CYCLE_ERROR_CAP = 5, LOCK_STALE_MINUTES = 10. Group at top of file with brief rationale per constant.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "CLI help text omits documented commands (auth, agent, skillpack, skillify, etc.)",
+      "description": "The printHelp() function in src/cli.ts is the canonical user-facing help, but it omits many commands present in CLI_ONLY and dispatched in handleCliOnly: 'auth', 'agent', 'skillpack', 'skillify', 'check-resolvable', 'routing-eval', 'apply-migrations', 'skillpack-check', 'resolvers', 'integrity', 'repair-jsonb', 'frontmatter', 'smoke-test', 'reconcile-links'. These commands are real and shipped (e.g., `gbrain auth` is the documented v0.22.5 token-management surface, and `gbrain agent` is the v0.15 subagent runtime), yet a user running `gbrain --help` will not learn they exist. This is a major discoverability gap.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 380,
+        "line_end": 510
+      },
+      "recommendation": "Add a SUBAGENTS section (agent run/logs), an AUTH section (auth create/list/revoke/test), expand SETUP to include `apply-migrations` and `skillpack-check`, and add the missing utility commands (skillify, skillpack, check-resolvable, routing-eval, resolvers, integrity, repair-jsonb, frontmatter, reconcile-links, smoke-test). Generate help from a single source of truth (e.g., a command registry) so the help text cannot drift from CLI_ONLY.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "`reconcile-links` command not registered in CLI_ONLY but handled in switch",
+      "description": "src/cli.ts handles `case 'reconcile-links':` in the handleCliOnly switch (with a v0.20.0 comment), but 'reconcile-links' is missing from the CLI_ONLY Set. This means the dispatcher never routes the command into handleCliOnly \u2014 it falls through to the shared-operations path and prints 'Unknown command: reconcile-links'. The case branch is dead code, and the documented v0.20.0 feature appears broken from the user's perspective.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 26,
+        "line_end": 27
+      },
+      "recommendation": "Add 'reconcile-links' to the CLI_ONLY Set, or document that the command is unreleased. Also add it to printHelp() under the CODE INDEXING section. Add a smoke test asserting every case label in handleCliOnly is also present in CLI_ONLY.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`gbrain auth` documentation suggests outdated invocation form",
+      "description": "src/commands/auth.ts is wired into the CLI as `gbrain auth <subcommand>`, but several user-facing messages still tell users to invoke the script directly via `bun run src/commands/auth.ts revoke ...`. After a token is created, the printed message reads `Revoke with: bun run src/commands/auth.ts revoke \"...\"`, and the empty-list message points to the same direct-script form. This contradicts the file's own header, which says the CLI form is canonical as of v0.22.5.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 49,
+        "line_end": 76
+      },
+      "recommendation": "Replace the `bun run src/commands/auth.ts ...` strings with `gbrain auth ...`. Keep a single note in the file header acknowledging the direct-script path still works for development.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`gbrain auth test` argument parsing is fragile and undocumented",
+      "description": "In runAuth, the `test` subcommand parses positional args with `rest.find(a => !a.startsWith('--') && a !== rest[tokenIdx + 1])`. This silently mis-parses if the user supplies `--token <t>` before the URL, or if no URL is provided at all (becomes empty string and yields a confusing 'Connection failed' rather than a usage error). The help text (`gbrain auth test <url> --token <token>`) does not document accepted argument order or what happens on misuse.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 250,
+        "line_end": 258
+      },
+      "recommendation": "Replace ad-hoc parsing with a small explicit parser that validates required url + token and prints the usage string when missing. Document that the URL must be the first positional argument, or accept it via --url for symmetry.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Engine selection / install paths inconsistent between docs and postinstall",
+      "description": "package.json's postinstall hook runs `gbrain apply-migrations --yes --non-interactive` and falls back to a message referencing https://github.com/garrytan/gbrain/issues/218 with `bun install -g github:...` instructions. apply-migrations.ts also adds an early-exit when no config exists, telling users to run `gbrain init`. But the CLI help (printHelp), README, INSTALL_FOR_AGENTS.md and docs/ENGINES.md must explain three concurrent realities: (1) PGLite default vs Postgres vs Supabase, (2) when migrations auto-run vs need `gbrain apply-migrations`, (3) when to invoke `gbrain init --migrate-only`. The pre-flight in apply-migrations even prints `gbrain init --migrate-only` as a remediation, but this flag/path is not documented in printHelp.",
+      "location": {
+        "file_path": "src/commands/apply-migrations.ts",
+        "line_start": 256,
+        "line_end": 280
+      },
+      "recommendation": "Add a `MIGRATIONS` section to printHelp() listing apply-migrations, init --migrate-only, and skillpack-check. In docs/ENGINES.md, add a decision table mapping engine choice \u2192 migration mechanism. Cross-reference from README and INSTALL_FOR_AGENTS.md. Document the postinstall behavior and its silent failure mode in CHANGELOG.md or a dedicated INSTALL.md.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`gbrain dream` vs `gbrain autopilot` distinction underdocumented",
+      "description": "printHelp() lists both `dream` ('Run the overnight maintenance cycle once (cron-friendly)') and `autopilot` ('Self-maintaining brain daemon'), and includes a brief 'See also: autopilot --install' nudge \u2014 but the relationship is non-trivial: autopilot runs runCycle inline OR dispatches `autopilot-cycle` jobs depending on engine + minion_mode + --inline, while dream is a one-shot of the same cycle. Users have to read autopilot.ts comments to learn this. docs/ENGINES.md and docs/mcp/DEPLOY.md (per the PLAN) likely don't cover this branching either.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 1,
+        "line_end": 25
+      },
+      "recommendation": "Add a docs/guides/maintenance.md (or extend repo-architecture.md) with a decision table: one-shot vs daemon, PGLite vs Postgres, minion_mode=off vs pain_triggered vs always. Cross-link from `dream --help` and `autopilot --help` output. Add a one-line summary at the top of printHelp's Admin section.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`repos` deprecation notice missing from printHelp and undocumented removal timeline",
+      "description": "src/cli.ts emits a deprecation warning for `gbrain repos` ('alias for sources as of v0.19.0'), and printHelp lists `repos ...  DEPRECATED alias for 'sources' (v0.19.0)`. However, there is no documented removal timeline (will it disappear in v0.21? v1.0?). CHANGELOG.md and docs/guides/repo-architecture.md (per the PLAN) should make the deprecation lifecycle explicit so script authors can plan migrations.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 350,
+        "line_end": 358
+      },
+      "recommendation": "Add a 'Deprecations' section to CHANGELOG.md noting the planned removal version for the `repos` alias. Mention the same version in the printHelp line and the runtime warning so all three sources agree.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Migration registry has gaps suggesting undocumented version skips",
+      "description": "src/commands/migrations/index.ts registers v0_11_0, v0_12_0, v0_12_2, v0_13_0, v0_13_1, v0_14_0, v0_16_0, v0_18_0, v0_18_1, v0_21_0, v0_22_4. There are visible gaps (no v0_15_*, v0_17_*, v0_19_*, v0_20_*, v0_22_0..v0_22_3). Some of these versions are referenced in inline comments (e.g., v0.15 subagent runtime, v0.17 W2/W3 routing-eval/brain-filing, v0.19.0 Layer 6/7, v0.20.0 Cathedral II Layer 5/8/10/13). Users upgrading need to know whether those releases required no orchestrator (skipped intentionally) or were rolled into the surrounding versions. CHANGELOG.md / a migration index in docs/ should explain the gaps explicitly.",
+      "location": {
+        "file_path": "src/commands/migrations/index.ts",
+        "line_start": 24,
+        "line_end": 38
+      },
+      "recommendation": "Add a top-of-file comment table mapping every released version to: 'has orchestrator: yes/no \u2014 reason'. Mirror the same table in CHANGELOG.md or a dedicated docs/UPGRADE.md so users running `gbrain apply-migrations --list` understand why their installed version doesn't appear in the list.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Operation-help generator omits global flags",
+      "description": "printOpHelp() (per-command --help) prints positional + named params from op.params, but never mentions the global flags (--quiet, --progress-json, --progress-interval) that are stripped before dispatch by parseGlobalFlags(). Users running `gbrain query --help` will never see those flags, even though they apply to every command.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 365,
+        "line_end": 380
+      },
+      "recommendation": "Append a 'Global options' section to printOpHelp() listing --quiet, --progress-json, --progress-interval. Source the list from cli-options.ts so the help can't drift.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Many command modules missing module-level docstrings",
+      "description": "Some command files have excellent module headers (apply-migrations.ts, autopilot.ts, agent.ts, agent-logs.ts, check-resolvable.ts, code-def.ts, code-callers.ts, code-callees.ts). Others provide little or no module docstring (call.ts, check-update.ts). For a project that exposes a TypeScript public API surface via package.json `exports` (./engine, ./types, ./operations, ./minions, ./extract, \u2026), every exported module should carry a header explaining purpose, public surface, and stability. This makes plugin/integration work harder than necessary.",
+      "location": {
+        "file_path": "src/commands/call.ts",
+        "line_start": 1,
+        "line_end": 16
+      },
+      "recommendation": "Add a 6-12 line module header to call.ts, check-update.ts, and any other command file lacking one. Pattern after the existing strong headers (apply-migrations.ts, autopilot.ts) \u2014 describe purpose, invocation, and side effects. Consider an ESLint rule (eslint-plugin-jsdoc 'require-file-overview') to enforce.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public API exports lack JSDoc on subpath entries",
+      "description": "package.json declares 16 subpath exports (./engine, ./types, ./operations, ./minions, ./engine-factory, ./pglite-engine, ./link-extraction, ./import-file, ./transcription, ./embedding, ./config, ./markdown, ./backoff, ./search/hybrid, ./search/expansion, ./extract). The barrel files (src/core/index.ts, src/core/minions/index.ts, src/core/output/validators/index.ts, src/core/resolvers/index.ts) are minimal re-exports \u2014 but only resolvers/index.ts has a header explaining the public-vs-internal contract. Library consumers (plugin authors, the openclaw integration) need stable docs for every subpath: what's exported, stability tier, and import path examples.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 11,
+        "line_end": 28
+      },
+      "recommendation": "Add a docs/API.md (or extend docs/integrations/README.md) cataloging every subpath export with: stability (stable/experimental/internal), example import, and a one-line summary of what the module does. Add a header comment to each barrel file explicitly listing the public surface (mirror src/core/resolvers/index.ts's pattern).",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`agent run` --tools flag accepts comma list but interaction with allowed_tools undocumented",
+      "description": "src/commands/agent.ts parses `--tools a,b,c` into `flags.tools` and surfaces it in printHelp as 'Subset of registered tool names (comma list)'. The data is forwarded as `data.allowed_tools = flags.tools`, but the help text does not explain (a) where the list of registered tool names is discoverable, (b) what happens if a name is misspelled, (c) the relationship to subagent_def's own tool list. AGENTS.md and INSTALL_FOR_AGENTS.md (per the PLAN) likely need cross-references.",
+      "location": {
+        "file_path": "src/commands/agent.ts",
+        "line_start": 73,
+        "line_end": 85
+      },
+      "recommendation": "Extend the help block in printHelp() (agent.ts) with: 'Tool names come from `gbrain --tools-json`. Names not in that list cause job failure at handler dispatch.' Add a doctor/skillpack-check sanity check that warns when --tools references unknown names.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-012",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Skills/manifest.json and skill recipes coherence with code surface unverified in docs",
+      "description": "The PLAN explicitly calls out 'skills/recipes coherence with code surface' as a documentation concern. skills/manifest.json is referenced in the file list, and many code comments cite skills/migrations/vX.Y.Z.md (apply-migrations.ts header), skills/<name>/routing-eval.jsonl (check-resolvable.ts), and skills/_brain-filing-rules.json (check-resolvable.ts). However, no top-level doc explains the skills/ layout, which files are required, and how new skills get added/validated. The check-resolvable command is the de facto enforcer but is itself documented as a CI gate, not as a skill-author's reference.",
+      "location": {
+        "file_path": "skills/manifest.json",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add docs/SKILLS.md with: directory layout, required files per skill (RESOLVER.md, AGENTS.md, optional routing-eval.jsonl), how _brain-filing-rules.json works, and the validation lifecycle (check-resolvable, skillpack-check, skillify scaffold). Cross-reference from README's TOC.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-013",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "MCP deployment surface lacks end-to-end smoke-test documentation",
+      "description": "src/commands/auth.ts ships a `gbrain auth test <url> --token <token>` smoke test that sends initialize \u2192 tools/list \u2192 tools/call get_stats. This is the canonical 'is my MCP server live' check, but it is not surfaced in printHelp or apparently in docs/mcp/DEPLOY.md (per the PLAN). The sole `serve` line in printHelp ('MCP server (stdio)') doesn't mention the HTTP transport, the auth model, or the smoke-test command \u2014 leaving a gap for users following the deploy guide.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 152,
+        "line_end": 250
+      },
+      "recommendation": "In docs/mcp/DEPLOY.md add a 'Verify' section showing the full flow: create token \u2192 start server \u2192 run `gbrain auth test`. Add an 'AUTH / MCP' subsection to printHelp that lists all four auth subcommands. Cross-link from SECURITY.md.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Pinned web-tree-sitter and tree-sitter-wasms versions risk drift with no automation",
+      "description": "package.json pins web-tree-sitter to exact 0.22.6 and tree-sitter-wasms to exact 0.1.13 (no caret). These are critical native/wasm grammar packages used for code indexing. Exact pinning is reasonable for ABI compatibility, but there is no Dependabot/Renovate config visible in the repo file list to surface security or grammar updates. Without automation, both will drift over time, accumulating missed grammar bug fixes.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 47,
+        "line_end": 48
+      },
+      "recommendation": "Add a .github/dependabot.yml or renovate.json to surface tree-sitter-wasms and web-tree-sitter updates as PRs. Keep them pinned exact (ABI must match) but review monthly. Document the ABI pairing constraint in a CONTRIBUTING note so a PR doesn't bump only one side.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "@electric-sql/pglite pinned to 0.4.3 (exact) \u2014 single blast radius for embedded engine",
+      "description": "@electric-sql/pglite is pinned exactly at 0.4.3 and listed in trustedDependencies (allowing native build/postinstall). PGLite is the default embedded engine for gbrain (per cli.ts engine factory). Exact pinning is intentional, but pglite has been actively releasing bug fixes (vector ext, persistence) and 0.4.x is no longer the latest line. A pre-1.0 package with rapid releases means this pin is likely behind on data-correctness fixes.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 41,
+        "line_end": 41
+      },
+      "recommendation": "Audit changelog from 0.4.3 \u2192 current 0.4.x patch. Pin to latest 0.4.x patch (e.g., 0.4.x) and add automated alerts. Given this package is in trustedDependencies (runs lifecycle scripts), explicitly review release notes before bumping.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Wide caret ranges on critical SDKs (@anthropic-ai/sdk, openai, @modelcontextprotocol/sdk)",
+      "description": "@anthropic-ai/sdk ^0.30.0, openai ^4.0.0, @modelcontextprotocol/sdk ^1.0.0, and @aws-sdk/client-s3 ^3.1028.0 use caret ranges. The MCP SDK comment in src/mcp/server.ts already notes a 1.29 type-shape change requiring an `as any` cast \u2014 a clear signal this dependency has had silent breaking changes within the caret range. With bun.lock present, installs are reproducible, but `^1.0.0` on MCP SDK admits any 1.x version; CI matrix runs may resolve differently than local dev over time if the lockfile is regenerated.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 38,
+        "line_end": 45
+      },
+      "recommendation": "Tighten ranges on SDKs that have demonstrated drift: pin @modelcontextprotocol/sdk to a known-good minor (e.g., ^1.29.0 or exact). Pin @anthropic-ai/sdk to ^0.30 (it's pre-1.0; minor bumps are breaking). Document the MCP 1.29 type-shape coupling near the `as any` cast.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "marked ^18.0.0 may be over-pinned vs major version churn",
+      "description": "marked ^18.0.0 is the latest major as of analysis. marked has historically had several breaking changes between majors and security advisories (XSS in HTML rendering). The caret allows 18.x updates which is fine, but verify the version in bun.lock and that publish/HTML rendering paths sanitize output (the publish command in cli.ts mentions stripping private data and AES-256, but sanitization of marked output isn't visible in this slice).",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 44,
+        "line_end": 44
+      },
+      "recommendation": "Confirm marked output passes through DOMPurify or equivalent in publish.ts. Consider a tighter pin (^18.0) and add a CodeQL/Semgrep rule for unescaped marked output.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "high",
+      "title": "postinstall script silently swallows migration failures",
+      "description": "The postinstall script `command -v gbrain >/dev/null 2>&1 && gbrain apply-migrations --yes --non-interactive || echo '[gbrain] postinstall skipped...'` uses `||` to suppress any non-zero exit from apply-migrations. apply-migrations exits 1 on orchestrator failure (per apply-migrations.ts line ~end), but postinstall masks this as 'skipped'. Users installing via `bun install -g github:...` will see a benign-looking message even when migrations actually failed, leading to silent data drift \u2014 exactly the failure mode the migration runner's Bug 3 wedge cap was designed to surface.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 30,
+        "line_end": 30
+      },
+      "recommendation": "Distinguish the 'gbrain not on PATH yet' case from 'gbrain ran but failed': use an explicit `if command -v gbrain; then gbrain apply-migrations ... || echo 'FAILED \u2014 see ~/.gbrain/upgrade-errors.jsonl'; else echo 'skipped'; fi`. Also redirect failures to stderr (the current echo goes to 1>&2 already, but failure stderr is lost via ||).",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Devdependency @types/bun pinned to 'latest' \u2014 non-reproducible type checking",
+      "description": "`\"@types/bun\": \"latest\"` resolves to whatever is current at install time. Even with bun.lock pinning, `latest` is a known anti-pattern: a fresh install or lockfile regeneration will pull a different version, potentially causing typecheck failures (`tsc --noEmit` is part of the test script) on different machines or CI runs at different points in time. The CI test workflow's reliability depends on this.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 51,
+        "line_end": 51
+      },
+      "recommendation": "Replace `\"latest\"` with a concrete caret range (e.g., `\"^1.1.0\"` or whatever bun.lock currently resolves to). This avoids surprise typecheck breakage when @types/bun ships a breaking type change.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "TypeScript devDependency uses caret on major version",
+      "description": "`\"typescript\": \"^5.6.0\"` allows any 5.x. TypeScript minor releases regularly introduce new strict-check behavior that can break `tsc --noEmit` in CI. With a large codebase (cli.ts alone is ~400 lines, many command handlers), unexpected TS upgrades have a real chance of breaking the typecheck script.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 52,
+        "line_end": 52
+      },
+      "recommendation": "Pin TypeScript to `~5.6.0` (patch-only) or an explicit minor. Bump deliberately with a PR that runs `bun run typecheck` against the full tree.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "No SBOM, no license-scan, no provenance attestation in release pipeline",
+      "description": "package.json declares MIT license but the codebase ships a CLI binary via `bun build --compile`. There's no visible SBOM generation (e.g., CycloneDX), no license compatibility check across the dependency tree (which includes commercially-sensitive SDKs from Anthropic/OpenAI/AWS), and the release.yml workflow is referenced but not shown \u2014 likely lacks Sigstore/SLSA provenance. For a tool that handles user data and runs a trustedDependencies postinstall, supply-chain hardening is below par.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 1,
+        "line_end": 65
+      },
+      "recommendation": "Add an SBOM generation step (cyclonedx-bun or similar) to release.yml. Add license-scan via a workflow step (e.g., npx license-checker --failOn 'GPL' equivalent for bun). For binaries, generate Sigstore provenance via actions/attest-build-provenance@v1.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-008",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "trustedDependencies runs @electric-sql/pglite postinstall without explicit version verification",
+      "description": "trustedDependencies allows @electric-sql/pglite to run lifecycle scripts during `bun install`. Combined with the exact pin (0.4.3), this is reasonable, but there's no integrity check beyond the lockfile hash. If the lockfile is ever regenerated against a compromised registry mirror, the postinstall script (which can do native compilation / wasm download) would execute. This is a generic supply-chain risk amplified by the gbrain postinstall hook itself running migrations.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 60,
+        "line_end": 62
+      },
+      "recommendation": "Add `bun.lock` integrity verification in CI (compare against committed hash). Document the pglite trust decision in SECURITY.md and consider mirroring the exact pglite tarball to a trusted registry. Review pglite release artifacts before each version bump.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-009",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "pgvector ^0.2.0 \u2014 pre-1.0 dependency for vector embeddings critical path",
+      "description": "pgvector ^0.2.0 (npm client, not the Postgres extension) is pre-1.0 and on the embedding/search critical path. Caret on a 0.x package allows 0.2.x but pre-1.0 packages typically treat minor bumps as breaking. The current caret is correct for a 0.x package (only patch updates), but verify the codebase doesn't accidentally rely on undocumented behavior across patch versions.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 45,
+        "line_end": 45
+      },
+      "recommendation": "Pin pgvector to exact (e.g., 0.2.0 or whatever bun.lock resolves) and add an integration test that asserts vector serialization shape. Schedule a quarterly review for pgvector 0.3.x or 1.x migration.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-010",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "@dqbd/tiktoken ^1.0.22 \u2014 wasm-loading dep with native compatibility surface",
+      "description": "@dqbd/tiktoken loads a wasm tokenizer. Caret ^1.0.22 admits any 1.x. tiktoken's wasm has had load-path issues across Bun/Node and bundling environments. Combined with `bun build --compile` shipping a single binary, an upgrade could break the wasm asset path resolution. The repo has a `check:wasm` script (scripts/check-wasm-embedded.sh) which is reassuring, but tighten the pin.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 40,
+        "line_end": 40
+      },
+      "recommendation": "Pin to `~1.0.22` (patch-only) so wasm-asset behavior doesn't shift on minor bumps. The check-wasm-embedded.sh script catches missing wasm but won't catch behavioral drift.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Backlinks scan re-walks brain directory after core call (double cost)",
+      "description": "runBacklinks calls runBacklinksCore (which executes findBacklinkGaps \u2014 a recursive sync filesystem walk reading every .md file into memory). When the action is 'check' and gaps are found, the CLI then calls findBacklinkGaps(brainDir) AGAIN to print details. On 50K-page brains this doubles I/O and memory allocation for the entire scan, since the comment in the core function explicitly notes the walk is expensive.",
+      "location": {
+        "file_path": "src/commands/backlinks.ts",
+        "line_start": 245,
+        "line_end": 252
+      },
+      "recommendation": "Have runBacklinksCore return the BacklinkGap[] array (or expose it on the result) so the CLI can reuse it for detailed output rather than re-walking the filesystem. This eliminates a full second pass.",
+      "agent_role": "performance",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Synchronous recursive filesystem walk loads all markdown into memory",
+      "description": "findBacklinkGaps uses readdirSync/lstatSync/readFileSync recursively and accumulates every .md file's full content into allPages[] before processing. For large brains (10K+ files), this blocks the event loop for seconds and can hit Node's heap limits since every file body is held simultaneously plus a duplicate pagesBySlug Map. There is no streaming/pipelining.",
+      "location": {
+        "file_path": "src/commands/backlinks.ts",
+        "line_start": 80,
+        "line_end": 105
+      },
+      "recommendation": "Stream the walk: process each file (extract refs, build slug index from path only), then on a second pass read only the target pages whose slug index says they're referenced. Or use fs.promises with bounded concurrency. At minimum, release content from memory after extraction since only target pages need their content for the hasBacklink check.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Autopilot dispatch loop dynamically imports MinionQueue on every cycle",
+      "description": "Inside the while(!stopping) cycle loop, `await import('../core/minions/queue.ts')` runs every interval (default 300s). Bun caches dynamic imports so the actual cost is small after the first call, but it adds an avoidable resolution per tick and a new MinionQueue instance is constructed each cycle even though the engine is stable.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 339,
+        "line_end": 341
+      },
+      "recommendation": "Hoist the import and queue construction outside the loop (resolve once before entering the dispatch loop) so each cycle reuses one MinionQueue instance. Same applies to runCycle import in the inline branch.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Autopilot --no-worker liveness probe runs on every tick without backoff",
+      "description": "The peer-worker probe (`SELECT count(*) FROM minion_jobs WHERE status='active' AND lock_until > now() - interval '2 minutes'`) executes every cycle. With baseInterval=300s this is fine, but with adaptive interval shrinking to 60s on low health the probe + health check + reconnect-test adds 3 round trips per tick. On a busy minion_jobs table without an index covering (status, lock_until), the count() can scan many rows.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 304,
+        "line_end": 311
+      },
+      "recommendation": "Ensure a partial index `CREATE INDEX ON minion_jobs (lock_until) WHERE status='active'` exists. Optionally skip the probe if useMinionsDispatch is false on the previous tick or if the previous probe was very recent. Long-term, the planned ground-truth heartbeat table (B7) replaces this entirely.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "agent-logs --follow polls audit + DB transcript on every tick without delta filter on DB side",
+      "description": "dumpSince calls loadTranscriptRows(engine, jobId) every poll interval (default 1s during --follow). Unless loadTranscriptRows pushes the sinceIso filter to the SQL layer, this re-fetches the full subagent_messages set for the job each tick and filters in memory, which is O(messages) per tick and O(messages*ticks) total over a long-running job. Audit JSONL is also read from disk on every tick.",
+      "location": {
+        "file_path": "src/commands/agent-logs.ts",
+        "line_start": 70,
+        "line_end": 95
+      },
+      "recommendation": "Push sinceIso into loadTranscriptRows as a SQL `WHERE ended_at > $sinceIso ORDER BY ended_at` filter so each poll fetches only new rows. For audit JSONL, track byte offset of last read and tail-read from there instead of re-scanning the full file.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "agent-logs renders full transcript only when first call has no sinceIso",
+      "description": "The transcript tail render (renderTranscript) is gated on `!sinceIso` and `messages.length > 0` and terminal status. On the first poll of `gbrain agent logs --follow`, this renders the entire transcript even if the job has thousands of messages, which can be expensive for renderTranscript and dump megabytes to stdout.",
+      "location": {
+        "file_path": "src/commands/agent-logs.ts",
+        "line_start": 99,
+        "line_end": 106
+      },
+      "recommendation": "When --follow is set, suppress the full transcript render on the seeded call (only render incrementally per new message). Reserve renderTranscript for the non-follow path or for an explicit `--final-transcript` flag.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-006",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "code-def query uses string interpolation for IN list and recomputes parameter index",
+      "description": "DEF_TYPES is interpolated into the SQL string with `'${DEF_TYPES.join(\"','\")}'`. While the values are hardcoded constants (not user input, so no injection risk), the `LIMIT $${params.length}` indexing is fragile and breaks if the language filter is added (params.splice(1, 0, ...) shifts limit's position). Also, no LIMIT pushdown \u2014 the JOIN to pages happens for every chunk matching symbol_name before LIMIT applies.",
+      "location": {
+        "file_path": "src/commands/code-def.ts",
+        "line_start": 47,
+        "line_end": 65
+      },
+      "recommendation": "Use parameterized array (`= ANY($N::text[])`) for DEF_TYPES. Verify content_chunks has an index on (symbol_name, language, symbol_type) so the planner can filter early. Reorder splice so $1=symbol, $2=limit, optional $3=language (append, don't splice middle).",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Migration pre-flight reconnects engine on every apply-migrations invocation",
+      "description": "runApplyMigrations creates a fresh engine, connects, runs `getConfig('version')`, then disconnects \u2014 purely to compare schema version. This is a full TCP/TLS connection setup just to read one config row. On postinstall hooks across many users, this is wasteful; on slow networks it can add multiple seconds before any actual work.",
+      "location": {
+        "file_path": "src/commands/apply-migrations.ts",
+        "line_start": 268,
+        "line_end": 281
+      },
+      "recommendation": "Cache the schema version check or skip when no orchestrator migrations are pending (compute toRun first, only do pre-flight when toRun.length > 0). Alternatively, read schema version from a local cache file written on prior connects.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "auth.ts smoke-test uses three sequential fetches with no parallelism",
+      "description": "The `auth test` command does initialize \u2192 tools/list \u2192 get_stats sequentially. While these have logical ordering (initialize first), tools/list and get_stats could potentially overlap, and each fetch creates a new connection (no keep-alive reuse pattern documented). For users running this in CI to verify deployments, latency adds up.",
+      "location": {
+        "file_path": "src/commands/auth.ts",
+        "line_start": 137,
+        "line_end": 232
+      },
+      "recommendation": "Acceptable as-is given this is a one-shot smoke test, but consider connection reuse via a single fetch agent and parallelizing the latter two calls if MCP protocol allows. Low priority \u2014 only matters for diagnostic runs.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-009",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Autopilot reads stat synchronously inside running event loop",
+      "description": "The lockfile staleness check uses `require('fs').statSync(lockPath)` inside main(), and `utimesSync` runs every cycle. These are blocking calls. While individually fast, combined with synchronous mkdirSync/writeFileSync on every tick they pause the event loop while the cycle is supposed to be dispatching async work.",
+      "location": {
+        "file_path": "src/commands/autopilot.ts",
+        "line_start": 197,
+        "line_end": 198
+      },
+      "recommendation": "Use fs.promises.stat / utimes for non-blocking I/O. Negligible per call but cumulative when health probes and DB queries are in flight on the same tick.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-010",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "PLAN-targeted files (minions, search, embedding, engines) not included in analyzed source",
+      "description": "The PLAN focus listed src/core/minions/*, src/core/search/*, src/core/embedding.ts, src/core/chunkers/*, src/core/pglite-engine.ts, src/core/postgres-engine.ts, and the benchmarks \u2014 but only command-layer files (cli.ts, commands/*.ts) are present in the SOURCE CODE block. Performance findings on queue throughput, hybrid search two-pass ranking, embedding batching, and engine hot paths cannot be produced without their source. The findings above cover what was actually provided.",
+      "location": {
+        "file_path": "src/cli.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run analysis with the PLAN-targeted files included (src/core/minions/queue.ts, src/core/search/hybrid.ts, src/core/embedding.ts, etc.) to assess the high-impact runtime hot paths.",
+      "agent_role": "performance",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 188.06,
+  "total_tokens_used": 445070,
+  "total_cost_usd": 4.8958,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 0
+}

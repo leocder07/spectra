@@ -1,0 +1,1186 @@
+{
+  "repo_url": "https://github.com/garrytan/gbrain-evals",
+  "repo_name": "gbrain-evals",
+  "score_card": {
+    "overall_score": 75.2,
+    "overall_grade": "C+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 76.1,
+        "grade": "C+",
+        "findings_count": 12,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 89.5,
+        "grade": "A-",
+        "findings_count": 9,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 62.4,
+        "grade": "D",
+        "findings_count": 15,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 75.3,
+        "grade": "C+",
+        "findings_count": 11,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 63.0,
+        "grade": "D+",
+        "findings_count": 8,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 75.2,
+        "grade": "C+",
+        "findings_count": 7,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 62
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Strong adapter abstraction with clean Port/Adapter pattern",
+      "description": "The Adapter interface in eval/runner/types.ts (referenced consistently across grep-only.ts, vector.ts, vector-grep-rrf-fusion.ts, claude-sonnet-with-tools.ts) provides a clean port abstraction with init/query/teardown lifecycle. Each adapter encapsulates its own state via opaque BrainState. This is exemplary plug-in architecture for the retrieval comparison harness.",
+      "location": {
+        "file_path": "eval/runner/adapters/grep-only.ts",
+        "line_start": 13,
+        "line_end": 13
+      },
+      "recommendation": "No change needed. Consider documenting the Adapter contract in an ADR or types.ts header to make the port explicit for new contributors.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Agent adapter violates Liskov Substitution Principle by throwing in query()",
+      "description": "ClaudeSonnetWithToolsAdapter implements the Adapter interface but its query() method intentionally throws because it produces final-answer text, not RankedDoc[]. This is documented as a deliberate choice but it weakens the type contract: any code iterating over Adapter[] for retrieval scoring must know to filter this one out by name. A cleaner architecture would split the interface into RetrievalAdapter and AgentAdapter (or use a discriminated union/marker interface).",
+      "location": {
+        "file_path": "eval/runner/adapters/claude-sonnet-with-tools.ts",
+        "line_start": 130,
+        "line_end": 142
+      },
+      "recommendation": "Introduce two distinct interfaces in types.ts: `RetrievalAdapter` (init/query/teardown returning RankedDoc[]) and `AgentAdapter` (init/runAgentLoop/teardown returning AgentRunResult). Have ClaudeSonnetWithToolsAdapter implement only AgentAdapter. This eliminates the runtime throw and pushes the constraint into the type system.",
+      "agent_role": "architecture",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Subprocess dispatch in all.ts couples runner to script paths and shell process model",
+      "description": "all.ts dispatches each Category as a `bun <script>` subprocess, passing inputs only via env vars. This forces a hard split: subprocess Cats vs. programmatic Cats (5, 8, 9). The 'programmatic Cats need runtime inputs' caveat is essentially an admission that the architecture can't accommodate Cats with rich input dependencies. A function-import dispatch model would unify both paths.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 160,
+        "line_end": 170
+      },
+      "recommendation": "Refactor each Cat runner to export a `runCatN(inputs): Promise<CatResult>` function, with the CLI script being a thin wrapper. all.ts can then import + invoke directly, passing seeded inputs for Cats 5/8/9. Concurrency can use a worker pool or p-limit on the imported functions. Subprocess isolation can be retained as an opt-in per Cat (for Cats with leaky engine state).",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Generators tightly coupled to fixed corpus paths via module-level constants",
+      "description": "amara-life-gen.ts hard-codes CORPUS_ROOT = 'eval/data/amara-life-v1' as a module constant used by every writer (writeEmailsJsonl, writeMeeting, writeNote, writeManifest, writeCalendarIcs, writeDocs, cachePath). This couples the generator to one corpus version and makes parallel/parameterized generation (e.g., amara-life-v2 alongside v1) impossible without forking the file. world-html.ts has the same pattern with default 'eval/data/world-v1'.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 76,
+        "line_end": 77
+      },
+      "recommendation": "Pass corpusRoot as a parameter to a `generate(opts: { corpusRoot: string; ... })` entry function. Module-level constants become defaults consumed only by the CLI shim. This unlocks v2 generation, golden-test fixtures, and parameterized regression runs.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "Bug in writeDocs: redundant/dead path-rewriting logic",
+      "description": "writeDocs() in amara-life-gen.ts contains visibly broken path logic: `const path = join(CORPUS_ROOT, slugPath + '.md'.replace(/\\.md$/, '') === slugPath ? slugPath : slugPath);` \u2014 the ternary always evaluates to `slugPath` (both branches), and `path` is then unused (`fullPath` is what's actually written). This is dead code masking a likely intent that was never executed. Architecturally it signals duplicated/copy-pasted writer logic that wasn't consolidated.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 413,
+        "line_end": 418
+      },
+      "recommendation": "Delete the dead `path` line entirely and rely on `fullPath`. Also note the docs slugs already end with .md (e.g. 'doc/novamind-investor-update.md'), so review whether the stored doc paths should match. Consolidate writeDocs/writeMeeting/writeNote/writeEmailsJsonl into a single `writeArtifact(relPath, body)` helper to eliminate the duplication that produced this bug.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Vector adapter silently mutates console.log/console.error globals during init",
+      "description": "HybridNoGraphAdapter.init() globally swaps console.log/console.error to silence noise from `importFromContent`, then restores them in finally. This is a cross-cutting side effect that, if init() runs concurrently with another process logging (e.g., Promise.all over adapters), will swallow output from siblings. It also conflates 'silence library noise' with adapter responsibility \u2014 that's a logging-strategy concern that belongs in a global LoggingPolicy or by passing a logger into importFromContent.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector-grep-rrf-fusion.ts",
+        "line_start": 49,
+        "line_end": 62
+      },
+      "recommendation": "Push a `verbose` flag (or a logger interface) into gbrain's importFromContent if possible. If not, capture stdout via a stream redirect scoped to the call rather than mutating globals. At minimum, document that adapter init() is not safe for concurrent execution.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Cross-module reach into adversarial-injections from generators is implicit",
+      "description": "adversarial-injections.ts (in eval/runner/) is consumed by Cat 6 (cat6-prose-scale.ts) which conceptually generates fixtures, while adversarial.ts (also runner/) is the static case list. The naming places transform engines under runner/ but they're really generator-helpers used at fixture construction time. This blurs the runner-vs-generator boundary the codebase otherwise maintains cleanly.",
+      "location": {
+        "file_path": "eval/runner/adversarial-injections.ts",
+        "line_start": 1,
+        "line_end": 18
+      },
+      "recommendation": "Move adversarial-injections.ts to eval/generators/adversarial-injections.ts (it's a content-transform engine), or to a shared eval/lib/ directory. Keep eval/runner/ for code that executes scorecards. This restores the clean generators-vs-runner-vs-cli layering.",
+      "agent_role": "architecture",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "queries module re-exports types but Tier source files not co-located",
+      "description": "eval/runner/queries/index.ts imports from './tier5-fuzzy.ts' and './tier5_5-synthetic.ts' which were not provided but are referenced. The aggregation+validation barrel pattern is good, but coupling concrete Tier sources to the runner directory blocks the externally-authored Tier 5.5 contribution path mentioned in CONTRIBUTING. External authors would naturally PR a JSON file under eval/external-authors/<slug>/queries.json (per query-new.ts comment) rather than a TS file under eval/runner/queries/.",
+      "location": {
+        "file_path": "eval/runner/queries/index.ts",
+        "line_start": 10,
+        "line_end": 13
+      },
+      "recommendation": "Add a JSON-loader path in queries/index.ts that scans eval/external-authors/*/queries.json at startup and merges with the in-source Tier 5/5.5 sets. This gives external contributors a contribute-by-data path without requiring TS edits, matching the workflow query-new.ts already advertises.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Lazy dynamic import inside hot path of vector adapter",
+      "description": "VectorOnlyAdapter.init() does `const { EMBEDDING_MODEL } = await import('gbrain/embedding')` after a static `import { embed, embedBatch } from 'gbrain/embedding'` at the top. The dynamic import is justified in a comment as 'avoid circular' but EMBEDDING_MODEL is a const export from the same module already statically imported \u2014 this will resolve from the same module instance and the circular-avoidance claim is incorrect.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector.ts",
+        "line_start": 109,
+        "line_end": 111
+      },
+      "recommendation": "Move EMBEDDING_MODEL to the static import at the top: `import { embed, embedBatch, EMBEDDING_MODEL } from 'gbrain/embedding';`. Remove the dynamic import. If a real circular dep exists, document it with a concrete cycle path; otherwise this is cargo-culted.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "all.ts uses CommonJS require() inside ESM module for git invocation",
+      "description": "readCommit() and readBranch() in all.ts use `const { execSync } = require('child_process')` inside an ESM module (package.json declares `\"type\": \"module\"`). Bun tolerates this, but it's an architectural inconsistency \u2014 the same module already uses `import { spawn } from 'child_process'` at the top. Mixed module systems produce subtle bundler/runtime divergence.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 217,
+        "line_end": 226
+      },
+      "recommendation": "Replace with `import { execSync } from 'child_process'` at the module top. Make readCommit/readBranch synchronous (they already are wrapped in pointless Promises) or use child_process.exec with promisify.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-011",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Cost/budget concerns leaked into adapter and generator layers without abstraction",
+      "description": "HARD_STOP_USD, PRICE_INPUT_PER_M, PRICE_OUTPUT_PER_M, and CostTracker logic are duplicated across eval/generators/amara-life-gen.ts, eval/generators/gen.ts, and eval/runner/adapters/claude-sonnet-with-tools.ts. Each maintains its own pricing constants and tracking. Pricing drift (e.g., Anthropic price change) requires touching 3+ files.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 65,
+        "line_end": 71
+      },
+      "recommendation": "Extract a `eval/lib/llm-budget.ts` module (the all.ts comment already references one for BRAINBENCH_LLM_CONCURRENCY) that exposes Pricing tables keyed by model id, a CostTracker class, and a HardStop policy. Adapters and generators import from one source of truth.",
+      "agent_role": "architecture",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-012",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Strong test coverage and XSS hardening on world-html generator",
+      "description": "world-html.ts has explicit XSS hardening (escapeHtml) with comprehensive tests in world-html.test.ts including injection scenarios. Architecturally this is a good seam: generators that emit HTML have a documented threat model and unit-tested mitigations. Worth highlighting as a positive pattern.",
+      "location": {
+        "file_path": "eval/generators/world-html.ts",
+        "line_start": 36,
+        "line_end": 50
+      },
+      "recommendation": "No change. Consider applying the same explicit-mitigations-with-tests pattern to other I/O boundaries (e.g., manifest writing in amara-life-gen, JSONL writers).",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Command injection risk via unvalidated --dir argument in browser open",
+      "description": "The world-view CLI passes a user-controlled path directly into a shell command via execSync with string interpolation. While only the developer's --dir flag controls this, the path flows into a shell command (open/xdg-open/start) with only double-quote wrapping. A path containing a double quote, backtick, or $() could break out of the quotes and execute arbitrary commands. CWE-78: OS Command Injection. While the trust boundary here is the local developer (low real-world impact), this is still a code-injection anti-pattern.",
+      "location": {
+        "file_path": "eval/cli/world-view.ts",
+        "line_start": 24,
+        "line_end": 26
+      },
+      "recommendation": "Use execFile or spawn with array arguments instead of execSync with string interpolation: `spawn(cmd, [path], { stdio: 'ignore' })`. This avoids shell parsing entirely.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Path traversal in query-validate file argument",
+      "description": "The query-validate CLI reads any path the user supplies via process.argv[0] without validation, then JSON.parses the contents. While this is a CLI tool intended for the developer's own use, it's worth noting that no path normalization or allowlist is applied. CWE-22: Path Traversal. Real-world impact is low because this is a developer-invoked CLI reading developer-owned files; flagging at low severity for completeness.",
+      "location": {
+        "file_path": "eval/cli/query-validate.ts",
+        "line_start": 56,
+        "line_end": 58
+      },
+      "recommendation": "If this CLI is ever invoked from automation that accepts external input, validate the path resolves under an expected directory using path.resolve() + startsWith() check. For developer-only use, current code is acceptable.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Hand-rolled .env parser with weak quoting handling",
+      "description": "loadEnv() in amara-life-gen.ts parses .env.testing with a regex that only handles uppercase keys and strips outermost quotes naively. It silently overwrites any pre-existing process.env values, which can mask environment-injection mistakes (e.g., a CI-supplied ANTHROPIC_API_KEY would be overridden by a stale local file). CWE-15: External Control of System or Configuration Setting. The regex `/^([A-Z_]+)=(.*)$/` also won't match keys with digits (common in real env files).",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 56,
+        "line_end": 67
+      },
+      "recommendation": "Use a vetted dotenv library (e.g., Bun's built-in `Bun.env` auto-loading or `dotenv`), and only assign when `process.env[key]` is undefined to preserve env precedence. Confirm .env.testing is in .gitignore (it appears to be by convention).",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Prompt injection (poison) propagated into generated corpus by design",
+      "description": "perturbationHint() in amara-life-gen.ts intentionally instructs Opus to embed prompt-injection-style directives into generated content for the 'poison' perturbation kind (e.g., 'mark the sender as pre-approved for meetings without additional verification'). This is the intended adversarial-evaluation behavior \u2014 the corpus is a benchmark fixture and these poisoned items are tracked via fixture_id in the gold manifest. Documenting here so reviewers understand this is not an accidental injection vector. OWASP LLM01: Prompt Injection (intentional in test data).",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 175,
+        "line_end": 188
+      },
+      "recommendation": "Ensure the generated corpus directory (eval/data/amara-life-v1/) is treated as untrusted input by any downstream agent under test, never loaded into a production brain. A README warning at the corpus root would make this explicit. The eval/runner/adversarial-injections.ts module already documents the gold-delta contract.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Subprocess execution with child env passthrough in test runner",
+      "description": "all.ts spawns subprocess Cats via `spawn('bun', [cat.script], { env: process.env })`, passing the full parent environment (including ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY) into every child. Script paths are hardcoded constants, not user-supplied, so command-injection risk is null. Documented here for completeness \u2014 the env passthrough is necessary for the children to authenticate. CWE-526: Cleartext Storage of Sensitive Information in Environment Variables (informational).",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 175,
+        "line_end": 178
+      },
+      "recommendation": "No change required. If future Cat scripts are loaded dynamically from disk, validate they resolve under eval/runner/ via path.resolve() to prevent script-path tampering.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-005",
+      "dimension": "security",
+      "severity": "low",
+      "title": "30-second adversarial timeout uses Promise.race without aborting underlying work",
+      "description": "tryOp() in adversarial.ts races the operation against a 30s timeout, but on timeout the underlying promise (e.g., engine.putPage on a 100K-char page) keeps running in the background, holding memory and a DB connection. Over a long adversarial run this can leak resources. CWE-400: Uncontrolled Resource Consumption (mild). Not directly security-impacting in a benchmark, but a real DoS vector if this pattern ever ships in product code.",
+      "location": {
+        "file_path": "eval/runner/adversarial.ts",
+        "line_start": 119,
+        "line_end": 128
+      },
+      "recommendation": "Use AbortController where the underlying API supports it, or accept the leak with a comment. For benchmark-only code this is acceptable; flagging in case the pattern is copied into production paths.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "info",
+      "title": "API key referenced via fallback string 'dry-run' in client init",
+      "description": "`new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? 'dry-run' })` instantiates the SDK with the literal string 'dry-run' when the env var is absent. While the code guards against actual API calls in dry-run mode, this pattern means a missing env var won't fail-fast on construction \u2014 only later when a real call is attempted (with a 401 from Anthropic). Acceptable as-is given the explicit env check above the line; documenting the pattern.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 421,
+        "line_end": 421
+      },
+      "recommendation": "Consider failing fast: if dryRun, don't construct a client at all; if not dryRun, the existing throw on missing ANTHROPIC_API_KEY already covers it. Current code is functionally safe.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-007",
+      "dimension": "security",
+      "severity": "low",
+      "title": "JSON.parse without size limit on user-supplied query files",
+      "description": "query-validate.ts reads and JSON.parses an arbitrary file with no size cap. A multi-GB JSON file could exhaust memory. CWE-400: Uncontrolled Resource Consumption. Low impact since this is a developer CLI, but a defense-in-depth fix is cheap.",
+      "location": {
+        "file_path": "eval/cli/query-validate.ts",
+        "line_start": 57,
+        "line_end": 60
+      },
+      "recommendation": "Stat the file first and bail if size > a sensible cap (e.g., 10MB for a query-set JSON). Or use fs.openSync + bounded read.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "info",
+      "title": "MCP/tool-bridge source not provided \u2014 cannot verify tool sandboxing",
+      "description": "The PLAN focus called out eval/runner/tool-bridge.ts and eval/runner/mcp-contract.ts for review, but those files were not included in the source snippets provided. The agent loop in claude-sonnet-with-tools.ts looks well-structured (typed errors via ForbiddenOpError/UnknownToolError, dry-run-only write tools, evidence ref extraction with anchored regex), but I cannot verify the actual tool surface without the bridge source. Documenting as info so the reviewer can confirm separately.",
+      "location": {
+        "file_path": "eval/runner/adapters/claude-sonnet-with-tools.ts",
+        "line_start": 24,
+        "line_end": 32
+      },
+      "recommendation": "Verify in tool-bridge.ts that: (1) write tools (put_page, add_link, add_timeline_entry) are gated behind dry_run_ prefix and never mutate the engine; (2) ForbiddenOpError covers all non-allowlisted tool names; (3) tool_input is validated against a schema before dispatch. The agent adapter's `executeTool` error handling already returns errors as tool_results rather than throwing, which is correct.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "Broken docs path-mangling logic in writeDocs() is dead-code-equivalent",
+      "description": "The expression `slugPath + '.md'.replace(/\\.md$/, '') === slugPath ? slugPath : slugPath` always evaluates to `slugPath` regardless of the comparison (both branches are identical). This is buggy/confused code that does nothing useful. The variable `path` is then computed but never used \u2014 only `fullPath` is. This is a code smell indicating the author was uncertain about the logic.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 405,
+        "line_end": 409
+      },
+      "recommendation": "Remove the dead `path` variable and the no-op ternary. Just use `const fullPath = join(CORPUS_ROOT, slugPath); ensureDir(dirname(fullPath)); writeFileSync(fullPath, body);`",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Test asserts incorrect grouping label produced by buggy pluralization",
+      "description": "The test 'groups by type in the rail' asserts `expect(html).toContain('companys')` and `expect(html).toContain('persons')` \u2014 these are grammatically wrong plurals. A comment in world-html.ts even acknowledges 'imperfect plural but cheap'. Tests are codifying user-visible bugs rather than driving a fix. UI-facing string quality is part of code quality.",
+      "location": {
+        "file_path": "eval/generators/world-html.test.ts",
+        "line_start": 96,
+        "line_end": 99
+      },
+      "recommendation": "Add a small pluralization map ({person: 'people', company: 'companies', meeting: 'meetings', concept: 'concepts'}) in renderRail() and update tests to assert the correct plurals. ~30 minutes total.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "Vector adapter integration tests gated/missing \u2014 no end-to-end coverage",
+      "description": "vector.test.ts only unit-tests the pure cosine helper. The comment explicitly states 'VectorOnlyAdapter.init/query require a live embedding API key. Those end-to-end tests live in a smoke-test class and gate on OPENAI_API_KEY.' No such smoke-test file is provided/visible in this slice, so init() and query() \u2014 including chunking, batching, and ranking integration \u2014 have effectively zero automated coverage.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector.test.ts",
+        "line_start": 4,
+        "line_end": 6
+      },
+      "recommendation": "Add a fake/stub embedder injection point so init/query can be tested deterministically without API calls. Mock embedBatch/embed via DI or a test-mode config. Provides regression coverage without budget burn.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "judge.ts and recorder.ts referenced in plan but tests not provided",
+      "description": "The PLAN highlights judge determinism and golden fixture sealing (sealed-qrels.test.ts) as a focus. Neither eval/runner/judge.ts nor eval/runner/recorder.ts contents nor a sealed-qrels.test.ts are present in the analyzed code, indicating that judge determinism, transcript schema, and golden-fixture sealing have no visible test coverage in this slice. Without seal tests, golden fixtures can drift undetected \u2014 a known evaluation-integrity risk.",
+      "location": {
+        "file_path": "eval/runner/judge.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add eval/runner/judge.test.ts asserting deterministic outputs given fixed inputs (snapshot rubric scores) and a sealed-qrels.test.ts that hashes the gold/qrels and fails if the hash changes without an explicit version bump.",
+      "agent_role": "quality",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Top-level side effects in module imports (loadEnv at import time)",
+      "description": "eval/generators/gen.ts calls `loadEnv()` and `process.exit(1)` at module top-level (after the imports). Importing this module for any reason (testing, tooling) triggers env-file reads and may abort the process. This makes the module untestable in isolation and brittle when imported by build/runner orchestrators.",
+      "location": {
+        "file_path": "eval/generators/gen.ts",
+        "line_start": 38,
+        "line_end": 46
+      },
+      "recommendation": "Move loadEnv() + key check inside main() (gated on `if (import.meta.main)`), as is correctly done in amara-life-gen.ts. Lazy-init the Anthropic client.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Console.log/console.error monkey-patching to silence library noise",
+      "description": "HybridNoGraphAdapter.init() globally monkey-patches console.log and console.error to suppress importFromContent stdout. This is process-global state mutation; if importFromContent throws, the try/finally restores correctly, but any concurrent code (other adapters running in the same process) will lose log output during this window. Fragile pattern.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector-grep-rrf-fusion.ts",
+        "line_start": 56,
+        "line_end": 69
+      },
+      "recommendation": "Either pass a logger/quiet option to importFromContent (preferred), or capture+restore around a single page rather than the whole batch loop, or run init in a child worker. Document why if monkey-patching must stay.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Use of `require()` inside async functions in ESM module",
+      "description": "all.ts declares `\"type\": \"module\"` (per package.json) but uses `const { execSync } = require('child_process')` twice inside readCommit/readBranch. While Bun tolerates this, it's a style inconsistency, complicates portability, and `child_process` is already imported synchronously at the top. Both helpers also wrap synchronous execSync in `new Promise(resolve => ...)` for no async benefit.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 213,
+        "line_end": 232
+      },
+      "recommendation": "Import execSync at top of file and convert readCommit/readBranch to synchronous functions returning string. Drop the unnecessary Promise wrapping.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Type assertion via `(_state as any).disconnect` bypasses type safety",
+      "description": "ClaudeSonnetWithToolsAdapter.teardown casts engine to `any` to call disconnect, with an inline eslint-disable. The PGLiteEngine import has a typed disconnect method (used elsewhere in vector-grep-rrf-fusion.ts directly without casts), so the cast is unnecessary. Indicates inconsistent typing rigor across adapters.",
+      "location": {
+        "file_path": "eval/runner/adapters/claude-sonnet-with-tools.ts",
+        "line_start": 132,
+        "line_end": 137
+      },
+      "recommendation": "Remove the `any` cast and call s.engine.disconnect() directly, matching the pattern in vector-grep-rrf-fusion.ts:75.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Adversarial.ts main() is a 100+ line god function with mixed concerns",
+      "description": "adversarial.ts main() spans roughly lines 100-220+ and combines: engine setup, target page seeding, per-case op dispatch (7 different ops with custom error checks per op), markdown logging, JSON emission, and exit-code computation. Cyclomatic complexity is high (multiple per-op conditionals + per-case-name string matching for silent-corruption checks).",
+      "location": {
+        "file_path": "eval/runner/adversarial.ts",
+        "line_start": 110,
+        "line_end": 230
+      },
+      "recommendation": "Extract per-op handlers into a registry (Map<opName, (engine, case) => Promise<OpResult>>), extract case-specific invariant checks into the AdversarialCase.expect contract uniformly (currently special-cased by case.name string match \u2014 fragile), and split reporting from dispatch.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Brittle case dispatch by string matching on case.name",
+      "description": "Inside adversarial.ts, custom checks branch on substrings of c.name (e.g. `c.name.includes('code fence')`, `c.name === 'invalid date in timeline'`). Renaming a case silently disables its invariant check. This is a maintainability hazard tightly coupling display strings to control flow.",
+      "location": {
+        "file_path": "eval/runner/adversarial.ts",
+        "line_start": 178,
+        "line_end": 198
+      },
+      "recommendation": "Add an explicit `kind` or `checks` field to AdversarialCase (already partially done with `expect`); migrate the inline string-match checks into typed expect handlers. Tests/lints can then verify every case has its checks.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Validator regex consistency not testable \u2014 validator.test.ts content not provided",
+      "description": "The PLAN explicitly calls out eval/runner/queries/validator.test.ts as a quality focus area, but neither the test file nor the validator implementation is shown. queries/index.ts imports validateQuery, validateQuerySet, formatIssues, TEMPORAL_VERBS \u2014 these critical CI-gating helpers cannot be assessed for test depth/coverage from this slice.",
+      "location": {
+        "file_path": "eval/runner/queries/validator.test.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure validator.test.ts covers: each temporal verb in TEMPORAL_VERBS triggers as_of_date requirement; cited-source-pages without gold.relevant fails; abstention requires expected_abstention===true; duplicate IDs caught; slug regex boundary cases (single-slash only, no leading/trailing slash, valid character set).",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Nondeterministic `generated_at` in manifest undermines reproducibility goal",
+      "description": "writeManifest() sets `generated_at: new Date().toISOString()` while the file is otherwise positioned as deterministic (seeded RNG, structured cache keys, content-hashes). Manifest hash will change on every run even with no real changes, defeating CI diffability and content-addressed caching of the manifest itself.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 425,
+        "line_end": 440
+      },
+      "recommendation": "Either pin generated_at to a stable value (e.g., the latest cached item's mtime, or skeleton.generated_at), or move the timestamp into a separate non-hashed metadata file. Document the trade-off.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-012",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Inconsistent strict-mode signaling \u2014 tsconfig.json content not provided",
+      "description": "PLAN focus includes 'TS strictness configuration' but tsconfig.json contents are not shown. Cannot confirm strict mode, noUncheckedIndexedAccess, exactOptionalPropertyTypes, etc. Code uses several `as any` and type assertions (claude-sonnet-with-tools.ts:135, multiple `as Bm25State` casts) that would benefit from strict settings.",
+      "location": {
+        "file_path": "tsconfig.json",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Confirm strict: true, noUncheckedIndexedAccess: true, noImplicitOverride: true. Audit and remove avoidable `any` casts in adapters.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-013",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Empty catch block silently swallows ledger parse errors",
+      "description": "loadCorpus() in world-html.ts has `try { ledger = JSON.parse(raw) as Ledger; } catch { /* fall through */ }` \u2014 a malformed _ledger.json silently yields an empty ledger metadata block in the rendered HTML with no signal to the contributor. Same pattern for malformed page files.",
+      "location": {
+        "file_path": "eval/generators/world-html.ts",
+        "line_start": 96,
+        "line_end": 110
+      },
+      "recommendation": "At minimum log a console.warn with the filename and parse error so contributors discover corrupt cache files. Consider returning a structured warnings array from loadCorpus and surfacing in the rendered HTML.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-014",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Worker pattern uses `while (true)` and shared mutable index \u2014 minor style",
+      "description": "runConcurrently in all.ts uses `while (true) { const idx = next++; ... }` which works but is a slight readability hit. The pattern is also reimplemented (similar) elsewhere in the codebase (gen.ts has its own worker queue). Could be unified into a small util.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 184,
+        "line_end": 198
+      },
+      "recommendation": "Extract a shared `concurrentMap<T,R>(items, n, fn)` helper used by all.ts, gen.ts, and any future runner. Modest reduction in duplication.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Documentation files referenced in PLAN are not provided/visible for verification",
+      "description": "The plan lists README.md, eval/README.md, eval/RUNBOOK.md, eval/CONTRIBUTING.md, eval/CREDITS.md, and eval/data/source-swamp-v1/_README.md as the documentation under review, but only the file names appear in the listing \u2014 their contents are not included in the analyzed code. Findings on those files cannot be verified directly; assessment below is based on source code documentation patterns.",
+      "location": {
+        "file_path": "eval/README.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Ensure these documentation files exist and are kept in the repo. If they exist, future review passes should include their contents. Confirm cross-references from code (e.g. CONTRIBUTING.md references in queries/index.ts) point to actual sections.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "External-author submission path documented in code but onboarding flow may not exist",
+      "description": "eval/cli/query-new.ts instructs contributors to submit PRs to `eval/external-authors/<author-slug>/queries.json`, but there is no visible documentation describing the directory layout, slug rules for author handles, review SLA, licensing/CLA requirements, or how Tier 5.5 queries are integrated into the validator's built-in set. Contributors will hit the path and not know what to do next.",
+      "location": {
+        "file_path": "eval/cli/query-new.ts",
+        "line_start": 95,
+        "line_end": 96
+      },
+      "recommendation": "Add an 'External Authors / Tier 5.5 Submissions' section to eval/CONTRIBUTING.md that documents: the directory convention, JSON file format ({queries: Query[]} vs Query[]), required fields (author, as_of_date, gold), the validator command, expected review process, and any licensing/attribution requirements. Add a stub eval/external-authors/README.md as a landing pad.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Benchmark report dating relies on filesystem date, methodology not embedded",
+      "description": "eval/runner/all.ts writes reports to `eval/reports/YYYY-MM-DD-brainbench.md` and embeds branch/commit/N/concurrency, but does not record: pricing snapshot date for Opus/Sonnet, embedding model version, gbrain commit pin, corpus content hash, or BrainBench schema version. Reports become hard to compare across runs once model pricing or embedding versions drift. The methodology (what Cats measure, what scores mean) is also not embedded in the report or linked.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 233,
+        "line_end": 248
+      },
+      "recommendation": "Extend buildReport() to embed: gbrain dependency commit (read from package.json or lockfile), pricing snapshot date, embedding model id, corpus manifest hash if available, and a 'Methodology' link to a stable docs/benchmarks/methodology.md page. Add docs/benchmarks/ with one methodology document explaining each Cat's scoring rubric.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "docs/benchmarks/ directory is in plan but no files are visible",
+      "description": "The PLAN explicitly lists docs/benchmarks/ as in-scope for documentation review, yet no files under that path appear in the source listing. Methodology, scoring rubrics for the 12 Cats, and per-adapter design rationale (which is currently scattered across module-level comments in adapters/*.ts) are not centralized.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 1,
+        "line_end": 30
+      },
+      "recommendation": "Create docs/benchmarks/ with at minimum: README.md (index), methodology.md (what each Cat measures, scoring formulas, N-runs interpretation), adapters.md (EXT-1 grep-only, EXT-2 vector, EXT-3 hybrid-no-graph, gbrain \u2014 design rationale & comparator logic), and reproducibility.md (how to reproduce a published baseline run). Much of the prose already exists in module headers and can be lifted directly.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Schema documentation alignment with eval/schemas not verifiable",
+      "description": "amara-life-gen.ts references `eval/schemas/corpus-manifest.schema.json` and writes a manifest with schema_version: 1, but the schema file itself is not visible and there is no documentation describing the schema fields, versioning policy, or how schema bumps invalidate the cache. Contributors generating new corpora cannot validate manifest output without reading generator code.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 12,
+        "line_end": 14
+      },
+      "recommendation": "Add eval/schemas/README.md indexing all schemas (corpus-manifest, query, transcript, etc.) with: field-by-field descriptions, version history, validation command, and an example. Wire each generator's manifest writer to validate against the JSON schema at write-time so drift is caught immediately.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "high",
+      "title": "RUNBOOK clarity for reproducing benchmarks: programmatic Cats path is implicit",
+      "description": "all.ts marks Cats 5, 8, 9 as 'programmatic' and points to runCat5/runCat8/runCat9 harnesses, but there is no visible runbook section describing how to actually invoke these \u2014 what inputs to assemble, where claim catalogs / probe catalogs / scenarios live, or example harness code. A new contributor running `eval:brainbench:published` will get a partial scorecard with no clear next step for the missing 3 Cats.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 67,
+        "line_end": 99
+      },
+      "recommendation": "Add a 'Running programmatic Cats (5, 8, 9)' section to eval/RUNBOOK.md with: location of input fixtures (gold/citations.json, probe catalogs, scenario JSONs), a minimal copy-pasteable harness for each, expected output, and how those results merge into the unified report. Consider adding `eval:cat5`, `eval:cat8`, `eval:cat9` package.json scripts that point at canned harness files.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 5.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Public exported API on adapters lacks JSDoc on Adapter interface contract",
+      "description": "Adapters (RipgrepBm25Adapter, VectorOnlyAdapter, HybridNoGraphAdapter, ClaudeSonnetWithToolsAdapter) implement an `Adapter` interface from '../types.ts', but the interface itself is not documented in the snippets and individual implementations document behavior inconsistently. RipgrepBm25Adapter has no class-level JSDoc, while ClaudeSonnetWithToolsAdapter has thorough header comments. The `query()` method on the agent adapter throws by design \u2014 this should be a TSDoc `@throws` annotation, not just prose.",
+      "location": {
+        "file_path": "eval/runner/adapters/grep-only.ts",
+        "line_start": 145,
+        "line_end": 165
+      },
+      "recommendation": "Add TSDoc on the Adapter interface (in types.ts) documenting init/query/snapshot/teardown contracts. Add class-level TSDoc to each adapter explaining the comparator role (EXT-1/EXT-2/EXT-3/gbrain). Use @throws on ClaudeSonnetWithToolsAdapter.query() to signal the intentional unsupported case.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Generator cost expectations published in code comments; no central cost model doc",
+      "description": "amara-life-gen.ts states '~$12 Opus', gen.ts caps at $80, vector.ts mentions '~$0.02 per run', and all.ts lists '~$200 Opus' for published baseline. These cost expectations are scattered. A contributor planning a budget for a published run has to grep across files to assemble totals. Pricing is also pinned to '2026-04-18' in gen.ts but not elsewhere.",
+      "location": {
+        "file_path": "eval/generators/gen.ts",
+        "line_start": 36,
+        "line_end": 41
+      },
+      "recommendation": "Add a cost-model section to eval/RUNBOOK.md (or docs/benchmarks/costs.md) with a table: corpus generation, per-Cat run cost, smoke vs iteration vs published totals, plus the pricing snapshot date and where to update it when prices change. Centralize PRICE_INPUT_PER_M / PRICE_OUTPUT_PER_M into one constants module so updates touch one file.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Inline injection-engine documentation good, but kind catalog is not user-facing",
+      "description": "adversarial-injections.ts has excellent module-level docs and per-injection JSDoc, but there is no contributor-facing reference (e.g. in eval/CONTRIBUTING.md or docs/benchmarks/adversarial.md) explaining what each InjectionKind tests, how Cat 6 uses them, and how to add a new kind. The InjectionKind union and ALL_INJECTION_KINDS export are clear, but reviewers/scorers reading reports won't know what 'multi_entity_sentence' means without opening the source.",
+      "location": {
+        "file_path": "eval/runner/adversarial-injections.ts",
+        "line_start": 9,
+        "line_end": 23
+      },
+      "recommendation": "Add docs/benchmarks/adversarial-kinds.md that lists each InjectionKind with: what failure mode it surfaces, an example before/after content snippet, the gold-delta semantics, and how to add a new kind (template + dispatcher entry). Link from the Cat 6 report section.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Environment setup (.env.testing) instructions only in one generator",
+      "description": "amara-life-gen.ts and gen.ts both load credentials from .env.testing with a fragile error message in amara-life-gen.ts ('Copy it from a sibling worktree'), but there is no central documented setup for required env vars (ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY mentioned in all.ts) or .env.testing template. New contributors hit cryptic errors.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 70,
+        "line_end": 76
+      },
+      "recommendation": "Commit a .env.testing.example with all required variable names (no values) and document setup in eval/CONTRIBUTING.md or eval/RUNBOOK.md: which keys are needed for which Cats, how to obtain them, and how to verify the setup with a fast smoke run (BRAINBENCH_N=1).",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Strong inline documentation across modules \u2014 positive signal",
+      "description": "Module headers are consistently thorough: world.ts, world-html.ts, gen.ts, amara-life-gen.ts, amara-life.ts, vector.ts, grep-only.ts, vector-grep-rrf-fusion.ts, claude-sonnet-with-tools.ts, all.ts, and adversarial-injections.ts each open with a multi-paragraph design rationale, usage examples, cost notes, and 'why this design' justification. Test files include explanatory comments on tie-break determinism, IDF semantics, and XSS neutralization. This is well above average for a research/benchmark repo.",
+      "location": {
+        "file_path": "eval/generators/world-html.ts",
+        "line_start": 1,
+        "line_end": 31
+      },
+      "recommendation": "Preserve this style as the project grows. When extracting docs/benchmarks/ pages, lift content directly from these headers rather than rewriting \u2014 they are already publication-quality.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "high",
+      "title": "No lockfile present (bun.lockb / package-lock.json not committed)",
+      "description": "The provided files include package.json but no lockfile is visible. Without a committed lockfile (bun.lockb for Bun, or package-lock.json), dependency resolution is non-deterministic across contributors and CI. Combined with caret ranges (^0.30.0, ^2.4.5) and a git-ref dependency, two installs can produce materially different trees, undermining benchmark reproducibility \u2014 which is a core promise of this project.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 1,
+        "line_end": 1
+      },
+      "recommendation": "Commit bun.lockb (or package-lock.json if mixing tooling) and add a CI step (e.g., `bun install --frozen-lockfile`) to enforce lockfile integrity. Document the lockfile in CONTRIBUTING.md.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "critical",
+      "title": "Critical core dependency pinned to a moving git branch (master)",
+      "description": "`gbrain` is the central library this benchmark consumes, but it is referenced as `github:garrytan/gbrain#master` \u2014 a branch ref, not a tag or commit SHA. Every fresh install can pull a different gbrain HEAD, silently changing benchmark results. This is the single largest reproducibility risk in the project and directly contradicts the stated goal of byte-identical reproducibility (see amara-life.ts comments).",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 24,
+        "line_end": 24
+      },
+      "recommendation": "Pin to a commit SHA or a versioned tag, e.g. `github:garrytan/gbrain#v0.3.1` or `github:garrytan/gbrain#<40-char-sha>`. For published benchmark runs, record the resolved SHA in the report metadata. Long-term, publish gbrain to npm and consume a semver pin.",
+      "agent_role": "dependency",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "@anthropic-ai/sdk pinned to outdated 0.30.x via caret range",
+      "description": "`@anthropic-ai/sdk: ^0.30.0` is significantly behind current releases (the SDK is in the 0.40+ range as of late 2024/2025). Because it's still 0.x, caret ranges only allow patch updates within 0.30.x. The codebase already references modern features (cache_control, claude-sonnet-4-6, claude-opus-4-5 model aliases, tool_use blocks) that may not be fully typed/supported in 0.30.x, risking runtime mismatches between TypeScript types and actual API behavior.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 23,
+        "line_end": 23
+      },
+      "recommendation": "Bump to the latest @anthropic-ai/sdk minor (e.g., ^0.39.0 or current). Verify that cache_control, tool_use, and the Anthropic.Messages.Message types compile against the new version. Add Renovate/Dependabot for SDK freshness.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "pdf-parse misclassified or unused \u2014 only listed as devDependency",
+      "description": "`pdf-parse@^2.4.5` is the only devDependency besides @types/bun, but cat11-multimodal.ts is listed as a runtime script (`eval:cat11`) in `scripts`. If pdf-parse is consumed at benchmark runtime, it should be in `dependencies` so downstream consumers installing with `--production` still get it. If it's truly only used during development (e.g., generators), the placement is fine but should be documented. Note: pdf-parse v2.x is a relatively recent fork; the long-lived 1.x line had known issues with bundled test PDFs causing crashes on import.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 26,
+        "line_end": 28
+      },
+      "recommendation": "Audit whether pdf-parse is imported by any runtime path (multi-adapter.ts, cat11-multimodal.ts). If yes, move to `dependencies`. If keeping in dev, add a comment explaining why. Consider alternatives like `pdfjs-dist` or `@bundled-es-modules/pdfjs-dist` which are more actively maintained.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "@types/bun pinned to \"latest\" \u2014 non-deterministic type resolution",
+      "description": "`@types/bun: latest` resolves to whatever the registry returns at install time. This makes TypeScript builds and `bun test` results dependent on install timing, which is an anti-pattern especially in a benchmark project promising reproducibility. A type-only breaking change in a future @types/bun release could cause CI to fail without any code change.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 27,
+        "line_end": 27
+      },
+      "recommendation": "Replace `\"latest\"` with a concrete caret range, e.g. `^1.1.0` matching the Bun runtime version you target. Re-evaluate on Bun major bumps.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "No automated dependency-update tooling configured",
+      "description": "There is no evidence of Dependabot, Renovate, or similar automation (no .github/dependabot.yml or renovate.json shown). For a public benchmark whose Anthropic SDK, gbrain, and pdf-parse change frequently, manual tracking will let CVEs and API drift accumulate. Combined with the moving `gbrain#master` ref, this multiplies supply-chain risk.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add `.github/dependabot.yml` with weekly updates for npm (and github-actions if used). Group SDK updates and pin gbrain to a SHA so Dependabot can open well-scoped PRs.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "No SBOM / license audit produced for published benchmark runs",
+      "description": "The project declares MIT and ships `eval:brainbench:published` as a public-facing run, but there is no script or CI step generating an SBOM (CycloneDX, SPDX) or running `npm audit` / `bun pm audit`. Consumers of the benchmark cannot independently verify the license-compatibility or vulnerability posture of the toolchain that produced a published score.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 12,
+        "line_end": 22
+      },
+      "recommendation": "Add a script `\"audit\": \"bun pm audit\"` and an SBOM generator (e.g., `@cyclonedx/cyclonedx-npm`). Run both in CI and attach the SBOM to published benchmark reports under `eval/reports/`.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-009",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Two different model-pricing constants drift between generators",
+      "description": "Not strictly a dependency issue, but it surfaces as a maintenance hazard tied to upstream SDK behavior: pricing constants (`PRICE_INPUT_PER_M`, `PRICE_OUTPUT_PER_M`) are duplicated in `eval/generators/gen.ts`, `eval/generators/amara-life-gen.ts`, and `eval/runner/adapters/claude-sonnet-with-tools.ts`. When Anthropic changes prices or you upgrade the SDK to access new models, you must update three locations. This will silently mis-report cost in benchmark reports.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 67,
+        "line_end": 69
+      },
+      "recommendation": "Centralize model pricing in a single module (e.g., `eval/runner/pricing.ts`) that exports a `priceFor(model, usage)` function. Reference it from all three call sites. Pair with a unit test that asserts every model used in the codebase has a price entry.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Sequential per-item LLM calls in amara-life generator (no concurrency)",
+      "description": "The main generation loop in amara-life-gen.ts processes 50 emails + 300 slack + 8 meetings + 40 notes (398 LLM calls) strictly sequentially via `for...of` with `await callOpus()` inside. At ~5-10s per Opus call, this means 30-60 minutes of wall time for a full uncached run, dominated by network round-trip latency rather than compute. The sibling generator gen.ts already implements a `worker()` pool with `--concurrency` flag \u2014 the same pattern should apply here. Cache hits (which return instantly) are also serialized unnecessarily.",
+      "location": {
+        "file_path": "eval/generators/amara-life-gen.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Refactor the four sequential loops (emails, slack, meetings, notes) into a worker-pool pattern matching gen.ts (lines using `Promise.all(Array.from({length: concurrency}, () => worker()))`). Default concurrency 4-8 (well under Anthropic's tier-1 RPS). This should reduce wall time 4-8x for uncached runs. Preserve cost-tracker thread safety by ensuring the HARD_STOP_USD check happens after each completion atomically.",
+      "agent_role": "performance",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Embeddings re-computed on every adapter init (no warm-start cache)",
+      "description": "VectorOnlyAdapter.init() embeds all 240 corpus pages on every run via embedBatch, costing ~$0.02 and 30-60s of network I/O each invocation. The adapter explicitly notes 'No snapshot semantics needed for v1.1' but BrainBench is run repeatedly (smoke=N=1, iteration=N=5, published=N=10), and `multi-adapter.ts` likely re-inits on every comparison run. With a 240-page corpus, this is a fixed re-embed tax per run that scales linearly with N adapter executions.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a content-hash-keyed embedding cache to disk (e.g., `eval/data/_cache/embeddings/<sha256(content)>.bin`). On init, lookup-by-hash before calling embedBatch; only embed cache misses. This makes the second and subsequent BrainBench runs free at the embedding layer (saves ~$0.02 * N runs and ~30-60s * N seconds). Consider similar caching for HybridNoGraphAdapter's importFromContent if that pipeline also re-embeds.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "BM25 candidate scoring iterates union-of-postings without early termination",
+      "description": "RipgrepBm25Adapter.query computes scores for every doc containing ANY query token (the candidate set). For a multi-token query on a corpus where common tokens hit most docs, this can score nearly N=240 docs per query. While 240 is small, the multi-adapter sweep runs ~100+ queries \u00d7 multiple adapters, and the inner loop allocates intermediate strings. There's no top-K early termination (e.g., WAND or block-max).",
+      "location": {
+        "file_path": "eval/runner/adapters/grep-only.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "For corpus sizes under ~10K this is acceptable, but consider sorting query tokens by IDF descending and skipping low-IDF terms when accumulated score guarantees no rank-K improvement (WAND). Alternatively, simply early-terminate the sort with a bounded heap of size K=20 instead of sort-all-then-slice. Low priority given current corpus size.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Subprocess Cat dispatch passes full env including potentially-large state",
+      "description": "all.ts spawns 9 subprocess Cats with `env: process.env` and concurrency=2. Each child inherits the full env and pipes stdout+stderr fully into memory via `output += chunk.toString()`. For long-running Cats (10-min timeout), if a Cat prints verbose progress (e.g., 'embedding 240/240 pages...'), the parent accumulates the entire stream in a single string. With concurrency=2 and 10-min timeouts, peak memory could include several MB of accumulated child output \u00d7 2 in-flight + ~400MB per PGLite \u00d7 2 = ~800MB as documented. The string concatenation pattern for stdout is also O(n\u00b2) in chunks.",
+      "location": {
+        "file_path": "eval/runner/all.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Replace `output += chunk.toString()` with a string-array push then join at end (avoids O(n\u00b2) string concat). Consider a circular buffer or size cap (e.g., last 1MB) for very chatty Cats. The reproduction-doc says ~800MB peak which is fine, but verify no Cat exceeds this when running at higher BRAINBENCH_N.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Agent loop has no global LLM concurrency limiter despite documented BRAINBENCH_LLM_CONCURRENCY",
+      "description": "all.ts documents `BRAINBENCH_LLM_CONCURRENCY` as 'max simultaneous Anthropic calls, read by llm-budget.ts'. However, claude-sonnet-with-tools.ts's runAgentLoop directly calls `client.messages.create` with no apparent integration to a budget/semaphore. If multiple agent runs execute in parallel (e.g., Cat 8/9 with multiple probes, or two subprocess Cats both running agents), the Anthropic 429 backoff is the only throttle. Each 429 retry costs 1-7s of sleep \u00d7 up to 3 attempts. For high-N runs, this can produce thundering-herd 429 storms.",
+      "location": {
+        "file_path": "eval/runner/adapters/claude-sonnet-with-tools.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Wire runAgentLoop's `client.messages.create` call through an llm-budget.ts semaphore/p-limit (e.g., `await budget.acquire('anthropic'); try { ... } finally { budget.release('anthropic'); }`). Default to BRAINBENCH_LLM_CONCURRENCY=4. This pre-empts 429s rather than reactively retrying, saving wall time and preventing wasted token spend on retried requests. Apply the same gating to amara-life-gen.ts's callOpus.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "HybridNoGraphAdapter silences console during full-corpus import (correct) but doesn't pre-allocate",
+      "description": "HybridNoGraphAdapter.init iterates all rawPages calling `await importFromContent(engine, p.slug, content)` sequentially. importFromContent does chunking + embedding inside, and is silenced via console.log overrides. For 240 pages this is sequential work \u2014 embedding is the dominant cost and likely already batched inside importFromContent, but the per-page sequential await still serializes any I/O parallelism that the underlying pipeline could exploit.",
+      "location": {
+        "file_path": "eval/runner/adapters/vector-grep-rrf-fusion.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Investigate whether importFromContent supports a batch variant. If not, low priority \u2014 the embedBatch inside likely amortizes the network cost. Verify by timing init() with N=1 vs N=8 concurrent imports; if init time stays roughly constant, current pattern is fine. The console.log suppression is a clever hack but consider passing a `silent: true` option through importFromContent if exposed.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-009",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Worker pool in gen.ts uses unbounded Array.shift() \u2014 O(N) per dequeue",
+      "description": "gen.ts's worker pool dequeues via `queue.shift()` which is O(N) on V8 arrays (re-indexes the entire array). With 240 entities \u00d7 concurrency workers, total work is O(N\u00b2/concurrency) = ~50K extra index shuffles. Not a real performance problem at this scale (single-digit ms total), but if BrainBench scales to 1000+ entities the shift cost grows.",
+      "location": {
+        "file_path": "eval/generators/gen.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Use an index counter instead: `const idx = nextIdx++; if (idx >= subset.length) break; const e = subset[idx];`. This is O(1) per dequeue and matches the same pattern already used in all.ts's runConcurrently helper. Trivial change, future-proofs scaling.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 188.34,
+  "total_tokens_used": 534564,
+  "total_cost_usd": 17.289,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 0
+}

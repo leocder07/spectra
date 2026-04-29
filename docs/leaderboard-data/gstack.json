@@ -1,0 +1,1042 @@
+{
+  "repo_url": "https://github.com/garrytan/gstack",
+  "repo_name": "gstack",
+  "score_card": {
+    "overall_score": 72.0,
+    "overall_grade": "C",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 66.5,
+        "grade": "D+",
+        "findings_count": 6,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 85.0,
+        "grade": "B+",
+        "findings_count": 6,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 56.4,
+        "grade": "F",
+        "findings_count": 14,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 77.7,
+        "grade": "B-",
+        "findings_count": 12,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 73.4,
+        "grade": "C+",
+        "findings_count": 11,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 77.1,
+        "grade": "B-",
+        "findings_count": 5,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 54
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "critical",
+      "title": "Syntax error: stray code in disconnect handler",
+      "description": "In browse/src/cli.ts within the 'disconnect' command handler, the JSON.stringify body call contains an orphaned `domains,` token left over from what appears to be a bad merge. This is invalid JavaScript/TypeScript and will fail to compile. The disconnect path is entirely broken until fixed.",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Remove the stray `domains,` line. The body should simply be `JSON.stringify({ command: 'disconnect', args: [] })`. Add a unit test that exercises the disconnect path so future merges don't reintroduce this.",
+      "agent_role": "architecture",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "server.ts is a 1500+ line god module mixing every cross-cutting concern",
+      "description": "browse/src/server.ts owns: HTTP routing (~20 endpoints inline in one fetch handler), auth (root + scoped + SSE cookie + PTY cookie), tunnel lifecycle, ngrok integration, idle-timer + parent-watchdog, signal handling, buffer flushing, inspector SSE, batch dispatch, file serving, welcome page, command pipeline, and chain recursion guards. The makeFetchHandler closure alone is hundreds of lines with deeply nested conditionals. This violates SRP, makes the security-critical surface filter hard to audit (tunnel allowlist sits next to unrelated welcome-page code), and makes incremental refactoring risky. Adding a route requires editing this monster.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract route handlers into a routes/ directory: routes/auth.ts (/connect, /token, /pair, /sse-session, /pty-session), routes/tunnel.ts (/tunnel/start, closeTunnel), routes/inspector.ts, routes/activity.ts, routes/command.ts (/command, /batch), routes/file.ts. Use a thin Router abstraction (Map<path, handler>) so the surface filter is one place. Keep server.ts as the composition root only.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Browser-skill SDK is duplicated per-skill instead of versioned package \u2014 drift risk",
+      "description": "browse-client.ts comments document that each browser-skill ships a sibling _lib/browse-client.ts copy of the SDK, and the canonical source is hand/script-copied. This trades portability for silent version drift: a daemon-side breaking change can leave dozens of skills running stale clients. There's no version-handshake at the /command boundary either, so the failure mode is silent.",
+      "location": {
+        "file_path": "browse/src/browse-client.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a CLIENT_VERSION constant in browse-client.ts and send it as a header on /command. Server logs (or rejects, behind a flag) requests from clients older than a minimum version. Add a `bun run check:skills` script that diffs each shipped _lib/browse-client.ts against the canonical and warns on mismatch.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "BrowserManager is a god class \u2014 600+ lines, 30+ responsibilities",
+      "description": "BrowserManager owns: launch/close, tab CRUD, ownership, viewport, headers, user agent, dialog handling, cookie origin tracking, watch mode, handoff (headless\u2192headed), state save/restore, page event wiring, two-tier CDP mutex, ref maps, snapshot diffing, anti-bot stealth scripts, custom Chromium binary discovery, plist patching, and icon copying. Some of these (e.g. plist mutation, icon copy) have nothing to do with browser lifecycle and shouldn't live here.",
+      "location": {
+        "file_path": "browse/src/browser-manager.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Split into: BrowserLifecycle (launch/close/health), TabManager (tabs + ownership), SessionState (saveState/restoreState), HandoffController, CdpMutex (per-tab + global locks), AppRebrand (plist + icon \u2014 move to a one-shot setup script run at install time, not in the hot path of every headed launch). BrowserManager becomes a thin coordinator.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Resolver composition uses string-keyed Record \u2014 no compile-time guarantee that placeholders match resolvers",
+      "description": "scripts/resolvers/index.ts exports RESOLVERS: Record<string, ResolverFn>. There's no type linkage between the {{PLACEHOLDER}} names that templates reference and the keys present in this record. A typo in either side fails silently at template-rendering time rather than at compile time. With ~50 resolvers, this is a real maintenance hazard.",
+      "location": {
+        "file_path": "scripts/resolvers/index.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Define a string-literal union `type ResolverKey = 'SLUG_EVAL' | 'COMMAND_REFERENCE' | ...` and type RESOLVERS as `Record<ResolverKey, ResolverFn>`. Have the template renderer accept only ResolverKey. Generate ResolverKey from the RESOLVERS keys via `keyof typeof RESOLVERS` if you'd rather not maintain it twice.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Host registry uses correct factory pattern (positive)",
+      "description": "hosts/index.ts implements a clean adapter/factory pattern: each host (claude, codex, cursor, etc.) is a self-contained config module, ALL_HOST_CONFIGS is the single registration point, and the Host type is *derived* from the configs (`typeof ALL_HOST_CONFIGS[number]['name']`) rather than maintained in parallel. resolveHostArg handles aliases cleanly. Adding a new host is a localized change. This is the right shape.",
+      "location": {
+        "file_path": "hosts/index.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No action needed. Worth documenting as the canonical extension pattern. Consider moving the registry to a generated file if the list grows past ~20.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "high",
+      "title": "AUTH_TOKEN exposed via /health endpoint enables token theft from any local browser",
+      "description": "The /health endpoint returns the root AUTH_TOKEN unconditionally when in headed mode, or when the request Origin is a chrome-extension:// URL. The Origin header is set by browsers but can be spoofed by any non-browser local HTTP client (curl, malware), and any process on localhost can hit /health and harvest the root token. The root token grants full daemon control including `eval` (arbitrary JS), cookies, storage access. The comment acknowledges this is a 'separate concern (v1.1+ TODO)' but it remains a real exposure. CWE-200 (Information Exposure), OWASP A01:2021 (Broken Access Control).",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Replace the /health token leak with the existing /pty-session or a dedicated /bootstrap endpoint requiring proof of extension identity (e.g., a one-time bootstrap nonce written to a file with 0600 perms, consumed by the extension on first connect). Never serve the root token in a JSON response that any localhost process can fetch.",
+      "agent_role": "security",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Tab ownership ID reuse via nextTabId monotonic counter without bounds enforcement on stale state",
+      "description": "BrowserManager.tabOwnership is cleared during restoreState(), but tab IDs themselves come from a monotonic `nextTabId` counter. Since saveState() restores `owner` per-page and re-mints IDs from `nextTabId++`, if a future code path ever resets or persists nextTabId across sessions without also clearing tabOwnership, a previously-owned tab ID could collide with a new tab and grant unintended access. The current code path is correct (tabOwnership.clear() before re-population), but this is fragile invariant. Additionally, checkTabAccess for `shared` policy returns true unconditionally for any clientId, meaning any scoped token in shared mode can drive any user-owned tab including unowned root user tabs \u2014 confirmed in the code as intentional but worth flagging. CWE-863 (Incorrect Authorization).",
+      "location": {
+        "file_path": "browse/src/browser-manager.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Document the shared vs own-only policy contract more explicitly (already partially done) and add a test asserting that after restoreState, no stale tab IDs from before the recreation can be referenced. Consider using UUIDs instead of monotonic ints for tab IDs to eliminate collision-by-construction risk.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-005",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Telemetry edge function uses anon key with RLS \u2014 proper privilege separation",
+      "description": "telemetry-ingest correctly uses SUPABASE_ANON_KEY rather than service role, with explicit comment explaining the rationale (avoid bypassing RLS). Input validation truncates fields, validates schema_version === 1, validates event_type against allowlist, enforces MAX_BATCH_SIZE=100, MAX_PAYLOAD_BYTES=50KB. Strong pattern. CWE-269 (Improper Privilege Management) avoided. ASVS V13.2.4.",
+      "location": {
+        "file_path": "supabase/functions/telemetry-ingest/index.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No action required. Note that update-check edge function still uses SUPABASE_SERVICE_ROLE_KEY \u2014 verify its insertion to update_checks table is acceptable with anon key + RLS instead, for consistency.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "low",
+      "title": "update-check edge function uses service role key unnecessarily",
+      "description": "supabase/functions/update-check/index.ts uses SUPABASE_SERVICE_ROLE_KEY to insert into update_checks. Service role bypasses RLS and grants full DB access \u2014 the same anti-pattern explicitly avoided in telemetry-ingest. Insert-only public telemetry should use anon key + RLS INSERT policy. Lower severity because (1) the edge function is a single trusted code path, (2) input is validated/truncated, (3) it doesn't accept arbitrary SQL. But it violates least privilege. CWE-269 (Improper Privilege Management). OWASP A01:2021.",
+      "location": {
+        "file_path": "supabase/functions/update-check/index.ts",
+        "line_start": 21,
+        "line_end": 24
+      },
+      "recommendation": "Switch to SUPABASE_ANON_KEY and add an RLS INSERT policy on update_checks scoped to the anon role with appropriate column constraints. Matches the pattern already used in telemetry-ingest.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-010",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Skill spawn env scrubbing has comprehensive secret pattern denylist",
+      "description": "buildSpawnEnv uses an allowlist for untrusted skills (LANG, LC_ALL, LC_CTYPE, TERM, TZ only) and a SECRET_KEY_PATTERNS regex denylist (TOKEN/KEY/SECRET/PASSWORD/CREDENTIAL plus AWS/AZURE/GCP/ANTHROPIC/OPENAI/GITHUB prefixes). GSTACK_TOKEN is always stripped even from trusted spawns. Strong pattern. The skill_token mints a per-spawn scoped capability with read+write only. CWE-200 mitigation. ASVS V14.3.2.",
+      "location": {
+        "file_path": "browse/src/browser-skill-commands.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No action required. Consider also stripping HOME and USER from untrusted spawns (currently not in allowlist, so already excluded \u2014 confirm).",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-011",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Activity stream filterArgs redacts password/token args \u2014 well-implemented",
+      "description": "filterArgs() in activity.ts redacts fill values for password-like selectors, type values unconditionally, header values for Authorization/Cookie/X-Api-Key, cookie values, and sensitive query parameters in URLs. truncateResult caps at 200 chars. Privacy-conscious design for the SSE stream that the extension consumes. CWE-532 (Information Exposure Through Log Files) mitigation.",
+      "location": {
+        "file_path": "browse/src/activity.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No action required. The persistent audit log (audit.ts) does not appear to apply the same redaction \u2014 args are truncated to 200 chars but not pattern-redacted. Consider extending filterArgs reuse to writeAuditEntry for consistency.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "critical",
+      "title": "Syntax error in cli.ts disconnect handler \u2014 invalid JSON.stringify body",
+      "description": "The disconnect command handler contains a malformed JSON.stringify call with a stray `domains,` token from a partial copy-paste. The body object has unbalanced braces and references an undefined `domains` variable. This is a parse-time syntax error that would prevent the file from loading.",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 700,
+        "line_end": 705
+      },
+      "recommendation": "Remove the stray `domains,` line. The body should be: `JSON.stringify({ command: 'disconnect', args: [] })`. Add a regression test that imports the module to catch syntax errors at CI time.",
+      "agent_role": "quality",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "handleCommandInternal exceeds 280 lines with very high cyclomatic complexity",
+      "description": "handleCommandInternal in server.ts is ~280 lines long with deeply nested conditionals covering scope checks, domain checks, rate limits, tab pinning, ownership, watch-mode gating, read/write/meta dispatch, content filtering, audit logging, and error/restoration paths. Cyclomatic complexity is well above 25. This concentrates security-critical decisions in a single hard-to-test function, increasing the risk of regressions when changing any one concern.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 308,
+        "line_end": 588
+      },
+      "recommendation": "Extract pure helpers: validateScopeAndDomain(tokenInfo, command, args), enforceRateLimit(tokenInfo, opts), pinTab(tabId), runReadWithHiddenStripping(...), wrapResultIfPageContent(...). Aim for a top-level orchestrator <60 lines and helpers <30 lines each, all unit-testable.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "start() in server.ts is a 700+ line god function with inline route handlers",
+      "description": "The start() function inlines makeFetchHandler with ~20 route handlers (welcome, /health, /pty-session, /connect, /token, /agents, /pair, /tunnel/start, /sse-session, /refs, /activity/stream, /activity/history, /batch, /file, /command, /inspector/*) plus tunnel startup logic. Each handler is reasonable individually but the megafunction makes the file hard to navigate, untestable in isolation, and prone to closure-capture bugs around `surface` and `server`.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 700,
+        "line_end": 1700
+      },
+      "recommendation": "Extract route handlers into a routes/ directory: routes/health.ts, routes/connect.ts, routes/tokens.ts, routes/inspector.ts, routes/activity.ts, routes/batch.ts. Each module exports a handler(req, ctx) function and a path/method match. Keep makeFetchHandler as a thin dispatcher.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "main() in cli.ts mixes argv parsing, server lifecycle, connect/disconnect ceremonies, and command dispatch in 280+ lines",
+      "description": "The main() function in browse/src/cli.ts is over 280 lines and handles: help text, legacy cleanup, the connect ceremony (with kill orchestration, profile cleanup, terminal-agent spawn), the disconnect ceremony, chain stdin, ensureServer, and pair-agent. The connect path alone is ~90 lines with nested error handling. This makes it nearly impossible to unit test individual flows.",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 466,
+        "line_end": 754
+      },
+      "recommendation": "Extract handleConnect(), handleDisconnect(), handlePairAgentCommand() into separate functions. Move the help text into a constant. Each lifecycle handler should be testable with a mocked state file and mocked spawn.",
+      "agent_role": "quality",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Substantial code duplication between /tunnel/start handler and BROWSE_TUNNEL=1 startup path",
+      "description": "The tunnel-listener bind, ngrok.forward() invocation, state-file update, and error cleanup logic are duplicated between the POST /tunnel/start route handler (~lines 1180-1240) and the BROWSE_TUNNEL=1 auto-start block (~lines 1620-1680). Both implement the same dual-listener pattern with the same cleanup-on-failure semantics. Drift risk: if a security-relevant fix is applied to one path it may be missed in the other.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 1180,
+        "line_end": 1240
+      },
+      "recommendation": "Extract `async function startTunnel(authtoken: string, makeFetchHandler): Promise<{url, port}>` that owns the bind + ngrok.forward + state-file update + cleanup-on-error. Have both call sites use it.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Duplicate ngrok config detection logic between cli.ts isNgrokAvailable() and server.ts resolveNgrokAuthtoken()",
+      "description": "Both browse/src/cli.ts (isNgrokAvailable, ~line 380) and browse/src/server.ts (resolveNgrokAuthtoken, ~line 142) walk the same three ngrok config paths (~/.gstack/ngrok.env, native macOS/Linux configs). Logic drift between presence-check and content-read could lead to inconsistent UX (CLI says ngrok available, server fails to find authtoken).",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 380,
+        "line_end": 410
+      },
+      "recommendation": "Extract a shared module browse/src/ngrok-config.ts exporting `findNgrokConfigs()` and `resolveNgrokAuthtoken()`. Both CLI and server import from it.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Test script excludes 5+ entire test suites without coverage tracking",
+      "description": "The default `test` script in package.json ignores skill-e2e-*.test.ts, skill-llm-eval, skill-routing-e2e, codex-e2e, gemini-e2e. These are fenced behind EVALS=1 with --retry 2 and --max-concurrency 15, indicating known flakiness. There's no quick smoke subset for routine local development verification, and no documentation of what the default `bun test` actually exercises vs skips. Engineers running `bun test` may believe they have green coverage when entire eval surfaces are silently excluded.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 16,
+        "line_end": 25
+      },
+      "recommendation": "Add a comment in package.json (or a README section) listing what the default test script exercises and what it skips. Add `test:smoke` for the fast subset and `test:full` that runs everything (with retries) for pre-merge gates. Track flaky tests in a file (FLAKY.md) with owner + remediation plan.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Adversarial security test files referenced in plan but cannot be evaluated for rigor",
+      "description": "The plan mentions browse/test/adversarial-security.test.ts and browse/test/security-bench-ensemble.test.ts as concerns for adversarial test rigor, but the actual test source was not included in the analysis. The implementation files show extensive security surface (TUNNEL_PATHS, TUNNEL_COMMANDS, dual-listener filter, tab ownership, hidden-element stripping, datamarking, rate limits, scope checks, root-vs-scoped token gates) \u2014 verifying that adversarial tests cover all these paths is essential. Without test source, depth/rigor cannot be confirmed.",
+      "location": {
+        "file_path": "browse/test/adversarial-security.test.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Audit the adversarial-security test file to confirm it covers: (1) tunnel-surface path 404s, (2) root-token rejection on tunnel, (3) disallowed-command rejection on tunnel, (4) tab-ownership violation for own-only tokens, (5) scope rejection for read-only token calling write command, (6) rate-limit enforcement, (7) domain rejection on goto, (8) hidden-element injection detection, (9) chain recursion guard, (10) batch nesting rejection. Each should have at least one positive and negative case.",
+      "agent_role": "quality",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Excessive use of `any` type and `as any` casts in security-critical paths",
+      "description": "server.ts and cli.ts use `as any` extensively in JSON request body parsing and ngrok module imports (e.g. `await req.json() as any` for /token, /pair, /tunnel/start, /inspector/*; `tunnelData as any`; `(browserManager as any)._inspectorData`). This bypasses TypeScript's type safety on request bodies that drive security decisions (createToken scopes/domains, createSetupKey rateLimit, inspector/apply selectors). A typo or schema drift can silently propagate.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 1110,
+        "line_end": 1115
+      },
+      "recommendation": "Define request body interfaces (TokenRequest, PairRequest, InspectorPickRequest, etc.) and either validate with a schema library (zod) or write hand-rolled type guards. Replace `as any` with parsed typed bodies. Fail loudly on malformed inputs.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Silent catch blocks suppress errors throughout cli.ts and server.ts",
+      "description": "Many `catch {}` and `catch { /* ... */ }` blocks suppress errors without logging or distinguishing expected from unexpected failures. Examples: cli.ts cleanupLegacyState swallows all parse errors; server.ts /tmp state-file readers; resolveNgrokAuthtoken silently catches all fs errors; multiple `.catch(() => {})` on async navigations and process kills. This makes diagnosis hard when something genuinely breaks (e.g. ENOSPC, EACCES on a config file).",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 168,
+        "line_end": 183
+      },
+      "recommendation": "Introduce a tiny logger helper that distinguishes expected error codes (ENOENT, ECONNREFUSED) from unexpected ones, and logs unexpected errors at debug/warn level. Replace `catch {}` with explicit code-class checks like the existing `if (err?.code !== 'ENOENT') throw err;` pattern that's used inconsistently elsewhere.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "BrowserManager class is 1000+ lines spanning 25+ concerns",
+      "description": "BrowserManager owns: launch/connect lifecycle, tab management, ownership map, dialog handling, cookie tracking, viewport+scale, headers, user agent, watch mode, headed-mode app rebranding, anti-bot stealth scripts, indicator injection, two-tier CDP mutex, event wiring, refs+snapshot delegation, state save/restore, context recreation, and handoff. Single class managing too many responsibilities \u2014 changes for one concern (e.g. anti-bot patches) risk regressions in unrelated areas (e.g. CDP locks).",
+      "location": {
+        "file_path": "browse/src/browser-manager.ts",
+        "line_start": 35,
+        "line_end": 1100
+      },
+      "recommendation": "Extract: TabRegistry (Map<id, page+session+owner> + active tab), DialogController, AntiBotPatcher (init scripts), HeadedAppRebrander (Info.plist + icon patches), CdpMutexBroker (per-tab + global locks). BrowserManager becomes a thin coordinator <300 lines.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Hardcoded magic numbers throughout (timeouts, ports, sizes) without named constants",
+      "description": "Timeout literals (2000, 5000, 15000, 30000), port ranges (10000-60000), buffer sizes (8192, 131072, 200*1024*1024), retry counts (5), sleep intervals (100, 200), and idle thresholds (15_000, 60_000) are scattered as inline literals across cli.ts, server.ts, and browser-manager.ts. Reduces readability and makes tuning hard.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 740,
+        "line_end": 760
+      },
+      "recommendation": "Centralize timeouts and sizes in a constants file: TIMEOUTS (HEALTH_CHECK_MS, COMMAND_DEFAULT_MS, NGROK_PROBE_MS, etc.), LIMITS (MAX_FILE_SERVE_BYTES, MAX_BATCH_SIZE), PORT_RANGE. Reference by name throughout.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-012",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Multiple stale TODO-style comments referencing 'ripped' code with no follow-up tracking",
+      "description": "server.ts contains multiple comments like 'sidebar agent / chat state ripped', 'ChatEntry, SidebarSession, TabAgentState interfaces; chatBuffer ... all lived here', 'Sidebar chat endpoints ripped', and 'initSidebarSession() ripped'. These dead-code markers add ~30 lines of noise. While historically useful, they lack ticket/PR references and won't be cleaned up.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 393,
+        "line_end": 404
+      },
+      "recommendation": "Either delete these comments entirely (git history preserves the change) or replace with a single CHANGELOG entry / ARCHITECTURE.md note explaining the chat-queue removal. Attach to a PR/ticket so future readers have context.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-013",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Build script is a single 600+ character one-liner mixing concerns",
+      "description": "The `build` npm script chains vendor:xterm, gen:skill-docs, six bun build invocations, a bash subscript, three git rev-parse hash writes, chmod, and rm cleanup using `&&` and `;` separators. A failure mid-chain leaves dist artifacts in inconsistent state. The script is hard to read and modify safely.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 13,
+        "line_end": 13
+      },
+      "recommendation": "Extract scripts/build.ts that orchestrates the build with proper error handling, parallel-where-safe execution, and progress logging. Each step should be a named function. Failure should clean up partial dist outputs.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Top-level documentation file inventory is overwhelming with no clear entry point hierarchy",
+      "description": "The repo root contains 10+ documentation files (AGENTS.md, ARCHITECTURE.md, BROWSER.md, CLAUDE.md, CONTRIBUTING.md, DESIGN.md, README.md, SKILL.md, TODOS.md, USING_GBRAIN_WITH_GSTACK.md) without a clear reading order or audience map. New contributors face decision paralysis: which file do I read first? Which is for users vs contributors vs AI agents? A docs index in README.md or a docs/README.md catalogue would orient readers immediately.",
+      "location": {
+        "file_path": "README.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a 'Documentation Map' section near the top of README.md that lists each top-level doc with one-line audience+purpose: e.g. 'AGENTS.md \u2014 instructions for AI coding agents working in this repo', 'ARCHITECTURE.md \u2014 system overview for contributors', 'CLAUDE.md \u2014 Claude Code-specific operating contract', etc. Consider moving most non-README docs into docs/ to reduce root noise.",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public exported functions in cli.ts lack JSDoc despite complex behavior",
+      "description": "Several exported functions in browse/src/cli.ts have no docstring explaining contract, parameters, or return semantics: `extractTabId`, `generateInstructionBlock`, `isServerHealthy`, `resolveServerScript`, `resolveNodeServerScript`. These are exported (suggesting reuse in tests or other modules) but rely on inline comments scattered around call sites rather than self-contained API docs. `generateInstructionBlock` in particular is a large pure function whose options object (`InstructionBlockOptions`) has no field-level documentation.",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 23,
+        "line_end": 54
+      },
+      "recommendation": "Add JSDoc/TSDoc blocks to all exported functions describing parameters, return values, and side effects. Document the `InstructionBlockOptions` interface fields (setupKey lifecycle, scopes meaning, expiresAt format). Use @param, @returns, @throws annotations consistent with the better-documented functions in the same file (e.g., `acquireServerLock`, `cleanupLegacyState`).",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Stale 'ripped' code references and TODO-style comments leak into production source",
+      "description": "Multiple comments in server.ts and browser-manager.ts describe code that has been removed ('sidebar-agent.ts spawn was here', 'ChatEntry, SidebarSession ... all lived here', 'initSidebarSession() ripped'). These are useful for the current author's mental model but become noise for new contributors who don't know the historical context. They also reference architectural decisions (chat queue replaced by interactive PTY) that should live in ARCHITECTURE.md or an ADR, not as inline comments scattered across files.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 304,
+        "line_end": 312
+      },
+      "recommendation": "Move historical 'ripped' explanations into a single ADR (e.g., docs/adr/2025-XX-pty-replaces-chat-queue.md) describing why the chat queue was replaced by the interactive PTY. Replace inline comment blocks with a single one-line reference: `// Chat queue removed \u2014 see docs/adr/2025-XX-pty-replaces-chat-queue.md`. Reduces source-file noise by ~50 lines.",
+      "agent_role": "documentation",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "TUNNEL_COMMANDS allowlist documents security decision but the linked plan is not in repo",
+      "description": "server.ts line ~145 references 'the eng-review decision logged in the CEO plan for sec-wave v1.6.0.0'. This is a security-critical allowlist controlling which commands can be invoked over the public ngrok tunnel. The referenced 'CEO plan' is not visible in the documentation tree provided (no docs/security/ or docs/decisions/ folder), so anyone reviewing or modifying this set has no visible record of WHY each command is on the list. Future maintainers may add a command without understanding the threat model.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 137,
+        "line_end": 148
+      },
+      "recommendation": "Either inline the threat-model rationale as a comment block above TUNNEL_COMMANDS (one sentence per command category explaining why it is/isn't tunnel-safe), or commit the sec-wave v1.6.0.0 decision document to docs/security/tunnel-allowlist-rationale.md and link to it from the comment. Make the same fix for TUNNEL_PATHS at line ~115.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Skill authoring guide documents not visible despite SKILL.md existence",
+      "description": "The repo ships with SKILL.md and docs/skills.md, plus a substantial browser-skills system (browse/src/browser-skills.ts, browser-skill-commands.ts, browser-skill-write.ts). The frontmatter format, tier resolution (project > global > bundled), trust model, and atomic-write/staging flow are all complex. Inline JSDoc on browser-skills.ts is good (parseSkillFile, defaultTierPaths well-commented), but a contributor authoring a new skill needs to find: (1) frontmatter schema reference, (2) trusted vs untrusted env contract, (3) testing guidance, (4) how the SDK copy at _lib/browse-client.ts is meant to be updated. Without seeing SKILL.md / docs/skills.md content I cannot confirm completeness, but the surface area suggests gaps are likely.",
+      "location": {
+        "file_path": "docs/skills.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Audit docs/skills.md and SKILL.md for: (1) complete frontmatter field reference matching SkillFrontmatter interface, (2) explicit list of UNTRUSTED_ALLOWLIST env vars and SECRET_KEY_PATTERNS so authors know what's scrubbed, (3) end-to-end 'author your first skill' tutorial referencing the bundled hackernews-frontpage example, (4) testing conventions for script.test.ts. Add a frontmatter-schema cross-reference that points to SkillFrontmatter in browser-skills.ts so docs and code stay in sync.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "TODOS.md as committed root file mixes user-facing roadmap with internal scratch",
+      "description": "TODOS.md is a top-level documented file. Without seeing its content I can't confirm, but committing a TODOS file at root is generally a documentation smell: either it's stale (worse than no doc), a roadmap (should be ROADMAP.md or GitHub issues/projects), or developer scratch (should not be in the public tree). It contributes to root-directory noise without serving a clear external audience.",
+      "location": {
+        "file_path": "TODOS.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Decide TODOS.md's audience: if it's a public roadmap, rename to ROADMAP.md and structure with status/owner/eta columns. If it's developer scratch, move to .github/ or delete and migrate to issues. If it's a known-issues list, rename to KNOWN_ISSUES.md. Whichever it is, link it from README.md so readers know it's authoritative.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Excellent inline documentation on security-critical paths \u2014 acknowledge as strength",
+      "description": "Strong positive: the dual-listener tunnel architecture (server.ts ~115-160), the parent-process watchdog logic (~365-400), the SIGTERM mode-dependent behavior (~490-510), and the shutdown signal handling are all documented with detailed prose comments explaining WHY each decision was made (not just what the code does). The CDP mutex in browser-manager.ts (acquireTabLock, acquireGlobalCdpLock) explains the two-tier locking model and timeout rationale. browse-client.ts has an exemplary file-header docblock covering distribution model, auth resolution, and trust boundaries. This level of inline reasoning is well above industry average and should be preserved.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 105,
+        "line_end": 160
+      },
+      "recommendation": "No action needed \u2014 this is a strength worth preserving. Use these blocks as templates when documenting future security-critical code. Consider extracting the longer architectural comments into ARCHITECTURE.md sections so the file headers stay focused while the deep dives are searchable.",
+      "agent_role": "documentation",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Edge function files lack module-level overview docs for non-Supabase contributors",
+      "description": "supabase/functions/{community-pulse,telemetry-ingest,update-check}/index.ts have brief 2-3 line headers explaining purpose but lack documentation of: the database schema they depend on (telemetry_events, community_pulse_cache, update_checks, installations tables), required env vars (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY vs SUPABASE_ANON_KEY \u2014 telemetry-ingest correctly uses anon, the others use service role with no rationale), expected request/response contract, and how they are deployed. A contributor new to Deno/Supabase Edge Functions has no jumping-off point.",
+      "location": {
+        "file_path": "supabase/functions/community-pulse/index.ts",
+        "line_start": 1,
+        "line_end": 10
+      },
+      "recommendation": "Add a docs/telemetry.md (or supabase/functions/README.md) covering: (1) deployment workflow (`supabase functions deploy ...`), (2) required env vars per function, (3) database schema for the four tables referenced, (4) k-anonymity policy used in community-pulse (already documented inline \u2014 promote to docs), (5) how to add a new function. Also add a one-paragraph header to each index.ts pointing at this doc.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "design/src/cli.ts case-by-case command dispatch has no per-command documentation",
+      "description": "design/src/cli.ts main() has a 12-case switch dispatching commands (generate, check, compare, prompt, setup, variants, iterate, extract, diff, verify, evolve, gallery, serve). Each command takes flags but the per-command flag contract is documented only by the imports and the COMMANDS map (not shown). The printUsage() function iterates COMMANDS but I cannot verify how rich each entry is. Users running `$D --help` or onboarding to extend the CLI need a single source of truth for: required vs optional flags per command, default values, file path conventions (/tmp/gstack-mockup.png is hardcoded but undocumented as the convention).",
+      "location": {
+        "file_path": "design/src/cli.ts",
+        "line_start": 124,
+        "line_end": 240
+      },
+      "recommendation": "Either (1) ensure each entry in COMMANDS includes a complete flag list with types/defaults/required so printUsage prints a comprehensive help, or (2) add a docs/design-cli.md reference page covering every command with examples. Add JSDoc to each case branch in main() referencing the implementation file. Document the /tmp/gstack-* path convention centrally rather than duplicating defaults across cases.",
+      "agent_role": "documentation",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Worktree manager has no README despite being explicitly framed as reusable platform module",
+      "description": "lib/worktree.ts header states 'Reusable platform module \u2014 future /batch or /codex challenge skills can import this directly.' But there is no docs/lib/worktree.md or top-level explanation of: (1) what dedup index format ~/.gstack-dev/harvests/dedup.json uses, (2) when to call pruneStale vs cleanupAll, (3) the ~/.gstack-dev/harvests/ layout, (4) integration patterns. The class-level JSDoc is good but a 'how to use this from a new skill' section is missing.",
+      "location": {
+        "file_path": "lib/worktree.ts",
+        "line_start": 1,
+        "line_end": 15
+      },
+      "recommendation": "Add a 'Usage' section to the file header showing a 5-10 line example: instantiate WorktreeManager, call pruneStale once, create per-test worktrees, harvest after, printReport at end. Document the on-disk layout (.gstack-worktrees/<runId>/<testName>/, ~/.gstack-dev/harvests/<runId>/<testName>.patch). Consider adding a lib/README.md if more reusable modules join it.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "package.json scripts are dense and undocumented",
+      "description": "package.json defines 25+ scripts (build, test:evals, test:evals:all, test:e2e, test:e2e:all, test:gate, test:periodic, test:codex, test:gemini, test:audit, eval:list, eval:compare, eval:summary, eval:watch, eval:select, analytics, slop, slop:diff, etc.) with no documentation of what each does, when to use it, or how they relate (e.g., test vs test:evals vs test:gate vs test:periodic). The build script is a single 600+ char chained command with no breakdown. CONTRIBUTING.md presumably covers some of this, but a developer running `bun run` with no args sees a flat list with no semantics.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 11,
+        "line_end": 45
+      },
+      "recommendation": "Add a 'Scripts' section to CONTRIBUTING.md that groups scripts by purpose: Build, Test (unit/eval/e2e/gate/periodic), Dev, Eval analysis, Skill workflow. Explain the EVALS_TIER concept (gate vs periodic) and EVALS_CONCURRENCY env var. Either decompose the build script into named sub-scripts (build:vendor, build:skill-docs, build:browse, build:design, etc.) or add a comment in package.json (via a 'scripts.docs' key, or just document elsewhere) explaining each step's purpose.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-012",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Embedded help text in browse CLI duplicates command list maintained in commands.ts",
+      "description": "browse/src/cli.ts main() has a hardcoded help string (~50 lines, 'gstack browse \u2014 Fast headless browser for AI coding agents...') listing every command. server.ts has generateHelpText() which derives help from COMMAND_DESCRIPTIONS programmatically. These are two sources of truth for the command surface \u2014 the CLI --help and the server /help can drift. The CLI version mentions specific flags (e.g. snapshot -D --diff) that need to be kept in sync with snapshot.ts SNAPSHOT_FLAGS.",
+      "location": {
+        "file_path": "browse/src/cli.ts",
+        "line_start": 596,
+        "line_end": 627
+      },
+      "recommendation": "Have the CLI --help delegate to the same source of truth as the server's generateHelpText() \u2014 either by importing COMMAND_DESCRIPTIONS and SNAPSHOT_FLAGS, or by making a fast HTTP call to the server's help endpoint when one is running. At minimum, add a comment in cli.ts main() pointing to commands.ts as the authoritative list, and add a test that fails when the two diverge.",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "No lock file for npm/Bun dependencies despite bun.lock claim",
+      "description": "package.json is the sole declared dependency manifest for a multi-module monorepo (browse, design, make-pdf, supabase, hosts, plus extension and bin scripts). The PLAN references bun.lock, but if not committed/enforced in CI, builds across CI/dev/prod may resolve different transitive versions. With caret ranges across all production deps (^4.1.0, ^1.7.0, ^7.0.0, ^18.0.2, ^1.58.2, ^24.40.0), reproducibility depends entirely on lock file integrity.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 35,
+        "line_end": 41
+      },
+      "recommendation": "Ensure bun.lock is committed and that CI uses `bun install --frozen-lockfile` (not just `bun install`). Add a CI gate that fails if bun.lock is out of sync with package.json.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Heavy ML dependency (@huggingface/transformers) for a CLI tool",
+      "description": "@huggingface/transformers ^4.1.0 is declared as a production dependency. This package pulls in onnxruntime-web, sharp, and other large native/binary deps (typically 100MB+ install size). For a CLI/browser-automation tool, this is significant bloat unless used heavily. No usage is visible in the analyzed source files.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 36,
+        "line_end": 36
+      },
+      "recommendation": "Audit whether @huggingface/transformers is actually used at runtime. If only used for a specific feature, lazy-load via dynamic import or move to optionalDependencies. If unused, remove it.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Both Playwright and puppeteer-core declared \u2014 duplicate browser-automation deps",
+      "description": "package.json declares both `playwright ^1.58.2` and `puppeteer-core ^24.40.0` as production dependencies. The analyzed code (browser-manager.ts, server.ts) uses Playwright exclusively (`import { chromium } from 'playwright'`). Carrying both increases install size by ~50MB+ and creates two browser-driver code paths to keep secure/updated.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 39,
+        "line_end": 41
+      },
+      "recommendation": "If puppeteer-core is unused, remove it. If used elsewhere (find-browse.ts, server-node.mjs build), document the rationale and consider consolidating on Playwright.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Outdated xterm package \u2014 superseded by @xterm/xterm",
+      "description": "devDependency declares `xterm: \"5\"` and `xterm-addon-fit: ^0.8.0`. The xterm.js project rebranded these packages to @xterm/xterm and @xterm/addon-fit in 2023; the legacy `xterm` and `xterm-addon-fit` packages are deprecated and no longer receive updates or security patches. The vendor:xterm script copies xterm.js + xterm.css from these legacy packages into extension/lib for the terminal pane.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 50,
+        "line_end": 52
+      },
+      "recommendation": "Migrate to @xterm/xterm and @xterm/addon-fit. Update the vendor:xterm script's source paths (node_modules/@xterm/xterm/lib/xterm.js, etc.). The API is largely compatible.",
+      "agent_role": "dependency",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Loose version pin on xterm (\"5\")",
+      "description": "`\"xterm\": \"5\"` is a loose major-only specifier. This resolves to the latest 5.x.x at install time, meaning identical package.json + missing/stale lock file = different installed versions. Inconsistent with the caret-pinned style used elsewhere in this file.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 51,
+        "line_end": 51
+      },
+      "recommendation": "Pin to a specific minor: `\"xterm\": \"^5.3.0\"` or migrate to @xterm/xterm with a proper semver range.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "high",
+      "title": "Unpinned Supabase JS client via esm.sh in edge functions",
+      "description": "All three Supabase edge functions import `@supabase/supabase-js@2` via esm.sh \u2014 a major-version-only pin. This means each cold start of the edge function may resolve a different minor/patch version of supabase-js depending on esm.sh's caching. A breaking change within v2.x or an esm.sh outage will silently break telemetry-ingest, update-check, and community-pulse in production. Supabase SDK has had multiple v2.x changes affecting auth and RLS behavior.",
+      "location": {
+        "file_path": "supabase/functions/telemetry-ingest/index.ts",
+        "line_start": 5,
+        "line_end": 5
+      },
+      "recommendation": "Pin to an exact version: `import { createClient } from \"https://esm.sh/@supabase/supabase-js@2.45.4\"`. Apply the same fix to community-pulse/index.ts and update-check/index.ts. Consider hosting via deno.land/x for stronger version semantics.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Loose Bun engine constraint (>=1.0.0)",
+      "description": "package.json engines specifies `\"bun\": \">=1.0.0\"`. Bun's API surface has evolved significantly through 1.1.x and 1.2.x (e.g., Bun.serve options, Bun.spawn behavior, `import.meta.dir` semantics on Windows). The code uses Bun.spawn, Bun.serve, Bun.sleep, Bun.spawnSync, Bun.file \u2014 features whose stability varies across 1.0.x through 1.2.x. CI may build with one Bun version while users install with another.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 43,
+        "line_end": 45
+      },
+      "recommendation": "Pin a tested minimum: `\"bun\": \">=1.1.30\"` (or whatever your CI uses). Add a runtime check at CLI startup that warns if `Bun.version` is below the minimum tested version.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Single root package.json for multi-module repo (browse, design, make-pdf)",
+      "description": "The repo contains three independently-shipped binaries (browse, design, make-pdf) plus a Chrome extension and Supabase functions, but uses a single root package.json. There is no workspaces declaration. This means: (1) all transitive deps of @huggingface/transformers (large) are installed even when only building make-pdf; (2) per-binary dependency audits are impossible; (3) make-pdf and design can't pin different Playwright versions if needed.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 1,
+        "line_end": 53
+      },
+      "recommendation": "Consider Bun workspaces: declare `\"workspaces\": [\"browse\", \"design\", \"make-pdf\"]` and split package.json per module so each binary declares only its own deps. Reduces install size, clarifies dependency boundaries, enables per-module CVE audits.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-008",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Two pre-1.0 dependencies pinned via caret",
+      "description": "@anthropic-ai/sdk ^0.78.0 and @anthropic-ai/claude-agent-sdk 0.2.117 are pre-1.0 packages. With caret semantics on a 0.x version, ^0.78.0 only allows 0.78.x patches (caret on 0.x is restrictive). However, pre-1.0 packages may introduce breaking changes in any release. The Anthropic SDK in particular has changed message-API shapes multiple times.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 49,
+        "line_end": 50
+      },
+      "recommendation": "Already restrictive due to 0.x caret semantics. Just verify the lock file is committed and reviewed when bumping these. Add a comment explaining the version-bump policy for pre-1.0 deps.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-010",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Caret-pinned playwright ^1.58.2 \u2014 auto-upgrades within minor range",
+      "description": "Playwright ^1.58.2 will resolve to any 1.x.x \u2265 1.58.2 < 2.0.0. Playwright bundles Chromium and ships browser-binary updates frequently. While caret is conventional, browser binaries downloaded by `playwright install` aren't pinned by the lock file \u2014 same Playwright npm version may install different Chromium revisions over time, causing subtle test/runtime drift. The build script does not show a `playwright install --with-deps <version>` step.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 40,
+        "line_end": 40
+      },
+      "recommendation": "Pin Playwright exactly (`\"playwright\": \"1.58.2\"`) and document the Chromium revision your project tests against. Consider PLAYWRIGHT_BROWSERS_PATH and a CI cache keyed on Playwright version.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-011",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Bundled extension/lib vendoring may drift from package.json",
+      "description": "The build script copies xterm.js, xterm.css, and xterm-addon-fit.js from node_modules into extension/lib/. If extension/lib/ is committed to the repo (typical for Chrome extensions), it will become stale relative to package.json after a `bun install` without `bun run vendor:xterm`. No CI check verifies that extension/lib/ matches the resolved version in node_modules.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 12,
+        "line_end": 12
+      },
+      "recommendation": "Add a CI step that runs `bun run vendor:xterm` and fails if `git diff --exit-code extension/lib/` shows changes. Or .gitignore extension/lib/ and run vendor:xterm in CI before packaging.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Synchronous fs.appendFileSync on every buffer flush blocks event loop",
+      "description": "flushBuffers() runs every 1 second and uses fs.appendFileSync for console, network, and dialog logs. On busy pages with thousands of network requests, this can block the Bun event loop for tens of milliseconds per flush, increasing command latency. Additionally, the function is declared async but performs no async I/O \u2014 the flushInProgress guard is misleading since synchronous fs operations cannot interleave.",
+      "location": {
+        "file_path": "browse/src/server.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Use fs.promises.appendFile (async) or Bun.write with append semantics. Batch all three buffer writes concurrently with Promise.all. Since the function is already async, replace synchronous appendFileSync calls with await fs.promises.appendFile.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Network buffer linear backward scan on every response (O(n) per request)",
+      "description": "On 'response' and 'requestfinished' events in browser-manager.ts, the code scans the network buffer backward to find the matching request entry. With HIGH_WATER_MARK=50,000 and a page issuing hundreds of concurrent requests, this becomes O(n) per response \u2014 up to 50K iterations per network event. On image-heavy or SPA pages this is a measurable hot path.",
+      "location": {
+        "file_path": "browse/src/browser-manager.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Maintain a Map<request, bufferIndex> populated on 'request' and consulted on 'response'/'requestfinished'. Clean up entries when the buffer overwrites them. Alternatively, attach the buffer index to the Playwright Request object via a WeakMap.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Activity SSE subscriber notification uses queueMicrotask per subscriber per event",
+      "description": "emitActivity() in activity.ts schedules a microtask for every subscriber on every event. With multiple SSE clients (extension sidepanel, multiple debug tabs) and a chatty page (hundreds of network events/sec), this floods the microtask queue. Each microtask also catches errors silently, masking subscriber bugs.",
+      "location": {
+        "file_path": "browse/src/activity.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Notify subscribers synchronously inside a try/catch \u2014 the SSE controller.enqueue is already non-blocking. queueMicrotask only helps if subscribers do heavy work synchronously, which they don't. Alternatively, batch events in a 50ms window before flushing to subscribers.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Worktree creation copies entire dist/ + host trees synchronously per test",
+      "description": "WorktreeManager.create() calls copyDirSync recursively for every external host's hostSubdir AND browse/dist. This is synchronous fs I/O that can run for seconds per test in CI. With N parallel tests via concurrent harvesters, the disk I/O contention multiplies. Comment notes 'config-driven' but doesn't address the cost.",
+      "location": {
+        "file_path": "lib/worktree.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Use hard links (fs.linkSync) instead of copies for read-only build artifacts \u2014 eliminates duplication and is near-instant. Fall back to copy on Windows or cross-device. Alternatively, use git's --shared option or a content-addressable cache.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "scanGemini reads entire JSON file just to extract startTime",
+      "description": "scanGemini in gstack-global-discover.ts calls JSON.parse(readFileSync(filePath, 'utf-8')) on every Gemini session file. Session files can grow to MB sizes containing full chat history. Only data.startTime is read from the parsed object. Compare with scanCodex which uses a 128KB buffer + single-line parse.",
+      "location": {
+        "file_path": "bin/gstack-global-discover.ts",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Apply the same partial-read pattern used in scanCodex: open the file, read first ~32KB, parse JSON only if startTime appears in the head. If sessions are NDJSON-style, parse only the first line. Reduces I/O by 10-100x for large session histories.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 186.8,
+  "total_tokens_used": 835394,
+  "total_cost_usd": 9.1893,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 0
+}
