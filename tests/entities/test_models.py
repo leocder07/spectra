@@ -919,6 +919,60 @@ class TestCacheStats:
         with pytest.raises(ValidationError):
             stats.total_entries = 99
 
+    def test_cache_stats_extended_fields(self):
+        """Phase 4: per-table breakdown + per-dimension hit rates exist + frozen."""
+        now = datetime.now(UTC)
+        stats = CacheStats(
+            total_entries=10,
+            total_repos=2,
+            db_size_bytes=4096,
+            hit_rate_last_100=0.5,
+            oldest_entry_at=now,
+            full_report_entries=3,
+            batch_entries=5,
+            hit_log_entries=2,
+            hit_rate_by_dimension={"security": 0.8, "quality": 0.4},
+            most_recent_activity_at=now,
+        )
+        assert stats.full_report_entries == 3
+        assert stats.batch_entries == 5
+        assert stats.hit_log_entries == 2
+        assert stats.hit_rate_by_dimension["security"] == 0.8
+        assert stats.most_recent_activity_at == now
+        with pytest.raises(ValidationError):
+            stats.full_report_entries = 99
+
+    def test_cache_stats_hit_rate_by_dimension_typed(self):
+        """Phase 4: dict[Dimension, float] rejects non-Dimension keys."""
+        # Valid dimension keys are accepted
+        stats = CacheStats(
+            total_entries=0,
+            total_repos=0,
+            db_size_bytes=0,
+            hit_rate_last_100=0.0,
+            oldest_entry_at=None,
+            full_report_entries=0,
+            batch_entries=0,
+            hit_log_entries=0,
+            hit_rate_by_dimension={"architecture": 0.5},
+            most_recent_activity_at=None,
+        )
+        assert stats.hit_rate_by_dimension["architecture"] == 0.5
+        # Invalid dimension key is rejected by the Literal type validator
+        with pytest.raises(ValidationError):
+            CacheStats(
+                total_entries=0,
+                total_repos=0,
+                db_size_bytes=0,
+                hit_rate_last_100=0.0,
+                oldest_entry_at=None,
+                full_report_entries=0,
+                batch_entries=0,
+                hit_log_entries=0,
+                hit_rate_by_dimension={"not-a-dimension": 0.5},
+                most_recent_activity_at=None,
+            )
+
 
 # ── RepoCacheKey ───────────────────────────────────────────────
 

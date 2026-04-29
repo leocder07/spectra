@@ -9,6 +9,7 @@ full-report storage keyed by ``RepoCacheKey``.
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -545,3 +546,267 @@ class TestHitLogTelemetry:
     ):
         stats = adapter.stats()
         assert stats.hit_rate_last_100 == 0.0
+
+
+# ── Phase 4: hit_log dimension/batch_id migration ──────────────
+
+
+class TestHitLogSchemaMigration:
+    def test_hit_log_schema_has_dimension_and_batch_id_columns(
+        self,
+        cache_path: Path,
+    ):
+        """hit_log gains dimension + batch_id columns at fresh-install time."""
+        SqliteCacheAdapter(db_path=cache_path)
+        with sqlite3.connect(str(cache_path)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(hit_log)")}
+        assert "dimension" in cols
+        assert "batch_id" in cols
+
+    def test_record_hit_persists_dimension_and_batch_id(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        """record_hit writes dimension and batch_id, not just (ts, hit)."""
+        adapter.record_hit("security", "batch-42", hit=True)
+        adapter.record_hit("quality", "batch-99", hit=False)
+        with sqlite3.connect(str(cache_path)) as conn:
+            rows = conn.execute("SELECT dimension, batch_id, hit FROM hit_log ORDER BY ts").fetchall()
+        assert rows[0] == ("security", "batch-42", 1)
+        assert rows[1] == ("quality", "batch-99", 0)
+
+    def test_hit_log_existing_rows_default_to_empty_strings_after_migration(
+        self,
+        cache_path: Path,
+    ):
+        """Pre-Phase-4 hit_log rows survive the ALTER TABLE migration."""
+        # Simulate a Phase 3 install: create the table with the OLD shape
+        # BEFORE the adapter touches the DB.
+        with sqlite3.connect(str(cache_path)) as conn:
+            conn.execute("CREATE TABLE hit_log (ts TIMESTAMP NOT NULL, hit INTEGER NOT NULL)")
+            conn.execute(
+                "INSERT INTO hit_log (ts, hit) VALUES (?, ?)",
+                ("2026-01-01T00:00:00+00:00", 1),
+            )
+            conn.commit()
+        # The adapter must run an ALTER TABLE migration and tolerate the
+        # legacy row, defaulting its dimension/batch_id to "".
+        SqliteCacheAdapter(db_path=cache_path)
+        with sqlite3.connect(str(cache_path)) as conn:
+            rows = conn.execute("SELECT dimension, batch_id, hit FROM hit_log").fetchall()
+        assert rows == [("", "", 1)]
+
+
+# ── Phase 4: clear_all / clear_by_repo / prune_older_than ──────
+
+
+def _bind_and_seed(adapter: SqliteCacheAdapter, sig: str = "sig-a") -> None:
+    """Seed every cache table for the given repo signature."""
+    _bind_default_context(adapter)
+    adapter.set_repo_signature(sig)
+    adapter.set_model_version("m")
+    adapter.set_prompt_version("security", "p")
+    adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+    adapter.put_full_report(_key(repo_signature=sig), _report())
+    adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+    adapter.record_hit("security", "batch-1", hit=True)
+
+
+class TestClearAll:
+    def test_clear_all_deletes_all_cache_tables_and_returns_count(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        _bind_and_seed(adapter)
+        removed = adapter.clear_all()
+        # 1 findings_cache + 1 full_report_cache + 1 findings_batches + 1 hit_log
+        assert removed == 4
+        with sqlite3.connect(str(cache_path)) as conn:
+            for table in (
+                "findings_cache",
+                "full_report_cache",
+                "findings_batches",
+                "hit_log",
+            ):
+                count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608
+                assert count == 0, f"{table} not cleared"
+
+    def test_clear_all_does_not_drop_schema(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+        _bind_and_seed(adapter)
+        adapter.clear_all()
+        # Tables must still exist after clear_all (DELETE not DROP).
+        with sqlite3.connect(str(cache_path)) as conn:
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for required in (
+            "findings_cache",
+            "full_report_cache",
+            "findings_batches",
+            "hit_log",
+        ):
+            assert required in tables
+
+
+class TestClearByRepo:
+    def test_clear_by_repo_deletes_only_matching_rows(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        sig_a = adapter.compute_repo_signature(("a.py",))
+        sig_b = adapter.compute_repo_signature(("b.py",))
+        adapter.set_model_version("m")
+        adapter.set_prompt_version("security", "p")
+        adapter.set_repo_signature(sig_a)
+        adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
+        adapter.put_full_report(_key(repo_signature=sig_a), _report())
+        adapter.set_repo_signature(sig_b)
+        adapter.put_findings("h2", "security", (_make_finding(),), "m", "p")
+        adapter.put_full_report(_key(repo_signature=sig_b), _report())
+
+        removed = adapter.clear_by_repo(sig_a)
+
+        # 1 findings_cache row + 1 full_report_cache row for sig_a
+        assert removed == 2
+        # sig_b rows untouched
+        adapter.set_repo_signature(sig_b)
+        assert adapter.get_findings("h2", "security") is not None
+
+    def test_clear_by_repo_returns_zero_for_unknown_signature(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        removed = adapter.clear_by_repo("never-seen-this-sig")
+        assert removed == 0
+
+
+# ── Phase 4: prune_older_than ─────────────────────────────────
+
+
+def _set_row_age(cache_path: Path, table: str, age_iso: str) -> None:
+    """Backdate every row's computed_at column to a specific timestamp."""
+    with sqlite3.connect(str(cache_path)) as conn:
+        # Test helper — table comes from a hard-coded literal at the call site.
+        conn.execute(f"UPDATE {table} SET computed_at = ?", (age_iso,))  # noqa: S608
+        conn.commit()
+
+
+def _set_hit_log_age(cache_path: Path, age_iso: str) -> None:
+    with sqlite3.connect(str(cache_path)) as conn:
+        conn.execute("UPDATE hit_log SET ts = ?", (age_iso,))
+        conn.commit()
+
+
+class TestPruneOlderThan:
+    def test_prune_older_than_deletes_old_entries(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+
+        _bind_and_seed(adapter)
+        # Backdate findings_cache + full_report_cache + findings_batches to ancient.
+        old = "2020-01-01T00:00:00+00:00"
+        _set_row_age(cache_path, "findings_cache", old)
+        _set_row_age(cache_path, "full_report_cache", old)
+        _set_row_age(cache_path, "findings_batches", old)
+
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        deleted = adapter.prune_older_than(cutoff)
+
+        assert deleted["findings_cache"] == 1
+        assert deleted["full_report_cache"] == 1
+        assert deleted["findings_batches"] == 1
+
+    def test_prune_older_than_does_not_delete_recent_entries(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+
+        _bind_and_seed(adapter)
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        deleted = adapter.prune_older_than(cutoff)
+        # Just-seeded rows are younger than 30 days; nothing should drop.
+        assert deleted["findings_cache"] == 0
+        assert deleted["full_report_cache"] == 0
+        assert deleted["findings_batches"] == 0
+
+    def test_prune_older_than_excludes_hit_log_by_default(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+
+        _bind_and_seed(adapter)
+        _set_hit_log_age(cache_path, "2020-01-01T00:00:00+00:00")
+
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        deleted = adapter.prune_older_than(cutoff)
+
+        assert "hit_log" not in deleted
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM hit_log").fetchone()[0]
+        assert count == 1
+
+    def test_prune_older_than_with_include_hit_log_drops_old_telemetry(
+        self,
+        adapter: SqliteCacheAdapter,
+        cache_path: Path,
+    ):
+
+        _bind_and_seed(adapter)
+        _set_hit_log_age(cache_path, "2020-01-01T00:00:00+00:00")
+
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        deleted = adapter.prune_older_than(cutoff, include_hit_log=True)
+
+        assert deleted["hit_log"] == 1
+        with sqlite3.connect(str(cache_path)) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM hit_log").fetchone()[0]
+        assert count == 0
+
+
+# ── Phase 4: extended stats() breakdown ────────────────────────
+
+
+class TestStatsExtendedBreakdown:
+    def test_stats_reports_extended_breakdowns(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        _bind_and_seed(adapter)
+        stats = adapter.stats()
+        assert stats.full_report_entries == 1
+        assert stats.batch_entries == 1
+        assert stats.hit_log_entries == 1
+        # most_recent_activity_at should be set after a put.
+        assert stats.most_recent_activity_at is not None
+
+    def test_stats_per_dimension_hit_rate_with_60_hits_40_misses_returns_0_6_for_that_dim(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        for _ in range(60):
+            adapter.record_hit("security", "b", hit=True)
+        for _ in range(40):
+            adapter.record_hit("security", "b", hit=False)
+        stats = adapter.stats()
+        assert abs(stats.hit_rate_by_dimension["security"] - 0.6) < 0.01
+
+    def test_stats_per_dimension_excludes_other_dimensions_lookups(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        # Security: all hits.
+        for _ in range(10):
+            adapter.record_hit("security", "b", hit=True)
+        # Quality: all misses.
+        for _ in range(10):
+            adapter.record_hit("quality", "b", hit=False)
+        stats = adapter.stats()
+        assert stats.hit_rate_by_dimension["security"] == 1.0
+        assert stats.hit_rate_by_dimension["quality"] == 0.0

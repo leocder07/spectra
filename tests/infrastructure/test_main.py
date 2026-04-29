@@ -714,6 +714,36 @@ class TestBuildSarif:
         region = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]
         assert region["startLine"] == 1
 
+    def test_provision_cache_only_returns_sqlite_adapter(self, tmp_path):
+        """_provision_cache_only returns a usable SqliteCacheAdapter."""
+        from spectra.infrastructure.cache_adapter import SqliteCacheAdapter
+        from spectra.infrastructure.main import _provision_cache_only
+
+        with patch(
+            "spectra.infrastructure.main.default_cache_path",
+            return_value=tmp_path / "cache.db",
+        ):
+            cache = _provision_cache_only()
+        assert isinstance(cache, SqliteCacheAdapter)
+
+    def test_provision_cache_only_does_not_require_anthropic_api_key(
+        self,
+        tmp_path,
+    ):
+        """The cache CLI must work in environments without an API key."""
+        from spectra.infrastructure.main import _provision_cache_only
+
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "spectra.infrastructure.main.default_cache_path",
+                return_value=tmp_path / "cache.db",
+            ),
+        ):
+            # Must not raise — the cache subcommands have no LLM dependency.
+            cache = _provision_cache_only()
+        assert cache is not None
+
     def test_sarif_is_json_serializable(self):
         """SARIF output can be serialized to JSON without errors."""
         finding = Finding(

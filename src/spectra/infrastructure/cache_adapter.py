@@ -70,9 +70,17 @@ _CREATE_AGE_INDEX = "CREATE INDEX IF NOT EXISTS idx_age ON findings_cache(comput
 _CREATE_HIT_LOG = """
 CREATE TABLE IF NOT EXISTS hit_log (
     ts        TIMESTAMP NOT NULL,
-    hit       INTEGER NOT NULL
+    hit       INTEGER NOT NULL,
+    dimension TEXT NOT NULL DEFAULT '',
+    batch_id  TEXT NOT NULL DEFAULT ''
 )
 """
+
+_HIT_LOG_LEGACY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("dimension", "ALTER TABLE hit_log ADD COLUMN dimension TEXT NOT NULL DEFAULT ''"),
+    ("batch_id", "ALTER TABLE hit_log ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''"),
+)
+"""Phase 4 hit_log migration steps. Each tuple is (column, ALTER stmt)."""
 
 _CREATE_FULL_REPORT_TABLE = """
 CREATE TABLE IF NOT EXISTS full_report_cache (
@@ -207,6 +215,14 @@ class SqliteCacheAdapter:
             self._conn.execute(_CREATE_HIT_LOG)
             self._conn.execute(_CREATE_FULL_REPORT_TABLE)
             self._conn.execute(_CREATE_BATCH_FINDINGS_TABLE)
+            self._migrate_hit_log_columns()
+
+    def _migrate_hit_log_columns(self) -> None:
+        """Phase 4 ALTER TABLE: add dimension/batch_id to legacy hit_log rows."""
+        existing = {row[1] for row in self._conn.execute("PRAGMA table_info(hit_log)")}
+        for column, stmt in _HIT_LOG_LEGACY_COLUMNS:
+            if column not in existing:
+                self._conn.execute(stmt)
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
@@ -353,17 +369,29 @@ class SqliteCacheAdapter:
             return cursor.rowcount
 
     def stats(self) -> CacheStats:
-        """Return aggregate cache statistics."""
+        """Return aggregate cache statistics with Phase 4 breakdowns."""
         with _guard_io():
-            total_entries, total_repos, oldest = self._stats_row()
-            db_size_bytes = self._db_path.stat().st_size if self._db_path.exists() else 0
+            return self._build_stats()
+
+    def _build_stats(self) -> CacheStats:
+        """Compose the CacheStats payload — runs inside ``_guard_io``."""
+        total_entries, total_repos, oldest = self._stats_row()
         return CacheStats(
             total_entries=total_entries,
             total_repos=total_repos,
-            db_size_bytes=db_size_bytes,
+            db_size_bytes=self._db_size_bytes(),
             hit_rate_last_100=self._hit_rate_last_100(),
             oldest_entry_at=oldest,
+            full_report_entries=self._row_count("full_report_cache"),
+            batch_entries=self._row_count("findings_batches"),
+            hit_log_entries=self._row_count("hit_log"),
+            hit_rate_by_dimension=self._hit_rate_by_dimension(),
+            most_recent_activity_at=self._most_recent_activity(),
         )
+
+    def _db_size_bytes(self) -> int:
+        """Return the on-disk size of cache.db, 0 if the file is missing."""
+        return self._db_path.stat().st_size if self._db_path.exists() else 0
 
     def compute_repo_signature(self, file_tree: tuple[str, ...]) -> str:
         """Deterministic blake2b signature of the file tree."""
@@ -422,12 +450,32 @@ class SqliteCacheAdapter:
         hit: bool,
     ) -> None:
         """Append a row to ``hit_log`` — non-blocking telemetry."""
-        del dimension, batch_id  # rolled-up tally; future Phase 4 will fan out
         with _guard_io():
             self._conn.execute(
-                "INSERT INTO hit_log (ts, hit) VALUES (?, ?)",
-                (datetime.now(UTC), 1 if hit else 0),
+                "INSERT INTO hit_log (ts, hit, dimension, batch_id) VALUES (?, ?, ?, ?)",
+                (datetime.now(UTC), 1 if hit else 0, dimension, batch_id),
             )
+
+    # ── Phase 4: cache-management operations ──────────────────
+
+    def clear_all(self) -> int:
+        """Purge every cache table including hit_log; return rows deleted."""
+        with _guard_io():
+            return sum(self._delete_all(table) for table in _ALL_TABLES_WITH_HIT_LOG)
+
+    def clear_by_repo(self, repo_signature: str) -> int:
+        """Purge rows tagged with ``repo_signature``; return rows deleted."""
+        with _guard_io():
+            return self._delete_by_repo(repo_signature)
+
+    def prune_older_than(
+        self,
+        cutoff: datetime,
+        include_hit_log: bool = False,
+    ) -> dict[str, int]:
+        """GC rows older than ``cutoff``; return per-table delete counts."""
+        with _guard_io():
+            return self._prune_tables(cutoff, include_hit_log=include_hit_log)
 
     # ── Private helpers ───────────────────────────────────────
 
@@ -448,6 +496,94 @@ class SqliteCacheAdapter:
         if not rows:
             return 0.0
         return sum(r[0] for r in rows) / len(rows)
+
+    def _row_count(self, table: str) -> int:
+        """Return the row count for ``table`` (table name validated by allow-list)."""
+        if table not in _ALL_TABLES_WITH_HIT_LOG:
+            return 0
+        sql = f"SELECT COUNT(*) FROM {table}"  # noqa: S608 — table is allow-listed above
+        row = self._conn.execute(sql).fetchone()
+        return int(row[0]) if row else 0
+
+    def _most_recent_activity(self) -> datetime | None:
+        """Return the latest computed_at across all data tables, or None."""
+        candidates: list[datetime] = []
+        for table in _ALL_TABLES:
+            sql = f"SELECT MAX(computed_at) FROM {table}"  # noqa: S608 — _ALL_TABLES is a literal allow-list
+            row = self._conn.execute(sql).fetchone()
+            if row and row[0] is not None:
+                candidates.append(row[0])
+        return max(candidates) if candidates else None
+
+    def _hit_rate_by_dimension(self) -> dict[Dimension, float]:
+        """Return rolling per-dimension hit rates over the last 100 lookups each."""
+        rows = self._conn.execute(_DIMENSIONS_IN_HIT_LOG_SQL).fetchall()
+        result: dict[Dimension, float] = {}
+        for (dim,) in rows:
+            if dim not in _DIMENSION_VALUES:
+                continue  # skip legacy '' rows from the migration
+            result[dim] = self._dimension_hit_rate(dim)
+        return result
+
+    def _dimension_hit_rate(self, dimension: str) -> float:
+        """Return the hit rate for one dimension over its last 100 lookups."""
+        rows = self._conn.execute(_HIT_LOG_BY_DIM_SQL, (dimension,)).fetchall()
+        if not rows:
+            return 0.0
+        return float(sum(int(r[0]) for r in rows)) / len(rows)
+
+    def _delete_all(self, table: str) -> int:
+        """Issue ``DELETE FROM <table>`` and return the row count."""
+        if table not in _ALL_TABLES_WITH_HIT_LOG:
+            return 0
+        sql = f"DELETE FROM {table}"  # noqa: S608 — table is allow-listed above
+        cursor = self._conn.execute(sql)
+        return cursor.rowcount
+
+    def _delete_by_repo(self, repo_signature: str) -> int:
+        """Delete from findings_cache + full_report_cache by repo signature."""
+        c1 = self._conn.execute(
+            "DELETE FROM findings_cache WHERE repo_signature = ?",
+            (repo_signature,),
+        )
+        c2 = self._conn.execute(
+            "DELETE FROM full_report_cache WHERE repo_signature = ?",
+            (repo_signature,),
+        )
+        return c1.rowcount + c2.rowcount
+
+    def _prune_tables(
+        self,
+        cutoff: datetime,
+        *,
+        include_hit_log: bool,
+    ) -> dict[str, int]:
+        """Delete data-table rows older than cutoff; optionally hit_log too."""
+        deleted = {table: self._prune_table(table, cutoff) for table in _ALL_TABLES}
+        if include_hit_log:
+            deleted["hit_log"] = self._prune_hit_log(cutoff)
+        return deleted
+
+    def _prune_table(self, table: str, cutoff: datetime) -> int:
+        """Delete rows from ``table`` whose computed_at is older than cutoff."""
+        if table not in _ALL_TABLES:
+            return 0
+        sql = f"DELETE FROM {table} WHERE computed_at < ?"  # noqa: S608 — _ALL_TABLES is a literal allow-list
+        cursor = self._conn.execute(sql, (cutoff,))
+        return cursor.rowcount
+
+    def _prune_hit_log(self, cutoff: datetime) -> int:
+        """Delete hit_log rows whose ts is older than cutoff."""
+        cursor = self._conn.execute(
+            "DELETE FROM hit_log WHERE ts < ?",
+            (cutoff,),
+        )
+        return cursor.rowcount
+
+    @property
+    def db_path(self) -> Path:
+        """Return the on-disk cache.db path (used by ``cache stats`` CLI)."""
+        return self._db_path
 
 
 # ── Module-level helpers (kept tiny, single-purpose) ──────────
@@ -486,6 +622,36 @@ FROM findings_cache
 """
 
 _HIT_LOG_SQL = "SELECT hit FROM hit_log ORDER BY ts DESC LIMIT 100"
+
+_HIT_LOG_BY_DIM_SQL = """
+SELECT hit FROM hit_log
+WHERE dimension = ?
+ORDER BY ts DESC
+LIMIT 100
+"""
+
+_DIMENSIONS_IN_HIT_LOG_SQL = "SELECT DISTINCT dimension FROM hit_log WHERE dimension != ''"
+
+# Tables that store user-data rows with a computed_at timestamp.
+_ALL_TABLES: tuple[str, ...] = (
+    "findings_cache",
+    "full_report_cache",
+    "findings_batches",
+)
+# All cache tables including telemetry — used for clear_all + counts.
+_ALL_TABLES_WITH_HIT_LOG: tuple[str, ...] = (*_ALL_TABLES, "hit_log")
+# Valid Dimension Literal values, used to filter legacy '' rows from
+# hit_rate_by_dimension. Inlined to keep entities/ Layer 1 free of imports.
+_DIMENSION_VALUES: frozenset[str] = frozenset(
+    {
+        "architecture",
+        "security",
+        "quality",
+        "documentation",
+        "maintainability",
+        "performance",
+    }
+)
 
 _SELECT_FULL_REPORT_SQL = """
 SELECT report_json

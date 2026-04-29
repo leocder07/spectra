@@ -43,7 +43,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
-from spectra.adapters.cli_controller import cli_entry, set_analyzer_factory
+from spectra.adapters.cli_controller import (
+    cli_entry,
+    set_analyzer_factory,
+    set_cache_provider,
+)
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
@@ -259,6 +263,16 @@ def _build_cache_adapter() -> SqliteCacheAdapter | None:
             exc.error.code,
         )
         return None
+
+
+def _provision_cache_only() -> SqliteCacheAdapter:
+    """Build a cache adapter for the ``spectra cache *`` subcommands.
+
+    The cache CLI must work without an Anthropic API key, git, or any
+    LLM wiring — it only manipulates the local SQLite cache. This factory
+    is the seam the CLI controller calls via its ``cache_provider`` getter.
+    """
+    return SqliteCacheAdapter(db_path=default_cache_path())
 
 
 def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
@@ -495,7 +509,10 @@ def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
     This is the ``[project.scripts]`` entry point. It injects the
-    analyzer factory into the CLI controller before starting Typer.
+    analyzer factory and the cache provider into the CLI controller
+    before starting Typer. The cache provider serves the lightweight
+    ``spectra cache *`` subcommands without spinning up the LLM stack.
     """
     set_analyzer_factory(_run_analysis)
+    set_cache_provider(_provision_cache_only)
     cli_entry()
