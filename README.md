@@ -109,6 +109,29 @@ A weighted ScoreCard plus a self-contained HTML report. Here's what the terminal
 
 ---
 
+## How Spectra Compares
+
+Honest tradeoffs. Spectra is built for full-repo audits — not for inline PR comments or IDE feedback. Use it alongside, not instead of, the tools your team already runs.
+
+| | **Spectra** | CodeRabbit | DeepSource | Sourcery | Codeball |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Whole-repo audit (one report, six dimensions) | ✓ | partial | partial | — | — |
+| Multiple specialist agents in parallel | ✓ (8) | — | — | — | — |
+| False-positive filtering pass | ✓ (CritiqueAgent) | — | — | — | — |
+| Self-contained HTML report (offline) | ✓ | — | — | — | — |
+| SARIF output for GitHub Security tab | ✓ | — | ✓ | — | — |
+| Compliance scoring (OWASP / SOC 2 / PCI DSS / NIST) | ✓ | — | partial | — | — |
+| Incremental cache (re-runs in seconds) | ✓ | — | ✓ | — | — |
+| Inline PR comments on diffs | — | ✓ | ✓ | ✓ | ✓ |
+| IDE plugin (VS Code, JetBrains) | — | — | — | ✓ | — |
+| Real-time review on every push | — | ✓ | ✓ | — | ✓ |
+| Pricing model | Per-run API cost ($1-10) | SaaS subscription | SaaS subscription | SaaS subscription | SaaS subscription |
+| Open source (MIT) | ✓ | — | — | — | — |
+
+If you need inline PR comments while reviewing diffs, run CodeRabbit. If you need an architecture-level audit with security and compliance scoring before a release or due-diligence review, run Spectra. They complement each other.
+
+---
+
 ## How It Works
 
 ```mermaid
