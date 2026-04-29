@@ -29,8 +29,9 @@ class SpecialistAgent(BaseAgent):
         dimension: Dimension,
         id_prefix: str,
         system_prompt: str,
-        model: str = "claude-opus-4-6",
+        model: str = "claude-opus-4-7",
         max_tokens: int = 80_000,
+        effort: str = "xhigh",
     ) -> None:
         """Initialize a specialist agent.
 
@@ -40,8 +41,11 @@ class SpecialistAgent(BaseAgent):
             dimension: Analysis dimension this agent covers.
             id_prefix: Short prefix for finding IDs (e.g. ``sec``).
             system_prompt: Dimension-specific system prompt.
-            model: Anthropic model ID (default Opus 4.6).
+            model: Anthropic model ID (default Opus 4.7).
             max_tokens: Maximum response tokens.
+            effort: Reasoning depth (default ``xhigh`` — Anthropic's
+                recommended setting for coding and agentic workloads
+                on Opus 4.7).
         """
         super().__init__(
             role=role,
@@ -49,6 +53,7 @@ class SpecialistAgent(BaseAgent):
             model=model,
             system_prompt=system_prompt,
             max_tokens=max_tokens,
+            effort=effort,
         )
         self._dimension = dimension
         self._id_prefix = id_prefix

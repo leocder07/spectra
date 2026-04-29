@@ -12,17 +12,20 @@ The shared ``_SHARED_GUIDANCE`` appended to every prompt provides
 finding count targets, score calibration, confidence thresholds,
 and prompt caching guidance.
 
-Prompt engineering notes (Opus 4.6, Feb 2026):
-    - Prefill is NOT supported on Opus 4.6; structured output and
+Prompt engineering notes (Opus 4.7, Apr 2026):
+    - Prefill is NOT supported on Opus 4.6/4.7; structured output and
       explicit instructions replace it.
     - Aggressive language (CRITICAL/MUST) is dialed back per Anthropic
-      guidance — Opus 4.6 overtriggers on forceful prompts.
+      guidance — Opus 4.7 follows instructions literally and would
+      overtrigger on forceful prompts.
     - Chain-of-thought before JSON improves finding quality.
     - XML tags (<analysis_plan>, <json_output>) guide structure.
-    - Temperature 0.0 confirmed optimal for code analysis tasks.
-    - Adaptive thinking replaces manual budget_tokens on Opus 4.6.
+    - Sampling parameters (temperature/top_p/top_k) are removed on
+      Opus 4.7 — prompting controls behavior instead.
+    - Adaptive thinking replaces manual budget_tokens; specialists run
+      with effort=xhigh (Anthropic's recommendation for coding).
 
-Prompt caching (Anthropic, Feb 2026):
+Prompt caching (Anthropic, Apr 2026):
     System prompts are cacheable via Anthropic's prompt caching feature.
     Because all 6 specialists share the same ``_SHARED_GUIDANCE`` suffix
     and each specialist's system prompt is static across invocations,
@@ -733,7 +736,7 @@ confirmed by code evidence, not theoretical concerns.
 </confidence_calibration>"""
 
 
-_OPUS = "claude-opus-4-6"
+_OPUS = "claude-opus-4-7"
 
 # (dimension, id_prefix, prompt, model) — all Opus for maximum quality
 SPECIALIST_CONFIGS: dict[AgentRole, tuple[Dimension, str, str, str]] = {
