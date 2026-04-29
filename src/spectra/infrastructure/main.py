@@ -38,15 +38,29 @@ import logging
 import os
 import shutil
 import tempfile
+from hashlib import blake2b
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.adapters.cli_controller import cli_entry, set_analyzer_factory
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.errors import ERRORS, AgentError, SpectraError
-from spectra.entities.models import AnalysisReport, AnalysisRequest, Codebase
+from spectra.entities.models import (
+    AnalysisReport,
+    AnalysisRequest,
+    Codebase,
+    RepoCacheKey,
+)
 from spectra.infrastructure.agents.agent_factory import AgentFactory
+from spectra.infrastructure.agents.critique_agent import _SYSTEM_PROMPT as _CRITIQUE_PROMPT
+from spectra.infrastructure.agents.specialist_prompts import (
+    _SHARED_GUIDANCE,
+    SPECIALIST_CONFIGS,
+)
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
 from spectra.infrastructure.cache_adapter import (
+    SCHEMA_VERSION,
     SqliteCacheAdapter,
     default_cache_path,
 )
@@ -57,6 +71,9 @@ from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import is_local_path
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class ReportError(Exception):
@@ -77,6 +94,8 @@ async def _run_analysis(
     skip_critique: bool = False,
     output_format: str = "html",
     verbose: bool = False,
+    force: bool = False,
+    no_cache: bool = False,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -90,6 +109,8 @@ async def _run_analysis(
         skip_critique: Skip CritiqueAgent when True.
         output_format: ``"html"`` or ``"json"``.
         verbose: Enable debug logging when True.
+        force: Bypass cache reads and force a fresh run (still writes the cache).
+        no_cache: Disable cache reads and writes entirely (CI-safe).
 
     Returns:
         Completed analysis report.
@@ -122,7 +143,7 @@ async def _run_analysis(
     # initialized once per process and closed cleanly on shutdown).
     git = GitAdapter()
     report_renderer = ReportAdapter()
-    cache = _build_cache_adapter()
+    cache = None if no_cache else _build_cache_adapter()
 
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
@@ -176,6 +197,9 @@ async def _run_analysis(
             git_port=git,
             observer=observer,
             source_files=source_files,
+            cache_port=cache,
+            cache_key_factory=_make_cache_key_factory() if cache else None,
+            force_cache_bypass=force,
         )
         report = await analyze_repository(ctx)
 
@@ -235,6 +259,52 @@ def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
         cache.close()
     except AgentError:
         logging.getLogger("spectra").debug("Cache close failed; ignoring")
+
+
+# ── Phase 2: cache key composition ───────────────────────────
+
+
+def _make_cache_key_factory() -> Callable[[str], RepoCacheKey]:
+    """Return a factory binding model + prompt + spectra + schema versions.
+
+    The factory only takes the per-run ``repo_signature``; everything
+    else is computed once per process. Keeping this in the composition
+    root preserves the dependency rule — the use case never imports
+    ``specialist_prompts`` or ``critique_agent``.
+    """
+    model_versions = _composite_model_versions()
+    prompt_versions = _composite_prompt_versions()
+
+    def _factory(repo_signature: str) -> RepoCacheKey:
+        return RepoCacheKey(
+            repo_signature=repo_signature,
+            spectra_version=_SPECTRA_VERSION,
+            model_versions=model_versions,
+            prompt_versions=prompt_versions,
+            schema_version=SCHEMA_VERSION,
+        )
+
+    return _factory
+
+
+def _composite_model_versions() -> str:
+    """Canonical sort of model IDs across all 8 agents."""
+    models = sorted({cfg[3] for cfg in SPECIALIST_CONFIGS.values()})
+    # Add MetaPrompter and Critique model IDs (both Opus 4.7 today; sort dedups).
+    models.append("claude-opus-4-7")  # MetaPrompter
+    models.append("claude-opus-4-7")  # CritiqueAgent
+    return "|".join(sorted(set(models)))
+
+
+def _composite_prompt_versions() -> str:
+    """blake2b digest of every prompt that affects analysis output."""
+    digest = blake2b(digest_size=16)
+    digest.update(_SHARED_GUIDANCE.encode("utf-8"))
+    for role in sorted(SPECIALIST_CONFIGS):
+        digest.update(role.encode("utf-8"))
+        digest.update(SPECIALIST_CONFIGS[role][2].encode("utf-8"))
+    digest.update(_CRITIQUE_PROMPT.encode("utf-8"))
+    return digest.hexdigest()
 
 
 # ── Workspace helpers ────────────────────────────────────────
