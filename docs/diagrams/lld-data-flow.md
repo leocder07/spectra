@@ -13,7 +13,7 @@ flowchart TD
     end
 
     subgraph "Stage 2: PLAN"
-        CB --> MP_IN["MetaPrompter.run(file_tree_text)<br/><i>Sonnet 4.5, file tree ONLY, &le;5K tokens</i>"]
+        CB --> MP_IN["MetaPrompter.run(file_tree_text)<br/><i>Opus 4.7 · effort=medium · file tree ONLY · &le;5K tokens</i>"]
         MP_IN --> MP_OUT["AgentOutput<br/>{agent_role='meta_prompter', findings=(), raw_response}"]
         MP_OUT --> PLAN["Parsed Plan JSON<br/>{repo_language, focus_areas[], token_allocation{}}"]
         PLAN --> ALLOC["allocate_specialist_budgets()<br/>-> dict[Dimension, int]"]
@@ -40,7 +40,7 @@ flowchart TD
 
     subgraph "Stage 5: CRITIQUE"
         FINDINGS --> CRIT_CHECK{"_should_run_critique?<br/>!quick && !degraded<br/>&& remaining_tokens > 0"}
-        CRIT_CHECK -->|"yes"| CRIT_IN["CritiqueAgent.run(findings_json)<br/><i>Opus 4.6, adaptive thinking</i>"]
+        CRIT_CHECK -->|"yes"| CRIT_IN["CritiqueAgent.run(findings_json)<br/><i>Opus 4.7 · effort=high · adaptive thinking<br/>task_budget=80K · max_tokens=64K</i>"]
         CRIT_CHECK -->|"no"| SKIP["Pass findings through unchanged"]
         CRIT_IN --> CRIT_OUT["Critique JSON<br/>{validated[], rejected[], severity_adjustments[], cross_cutting_insights[]}"]
         CRIT_OUT --> APPLY["_apply_critique()<br/>_reject_findings() + _apply_severity_adjustments()"]
@@ -89,3 +89,7 @@ penalty_score = 100 - min(sum(PENALTY[severity] * confidence for each finding), 
 blended_score = 0.4 * llm_score + 0.6 * penalty_score   (when LLM score available)
 overall_score = sum(dimension_score * normalized_weight)
 ```
+
+---
+
+*Last updated: 2026-04-29 — model labels reflect Opus 4.7 + effort/task_budget surface.*

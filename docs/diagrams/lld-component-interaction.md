@@ -20,8 +20,8 @@ graph TB
 
     subgraph "LLMGateway Protocol"
         direction LR
-        AN["analyze(system_prompt, user_prompt, model, max_tokens) -> str"]
-        AT["analyze_with_thinking(...) -> str"]
+        AN["analyze(system_prompt, user_prompt, model, max_tokens, effort?) -> str"]
+        AT["analyze_with_thinking(... effort?, task_budget_tokens?) -> str"]
     end
 
     AA -.->|"implements"| AN
@@ -33,14 +33,14 @@ graph TB
 
     subgraph "Agent Factory Output"
         direction TB
-        MP["MetaPrompter<br/><i>Sonnet 4.5, 5K tokens</i>"]
-        S1["SpecialistAgent<br/><i>architecture, Opus 4.6</i>"]
-        S2["SpecialistAgent<br/><i>security, Opus 4.6</i>"]
-        S3["SpecialistAgent<br/><i>quality, Opus 4.6</i>"]
-        S4["SpecialistAgent<br/><i>documentation, Opus 4.6</i>"]
-        S5["SpecialistAgent<br/><i>dependency, Opus 4.6</i>"]
-        S6["SpecialistAgent<br/><i>performance, Opus 4.6</i>"]
-        CA["CritiqueAgent<br/><i>Opus 4.6, adaptive thinking</i>"]
+        MP["MetaPrompter<br/><i>Opus 4.7 · effort=medium · 5K tokens</i>"]
+        S1["SpecialistAgent<br/><i>architecture · Opus 4.7 · xhigh</i>"]
+        S2["SpecialistAgent<br/><i>security · Opus 4.7 · xhigh</i>"]
+        S3["SpecialistAgent<br/><i>quality · Opus 4.7 · xhigh</i>"]
+        S4["SpecialistAgent<br/><i>documentation · Opus 4.7 · xhigh</i>"]
+        S5["SpecialistAgent<br/><i>dependency · Opus 4.7 · xhigh</i>"]
+        S6["SpecialistAgent<br/><i>performance · Opus 4.7 · xhigh</i>"]
+        CA["CritiqueAgent<br/><i>Opus 4.7 · effort=high · 64K cap<br/>adaptive thinking · task_budget=80K</i>"]
     end
 
     AF -->|"create('meta_prompter')"| MP
@@ -94,10 +94,14 @@ The chain wraps innermost-to-outermost. Each layer satisfies the `LLMGateway` Pr
 
 ```mermaid
 graph LR
-    ROLE["AgentRole"] --> |"meta_prompter"| MP["MetaPrompter(gateway)"]
-    ROLE --> |"critique"| CA["CritiqueAgent(gateway)"]
+    ROLE["AgentRole"] --> |"meta_prompter"| MP["MetaPrompter(gateway)<br/><i>Opus 4.7, effort=medium</i>"]
+    ROLE --> |"critique"| CA["CritiqueAgent(gateway)<br/><i>Opus 4.7, effort=high, task_budget=80K</i>"]
     ROLE --> |"architecture/security/..."| SC["SPECIALIST_CONFIGS[role]"]
-    SC --> SA["SpecialistAgent(role, gateway, dimension, id_prefix, system_prompt, model)"]
+    SC --> SA["SpecialistAgent(role, gateway, dimension, id_prefix, system_prompt, model='claude-opus-4-7', effort='xhigh')"]
 ```
 
 The factory holds a single reference to the decorated `LLMGateway`. All 8 agents share this gateway instance.
+
+---
+
+*Last updated: 2026-04-29 — LLMGateway gained `effort` and `task_budget_tokens` kwargs for Opus 4.7.*

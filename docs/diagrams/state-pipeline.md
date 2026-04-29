@@ -88,3 +88,7 @@ stateDiagram-v2
 | SPEC-007 | analyzing | degraded | No |
 | SPEC-008 | critiquing | reporting (fallback) | No |
 | SPEC-009 | reporting | failed | No |
+
+---
+
+*Last updated: 2026-04-29 — pipeline state machine unchanged by Opus 4.7 migration; new SPEC-010 (Cache I/O failed) lands with [ADR-006](../architecture/adr/ADR-006-cache-port-incremental-analysis.md).*

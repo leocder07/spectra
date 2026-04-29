@@ -10,15 +10,15 @@ sequenceDiagram
     participant Observer as RichProgressReporter
     participant Git as GitAdapter
     participant Pipeline as analyze_repository
-    participant MP as MetaPrompter<br/>(Sonnet 4.5)
+    participant MP as MetaPrompter<br/>(Opus 4.7, effort=medium)
     participant Orch as orchestrate_agents
-    participant S1 as ArchitectureAgent
-    participant S2 as SecurityAgent
-    participant S3 as QualityAgent
-    participant S4 as DocAgent
-    participant S5 as DependencyAgent
-    participant S6 as PerfAgent
-    participant Critique as CritiqueAgent<br/>(Opus 4.6 + Thinking)
+    participant S1 as ArchitectureAgent<br/>(Opus 4.7, xhigh)
+    participant S2 as SecurityAgent<br/>(Opus 4.7, xhigh)
+    participant S3 as QualityAgent<br/>(Opus 4.7, xhigh)
+    participant S4 as DocAgent<br/>(Opus 4.7, xhigh)
+    participant S5 as DependencyAgent<br/>(Opus 4.7, xhigh)
+    participant S6 as PerfAgent<br/>(Opus 4.7, xhigh)
+    participant Critique as CritiqueAgent<br/>(Opus 4.7, high<br/>adaptive + task_budget=80K)
     participant LLM as Decorator Chain<br/>Log → Retry → Anthropic
     participant Report as ReportAdapter<br/>(Jinja2)
 
@@ -49,7 +49,7 @@ sequenceDiagram
         Pipeline->>Observer: on_stage_start("PLAN")
         Pipeline->>MP: run(file_tree_text)
         MP->>MP: validate_input() + build_prompt()
-        MP->>LLM: analyze(system_prompt, user_prompt, sonnet-4.5, 5000)
+        MP->>LLM: analyze(system_prompt, user_prompt, claude-opus-4-7, 5000, effort="medium")
         LLM-->>MP: plan JSON
         MP->>MP: parse_output() + validate_output()
         MP-->>Pipeline: AgentOutput(plan)
@@ -67,27 +67,27 @@ sequenceDiagram
         Note over Orch: Semaphore(max_concurrency=4)
         par asyncio.gather (return_exceptions=True)
             Orch->>S1: run(prompt)
-            S1->>LLM: analyze(..., opus-4.6)
+            S1->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S1: findings JSON
         and
             Orch->>S2: run(prompt)
-            S2->>LLM: analyze(..., opus-4.6)
+            S2->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S2: findings JSON
         and
             Orch->>S3: run(prompt)
-            S3->>LLM: analyze(..., opus-4.6)
+            S3->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S3: findings JSON
         and
             Orch->>S4: run(prompt)
-            S4->>LLM: analyze(..., opus-4.6)
+            S4->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S4: findings JSON
         and
             Orch->>S5: run(prompt)
-            S5->>LLM: analyze(..., opus-4.6)
+            S5->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S5: findings JSON
         and
             Orch->>S6: run(prompt)
-            S6->>LLM: analyze(..., opus-4.6)
+            S6->>LLM: analyze(..., claude-opus-4-7, effort="xhigh")
             LLM-->>S6: findings JSON
         end
 
@@ -112,9 +112,9 @@ sequenceDiagram
             Pipeline->>Observer: on_stage_start("CRITIQUE")
             Pipeline->>Critique: run(findings_json)
             Critique->>Critique: validate_input() + build_prompt()
-            Critique->>LLM: analyze_with_thinking(system_prompt, prompt, opus-4.6, 16000)
-            Note over LLM: Adaptive thinking enabled
-            LLM-->>Critique: critique JSON
+            Critique->>LLM: analyze_with_thinking(system_prompt, prompt, claude-opus-4-7, 64000, effort="high", task_budget_tokens=80000)
+            Note over LLM: thinking={type: "adaptive", display: "summarized"}<br/>beta header: task-budgets-2026-03-13
+            LLM-->>Critique: critique JSON (thinking blocks excluded)
             Critique->>Critique: parse_output() + validate_output()
             Critique-->>Pipeline: AgentOutput(critique)
             Pipeline->>Pipeline: _apply_critique(reject FPs, adjust severity)
@@ -213,3 +213,7 @@ sequenceDiagram
     Log->>Log: on_stage_complete(model, duration, tokens)
     Log-->>Agent: text
 ```
+
+---
+
+*Last updated: 2026-04-29 — Opus 4.7 model strings, effort kwargs on every analyze call, task_budget on critique.*

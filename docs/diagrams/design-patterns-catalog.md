@@ -262,18 +262,23 @@ classDiagram
     }
 
     class MetaPrompter {
-        model = "claude-sonnet-4-5-20250929"
+        model = "claude-opus-4-7"
+        effort = "medium"
         max_tokens = 5000
     }
 
     class SpecialistAgent {
-        model = "claude-opus-4-6"
+        model = "claude-opus-4-7"
+        effort = "xhigh"
         max_tokens = 80000
     }
 
     class CritiqueAgent {
-        model = "claude-opus-4-6"
-        max_tokens = 16000
+        model = "claude-opus-4-7"
+        effort = "high"
+        max_tokens = 64000
+        task_budget_tokens = 80000
+        thinking = "adaptive (summarized)"
     }
 
     AgentFactory ..> MetaPrompter : creates
@@ -287,9 +292,9 @@ classDiagram
 ```
 
 Factory dispatch at `agent_factory.py:55-90`:
-- `"meta_prompter"` → `MetaPrompter(gateway)` (Sonnet 4.5, 5K tokens)
-- `"critique"` → `CritiqueAgent(gateway)` (Opus 4.6, extended thinking)
-- Any of 6 specialist roles → `SpecialistAgent(role, gateway, **config)` from `SPECIALIST_CONFIGS`
+- `"meta_prompter"` → `MetaPrompter(gateway)` — Opus 4.7, `effort=medium`, 5K tokens
+- `"critique"` → `CritiqueAgent(gateway)` — Opus 4.7, `effort=high`, adaptive thinking (`display: summarized`), `task_budget=80K`, `max_tokens=64K`
+- Any of 6 specialist roles → `SpecialistAgent(role, gateway, **config)` from `SPECIALIST_CONFIGS` — Opus 4.7, `effort=xhigh`
 
 ---
 
@@ -855,3 +860,7 @@ sequenceDiagram
 | 9 | Value Object | DDD | `Finding`, `ScoreCard`, `AgentOutput`, et al. | `models.py:35-303` |
 | 10 | Error Taxonomy | Domain | `SpectraError`, `ERRORS` registry | `errors.py:14-51` |
 | 11 | Composition Root | Architectural | `main.py._run_analysis()` | `main.py:69` |
+
+---
+
+*Last updated: 2026-04-29 — Factory pattern reflects Opus 4.7 + per-role effort/task_budget. The Decorator chain is unchanged structurally; only the `LLMGateway` signatures gained `effort` and `task_budget_tokens` (see [ADR-005](../architecture/adr/ADR-005-opus-4-7-migration.md) and [ADR-008](../architecture/adr/ADR-008-adaptive-thinking-supersedes-extended.md)).*

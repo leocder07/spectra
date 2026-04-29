@@ -127,7 +127,9 @@ classDiagram
         +user_prompt: str
         +model: str
         +max_tokens: int
-        +extended_thinking: bool
+        +adaptive_thinking: bool
+        +effort: str | None
+        +task_budget_tokens: int | None
     }
 
     class AnalysisReport {
@@ -177,8 +179,8 @@ classDiagram
     %% ── Protocol Interfaces (interfaces.py) ──
     class LLMGateway {
         <<Protocol>>
-        +analyze(system_prompt, user_prompt, model, max_tokens)* str
-        +analyze_with_thinking(system_prompt, user_prompt, model, max_tokens)* str
+        +analyze(system_prompt, user_prompt, model, max_tokens, effort?)* str
+        +analyze_with_thinking(system_prompt, user_prompt, model, max_tokens, effort?, task_budget_tokens?)* str
     }
 
     class GitPort {
@@ -268,8 +270,8 @@ classDiagram
         -_last_usage: tuple~int, int~
         -_closed: bool
         +last_usage: tuple~int, int~
-        +analyze(...) str
-        +analyze_with_thinking(...) str
+        +analyze(... effort?) str
+        +analyze_with_thinking(... effort?, task_budget_tokens?) str
         +close() None
     }
 
@@ -278,16 +280,16 @@ classDiagram
         -_max_retries: int = 3
         -_backoff_base: float = 1.0
         +last_usage: tuple~int, int~
-        +analyze(...) str
-        +analyze_with_thinking(...) str
+        +analyze(... effort?) str
+        +analyze_with_thinking(... effort?, task_budget_tokens?) str
     }
 
     class LoggingDecorator {
         -_inner: LLMGateway
         -_observer: ProgressObserver
         +last_usage: tuple~int, int~
-        +analyze(...) str
-        +analyze_with_thinking(...) str
+        +analyze(... effort?) str
+        +analyze_with_thinking(... effort?, task_budget_tokens?) str
     }
 
     class AgentFactory {
@@ -373,3 +375,77 @@ classDiagram
 | `LLMGateway`, `GitPort`, `ProgressObserver` | Layer 2 (use_cases) | entities only |
 | `RichProgressReporter`, `cli_controller` | Layer 3 (adapters) | entities + use_cases |
 | `AnthropicAdapter`, `AgentFactory`, `BaseAgent` | Layer 4 (infrastructure) | All inner layers |
+
+---
+
+## Future (CachePort, In Flight)
+
+The incremental analysis design (see [ADR-006](../architecture/adr/ADR-006-cache-port-incremental-analysis.md) and [`../plans/incremental-analysis.md`](../plans/incremental-analysis.md)) adds a `CachePort` Protocol to Layer 2 and three new frozen entities to Layer 1. Phase 1 (port + adapter, no callers) is in flight in a parallel worktree as of 2026-04-29.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class CachePort {
+        <<Protocol — interfaces.py (planned)>>
+        +get_findings(file_hash, dimension)* tuple~Finding~ | None
+        +put_findings(file_hash, dimension, findings, model_version, prompt_version)* None
+        +compute_repo_signature(file_tree)* str
+        +stats()* CacheStats
+        +clear(repo_signature?)* int
+    }
+
+    class CacheEntry {
+        <<frozen — planned>>
+        +file_hash: str
+        +file_path: str
+        +dimension: Dimension
+        +findings: tuple~Finding~
+        +model_version: str
+        +prompt_version: str
+        +spectra_version: str
+        +schema_version: str
+        +computed_at: datetime
+    }
+
+    class CacheStats {
+        <<frozen — planned>>
+        +total_entries: int
+        +total_repos: int
+        +db_size_bytes: int
+        +hit_rate_last_100: float
+        +oldest_entry_at: datetime | None
+    }
+
+    class BatchPrompt {
+        <<frozen — planned>>
+        +batch_id: str
+        +file_paths: tuple~str~
+        +file_hashes: tuple~str~
+        +prompt_text: str
+    }
+
+    class SqliteCacheAdapter {
+        <<Adapter — cache_adapter.py (planned)>>
+        -_conn: sqlite3.Connection
+        +get_findings(...) tuple~Finding~ | None
+        +put_findings(...) None
+        +compute_repo_signature(...) str
+        +stats() CacheStats
+        +clear(repo_signature?) int
+    }
+
+    CachePort <|.. SqliteCacheAdapter : implements (planned)
+    CacheEntry --> Finding : findings
+    SqliteCacheAdapter ..> CacheEntry : reads/writes rows as
+    SqliteCacheAdapter ..> CacheStats : produces
+
+    note for CachePort "Layer 2 port. Methods are sync —\ncache I/O is local SQLite, not networked."
+    note for SqliteCacheAdapter "Layer 4 adapter. Single-file ~/.cache/spectra/cache.db\nin WAL mode. Composite primary key:\n(file_hash, dimension, model_version, prompt_version, schema_version)"
+```
+
+The dependency rule is preserved: `CachePort` lives in Layer 2 with no infrastructure imports; `SqliteCacheAdapter` lives in Layer 4 and may import from all inner layers.
+
+---
+
+*Last updated: 2026-04-29 — LLMGateway gained effort/task_budget_tokens; planned cache entities documented.*
