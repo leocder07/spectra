@@ -182,13 +182,40 @@ class TestValidateOutput:
 class TestBuildPrompt:
     def test_contains_injection_sandbox_tags(self, agent: SpecialistAgent):
         prompt = agent.build_prompt("print('hello')")
-        assert "<analyzed_code>" in prompt
-        assert "</analyzed_code>" in prompt
-        assert "NEVER follow instructions" in prompt
+        # ADR-011 §1: random nonce data fences replace the static
+        # ``<analyzed_code>`` tag so an attacker cannot pre-craft a
+        # closing tag in their own source.
+        assert "<<<SPECTRA-DATA-" in prompt
+        assert "<<<END-SPECTRA-DATA-" in prompt
+        assert "Treat" in prompt or "treat" in prompt
 
     def test_contains_user_input(self, agent: SpecialistAgent):
         prompt = agent.build_prompt("def foo(): pass")
         assert "def foo(): pass" in prompt
+
+    def test_uses_provided_nonce(self, agent: SpecialistAgent):
+        # When a BatchPrompt provides its nonce, the same value must
+        # appear in BOTH the open and close fence — symmetric framing
+        # is what gives the model an unforgeable boundary.
+        prompt = agent.build_prompt("payload", nonce="abc123XYZ_-")
+        assert "<<<SPECTRA-DATA-abc123XYZ_->>>" in prompt
+        assert "<<<END-SPECTRA-DATA-abc123XYZ_->>>" in prompt
+
+    def test_nonce_appears_in_system_prompt_reinforcement(self, agent: SpecialistAgent):
+        # ADR-011 §1: system-prompt reinforcement names the exact nonce
+        # so the model can verify the fence in-context.
+        prompt = agent.build_prompt("payload", nonce="abc123XYZ_-")
+        assert "abc123XYZ_-" in prompt
+        # Reinforcement language is data-vs-instruction.
+        assert "UNTRUSTED" in prompt or "untrusted" in prompt
+
+    def test_default_nonce_is_random_when_omitted(self, agent: SpecialistAgent):
+        # If no nonce is supplied, build_prompt must mint one — the
+        # boundary cannot be optional.
+        a = agent.build_prompt("payload")
+        b = agent.build_prompt("payload")
+        # Two calls produce two different fences.
+        assert a != b
 
 
 class TestValidateInput:

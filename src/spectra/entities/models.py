@@ -8,6 +8,7 @@ infrastructure layers.
 from __future__ import annotations
 
 import bisect
+import secrets
 from datetime import datetime  # noqa: TC003 — used by Pydantic at runtime
 from typing import Literal
 
@@ -439,12 +440,19 @@ class BatchPrompt(BaseModel, frozen=True):
         file_paths: Repo-relative paths covered by this batch.
         file_hashes: Per-file blake2b digests, same order as ``file_paths``.
         prompt_text: Fully composed user prompt for the specialist call.
+        nonce: Per-batch random token (``secrets.token_urlsafe(16)``) used
+            to fence analyzed file content in the specialist user prompt.
+            ADR-011 §1: the nonce is unguessable per call so an attacker
+            cannot pre-craft a closing fence inside their own source. The
+            nonce is intentionally NOT part of any cache ``prompt_version``
+            key so caching survives across runs.
     """
 
     batch_id: str
     file_paths: tuple[str, ...]
     file_hashes: tuple[str, ...]
     prompt_text: str
+    nonce: str = Field(default_factory=lambda: secrets.token_urlsafe(16))
 
 
 class BatchCacheKey(BaseModel, frozen=True):
