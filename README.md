@@ -382,6 +382,41 @@ The Action also writes SARIF, which GitHub picks up under the **Security** tab �
 
 ---
 
+## CLI Reference
+
+Two top-level commands: `spectra analyze` and `spectra cache`.
+
+### `spectra analyze`
+
+```bash
+spectra analyze <repo-url-or-path> [flags]
+```
+
+The argument can be an HTTPS Git URL, a local path, or `.` for the current working tree (no clone).
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--quick` | off | Skip the CritiqueAgent pass (saves ~40s, keeps false positives) |
+| `--format` | `html` | Output format: `html`, `json`, or `sarif` |
+| `--output` | `spectra-report.html` | Custom report path |
+| `--min-score` | none | Quality gate — exit 1 if overall score is below this number |
+| `--force` | off | Bypass cache, force a fresh analysis |
+| `--no-cache` | off | Disable cache reads and writes for this run |
+
+### `spectra cache`
+
+Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db` (WAL mode). Three subcommands manage it:
+
+| Subcommand | What it does |
+|------------|--------------|
+| `spectra cache stats` | Show entry count, on-disk size, per-dimension hit rate (rolling last 100 lookups) |
+| `spectra cache clear` | Drop all cache entries (full reset) |
+| `spectra cache prune` | Physically delete stale rows that no current key matches — safe to run anytime |
+
+Cache I/O failures are never fatal — the pipeline degrades to no-cache for the rest of the run (see SPEC-010).
+
+---
+
 ## Contributing
 
 ```bash
