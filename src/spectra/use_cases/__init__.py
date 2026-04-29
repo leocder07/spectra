@@ -41,6 +41,7 @@ from spectra.use_cases.orchestrate_agents import (
     evaluate_results,
     run_specialists,
 )
+from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 __all__ = [
     # token budget
@@ -59,5 +60,6 @@ __all__ = [
     "check_budget_remaining",
     "evaluate_results",
     "is_local_path",
+    "resolve_agent_configs",
     "run_specialists",
 ]
