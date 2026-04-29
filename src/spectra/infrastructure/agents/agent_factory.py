@@ -28,6 +28,7 @@ Dependencies:
 from __future__ import annotations
 
 from spectra.entities.enums import AgentRole
+from spectra.entities.models import AgentRunConfig
 from spectra.infrastructure.agents.base_agent import BaseAgent
 from spectra.infrastructure.agents.critique_agent import CritiqueAgent
 from spectra.infrastructure.agents.meta_prompter import MetaPrompter
@@ -42,15 +43,27 @@ class AgentFactory:
     Supports creating any of the 8 agents by role name. Instantiation is
     lightweight — agents store only config and a gateway reference. No
     heavy objects (model weights, connections) are created per-agent.
+
+    When ``configs`` is provided, each agent receives the per-role model
+    and effort from the resolved ``AgentRunConfig`` map (CLI overrides
+    take effect here). When omitted, the legacy hardcoded defaults are
+    used — kept for backward compatibility with existing tests.
     """
 
-    def __init__(self, gateway: LLMGateway) -> None:
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        configs: dict[AgentRole, AgentRunConfig] | None = None,
+    ) -> None:
         """Initialize the factory.
 
         Args:
             gateway: Shared LLM gateway (with decorators applied).
+            configs: Per-role model + effort overrides. ``None`` keeps
+                the legacy hardcoded behavior of each agent class.
         """
         self._gateway = gateway
+        self._configs = configs
 
     def create(self, role: AgentRole) -> BaseAgent:
         """Create a single agent by role.
@@ -64,22 +77,34 @@ class AgentFactory:
         Raises:
             ValueError: If the role is unknown.
         """
-        # Factory dispatch: special agents first, then parameterized specialists
+        cfg = self._configs.get(role) if self._configs else None
         if role == "meta_prompter":
-            # MetaPrompter uses Opus 4.7 (medium effort), receives ONLY the file tree (≤5K tokens)
-            return MetaPrompter(gateway=self._gateway)
+            return self._make_meta_prompter(cfg)
         if role == "critique":
-            # CritiqueAgent uses Opus 4.7 with adaptive thinking + task budget
-            return CritiqueAgent(gateway=self._gateway)
+            return self._make_critique(cfg)
+        return self._make_specialist(role, cfg)
 
-        # All 6 specialist roles use the same SpecialistAgent class,
-        # parameterized by dimension-specific config from SPECIALIST_CONFIGS
-        config = SPECIALIST_CONFIGS.get(role)
-        if config is None:
+    def _make_meta_prompter(self, cfg: AgentRunConfig | None) -> MetaPrompter:
+        """Build the MetaPrompter, applying config overrides when present."""
+        if cfg is None:
+            return MetaPrompter(gateway=self._gateway)
+        return MetaPrompter(gateway=self._gateway, model=cfg.model, effort=cfg.effort)
+
+    def _make_critique(self, cfg: AgentRunConfig | None) -> CritiqueAgent:
+        """Build the CritiqueAgent, applying config overrides when present."""
+        if cfg is None:
+            return CritiqueAgent(gateway=self._gateway)
+        return CritiqueAgent(gateway=self._gateway, model=cfg.model, effort=cfg.effort)
+
+    def _make_specialist(self, role: AgentRole, cfg: AgentRunConfig | None) -> SpecialistAgent:
+        """Build a parameterized specialist, applying config overrides when present."""
+        spec = SPECIALIST_CONFIGS.get(role)
+        if spec is None:
             msg = f"Unknown agent role: {role}"
             raise ValueError(msg)
-
-        dimension, id_prefix, system_prompt, model = config
+        dimension, id_prefix, system_prompt, default_model = spec
+        model = cfg.model if cfg is not None else default_model
+        effort = cfg.effort if cfg is not None else "xhigh"
         return SpecialistAgent(
             role=role,
             gateway=self._gateway,
@@ -87,6 +112,7 @@ class AgentFactory:
             id_prefix=id_prefix,
             system_prompt=system_prompt,
             model=model,
+            effort=effort,
         )
 
     def create_specialists(self) -> list[BaseAgent]:
