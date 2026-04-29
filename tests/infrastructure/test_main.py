@@ -12,17 +12,25 @@ import pytest
 
 from spectra.entities.errors import ERRORS
 from spectra.entities.models import (
-    AgentOutput,
     AnalysisReport,
-    AnalysisRequest,
-    Codebase,
     DimensionScore,
-    Finding,
     FileLocation,
+    Finding,
     ScoreCard,
 )
-from spectra.infrastructure.main import ReportError, _run_analysis, cli
+from spectra.infrastructure.main import (
+    _SARIF_SEVERITY,
+    ReportError,
+    _build_sarif,
+    _run_analysis,
+    cli,
+)
 
+# Test-only path constants computed at import time from the platform tempdir.
+# Avoids ruff S108 (hardcoded /tmp literal); these strings are mock return
+# values / arguments and never touch the filesystem.
+_TMP_OUT_HTML = str(Path(tempfile.gettempdir()) / "out.html")
+_TMP_SPECTRA_TEST = str(Path(tempfile.gettempdir()) / "spectra-test")
 
 # ── ReportError ───────────────────────────────────────────────
 
@@ -63,25 +71,31 @@ class TestRunAnalysis:
     @pytest.mark.asyncio
     async def test_raises_without_api_key(self):
         with patch.dict("os.environ", {}, clear=True), pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-            await _run_analysis("https://github.com/test/repo", "/tmp/out.html")
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_raises_with_empty_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}):
-            with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-                await _run_analysis("https://github.com/test/repo", "/tmp/out.html")
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}),
+            pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_raises_with_whitespace_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "   "}):
-            with pytest.raises(ValueError, match="placeholder"):
-                await _run_analysis("https://github.com/test/repo", "/tmp/out.html")
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "   "}),
+            pytest.raises(ValueError, match="placeholder"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_raises_with_placeholder_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-your-key-here"}):
-            with pytest.raises(ValueError, match="placeholder"):
-                await _run_analysis("https://github.com/test/repo", "/tmp/out.html")
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-your-key-here"}),
+            pytest.raises(ValueError, match="placeholder"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_full_pipeline_with_mocks(self):
@@ -130,7 +144,7 @@ class TestRunAnalysis:
 
         # Mock report renderer
         mock_reporter = MagicMock()
-        mock_reporter.render = MagicMock(return_value="/tmp/out.html")
+        mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
 
         # Mock the adapter close
         mock_adapter = MagicMock()
@@ -146,7 +160,7 @@ class TestRunAnalysis:
             patch("spectra.infrastructure.main.LoggingDecorator"),
             patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
             patch("spectra.infrastructure.main.analyze_repository", return_value=report),
-            patch("tempfile.mkdtemp", return_value="/tmp/spectra-test"),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
             patch("os.chmod"),
             patch("shutil.rmtree"),
         ):
@@ -156,7 +170,7 @@ class TestRunAnalysis:
 
             result = await _run_analysis(
                 "https://github.com/test/repo",
-                "/tmp/out.html",
+                _TMP_OUT_HTML,
                 output_format="html",
             )
 
@@ -226,7 +240,7 @@ class TestRunAnalysis:
                 patch("spectra.infrastructure.main.LoggingDecorator"),
                 patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
                 patch("spectra.infrastructure.main.analyze_repository", return_value=report),
-                patch("tempfile.mkdtemp", return_value="/tmp/spectra-test"),
+                patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
                 patch("os.chmod"),
                 patch("shutil.rmtree"),
             ):
@@ -296,7 +310,7 @@ class TestRunAnalysis:
             patch("spectra.infrastructure.main.LoggingDecorator"),
             patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
             patch("spectra.infrastructure.main.analyze_repository", return_value=report),
-            patch("tempfile.mkdtemp", return_value="/tmp/spectra-test"),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
             patch("os.chmod"),
             patch("shutil.rmtree"),
         ):
@@ -307,7 +321,7 @@ class TestRunAnalysis:
             with pytest.raises(ReportError) as exc_info:
                 await _run_analysis(
                     "https://github.com/test/repo",
-                    "/tmp/out.html",
+                    _TMP_OUT_HTML,
                 )
             assert exc_info.value.error.code == "SPEC-009"
             # Verify cleanup still happened
@@ -346,7 +360,7 @@ class TestRunAnalysis:
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
         mock_reporter = MagicMock()
-        mock_reporter.render = MagicMock(return_value="/tmp/out.html")
+        mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
 
         mock_adapter = MagicMock()
         mock_adapter.close = AsyncMock()
@@ -361,7 +375,7 @@ class TestRunAnalysis:
             patch("spectra.infrastructure.main.LoggingDecorator"),
             patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
             patch("spectra.infrastructure.main.analyze_repository", return_value=report),
-            patch("tempfile.mkdtemp", return_value="/tmp/spectra-test"),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
             patch("os.chmod") as mock_chmod,
             patch("shutil.rmtree") as mock_rmtree,
         ):
@@ -369,12 +383,12 @@ class TestRunAnalysis:
             mock_factory.create = MagicMock()
             mock_factory.create_specialists = MagicMock(return_value=[])
 
-            await _run_analysis("https://github.com/test/repo", "/tmp/out.html")
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
             # Verify security: tmpdir had restricted permissions
-            mock_chmod.assert_called_once_with("/tmp/spectra-test", 0o700)
+            mock_chmod.assert_called_once_with(_TMP_SPECTRA_TEST, 0o700)
             # Verify cleanup
-            mock_rmtree.assert_called_once_with("/tmp/spectra-test", ignore_errors=True)
+            mock_rmtree.assert_called_once_with(_TMP_SPECTRA_TEST, ignore_errors=True)
             mock_adapter.close.assert_called_once()
 
     @pytest.mark.asyncio
@@ -410,7 +424,7 @@ class TestRunAnalysis:
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
         mock_reporter = MagicMock()
-        mock_reporter.render = MagicMock(return_value="/tmp/out.html")
+        mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
 
         mock_adapter = MagicMock()
         mock_adapter.close = AsyncMock()
@@ -425,7 +439,7 @@ class TestRunAnalysis:
             patch("spectra.infrastructure.main.LoggingDecorator"),
             patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
             patch("spectra.infrastructure.main.analyze_repository", return_value=report) as mock_analyze,
-            patch("tempfile.mkdtemp", return_value="/tmp/spectra-test"),
+            patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
             patch("os.chmod"),
             patch("shutil.rmtree"),
         ):
@@ -435,7 +449,7 @@ class TestRunAnalysis:
 
             await _run_analysis(
                 "https://github.com/test/repo",
-                "/tmp/out.html",
+                _TMP_OUT_HTML,
                 skip_critique=True,
             )
 
@@ -449,24 +463,25 @@ class TestRunAnalysis:
 
 class TestCli:
     def test_cli_sets_analyzer_factory(self):
-        with patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set:
-            with patch("spectra.infrastructure.main.cli_entry") as mock_cli:
-                cli()
-                mock_set.assert_called_once()
-                mock_cli.assert_called_once()
+        with (
+            patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry") as mock_cli,
+        ):
+            cli()
+            mock_set.assert_called_once()
+            mock_cli.assert_called_once()
 
     def test_cli_passes_run_analysis_to_factory(self):
-        with patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set:
-            with patch("spectra.infrastructure.main.cli_entry"):
-                cli()
-                # The factory should receive the _run_analysis function
-                assert mock_set.call_args[0][0] is _run_analysis
+        with (
+            patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry"),
+        ):
+            cli()
+            # The factory should receive the _run_analysis function
+            assert mock_set.call_args[0][0] is _run_analysis
 
 
 # ── _build_sarif ─────────────────────────────────────────────
-
-
-from spectra.infrastructure.main import _build_sarif, _SARIF_SEVERITY
 
 
 class TestBuildSarif:

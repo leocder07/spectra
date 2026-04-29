@@ -23,13 +23,13 @@ from spectra.infrastructure.report_adapter import (
     _build_coverage_summary,
     _build_executive_summary,
     _build_spectrum_segments,
-    _compute_roi,
-    _concentration_rating,
     _complexity_component_score,
     _complexity_indicators,
     _complexity_risk_level,
-    _compute_issue_concentration,
     _compute_file_concentration,
+    _compute_issue_concentration,
+    _compute_roi,
+    _concentration_rating,
     _critical_count,
     _critical_findings_score,
     _dd_compliance_mapping,
@@ -1783,8 +1783,6 @@ class TestOWASP2025Coverage:
 
 # ── Parametrized Gini Coefficient ────────────────────────────
 
-import pytest  # noqa: E811 — re-import for parametrize visibility
-
 
 class TestGiniCoefficientParametrized:
     @pytest.mark.parametrize(
@@ -1825,7 +1823,7 @@ class TestSoc2ZeroFindings:
         for c in result["criteria"]:
             assert c["finding_count"] == 0
             assert c["has_critical"] is False
-            for k, v in c["severity_counts"].items():
+            for v in c["severity_counts"].values():
                 assert v == 0
 
     def test_coverage_pct_is_zero(self):
@@ -2010,7 +2008,7 @@ class TestSeparateStrengths:
             desc="comprehensive test coverage",
             line=1,
         )
-        strengths, issues = _separate_strengths((finding,))
+        strengths, _issues = _separate_strengths((finding,))
         assert len(strengths) == 1
 
     def test_properly_keyword_detected(self):
@@ -2019,7 +2017,7 @@ class TestSeparateStrengths:
             desc="properly configured error handling",
             line=1,
         )
-        strengths, issues = _separate_strengths((finding,))
+        strengths, _issues = _separate_strengths((finding,))
         assert len(strengths) == 1
 
 

@@ -270,22 +270,16 @@ class TestSpectraErrorEdgeCases:
 
 class TestErrorCatchability:
     def test_git_error_caught_as_exception(self):
-        try:
+        with pytest.raises(GitError):
             raise GitError(ERRORS["SPEC-001"])
-        except Exception as e:
-            assert isinstance(e, GitError)
 
     def test_agent_error_caught_as_exception(self):
-        try:
+        with pytest.raises(AgentError):
             raise AgentError(ERRORS["SPEC-005"])
-        except Exception as e:
-            assert isinstance(e, AgentError)
 
     def test_retry_error_caught_as_exception(self):
-        try:
+        with pytest.raises(SpectraRetryError):
             raise SpectraRetryError(ERRORS["SPEC-002"])
-        except Exception as e:
-            assert isinstance(e, SpectraRetryError)
 
     @pytest.mark.parametrize(
         "code",

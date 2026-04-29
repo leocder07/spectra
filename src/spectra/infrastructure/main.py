@@ -246,7 +246,7 @@ async def _read_key_source_files(
         try:
             content = await git_port.read_file(clone_dir, path)
             tokens = counter.count(content)
-        except Exception:  # noqa: BLE001, S112
+        except Exception:  # noqa: S112
             continue
         if total_tokens + tokens > _MAX_HEURISTIC_TOKENS:
             break
@@ -289,29 +289,28 @@ def _build_sarif(report: AnalysisReport) -> dict:
     Returns:
         SARIF-compliant dictionary ready for JSON serialization.
     """
-    results = []
-    for f in report.findings:
-        results.append(
-            {
-                "ruleId": f"spectra/{f.dimension}/{f.id}",
-                "level": _SARIF_SEVERITY.get(f.severity, "note"),
-                "message": {"text": f"{f.title}: {f.description}"},
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": f.location.file_path},
-                            "region": {"startLine": max(1, f.location.line_start)},
-                        },
-                    }
-                ],
-                "properties": {
-                    "severity": f.severity,
-                    "dimension": f.dimension,
-                    "recommendation": f.recommendation,
-                    "estimatedHours": f.estimated_hours,
-                },
-            }
-        )
+    results = [
+        {
+            "ruleId": f"spectra/{f.dimension}/{f.id}",
+            "level": _SARIF_SEVERITY.get(f.severity, "note"),
+            "message": {"text": f"{f.title}: {f.description}"},
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": f.location.file_path},
+                        "region": {"startLine": max(1, f.location.line_start)},
+                    },
+                }
+            ],
+            "properties": {
+                "severity": f.severity,
+                "dimension": f.dimension,
+                "recommendation": f.recommendation,
+                "estimatedHours": f.estimated_hours,
+            },
+        }
+        for f in report.findings
+    ]
 
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",

@@ -31,21 +31,20 @@ def _mock_gateway_with_response(response: str) -> AsyncMock:
 
 
 def _valid_specialist_response(n_findings: int = 2) -> str:
-    findings = []
-    for i in range(n_findings):
-        findings.append(
-            {
-                "severity": "high",
-                "title": f"Finding {i}",
-                "description": f"Description {i}",
-                "file_path": "src/main.py",
-                "line_start": i + 1,
-                "line_end": i + 5,
-                "recommendation": f"Fix {i}",
-                "confidence": 0.9,
-                "estimated_hours": 1.0,
-            }
-        )
+    findings = [
+        {
+            "severity": "high",
+            "title": f"Finding {i}",
+            "description": f"Description {i}",
+            "file_path": "src/main.py",
+            "line_start": i + 1,
+            "line_end": i + 5,
+            "recommendation": f"Fix {i}",
+            "confidence": 0.9,
+            "estimated_hours": 1.0,
+        }
+        for i in range(n_findings)
+    ]
     return json.dumps({"findings": findings, "dimension_score": 75})
 
 

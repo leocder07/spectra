@@ -69,9 +69,9 @@ class AnthropicAdapter:
             ValueError: If the key is empty, whitespace-only, or a
                 placeholder value from ``.env.example``.
         """
-        _PLACEHOLDERS = {"sk-ant-your-key-here", "your-key-here", ""}
+        placeholders = {"sk-ant-your-key-here", "your-key-here", ""}
         stripped = api_key.strip()
-        if not stripped or stripped in _PLACEHOLDERS:
+        if not stripped or stripped in placeholders:
             msg = "ANTHROPIC_API_KEY is missing or contains a placeholder value"
             raise ValueError(msg)
         self._closed = False

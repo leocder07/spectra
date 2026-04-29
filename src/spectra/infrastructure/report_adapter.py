@@ -321,7 +321,7 @@ _SOC2_CRITERIA: dict[str, dict[str, object]] = {
     },
 }
 
-# ── SOC 2 Common Criteria Controls (CC1–CC9) ─────────────────
+# ── SOC 2 Common Criteria Controls (CC1-CC9) ─────────────────
 
 _SOC2_CONTROLS: dict[str, dict[str, object]] = {
     "CC1": {
@@ -1108,10 +1108,7 @@ def _matches_soc2_criterion(
     keywords = criterion.get("keywords", ())
     if any(kw in text for kw in keywords):
         return True
-    for ctrl in criterion.get("controls", []):
-        if any(kw in text for kw in ctrl.get("keywords", ())):
-            return True
-    return False
+    return any(any(kw in text for kw in ctrl.get("keywords", ())) for ctrl in criterion.get("controls", []))
 
 
 def _match_finding_to_cc(
@@ -1227,9 +1224,9 @@ def _collect_cc_gaps(
     """Collect all uncovered CC controls as a gap list."""
     gaps: list[dict[str, str]] = []
     for cat in cc_categories:
-        for ctrl in cat["controls"]:
-            if not ctrl["covered"]:
-                gaps.append({"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]})
+        gaps.extend(
+            {"id": ctrl["id"], "desc": ctrl["desc"], "cc": cat["id"]} for ctrl in cat["controls"] if not ctrl["covered"]
+        )
     return gaps
 
 
@@ -1400,10 +1397,7 @@ def _detect_copyleft_risk(
 ) -> dict[str, object]:
     """Identify copyleft licenses that may restrict distribution."""
     copyleft_patterns = {"GPL", "AGPL", "LGPL"}
-    found: list[str] = []
-    for lic in license_hits:
-        if any(cp in lic for cp in copyleft_patterns):
-            found.append(lic)
+    found: list[str] = [lic for lic in license_hits if any(cp in lic for cp in copyleft_patterns)]
     return {
         "has_copyleft": len(found) > 0,
         "copyleft_licenses": found,
@@ -1709,10 +1703,7 @@ def _build_benchmark_context(
     score = report.score_card.overall_score
     grade_letter = report.score_card.overall_grade[0]
 
-    if lang:
-        lang_label = lang.capitalize()
-    else:
-        lang_label = "all"
+    lang_label = lang.capitalize() if lang else "all"
 
     if score >= median + 10:
         percentile = f"Well above industry median for {lang_label} projects"
@@ -1790,12 +1781,8 @@ def _build_coverage_summary(
     report: AnalysisReport,
 ) -> dict[str, object]:
     """Build transparency data for the Analysis Coverage section."""
-    agent_names = [
-        _AGENT_ROLE_LABEL.get(r, r) for r in report.agents_used
-    ]
-    degraded_names = [
-        dim_label(d) for d in report.degraded_dimensions
-    ]
+    agent_names = [_AGENT_ROLE_LABEL.get(r, r) for r in report.agents_used]
+    degraded_names = [dim_label(d) for d in report.degraded_dimensions]
     return {
         "agents_used": agent_names,
         "agents_count": len(report.agents_used),

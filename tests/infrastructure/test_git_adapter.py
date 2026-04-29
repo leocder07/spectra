@@ -9,8 +9,8 @@ from spectra.infrastructure.git_adapter import (
     _MAX_FILE_COUNT,
     _MAX_FILE_SIZE,
     _MAX_TOTAL_BYTES,
-    _is_private_ip,
     GitAdapter,
+    _is_private_ip,
 )
 
 

@@ -106,6 +106,27 @@ def _print_banner() -> None:
     console.print(_SCAN_LINE)
 
 
+def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
+    """Validate CLI inputs and exit with code 1 on any error.
+
+    Raises:
+        typer.Exit: If url is malformed, format is invalid, or the
+            analyzer factory has not been injected by the composition root.
+    """
+    url_error = _validate_repo_url(repo_url)
+    if url_error:
+        console.print(f"[{RED}]✗[/] {url_error}")
+        raise typer.Exit(code=1)
+
+    if fmt not in ("html", "json", "sarif"):
+        console.print(f"[{RED}]✗[/] Invalid format: use html, json, or sarif")
+        raise typer.Exit(code=1)
+
+    if _analyzer_factory is None:
+        console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
+        raise typer.Exit(code=1)
+
+
 def _version_callback(value: bool) -> None:
     """Print version and exit when --version/-v is passed."""
     if value:
@@ -164,18 +185,7 @@ def analyze(
             format="%(name)s %(levelname)s %(message)s",
         )
 
-    url_error = _validate_repo_url(repo_url)
-    if url_error:
-        console.print(f"[{RED}]✗[/] {url_error}")
-        raise typer.Exit(code=1)
-
-    if fmt not in ("html", "json", "sarif"):
-        console.print(f"[{RED}]✗[/] Invalid format: use html, json, or sarif")
-        raise typer.Exit(code=1)
-
-    if _analyzer_factory is None:
-        console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
-        raise typer.Exit(code=1)
+    _validate_analyze_inputs(repo_url, fmt)
 
     _print_banner()
     repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")

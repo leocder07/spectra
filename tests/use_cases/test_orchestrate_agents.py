@@ -265,7 +265,7 @@ class TestEvaluateResultsEdgeCases:
         assert state == "degraded"
 
     def test_timeout_error_counted_as_failure(self):
-        results = [asyncio.TimeoutError(), asyncio.TimeoutError()]
+        results = [TimeoutError(), TimeoutError()]
         roles = ["architecture", "security"]
         _, failed, state = evaluate_results(results, roles)
         assert len(failed) == 2
@@ -278,7 +278,7 @@ class TestEvaluateResultsEdgeCases:
         o2 = AgentOutput(agent_role="quality", findings=(), tokens_used=200, duration_seconds=2.0, raw_response="{}")
         results = [o1, RuntimeError("fail"), o2]
         roles = ["architecture", "security", "quality"]
-        successes, failed, state = evaluate_results(results, roles)
+        successes, failed, _state = evaluate_results(results, roles)
         assert successes[0].agent_role == "architecture"
         assert successes[1].agent_role == "quality"
         assert failed == ["security"]
