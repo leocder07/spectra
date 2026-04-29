@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -501,3 +502,95 @@ class TestCLIDegradedReport:
         set_analyzer_factory(factory)
         result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
         assert result.exit_code == 0
+
+
+# ── Local-path acceptance ────────────────────────────────────
+
+
+def _make_local_repo(root: Path) -> Path:
+    """Create a directory that looks like a git checkout."""
+    (root / ".git").mkdir(parents=True, exist_ok=True)
+    (root / "src").mkdir(exist_ok=True)
+    (root / "src" / "main.py").write_text("print('hi')\n", encoding="utf-8")
+    return root
+
+
+class TestCLILocalPath:
+    def test_local_path_accepted_relative(self, tmp_path, monkeypatch):
+        """`spectra analyze .` is accepted when cwd is a git repo."""
+        repo = _make_local_repo(tmp_path / "myrepo")
+        monkeypatch.chdir(repo)
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "."])
+        assert result.exit_code == 0, result.output
+        factory.assert_called_once()
+        # The CLI must forward the literal path, not rewrite it.
+        assert factory.call_args[1]["repo_url"] == "."
+
+    def test_local_path_accepted_absolute(self, tmp_path):
+        """`spectra analyze /abs/path` is accepted when path holds a git repo."""
+        repo = _make_local_repo(tmp_path / "abs-repo")
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", str(repo)])
+        assert result.exit_code == 0, result.output
+        factory.assert_called_once()
+        assert factory.call_args[1]["repo_url"] == str(repo)
+
+    def test_local_path_rejected_no_git_dir(self, tmp_path):
+        """A directory without .git/ is rejected with a clear message."""
+        bare = tmp_path / "bare"
+        bare.mkdir()
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", str(bare)])
+        assert result.exit_code == 1
+        assert "git" in result.output.lower() or "not a" in result.output.lower()
+        factory.assert_not_called()
+
+    def test_local_path_rejected_traversal(self, tmp_path):
+        """Paths containing `..` segments are rejected outright."""
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "../etc"])
+        assert result.exit_code == 1
+        factory.assert_not_called()
+
+    def test_local_path_rejected_nonexistent(self, tmp_path):
+        """A path that does not exist is rejected before invoking the factory."""
+        missing = tmp_path / "does-not-exist"
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", str(missing)])
+        assert result.exit_code == 1
+        factory.assert_not_called()
+
+    def test_local_path_rejected_when_file(self, tmp_path):
+        """A regular file (not a directory) is rejected."""
+        f = tmp_path / "file.txt"
+        f.write_text("hi", encoding="utf-8")
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", str(f)])
+        assert result.exit_code == 1
+        factory.assert_not_called()
+
+    def test_https_url_still_works(self):
+        """Regression: existing HTTPS URL flow remains unchanged."""
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        factory.assert_called_once()
+        assert factory.call_args[1]["repo_url"] == "https://github.com/test/repo"
+
+    def test_tilde_path_accepted(self, tmp_path, monkeypatch):
+        """A `~`-prefixed path expands and is accepted as a local path."""
+        repo = _make_local_repo(tmp_path / "home-repo")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "~/home-repo"])
+        assert result.exit_code == 0, result.output
+        factory.assert_called_once()
