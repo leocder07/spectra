@@ -494,7 +494,7 @@ def _build_sarif(report: AnalysisReport) -> dict:
                 "tool": {
                     "driver": {
                         "name": "Spectra",
-                        "version": "0.1.0",
+                        "version": _SPECTRA_VERSION,
                         "informationUri": "https://github.com/leocder07/spectra",
                         "rules": [],
                     },

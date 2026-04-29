@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-29
+
+### Fixed
+- `spectra --version` was hardcoded to `v0.1.0` and never bumped — it now reads from `spectra.__version__`. Same fix for the SARIF report's `tool.driver.version` field (also hardcoded). Existing tests were tightened to assert `f"v{__version__}"` so future bumps don't silently regress.
+
 ## [0.3.0] - 2026-04-29
 
 ### Added

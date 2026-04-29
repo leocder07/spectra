@@ -58,14 +58,18 @@ class TestCLIController:
         assert "analyze" in result.output.lower() or "usage" in result.output.lower()
 
     def test_version_flag(self):
+        from spectra import __version__
+
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "v0.1.0" in result.output
+        assert f"v{__version__}" in result.output
 
     def test_version_short_flag(self):
+        from spectra import __version__
+
         result = runner.invoke(app, ["-v"])
         assert result.exit_code == 0
-        assert "v0.1.0" in result.output
+        assert f"v{__version__}" in result.output
 
     def test_version_contains_spectra_name(self):
         result = runner.invoke(app, ["--version"])
