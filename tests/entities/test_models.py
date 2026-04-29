@@ -95,6 +95,17 @@ class TestFinding:
         with pytest.raises(ValidationError):
             sample_finding_factory(severity="urgent")
 
+    def test_rule_id_default_empty(self, sample_finding):
+        # ADR-011 §2: rule_id is the stable identifier the orchestrator
+        # uses to detect SPEC-PROMPT-INJECTION-DETECTED. Default is the
+        # empty string so existing findings remain valid.
+        assert sample_finding.rule_id == ""
+
+    def test_rule_id_can_be_set(self, sample_finding_factory):
+        f = sample_finding_factory()
+        out = f.model_copy(update={"rule_id": "SPEC-PROMPT-INJECTION-DETECTED"})
+        assert out.rule_id == "SPEC-PROMPT-INJECTION-DETECTED"
+
     def test_hash_same_location_dimension(self, sample_finding_factory):
         f1 = sample_finding_factory(id="A", title="First")
         f2 = sample_finding_factory(id="B", title="Second")
@@ -416,6 +427,35 @@ class TestAnalysisReport:
         )
         assert report.is_degraded is True
         assert len(report.degraded_dimensions) == 2
+
+    def test_is_compromised_default_false(self, sample_scorecard, sample_finding):
+        # ADR-011 §2: compromised state opt-in only via the orchestrator
+        # detecting SPEC-PROMPT-INJECTION-DETECTED.
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+        )
+        assert report.is_compromised is False
+
+    def test_is_compromised_can_be_set(self, sample_scorecard, sample_finding):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+            is_compromised=True,
+        )
+        assert report.is_compromised is True
 
     def test_critical_finding_count_with_criticals(
         self,

@@ -518,6 +518,82 @@ class TestPipelineWithGitPort:
         git_port.read_file.assert_not_called()
 
 
+# ── Prompt-injection compromised state (ADR-011 §2) ──────────
+
+
+class TestCompromisedState:
+    @pytest.mark.asyncio
+    async def test_critique_emits_injection_rule_marks_report_compromised(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        make_agent,
+    ):
+        # CritiqueAgent returns a finding with rule_id matching the
+        # adversarial sentinel — the orchestrator must propagate
+        # is_compromised=True onto the AnalysisReport (ADR-011 §2).
+        critique_resp = json.dumps(
+            {
+                "validated_findings": [],
+                "rejected_findings": [],
+                "severity_adjustments": [],
+                "cross_cutting_insights": [],
+                "compromised_findings": [
+                    {
+                        "rule_id": "SPEC-PROMPT-INJECTION-DETECTED",
+                        "severity": "critical",
+                        "title": "Prompt-injection attempt detected",
+                        "description": "Attacker tried to grade themselves",
+                        "file_path": "src/evil.py",
+                        "line_start": 1,
+                        "recommendation": "Quarantine PR; manual review required",
+                        "confidence": 1.0,
+                    }
+                ],
+            }
+        )
+        critique = make_agent("critique")
+        critique.run.return_value = AgentOutput(
+            agent_role="critique",
+            findings=(),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response=critique_resp,
+        )
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique,
+        )
+        report = await analyze_repository(ctx)
+        assert report.is_compromised is True
+        rule_ids = {f.rule_id for f in report.findings}
+        assert "SPEC-PROMPT-INJECTION-DETECTED" in rule_ids
+
+    @pytest.mark.asyncio
+    async def test_no_injection_rule_means_not_compromised(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+        )
+        report = await analyze_repository(ctx)
+        assert report.is_compromised is False
+
+
 # ── Prompt-injection pre-flight (ADR-011 §3) ──────────────────
 
 
