@@ -1654,7 +1654,22 @@ def _ir_rating(score: float) -> str:
 
 # ── ROI Calculator ("The $47 Line") ──────────────────────────
 
-_MANUAL_REVIEW_HOURS = 4.0  # Estimated hours for equivalent manual review
+# Manual review cost scales with findings count.
+# Empirical bound: a senior engineer evaluates ~10 findings/hour on a
+# code base they've never seen (read context, judge severity, decide
+# whether to act). 6 minutes per finding is the floor.
+_MANUAL_BASE_HOURS = 2.0  # baseline scoping/onboarding cost
+_MANUAL_HOURS_PER_FINDING = 0.1  # 6 minutes to evaluate one finding
+
+
+def _estimate_manual_hours(findings_count: int) -> float:
+    """Estimate hours a senior engineer would need to manually surface and
+    evaluate the same set of findings.
+
+    Replaces the prior hardcoded 4.0 — which made every report show the
+    same $700 manual cost regardless of repo size."""
+    return _MANUAL_BASE_HOURS + (findings_count * _MANUAL_HOURS_PER_FINDING)
+
 
 # ── Comparative Benchmark Medians ────────────────────────────
 
@@ -1741,11 +1756,14 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
     """Compute ROI comparison: Spectra cost vs. manual review cost.
 
     Returns data for the "savings" callout in the report template.
-    """
+    Manual hours scale with findings count via `_estimate_manual_hours`
+    so the savings number reflects the actual workload, not a fixed
+    placeholder."""
     spectra_cost = report.total_cost_usd
-    manual_cost = _HOURLY_RATE_USD * _MANUAL_REVIEW_HOURS
-    savings = manual_cost - spectra_cost
     findings_count = len(report.findings)
+    manual_hours = _estimate_manual_hours(findings_count)
+    manual_cost = _HOURLY_RATE_USD * manual_hours
+    savings = manual_cost - spectra_cost
     cost_per_finding = round(spectra_cost / findings_count, 2) if findings_count else 0.0
     return {
         "spectra_cost": round(spectra_cost, 2),
@@ -1755,7 +1773,7 @@ def _compute_roi(report: AnalysisReport) -> dict[str, object]:
         "cost_per_finding": cost_per_finding,
         "findings_count": findings_count,
         "engineer_rate": _HOURLY_RATE_USD,
-        "manual_hours": _MANUAL_REVIEW_HOURS,
+        "manual_hours": round(manual_hours, 1),
     }
 
 
