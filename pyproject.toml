@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
 authors = [
-    {name = "Vivek Kumar", email = "vkcsenitj@gmail.com"},
+    {name = "Vivek Kumar", email = "vivek@proxie.in"},
 ]
 keywords = ["code-analysis", "ai-agents", "code-review", "clean-architecture", "claude", "anthropic", "multi-agent"]
 classifiers = [
