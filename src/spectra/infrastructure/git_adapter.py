@@ -7,9 +7,11 @@ Security hardening applied at multiple layers:
    local-file-read and unauthenticated-clone attacks.
 
 2. **SSRF prevention** — Before cloning, the hostname is resolved and
-   checked against private (RFC 1918), loopback (127.x), and link-local
-   (169.254.x) IP ranges via ``_is_private_ip()``. This blocks requests
-   to internal services even when hidden behind DNS.
+   checked against private (RFC 1918), loopback, link-local, multicast,
+   unspecified (``0.0.0.0`` / ``::``), and IETF-reserved ranges via
+   ``_is_private_ip()``. DNS resolution failures fail CLOSED (treated as
+   blocked) so a transient resolver hiccup or DNS-rebinding window cannot
+   slip a malicious host past the guard.
 
 3. **URL length cap** — URLs longer than 2 048 characters are rejected to
    prevent header-overflow and log-injection attacks.
@@ -28,8 +30,11 @@ Security hardening applied at multiple layers:
    exhaustion (zip-bomb style repos).
 
 7. **Clone hardening** — Clones are shallow (``depth=1``), disable Git
-   hooks (``core.hooksPath=/dev/null``), skip submodules, and enforce a
-   60-second timeout to prevent hanging on slow or malicious remotes.
+   hooks (``core.hooksPath=/dev/null``), skip submodules, enforce a
+   60-second timeout, AND run with a scrubbed environment via
+   ``_hardened_git_env()``. The subprocess cannot prompt the user, invoke
+   ``ssh-askpass`` / Git Credential Manager, read ``~/.netrc`` /
+   ``~/.gitconfig`` / ``credential.helper``, or silently disable TLS.
 
 8. **Read timeout** — ``read_file()`` uses a 5-second ``asyncio.wait_for``
    to avoid blocking on special device files or FUSE mounts.
@@ -39,13 +44,19 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import socket
+import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import git
 
 from spectra.entities.errors import ERRORS, GitError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _MAX_FILE_COUNT = 10_000
 _MAX_TOTAL_BYTES = 100 * 1024 * 1024  # 100 MB
@@ -56,32 +67,127 @@ _MAX_URL_LENGTH = 2048  # prevent abuse via extremely long URLs
 _MAX_CLONES_PER_HOUR = 30  # rate-limiting advisory constant
 
 
-def _is_private_ip(hostname: str) -> bool:
-    """Return True if hostname resolves to a private/loopback/link-local IP.
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 
-    Prevents SSRF by blocking clones to internal network addresses.
+
+def _is_blocked_address(addr: _IPAddress) -> bool:
+    """Return True if ``addr`` is in any SSRF-sensitive range.
+
+    Blocks: private (RFC 1918), loopback, link-local, multicast,
+    unspecified (``0.0.0.0``, ``::``), and IETF-reserved ranges.
+    """
+    return bool(
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_multicast
+        or addr.is_unspecified
+        or addr.is_reserved
+    )
+
+
+def _is_private_ip(hostname: str) -> bool:
+    """Return True if ``hostname`` is — or resolves to — a blocked address.
+
+    Fails CLOSED: DNS resolution errors are treated as "blocked" so that
+    SSRF attempts via DNS rebinding or transient resolver failures cannot
+    bypass the guard. Callers should expect a True return on any
+    resolution doubt.
 
     Args:
         hostname: DNS name or IP address string.
 
     Returns:
-        True if the address is private, loopback, or link-local.
+        True if the address is sensitive OR cannot be safely resolved.
     """
     try:
         addr = ipaddress.ip_address(hostname)
-        return addr.is_private or addr.is_loopback or addr.is_link_local
+        return _is_blocked_address(addr)
     except ValueError:
         pass
     try:
         resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
-        return any(
-            ipaddress.ip_address(info[4][0]).is_private
-            or ipaddress.ip_address(info[4][0]).is_loopback
-            or ipaddress.ip_address(info[4][0]).is_link_local
-            for info in resolved
-        )
     except (socket.gaierror, OSError):
-        return False
+        # Fail-closed: unresolvable host is treated as blocked.
+        return True
+    return any(
+        _is_blocked_address(ipaddress.ip_address(info[4][0]))
+        for info in resolved
+    )
+
+
+def _hardened_git_env() -> dict[str, str]:
+    """Return a scrubbed env for ``git clone`` subprocesses.
+
+    Neutralizes credential prompts, helper invocations, and configuration
+    inheritance so a malicious URL cannot:
+
+    - trigger a terminal prompt for credentials,
+    - invoke ``ssh-askpass`` or Git Credential Manager UI,
+    - read ``~/.netrc``, ``~/.gitconfig``, or any ``credential.helper``,
+    - silently disable TLS verification.
+
+    HOME and XDG_CONFIG_HOME are pointed at a fresh tmpdir so user-level
+    git config is invisible to the subprocess.
+    """
+    sandbox = tempfile.mkdtemp(prefix="spectra-git-home-")
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/bin/true",
+        "SSH_ASKPASS": "/bin/true",
+        "GCM_INTERACTIVE": "Never",
+        "GIT_SSL_NO_VERIFY": "false",
+        "HOME": sandbox,
+        "XDG_CONFIG_HOME": sandbox,
+    }
+
+
+def _reject_symlinks_in_path(target: Path, root: Path, requested: str) -> None:
+    """Reject if ``target`` or ANY parent up to ``root`` is a symlink.
+
+    Defends against intermediate-symlink-dir bypass: e.g. ``foo/link/file.txt``
+    where ``foo/link`` is a symlink. Leaf-only ``is_symlink()`` misses this;
+    ``Path.resolve()`` then silently follows the link.
+
+    Args:
+        target: Joined path (root / file_path) before resolving.
+        root: Resolved repo root — boundary for the parent walk.
+        requested: Original user-supplied path for error messages.
+
+    Raises:
+        ValueError: If any component along the path is a symlink.
+    """
+    current = target
+    while True:
+        if current.is_symlink():
+            msg = f"Symlink blocked: {requested}"
+            raise ValueError(msg)
+        if current in (root, current.parent):
+            return
+        current = current.parent
+
+
+def _iter_real_files(root: Path) -> Iterator[Path]:
+    """Yield every real file under ``root`` without following symlinked dirs.
+
+    ``Path.rglob`` follows directory symlinks; ``os.walk(followlinks=False)``
+    does not. ``.git/`` is also pruned in-place to avoid descending into git
+    metadata. Symlinked files are skipped.
+
+    Args:
+        root: Repo root.
+
+    Yields:
+        ``Path`` objects for each non-symlink file outside ``.git/``.
+    """
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        for name in filenames:
+            candidate = Path(dirpath) / name
+            if candidate.is_symlink() or not candidate.is_file():
+                continue
+            yield candidate
 
 
 class GitAdapter:
@@ -113,6 +219,7 @@ class GitAdapter:
         if not hostname or _is_private_ip(hostname):
             raise GitError(ERRORS["SPEC-001"])
         loop = asyncio.get_running_loop()
+        env = _hardened_git_env()
         try:
             await asyncio.wait_for(
                 loop.run_in_executor(
@@ -121,6 +228,7 @@ class GitAdapter:
                         repo_url,
                         target_dir,
                         depth=1,
+                        env=env,
                         allow_unsafe_options=True,
                         multi_options=[
                             "--config core.hooksPath=/dev/null",
@@ -152,8 +260,8 @@ class GitAdapter:
 
         Security checks applied (in order):
             1. Reject null bytes and absolute paths.
-            2. Reject symlinks (before resolving).
-            3. Resolve and verify the path stays within ``repo_dir``.
+            2. Reject if any path component (leaf OR intermediate) is a symlink.
+            3. Verify the resolved path stays within ``repo_dir``.
             4. Reject files larger than 1 MB.
             5. 5-second read timeout.
 
@@ -165,9 +273,7 @@ class GitAdapter:
             raise ValueError(msg)
         root = Path(repo_dir).resolve()
         raw = root / file_path
-        if raw.is_symlink():
-            msg = f"Symlink blocked: {file_path}"
-            raise ValueError(msg)
+        _reject_symlinks_in_path(raw, root, file_path)
         full = raw.resolve()
         if not full.is_relative_to(root):
             msg = f"Path traversal blocked: {file_path}"
@@ -196,16 +302,12 @@ class GitAdapter:
     @staticmethod
     def _check_size(repo_dir: str) -> None:
         root = Path(repo_dir)
-        count = 0
         total_bytes = 0
-        for p in root.rglob("*"):
-            if p.is_symlink() or not p.is_file() or ".git" in p.parts:
-                continue
-            count += 1
-            if count > _MAX_FILE_COUNT:
+        for index, file_path in enumerate(_iter_real_files(root), start=1):
+            if index > _MAX_FILE_COUNT:
                 msg = f"Repository exceeds {_MAX_FILE_COUNT} file limit"
                 raise ValueError(msg)
-            total_bytes += p.stat().st_size
+            total_bytes += file_path.stat().st_size
             if total_bytes > _MAX_TOTAL_BYTES:
                 msg = f"Repository exceeds {_MAX_TOTAL_BYTES // (1024 * 1024)}MB limit"
                 raise ValueError(msg)
@@ -214,7 +316,5 @@ class GitAdapter:
     def _walk_tree(repo_dir: str) -> list[str]:
         root = Path(repo_dir)
         return sorted(
-            str(p.relative_to(root))
-            for p in root.rglob("*")
-            if p.is_file() and not p.is_symlink() and ".git" not in p.parts
+            str(p.relative_to(root)) for p in _iter_real_files(root)
         )

@@ -129,6 +129,10 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 timeout = 30
 testpaths = ["tests"]
+# Force tests to import from the worktree's own src/ instead of whatever
+# editable install happens to be active in site-packages (which can point to
+# a sibling worktree). Critical for security/regression tests.
+pythonpath = ["src"]
 markers = [
     "unit: Pure unit tests with no I/O or external dependencies",
     "integration: Tests requiring infrastructure adapters or file I/O",
