@@ -53,6 +53,7 @@ class RetryDecorator:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> str:
         """Analyze with automatic retry on transient failures."""
         return await self._retry(
@@ -61,6 +62,7 @@ class RetryDecorator:
             user_prompt=user_prompt,
             model=model,
             max_tokens=max_tokens,
+            effort=effort,
         )
 
     async def analyze_with_thinking(
@@ -69,6 +71,8 @@ class RetryDecorator:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> str:
         """Analyze with thinking, with automatic retry on transient failures."""
         return await self._retry(
@@ -77,12 +81,14 @@ class RetryDecorator:
             user_prompt=user_prompt,
             model=model,
             max_tokens=max_tokens,
+            effort=effort,
+            task_budget_tokens=task_budget_tokens,
         )
 
     async def _retry(
         self,
         fn: _AsyncAnalyzeFn,
-        **kwargs: str | int,
+        **kwargs: object,
     ) -> str:
         last_error: Exception = RuntimeError("No attempts made")
         for attempt in range(self._max_retries + 1):

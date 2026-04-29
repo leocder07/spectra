@@ -5,7 +5,7 @@ boundaries between the use-case layer and the infrastructure layer,
 following the Dependency Inversion Principle.
 
 Protocols defined here:
-    LLMGateway — Async LLM inference (standard + extended thinking).
+    LLMGateway — Async LLM inference (standard + adaptive thinking).
     GitPort — Repository clone, file tree, and file read operations.
     TokenPort — Token counting and budget checks via tiktoken.
     ReportPort — Render AnalysisReport to HTML via Jinja2.
@@ -33,6 +33,7 @@ class LLMGateway(Protocol):
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> str:
         """Send a standard inference request.
 
@@ -41,6 +42,8 @@ class LLMGateway(Protocol):
             user_prompt: User-level content to analyze.
             model: Anthropic model identifier.
             max_tokens: Maximum response tokens.
+            effort: Optional ``output_config.effort`` (``low|medium|high|xhigh|max``).
+                Opus 4.7 supports ``xhigh``; ``max`` is Opus-tier only.
 
         Returns:
             Raw LLM text response.
@@ -53,14 +56,19 @@ class LLMGateway(Protocol):
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> str:
-        """Send an inference request with extended thinking enabled.
+        """Send an inference request with adaptive thinking enabled.
 
         Args:
             system_prompt: System-level instructions.
             user_prompt: User-level content to analyze.
             model: Anthropic model identifier.
-            max_tokens: Maximum response tokens.
+            max_tokens: Maximum response tokens (per-response cap).
+            effort: Optional ``output_config.effort`` (``low|medium|high|xhigh|max``).
+            task_budget_tokens: Optional cumulative loop budget (min 20_000).
+                Activates the ``task-budgets-2026-03-13`` beta header.
 
         Returns:
             Raw LLM text response (thinking blocks excluded).
