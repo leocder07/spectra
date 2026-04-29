@@ -7,9 +7,11 @@ Security hardening applied at multiple layers:
    local-file-read and unauthenticated-clone attacks.
 
 2. **SSRF prevention** — Before cloning, the hostname is resolved and
-   checked against private (RFC 1918), loopback (127.x), and link-local
-   (169.254.x) IP ranges via ``_is_private_ip()``. This blocks requests
-   to internal services even when hidden behind DNS.
+   checked against private (RFC 1918), loopback, link-local, multicast,
+   unspecified (``0.0.0.0`` / ``::``), and IETF-reserved ranges via
+   ``_is_private_ip()``. DNS resolution failures fail CLOSED (treated as
+   blocked) so a transient resolver hiccup or DNS-rebinding window cannot
+   slip a malicious host past the guard.
 
 3. **URL length cap** — URLs longer than 2 048 characters are rejected to
    prevent header-overflow and log-injection attacks.
@@ -57,32 +59,50 @@ _MAX_URL_LENGTH = 2048  # prevent abuse via extremely long URLs
 _MAX_CLONES_PER_HOUR = 30  # rate-limiting advisory constant
 
 
-def _is_private_ip(hostname: str) -> bool:
-    """Return True if hostname resolves to a private/loopback/link-local IP.
+def _is_blocked_address(addr: ipaddress._BaseAddress) -> bool:
+    """Return True if ``addr`` is in any SSRF-sensitive range.
 
-    Prevents SSRF by blocking clones to internal network addresses.
+    Blocks: private (RFC 1918), loopback, link-local, multicast,
+    unspecified (``0.0.0.0``, ``::``), and IETF-reserved ranges.
+    """
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_multicast
+        or addr.is_unspecified
+        or addr.is_reserved
+    )
+
+
+def _is_private_ip(hostname: str) -> bool:
+    """Return True if ``hostname`` is — or resolves to — a blocked address.
+
+    Fails CLOSED: DNS resolution errors are treated as "blocked" so that
+    SSRF attempts via DNS rebinding or transient resolver failures cannot
+    bypass the guard. Callers should expect a True return on any
+    resolution doubt.
 
     Args:
         hostname: DNS name or IP address string.
 
     Returns:
-        True if the address is private, loopback, or link-local.
+        True if the address is sensitive OR cannot be safely resolved.
     """
     try:
         addr = ipaddress.ip_address(hostname)
-        return addr.is_private or addr.is_loopback or addr.is_link_local
+        return _is_blocked_address(addr)
     except ValueError:
         pass
     try:
         resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
-        return any(
-            ipaddress.ip_address(info[4][0]).is_private
-            or ipaddress.ip_address(info[4][0]).is_loopback
-            or ipaddress.ip_address(info[4][0]).is_link_local
-            for info in resolved
-        )
     except (socket.gaierror, OSError):
-        return False
+        # Fail-closed: unresolvable host is treated as blocked.
+        return True
+    return any(
+        _is_blocked_address(ipaddress.ip_address(info[4][0]))
+        for info in resolved
+    )
 
 
 def _reject_symlinks_in_path(target: Path, root: Path, requested: str) -> None:

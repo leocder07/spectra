@@ -374,9 +374,82 @@ class TestIsPrivateIp:
     def test_public_ip_93_184_216_34(self):
         assert _is_private_ip("93.184.216.34") is False
 
-    def test_unresolvable_hostname_returns_false(self):
-        """Non-existent hostname should return False (not raise)."""
-        assert _is_private_ip("this-host-does-not-exist-xyz123.invalid") is False
+    def test_unresolvable_hostname_fails_closed(self):
+        """Non-existent hostname must fail-closed: treat as private (block).
+
+        Hardened policy: fail-closed on resolution failure. Returning False
+        here would let a clone proceed against a host that Python could not
+        resolve but git later might (e.g. a transient DNS failure in an
+        attacker-controlled rebinding window).
+        """
+        assert _is_private_ip("this-host-does-not-exist-xyz123.invalid") is True
+
+    def test_unspecified_0_0_0_0_blocked(self):
+        """0.0.0.0 (unspecified) must be blocked."""
+        assert _is_private_ip("0.0.0.0") is True
+
+    def test_multicast_blocked(self):
+        """Multicast addresses must be blocked."""
+        assert _is_private_ip("224.0.0.1") is True
+
+    def test_reserved_blocked(self):
+        """Reserved IPv4 ranges must be blocked."""
+        assert _is_private_ip("240.0.0.1") is True
+
+
+# ── SSRF: clone rejects bad addrs via DNS ───────────────────
+
+
+class TestCloneSSRFGuards:
+    """Defence-in-depth: DNS that resolves to bad addrs must reject the clone."""
+
+    @pytest.mark.asyncio
+    async def test_clone_rejects_host_resolving_to_unspecified(
+        self, adapter: GitAdapter, tmp_path, monkeypatch
+    ):
+        """If hostname resolves to 0.0.0.0, clone must be rejected."""
+        import socket
+
+        def fake_getaddrinfo(host, *_args, **_kwargs):
+            return [(socket.AF_INET, 0, 0, "", ("0.0.0.0", 0))]
+
+        monkeypatch.setattr(
+            "spectra.infrastructure.git_adapter.socket.getaddrinfo",
+            fake_getaddrinfo,
+        )
+        with pytest.raises(GitError):
+            await adapter.clone(
+                "https://evil.example.com/repo.git", str(tmp_path / "out")
+            )
+
+    @pytest.mark.asyncio
+    async def test_clone_fails_closed_on_dns_resolution_error(
+        self, adapter: GitAdapter, tmp_path, monkeypatch
+    ):
+        """DNS resolution failure must fail-closed (reject) before clone_from.
+
+        Verifies the SSRF guard rejects unresolvable hosts *before* invoking
+        git, not by relying on git itself to fail.
+        """
+        import socket
+        from unittest.mock import patch
+
+        def raising_getaddrinfo(*_args, **_kwargs):
+            raise socket.gaierror("Name does not resolve")
+
+        monkeypatch.setattr(
+            "spectra.infrastructure.git_adapter.socket.getaddrinfo",
+            raising_getaddrinfo,
+        )
+        with patch(
+            "spectra.infrastructure.git_adapter.git.Repo.clone_from"
+        ) as mock_clone:
+            with pytest.raises(GitError):
+                await adapter.clone(
+                    "https://nonexistent-host-xyz.invalid/repo.git",
+                    str(tmp_path / "out"),
+                )
+            mock_clone.assert_not_called()
 
 
 # ── TOCTOU + intermediate-symlink bypass ─────────────────────
