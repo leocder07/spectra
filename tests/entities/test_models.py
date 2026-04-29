@@ -662,8 +662,9 @@ class TestEstimateCost:
         cost = estimate_cost(outputs)
         assert cost > 0
 
-    def test_meta_prompter_cheaper_than_opus(self):
-        sonnet = AgentOutput(
+    def test_meta_prompter_same_as_opus_specialist(self):
+        """All 8 agents now run on Opus 4.7, so per-token cost is identical."""
+        meta = AgentOutput(
             agent_role="meta_prompter",
             findings=(),
             tokens_used=1000,
@@ -677,7 +678,27 @@ class TestEstimateCost:
             duration_seconds=1.0,
             raw_response="{}",
         )
-        assert estimate_cost((sonnet,)) < estimate_cost((opus,))
+        assert estimate_cost((meta,)) == estimate_cost((opus,))
+
+    def test_opus_cost_matches_anthropic_pricing(self):
+        """Sanity-check the per-1K rates against Anthropic's public Opus 4.7
+        pricing ($5/M input, $25/M output). At a 70/30 input/output split
+        the blended rate per 1K tokens is 0.7*0.005 + 0.3*0.025 = 0.011.
+        For 1000 tokens that's exactly 1.1 cents.
+
+        This is the regression net for the v0.3.1 cost-overstatement bug
+        where rates were 3x the real prices.
+        """
+        out = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        cost = estimate_cost((out,))
+        # 0.7 * 0.005 + 0.3 * 0.025 = 0.011 USD per 1K tokens
+        assert cost == 0.011, f"expected 0.011 USD/1K, got {cost}"
 
     def test_zero_tokens(self):
         output = AgentOutput(

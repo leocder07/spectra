@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-29
+
+### Fixed
+- **Cost estimation was 3× too high.** `entities/models._OPUS_INPUT_PER_1K` and `_OPUS_OUTPUT_PER_1K` carried `$0.015` and `$0.075` per 1K tokens — Anthropic's actual Opus 4.7 pricing is `$0.005` and `$0.025`. Real scans were reporting $14-20 when the actual API spend was $4-7. Pinned a regression test (`test_opus_cost_matches_anthropic_pricing`) that asserts the blended rate per 1K tokens is exactly $0.011 so future drift surfaces immediately.
+- Cost-table comments still referenced "Sonnet 4.5" for the MetaPrompter and "Opus 4.6" for the CritiqueAgent — both now route through the Opus 4.7 row to match the actual model wiring.
+
 ## [0.3.1] - 2026-04-29
 
 ### Fixed
