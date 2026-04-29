@@ -70,10 +70,7 @@ def _prefixed(patterns: list[str], dir_prefix: str) -> list[str]:
     if not dir_prefix:
         return patterns
     prefix = dir_prefix.rstrip("/") + "/"
-    out: list[str] = []
-    for pat in patterns:
-        out.append(_prefix_one(pat, prefix))
-    return out
+    return [_prefix_one(pat, prefix) for pat in patterns]
 
 
 def _prefix_one(pattern: str, prefix: str) -> str:
