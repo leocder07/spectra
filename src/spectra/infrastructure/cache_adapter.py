@@ -530,7 +530,7 @@ class SqliteCacheAdapter:
         rows = self._conn.execute(_HIT_LOG_BY_DIM_SQL, (dimension,)).fetchall()
         if not rows:
             return 0.0
-        return sum(r[0] for r in rows) / len(rows)
+        return float(sum(int(r[0]) for r in rows)) / len(rows)
 
     def _delete_all(self, table: str) -> int:
         """Issue ``DELETE FROM <table>`` and return the row count."""
