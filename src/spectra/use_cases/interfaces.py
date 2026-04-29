@@ -11,6 +11,8 @@ Protocols defined here:
     ReportPort — Render AnalysisReport to HTML via Jinja2.
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
     CachePort — Per-file finding cache (Phase 1, additive).
+    WorkspaceFilterPort — ``.gitignore`` + ``.spectraignore`` honor (Capability #6).
+    SecretScannerPort — Pre-flight regex secret scan (Capability #6).
 
 Helpers:
     is_local_path — Pure classifier distinguishing local paths from URLs.
@@ -29,6 +31,7 @@ from spectra.entities.models import (
     CacheStats,
     Finding,
     RepoCacheKey,
+    SecretFinding,
 )
 
 # Prefixes that unambiguously denote a local filesystem source.
@@ -357,5 +360,58 @@ class CachePort(Protocol):
 
         Returns ``None`` when ``bind_run_context`` has not been called —
         callers short-circuit per-batch caching for that run.
+        """
+        ...
+
+
+class WorkspaceFilterPort(Protocol):
+    """Port for excluding files from analysis based on ignore patterns.
+
+    Implemented by ``PathspecFilterAdapter``. The adapter reads
+    ``.gitignore`` (root + nested) and ``.spectraignore`` from the
+    workspace root and returns the input file list with matched paths
+    removed. Bypassing ``.gitignore`` is a constructor decision in the
+    adapter — the port itself is policy-free.
+    """
+
+    def filter_files(self, repo_dir: str, file_paths: list[str]) -> list[str]:
+        """Return the subset of ``file_paths`` that pass every active ignore filter.
+
+        Args:
+            repo_dir: Absolute path to the workspace root. Used to locate
+                ignore files; never written to.
+            file_paths: Repository-relative paths to evaluate.
+
+        Returns:
+            Paths kept after applying ``.gitignore`` (when honored) and
+            ``.spectraignore``. Input order is preserved.
+        """
+        ...
+
+
+class SecretScannerPort(Protocol):
+    """Port for the pre-flight secret scan.
+
+    Implemented by ``RegexSecretScanner``. The scanner reads each file
+    once and returns a tuple of matches; it never raises on per-file
+    I/O errors (an unreadable file simply yields no matches), so the
+    pipeline can never be blocked by a transient read failure.
+    """
+
+    def scan(
+        self,
+        repo_dir: str,
+        file_paths: list[str],
+    ) -> tuple[SecretFinding, ...]:
+        """Scan ``file_paths`` (relative to ``repo_dir``) for known secret patterns.
+
+        Args:
+            repo_dir: Absolute path to the workspace root.
+            file_paths: Repository-relative paths already filtered by
+                ``WorkspaceFilterPort``. Scanning a filtered-out file
+                would defeat the .gitignore guarantee.
+
+        Returns:
+            Tuple of ``SecretFinding`` matches. Empty tuple means clean.
         """
         ...
