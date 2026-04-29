@@ -1,0 +1,7 @@
+# Minimal build-system shim so `python -m build` works inside scripts/squat-stub/.
+# The actual package metadata is supplied dynamically by setup.py via the
+# SQUAT_NAME environment variable — that's how a single source tree
+# publishes every defensive squat name in one loop.
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
