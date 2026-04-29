@@ -28,7 +28,7 @@ import json
 import logging
 import os
 import sqlite3
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from hashlib import blake2b
 from pathlib import Path
@@ -259,16 +259,37 @@ class SqliteCacheAdapter:
     # ── Connection lifecycle ──────────────────────────────────
 
     def _open_connection(self) -> sqlite3.Connection:
-        """Create parent dir, open SQLite, set WAL — all under SPEC-010."""
+        """Create parent dir 0700, open SQLite, chmod 0600, set WAL.
+
+        ADR-012 — the parent directory is restricted to the owning user
+        and the cache file (plus its WAL/SHM siblings) are tightened to
+        owner read/write only. Permission tightening is best-effort on
+        platforms where ``chmod`` is a no-op (Windows).
+        """
         with _guard_io():
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._tighten_dir_perms()
             conn = sqlite3.connect(
                 str(self._db_path),
                 detect_types=sqlite3.PARSE_DECLTYPES,
                 isolation_level=None,
             )
             conn.execute("PRAGMA journal_mode=WAL")
+            self._tighten_db_perms()
             return conn
+
+    def _tighten_dir_perms(self) -> None:
+        """``chmod 0700`` the cache parent directory; ignore if unsupported."""
+        with suppress(OSError, NotImplementedError):
+            self._db_path.parent.chmod(0o700)
+
+    def _tighten_db_perms(self) -> None:
+        """``chmod 0600`` the cache.db (and WAL/SHM if present)."""
+        for suffix in ("", "-wal", "-shm"):
+            target = self._db_path.with_name(self._db_path.name + suffix)
+            if target.exists():
+                with suppress(OSError, NotImplementedError):
+                    target.chmod(0o600)
 
     def _init_schema(self) -> None:
         """Run CREATE TABLE/INDEX IF NOT EXISTS statements idempotently."""
@@ -951,10 +972,58 @@ sqlite3.register_adapter(datetime, _adapt_datetime_iso)
 sqlite3.register_converter("TIMESTAMP", _convert_timestamp_iso)
 
 
-# ── Path resolution (XDG-respecting) ─────────────────────────
+# ── Path resolution (XDG-respecting, ADR-012 per-UID) ────────
+
+
+def _spectra_cache_root() -> Path:
+    """Return the unscoped Spectra cache root (the parent of the per-UID dir)."""
+    base = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
+    return Path(base) / "spectra"
+
+
+def _current_uid_segment() -> str:
+    """Return the effective UID rendered as a decimal string.
+
+    On Linux/macOS uses ``os.geteuid()``. Windows lacks the syscall,
+    so we fall back to ``"win"`` — the keyring-only secret remains the
+    integrity boundary, but per-user file isolation degrades to a single
+    shared dir until SPEC-010 is wired through composition root.
+    """
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None:
+        return "win"
+    return str(geteuid())
 
 
 def default_cache_path() -> Path:
-    """Return the default cache DB path under XDG_CACHE_HOME or ~/.cache."""
-    base = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
-    return Path(base) / "spectra" / "cache.db"
+    """Return the default cache DB path: ``$XDG/spectra/$UID/cache.db`` (ADR-012)."""
+    return _spectra_cache_root() / _current_uid_segment() / "cache.db"
+
+
+def legacy_cache_path() -> Path:
+    """Return the pre-ADR-012 unscoped path: ``$XDG/spectra/cache.db``."""
+    return _spectra_cache_root() / "cache.db"
+
+
+def migrate_legacy_cache() -> bool:
+    """Drop the pre-ADR-012 cache.db at the unscoped path.
+
+    Returns True when an old cache existed and was removed. The deletion
+    is intentional — re-keying the entire DB under the freshly generated
+    per-user secret would be more work than the warm cache is worth, and
+    the next run cold-caches naturally.
+    """
+    old = legacy_cache_path()
+    if not old.exists():
+        return False
+    try:
+        old.unlink()
+        # Best-effort cleanup of WAL/SHM siblings.
+        for suffix in ("-wal", "-shm", "-journal"):
+            sibling = old.with_name(old.name + suffix)
+            if sibling.exists():
+                sibling.unlink()
+    except OSError as exc:
+        _LOG.warning("SPEC-010: legacy cache removal failed: %s", exc)
+        return False
+    return True

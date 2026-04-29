@@ -390,7 +390,8 @@ class TestRunAnalysis:
             await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
             # Verify security: tmpdir had restricted permissions
-            mock_chmod.assert_called_once_with(_TMP_SPECTRA_TEST, 0o700)
+            # (Plus the per-UID cache dir + cache.db, all chmodded by ADR-012.)
+            mock_chmod.assert_any_call(_TMP_SPECTRA_TEST, 0o700)
             # Verify cleanup of the cloned tmpdir (URL source ⇒ owns_workspace)
             mock_rmtree.assert_called_once_with(_TMP_SPECTRA_TEST, ignore_errors=True)
             mock_adapter.close.assert_called_once()
