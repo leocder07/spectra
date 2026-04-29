@@ -69,21 +69,27 @@ class TestRunAnalysis:
 
     @pytest.mark.asyncio
     async def test_raises_with_empty_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}):
-            with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-                await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}),
+            pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_raises_with_whitespace_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "   "}):
-            with pytest.raises(ValueError, match="placeholder"):
-                await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "   "}),
+            pytest.raises(ValueError, match="placeholder"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_raises_with_placeholder_api_key(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-your-key-here"}):
-            with pytest.raises(ValueError, match="placeholder"):
-                await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-your-key-here"}),
+            pytest.raises(ValueError, match="placeholder"),
+        ):
+            await _run_analysis("https://github.com/test/repo", _TMP_OUT_HTML)
 
     @pytest.mark.asyncio
     async def test_full_pipeline_with_mocks(self):
@@ -451,18 +457,22 @@ class TestRunAnalysis:
 
 class TestCli:
     def test_cli_sets_analyzer_factory(self):
-        with patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set:
-            with patch("spectra.infrastructure.main.cli_entry") as mock_cli:
-                cli()
-                mock_set.assert_called_once()
-                mock_cli.assert_called_once()
+        with (
+            patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry") as mock_cli,
+        ):
+            cli()
+            mock_set.assert_called_once()
+            mock_cli.assert_called_once()
 
     def test_cli_passes_run_analysis_to_factory(self):
-        with patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set:
-            with patch("spectra.infrastructure.main.cli_entry"):
-                cli()
-                # The factory should receive the _run_analysis function
-                assert mock_set.call_args[0][0] is _run_analysis
+        with (
+            patch("spectra.infrastructure.main.set_analyzer_factory") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry"),
+        ):
+            cli()
+            # The factory should receive the _run_analysis function
+            assert mock_set.call_args[0][0] is _run_analysis
 
 
 # ── _build_sarif ─────────────────────────────────────────────
