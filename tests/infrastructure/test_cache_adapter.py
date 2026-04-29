@@ -572,9 +572,7 @@ class TestHitLogSchemaMigration:
         adapter.record_hit("security", "batch-42", hit=True)
         adapter.record_hit("quality", "batch-99", hit=False)
         with sqlite3.connect(str(cache_path)) as conn:
-            rows = conn.execute(
-                "SELECT dimension, batch_id, hit FROM hit_log ORDER BY ts"
-            ).fetchall()
+            rows = conn.execute("SELECT dimension, batch_id, hit FROM hit_log ORDER BY ts").fetchall()
         assert rows[0] == ("security", "batch-42", 1)
         assert rows[1] == ("quality", "batch-99", 0)
 
@@ -586,9 +584,7 @@ class TestHitLogSchemaMigration:
         # Simulate a Phase 3 install: create the table with the OLD shape
         # BEFORE the adapter touches the DB.
         with sqlite3.connect(str(cache_path)) as conn:
-            conn.execute(
-                "CREATE TABLE hit_log (ts TIMESTAMP NOT NULL, hit INTEGER NOT NULL)"
-            )
+            conn.execute("CREATE TABLE hit_log (ts TIMESTAMP NOT NULL, hit INTEGER NOT NULL)")
             conn.execute(
                 "INSERT INTO hit_log (ts, hit) VALUES (?, ?)",
                 ("2026-01-01T00:00:00+00:00", 1),
@@ -598,9 +594,7 @@ class TestHitLogSchemaMigration:
         # legacy row, defaulting its dimension/batch_id to "".
         SqliteCacheAdapter(db_path=cache_path)
         with sqlite3.connect(str(cache_path)) as conn:
-            rows = conn.execute(
-                "SELECT dimension, batch_id, hit FROM hit_log"
-            ).fetchall()
+            rows = conn.execute("SELECT dimension, batch_id, hit FROM hit_log").fetchall()
         assert rows == [("", "", 1)]
 
 
@@ -648,12 +642,7 @@ class TestClearAll:
         adapter.clear_all()
         # Tables must still exist after clear_all (DELETE not DROP).
         with sqlite3.connect(str(cache_path)) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         for required in (
             "findings_cache",
             "full_report_cache",

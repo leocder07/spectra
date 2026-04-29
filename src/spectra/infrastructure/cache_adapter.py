@@ -219,10 +219,7 @@ class SqliteCacheAdapter:
 
     def _migrate_hit_log_columns(self) -> None:
         """Phase 4 ALTER TABLE: add dimension/batch_id to legacy hit_log rows."""
-        existing = {
-            row[1]
-            for row in self._conn.execute("PRAGMA table_info(hit_log)")
-        }
+        existing = {row[1] for row in self._conn.execute("PRAGMA table_info(hit_log)")}
         for column, stmt in _HIT_LOG_LEGACY_COLUMNS:
             if column not in existing:
                 self._conn.execute(stmt)
@@ -633,9 +630,7 @@ ORDER BY ts DESC
 LIMIT 100
 """
 
-_DIMENSIONS_IN_HIT_LOG_SQL = (
-    "SELECT DISTINCT dimension FROM hit_log WHERE dimension != ''"
-)
+_DIMENSIONS_IN_HIT_LOG_SQL = "SELECT DISTINCT dimension FROM hit_log WHERE dimension != ''"
 
 # Tables that store user-data rows with a computed_at timestamp.
 _ALL_TABLES: tuple[str, ...] = (
