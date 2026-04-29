@@ -50,12 +50,58 @@ AI-generated code ships faster than ever, but quality assurance hasn't kept up. 
 
 ---
 
-## Key Features
+## What You Get
 
-- **8 AI agents, 6 dimensions** — Architecture, Security, Quality, Documentation, Maintainability, Performance analyzed in parallel
-- **Under 5 minutes** — 6 specialists run concurrently via `asyncio.gather`, not sequentially
-- **Multi-model strategy** — Sonnet 4.5 for planning, Opus 4.7 for deep analysis, Opus 4.7 + Extended Thinking for critique
-- **False positive filtering** — CritiqueAgent uses extended thinking to validate every finding before it reaches the report
+A weighted ScoreCard plus a self-contained HTML report. Here's what the terminal looks like at the end of a run:
+
+<!-- sample output, illustrative -->
+```
+▸ INGEST: cloned expressjs/express (1,247 files, 184K LOC)
+▸ PLAN:   MetaPrompter built 6-agent plan (4.2K tokens)
+▸ ANALYZE: 6 specialists running in parallel...
+   ✓ Architecture     12.4s   8 findings
+   ✓ Security          9.8s   14 findings (3 critical)
+   ✓ Quality          11.2s   11 findings
+   ✓ Documentation     7.6s   6 findings
+   ✓ Maintainability   8.1s   4 findings
+   ✓ Performance      10.5s   3 findings
+▸ MERGE:    deduplicated 46 → 38 findings
+▸ CRITIQUE: validated findings, dropped 4 false positives (Opus 4.7 + thinking)
+▸ REPORT:   spectra-report.html
+
+┌─────────────────────────────────────────────┐
+│  SPECTRA SCORECARD                          │
+│  repo: expressjs/express                    │
+│  Overall: B- (80/100)                       │
+├─────────────────────────────────────────────┤
+│  Architecture   █████████░  89  A-          │
+│  Security       ██████░░░░  67  D+          │
+│  Quality        █████████░  87  B+          │
+│  Documentation  ██████░░░░  68  C-          │
+│  Maintainability██████████  92  A           │
+│  Performance    ████████░░  76  C+          │
+├─────────────────────────────────────────────┤
+│  34 findings · 3 critical · 87s · $2.41     │
+└─────────────────────────────────────────────┘
+
+✓ Top issues: SQL injection in middleware/parser.js:142
+              prototype pollution in utils/merge.js:38
+              missing auth on /admin/* routes
+```
+
+> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
+
+---
+
+## Three Things That Set Spectra Apart
+
+| 8 AI agents in parallel | Incremental cache | GitHub Action |
+|---|---|---|
+| Six specialists (architecture, security, quality, docs, maintainability, performance) plus a MetaPrompter planner and a CritiqueAgent that filters false positives. All Opus 4.7. Specialists fan out via `asyncio.gather` so the wall clock is the slowest agent, not the sum. | Re-run the same repo and finish in seconds. Composite-key cache (`content × dimension × model × prompt × schema × spectra version`) means only changed files re-analyze. Three subcommands manage it: `spectra cache stats / clear / prune`. | Drop `spectra-ai/spectra@v1` into any PR workflow with one block of YAML. The Action installs from PyPI, runs `spectra analyze`, and posts SARIF to the GitHub Security tab. Min-score gate fails the build below threshold. |
+
+### Other things you get
+
+- **Multi-model strategy** — Opus 4.7 (medium effort) for planning, Opus 4.7 (xhigh effort) for deep analysis, Opus 4.7 with adaptive thinking for critique
 - **Self-contained HTML reports** — Radar charts, interactive findings, keyboard navigation, file hotspot heatmaps — one file, works offline
 - **Due diligence frameworks** — OWASP Top 10, SOC 2 Trust Criteria, PCI DSS 4.0, NIST CSF 2.0, and Investment Readiness scoring
 - **Cost transparency** — Every report shows exact token usage and dollar cost
@@ -134,27 +180,6 @@ Every analysis produces a weighted ScoreCard:
 | Performance | 10% | PerformanceAgent |
 
 **Grades:** A+ (95-100) · A (90-94) · A- (87-89) · B+ (83-86) · B (80-82) · B- (77-79) · C+ (73-76) · C (70-72) · C- (67-69) · D+ (63-66) · D (60-62) · D- (57-59) · F (0-56)
-
-### Example Output
-
-```
-┌─────────────────────────────────────────────┐
-│  SPECTRA SCORECARD                          │
-│  repo: expressjs/express                    │
-│  Overall: B- (80/100)                       │
-├─────────────────────────────────────────────┤
-│  Architecture   █████████░  89  A-          │
-│  Security       ██████░░░░  67  D+          │
-│  Quality        █████████░  87  B+          │
-│  Documentation  ██████░░░░  68  C-          │
-│  Maintainability██████████  92  A           │
-│  Performance    ████████░░  76  C+          │
-├─────────────────────────────────────────────┤
-│  46 findings · 3 critical · 87s · $2.41     │
-└─────────────────────────────────────────────┘
-```
-
-> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
 
 ---
 
