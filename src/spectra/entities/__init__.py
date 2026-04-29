@@ -23,6 +23,7 @@ from spectra.entities.enums import (
     Dimension,
     Grade,
     PipelineState,
+    SchemaVersion,
     Severity,
 )
 from spectra.entities.errors import (
@@ -42,6 +43,8 @@ from spectra.entities.models import (
     AgentOutput,
     AnalysisReport,
     AnalysisRequest,
+    CacheEntry,
+    CacheStats,
     Codebase,
     DimensionScore,
     FileLocation,
@@ -68,6 +71,8 @@ __all__ = [
     "AgentRole",
     "AnalysisReport",
     "AnalysisRequest",
+    "CacheEntry",
+    "CacheStats",
     "Codebase",
     "Dimension",
     "DimensionScore",
@@ -76,6 +81,7 @@ __all__ = [
     "GitError",
     "Grade",
     "PipelineState",
+    "SchemaVersion",
     "ScoreCard",
     "Severity",
     "SpectraError",

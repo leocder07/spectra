@@ -8,13 +8,15 @@ infrastructure layers.
 from __future__ import annotations
 
 import bisect
+from datetime import datetime  # noqa: TC003 — used by Pydantic at runtime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from spectra.entities.enums import (
     AgentRole,
     Dimension,
     Grade,
+    SchemaVersion,
     Severity,
 )
 
@@ -316,6 +318,58 @@ class TokenBudget(BaseModel, frozen=True):
             used: Tokens consumed so far.
         """
         return max(0, self.total - used)
+
+
+class CacheEntry(BaseModel, frozen=True):
+    """One cached row: findings for a (file_hash, dimension) pair.
+
+    The composite cache key — ``(file_hash, dimension, model_version,
+    prompt_version, schema_version)`` — guarantees that any change to
+    file contents, model identity, prompt text, or schema shape misses
+    the cache and triggers re-analysis. Entries are written by
+    ``put_findings`` and never mutated.
+
+    Attributes:
+        file_hash: blake2b digest (16 bytes → 32 hex chars) of file bytes.
+        file_path: Repo-relative path captured at write time.
+        dimension: Analysis dimension this row belongs to.
+        findings: Validated findings produced for this file + dimension.
+        model_version: LLM model identifier (e.g. ``claude-opus-4-7``).
+        prompt_version: Per-dimension prompt version tag.
+        spectra_version: ``spectra.__version__`` at write time.
+        schema_version: ``Finding`` schema version (see ``SchemaVersion``).
+        computed_at: UTC timestamp of the original analysis.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    file_hash: str
+    file_path: str
+    dimension: Dimension
+    findings: tuple[Finding, ...]
+    model_version: str
+    prompt_version: str
+    spectra_version: str
+    schema_version: SchemaVersion
+    computed_at: datetime
+
+
+class CacheStats(BaseModel, frozen=True):
+    """Aggregate cache metrics surfaced by ``CachePort.stats``.
+
+    Attributes:
+        total_entries: Row count in ``findings_cache``.
+        total_repos: Distinct ``repo_signature`` values present.
+        db_size_bytes: On-disk size of ``cache.db``.
+        hit_rate_last_100: Rolling cache hit rate over the last 100 lookups.
+        oldest_entry_at: Earliest ``computed_at`` across all rows.
+    """
+
+    total_entries: int
+    total_repos: int
+    db_size_bytes: int
+    hit_rate_last_100: float = Field(ge=0.0, le=1.0)
+    oldest_entry_at: datetime | None = None
 
 
 _GRADE_THRESHOLDS = [57, 60, 63, 67, 70, 73, 77, 80, 83, 87, 90, 95]

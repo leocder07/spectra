@@ -51,8 +51,8 @@ class TestSpectraError:
 
 
 class TestErrorsDict:
-    def test_all_nine_codes_present(self):
-        expected_codes = {f"SPEC-{i:03d}" for i in range(1, 10)}
+    def test_all_ten_codes_present(self):
+        expected_codes = {f"SPEC-{i:03d}" for i in range(1, 11)}
         assert set(ERRORS.keys()) == expected_codes
 
     def test_code_matches_key(self):
@@ -71,6 +71,7 @@ class TestErrorsDict:
             "SPEC-007",
             "SPEC-008",
             "SPEC-009",
+            "SPEC-010",
         }
 
     @pytest.mark.parametrize(

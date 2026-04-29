@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -14,6 +16,8 @@ from spectra.entities.models import (
     AgentOutput,
     AnalysisReport,
     AnalysisRequest,
+    CacheEntry,
+    CacheStats,
     Codebase,
     DimensionScore,
     FileLocation,
@@ -819,3 +823,105 @@ class TestAnalysisReportEdgeCases:
             cross_cutting_insights=("Insight 1", "Insight 2"),
         )
         assert len(report.cross_cutting_insights) == 2
+
+
+# ── CacheEntry ─────────────────────────────────────────────────
+
+
+def _cache_finding() -> Finding:
+    return Finding(
+        id="CACHE-001",
+        dimension="security",
+        severity="high",
+        title="Cached finding",
+        description="From cache test",
+        location=FileLocation(file_path="src/auth.py", line_start=42),
+        recommendation="Fix it",
+        agent_role="security",
+        confidence=0.9,
+    )
+
+
+class TestCacheEntry:
+    def test_create_with_required_fields(self):
+        entry = CacheEntry(
+            file_hash="abc123",
+            file_path="src/auth.py",
+            dimension="security",
+            findings=(_cache_finding(),),
+            model_version="claude-opus-4-7",
+            prompt_version="security-v1",
+            spectra_version="0.1.0",
+            schema_version="v1",
+            computed_at=datetime.now(UTC),
+        )
+        assert entry.file_hash == "abc123"
+        assert entry.dimension == "security"
+        assert len(entry.findings) == 1
+
+    def test_frozen_immutability(self):
+        entry = CacheEntry(
+            file_hash="abc",
+            file_path="src/x.py",
+            dimension="quality",
+            findings=(),
+            model_version="m",
+            prompt_version="p",
+            spectra_version="0.1.0",
+            schema_version="v1",
+            computed_at=datetime.now(UTC),
+        )
+        with pytest.raises(ValidationError):
+            entry.file_hash = "other"
+
+    def test_findings_is_tuple_immutable(self):
+        entry = CacheEntry(
+            file_hash="abc",
+            file_path="src/x.py",
+            dimension="quality",
+            findings=(_cache_finding(),),
+            model_version="m",
+            prompt_version="p",
+            spectra_version="0.1.0",
+            schema_version="v1",
+            computed_at=datetime.now(UTC),
+        )
+        assert isinstance(entry.findings, tuple)
+
+
+# ── CacheStats ─────────────────────────────────────────────────
+
+
+class TestCacheStats:
+    def test_create_with_required_fields(self):
+        stats = CacheStats(
+            total_entries=10,
+            total_repos=2,
+            db_size_bytes=4096,
+            hit_rate_last_100=0.85,
+            oldest_entry_at=datetime.now(UTC),
+        )
+        assert stats.total_entries == 10
+        assert stats.total_repos == 2
+        assert stats.db_size_bytes == 4096
+
+    def test_oldest_entry_can_be_none(self):
+        stats = CacheStats(
+            total_entries=0,
+            total_repos=0,
+            db_size_bytes=0,
+            hit_rate_last_100=0.0,
+            oldest_entry_at=None,
+        )
+        assert stats.oldest_entry_at is None
+
+    def test_frozen_immutability(self):
+        stats = CacheStats(
+            total_entries=1,
+            total_repos=1,
+            db_size_bytes=10,
+            hit_rate_last_100=1.0,
+            oldest_entry_at=None,
+        )
+        with pytest.raises(ValidationError):
+            stats.total_entries = 99
