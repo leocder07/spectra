@@ -139,6 +139,7 @@ class TestRunAnalysis:
         # Mock git operations
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py", "README.md"])
 
@@ -175,7 +176,7 @@ class TestRunAnalysis:
             )
 
             assert result.repo_url == "https://github.com/test/repo"
-            mock_git.clone.assert_called_once()
+            mock_git.prepare_workspace.assert_called_once()
             mock_git.validate_repo_size.assert_called_once()
             mock_reporter.render.assert_called_once()
             mock_adapter.close.assert_called_once()
@@ -220,6 +221,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
 
@@ -291,6 +293,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
@@ -356,6 +359,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
@@ -387,7 +391,7 @@ class TestRunAnalysis:
 
             # Verify security: tmpdir had restricted permissions
             mock_chmod.assert_called_once_with(_TMP_SPECTRA_TEST, 0o700)
-            # Verify cleanup
+            # Verify cleanup of the cloned tmpdir (URL source ⇒ owns_workspace)
             mock_rmtree.assert_called_once_with(_TMP_SPECTRA_TEST, ignore_errors=True)
             mock_adapter.close.assert_called_once()
 
@@ -420,6 +424,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
@@ -456,6 +461,74 @@ class TestRunAnalysis:
             # critique_agent kwarg should be None when skipping
             call_kwargs = mock_analyze.call_args[1]
             assert call_kwargs["critique_agent"] is None
+
+    @pytest.mark.asyncio
+    async def test_local_path_skips_tempdir_and_cleanup(self, tmp_path):
+        """Local-path source must not allocate a tmpdir nor remove the user's repo."""
+        # Build a local repo on disk
+        local_repo = tmp_path / "myrepo"
+        (local_repo / ".git").mkdir(parents=True)
+        (local_repo / "src").mkdir()
+        (local_repo / "src" / "main.py").write_text("x = 1\n", encoding="utf-8")
+
+        finding = Finding(
+            id="a-001",
+            dimension="architecture",
+            severity="info",
+            title="T",
+            description="D",
+            location=FileLocation(file_path="src/main.py", line_start=1),
+            recommendation="R",
+            agent_role="architecture",
+            confidence=0.8,
+        )
+        dim_score = DimensionScore(dimension="architecture", score=85.0, grade="B+", findings_count=1, weight=1.0)
+        score_card = ScoreCard(overall_score=85.0, overall_grade="B+", dimensions=(dim_score,), total_findings=1)
+        report = AnalysisReport(
+            repo_url=str(local_repo),
+            repo_name="myrepo",
+            score_card=score_card,
+            findings=(finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=("architecture",),
+        )
+
+        mock_git = AsyncMock()
+        mock_git.clone = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=str(local_repo))
+        mock_git.validate_repo_size = AsyncMock()
+        mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
+
+        mock_reporter = MagicMock()
+        mock_reporter.render = MagicMock(return_value="/tmp/out.html")  # noqa: S108
+
+        mock_adapter = MagicMock()
+        mock_adapter.close = AsyncMock()
+
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-real-key-12345"}),
+            patch("spectra.infrastructure.main.GitAdapter", return_value=mock_git),
+            patch("spectra.infrastructure.main.ReportAdapter", return_value=mock_reporter),
+            patch("spectra.infrastructure.main.AnthropicAdapter", return_value=mock_adapter),
+            patch("spectra.infrastructure.main.RichProgressReporter"),
+            patch("spectra.infrastructure.main.RetryDecorator"),
+            patch("spectra.infrastructure.main.LoggingDecorator"),
+            patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
+            patch("spectra.infrastructure.main.analyze_repository", return_value=report),
+            patch("spectra.infrastructure.main.tempfile.mkdtemp") as mock_mkdtemp,
+            patch("spectra.infrastructure.main.shutil.rmtree") as mock_rmtree,
+        ):
+            mock_factory = mock_factory_cls.return_value
+            mock_factory.create = MagicMock()
+            mock_factory.create_specialists = MagicMock(return_value=[])
+
+            await _run_analysis(str(local_repo), "/tmp/out.html")  # noqa: S108
+
+            mock_mkdtemp.assert_not_called()
+            mock_rmtree.assert_not_called()
+            mock_git.prepare_workspace.assert_called_once()
 
 
 # ── cli function ──────────────────────────────────────────────

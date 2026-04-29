@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -32,6 +33,7 @@ from spectra.use_cases.analyze_repository import (
     _validate_finding_paths,
     analyze_repository,
 )
+from spectra.use_cases.interfaces import is_local_path
 
 
 def _finding(dim: str, sev: str, line: int = 10) -> Finding:
@@ -1272,3 +1274,119 @@ class TestValidateRepoUrlParametrized:
 
         result = _validate_repo_url("https://github.com/user/repo-name_v2.0")
         assert result is None
+
+
+# ── is_local_path classifier ─────────────────────────────────
+
+
+class TestIsLocalPath:
+    @pytest.mark.parametrize(
+        "source",
+        [
+            ".",
+            "./",
+            "./repo",
+            "../repo",
+            "/abs/path",
+            "~/myrepo",
+            "file:///tmp/repo",
+        ],
+    )
+    def test_classifies_obvious_local_paths(self, source):
+        assert is_local_path(source) is True
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "https://github.com/user/repo",
+            "https://gitlab.com/org/proj.git",
+            "http://github.com/user/repo",
+            "git@github.com:user/repo.git",
+            "ssh://git@github.com/user/repo",
+        ],
+    )
+    def test_classifies_remote_urls(self, source):
+        assert is_local_path(source) is False
+
+    def test_empty_is_not_local(self):
+        assert is_local_path("") is False
+
+    def test_relative_existing_dir_is_local(self, tmp_path, monkeypatch):
+        (tmp_path / "myrepo" / ".git").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        assert is_local_path("myrepo") is True
+
+    def test_relative_nonexistent_is_not_local(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert is_local_path("definitely-not-here") is False
+
+
+# ── Bypass-clone path through GitPort.prepare_workspace ─────
+
+
+class TestPrepareWorkspaceIntegration:
+    @pytest.mark.asyncio
+    async def test_local_path_bypasses_clone(self, analysis_request, codebase, meta_prompter, six_specialists):
+        """When source is a local path, prepare_workspace returns it unchanged."""
+        from spectra.infrastructure.git_adapter import GitAdapter
+
+        adapter = GitAdapter()
+        repo = Path(codebase.local_path)
+        repo.mkdir(parents=True, exist_ok=True)
+        (repo / ".git").mkdir(exist_ok=True)
+        try:
+            workspace = await adapter.prepare_workspace(str(repo), target_dir="/tmp/unused")  # noqa: S108
+        finally:
+            pass
+        assert workspace == str(repo.resolve())
+
+    @pytest.mark.asyncio
+    async def test_url_uses_clone(self, tmp_path):
+        """When source is HTTPS, prepare_workspace delegates to clone."""
+        from unittest.mock import patch
+
+        from spectra.infrastructure.git_adapter import GitAdapter
+
+        adapter = GitAdapter()
+        target = str(tmp_path / "out")
+        with patch.object(adapter, "clone", new_callable=AsyncMock) as mock_clone:
+            result = await adapter.prepare_workspace(
+                "https://github.com/test/repo",
+                target_dir=target,
+            )
+        mock_clone.assert_awaited_once_with("https://github.com/test/repo", target)
+        assert result == target
+
+    @pytest.mark.asyncio
+    async def test_local_path_without_git_dir_rejected(self, tmp_path):
+        from spectra.entities.errors import GitError
+        from spectra.infrastructure.git_adapter import GitAdapter
+
+        adapter = GitAdapter()
+        bare = tmp_path / "no-git"
+        bare.mkdir()
+        with pytest.raises(GitError):
+            await adapter.prepare_workspace(str(bare), target_dir="/tmp/x")  # noqa: S108
+
+    @pytest.mark.asyncio
+    async def test_local_path_traversal_rejected(self, tmp_path):
+        from spectra.entities.errors import GitError
+        from spectra.infrastructure.git_adapter import GitAdapter
+
+        adapter = GitAdapter()
+        with pytest.raises(GitError):
+            await adapter.prepare_workspace("../etc", target_dir="/tmp/x")  # noqa: S108
+
+    @pytest.mark.asyncio
+    async def test_local_path_symlink_rejected(self, tmp_path):
+        from spectra.entities.errors import GitError
+        from spectra.infrastructure.git_adapter import GitAdapter
+
+        adapter = GitAdapter()
+        real = tmp_path / "real"
+        real.mkdir()
+        (real / ".git").mkdir()
+        link = tmp_path / "link"
+        link.symlink_to(real)
+        with pytest.raises(GitError):
+            await adapter.prepare_workspace(str(link), target_dir="/tmp/x")  # noqa: S108

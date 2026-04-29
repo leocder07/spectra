@@ -29,6 +29,7 @@ from spectra.use_cases.interfaces import (
     ProgressObserver,
     ReportPort,
     TokenPort,
+    is_local_path,
 )
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
@@ -56,5 +57,6 @@ __all__ = [
     "analyze_repository",
     "check_budget_remaining",
     "evaluate_results",
+    "is_local_path",
     "run_specialists",
 ]

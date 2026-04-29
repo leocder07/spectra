@@ -8,7 +8,7 @@ WAL mode for concurrent reads, and SPEC-010 fault handling.
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -23,6 +23,8 @@ from spectra.infrastructure.cache_adapter import (
     SqliteCacheAdapter,
 )
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -64,12 +66,7 @@ class TestInitSchema:
         SqliteCacheAdapter(db_path=cache_path)
         assert cache_path.exists()
         with sqlite3.connect(str(cache_path)) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "findings_cache" in tables
         assert "hit_log" in tables
 

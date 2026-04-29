@@ -59,12 +59,8 @@ CREATE TABLE IF NOT EXISTS findings_cache (
 )
 """
 
-_CREATE_REPO_INDEX = (
-    "CREATE INDEX IF NOT EXISTS idx_repo ON findings_cache(repo_signature)"
-)
-_CREATE_AGE_INDEX = (
-    "CREATE INDEX IF NOT EXISTS idx_age ON findings_cache(computed_at)"
-)
+_CREATE_REPO_INDEX = "CREATE INDEX IF NOT EXISTS idx_repo ON findings_cache(repo_signature)"
+_CREATE_AGE_INDEX = "CREATE INDEX IF NOT EXISTS idx_age ON findings_cache(computed_at)"
 _CREATE_HIT_LOG = """
 CREATE TABLE IF NOT EXISTS hit_log (
     ts        TIMESTAMP NOT NULL,
