@@ -72,19 +72,19 @@ Layer 4 (infrastructure/)   → imports from all inner layers
 
 ```
 Stage 1: INGEST     → Clone repo, extract file tree (GitPython)
-Stage 2: PLAN       → MetaPrompter (Sonnet 4.5, file tree ONLY ≤5K tokens, NEVER full code)
+Stage 2: PLAN       → MetaPrompter (Opus 4.7 effort=medium, file tree ONLY ≤5K tokens, NEVER full code)
 Stage 3: ANALYZE    → 6 Specialists in PARALLEL via asyncio.gather:
                        Architecture + Security + Quality + Documentation + Dependency + Performance
-                       (all Opus 4.6)
+                       (all Opus 4.7, effort=xhigh)
 Stage 4: MERGE      → Deduplicate findings, cross-reference, compute scores
-Stage 5: CRITIQUE   → CritiqueAgent (Opus 4.6, EXTENDED THINKING, validates ALL findings)
+Stage 5: CRITIQUE   → CritiqueAgent (Opus 4.7, ADAPTIVE THINKING + task_budget, validates ALL findings)
 Stage 6: REPORT     → Render HTML via Jinja2 + Excalidraw diagrams
 ```
 
 ### Agent Hard Rules
 
 1. MetaPrompter NEVER gets full code. File tree only, ≤5K tokens.
-2. Extended thinking: CritiqueAgent ONLY. No other agent uses it.
+2. Adaptive thinking: CritiqueAgent ONLY. No other agent uses it.
 3. 6 specialists ALWAYS run in parallel: `await asyncio.gather(*agents, return_exceptions=True)`
 4. Every agent output validated against Pydantic model BEFORE merge.
 5. `asyncio.wait_for(timeout=120)` per agent.
@@ -150,10 +150,10 @@ spectra/
 │               ├── __init__.py
 │               ├── base_agent.py      # ABC Template Method
 │               ├── agent_factory.py   # Creates all 8 agent configs
-│               ├── meta_prompter.py   # Sonnet 4.5, planning only
-│               ├── specialist_agent.py    # Parameterized specialist (all 6 dimensions)
+│               ├── meta_prompter.py   # Opus 4.7, medium effort, planning only
+│               ├── specialist_agent.py    # Parameterized specialist (Opus 4.7 + xhigh)
 │               ├── specialist_prompts.py  # System prompts per dimension
-│               └── critique_agent.py      # Opus 4.6, EXTENDED THINKING
+│               └── critique_agent.py      # Opus 4.7, adaptive thinking + task budget
 ├── templates/
 │   └── report.html.j2                # Jinja2 HTML report template
 ├── tests/
