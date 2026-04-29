@@ -377,3 +377,92 @@ class TestIsPrivateIp:
     def test_unresolvable_hostname_returns_false(self):
         """Non-existent hostname should return False (not raise)."""
         assert _is_private_ip("this-host-does-not-exist-xyz123.invalid") is False
+
+
+# ── TOCTOU + intermediate-symlink bypass ─────────────────────
+
+
+class TestIntermediateSymlinkBypass:
+    """Catch attacks where an intermediate dir (not the leaf) is a symlink."""
+
+    @pytest.mark.asyncio
+    async def test_read_file_rejects_intermediate_symlink_dir(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """repo/foo/link/file.txt where foo/link -> /etc must be blocked."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / "foo").mkdir()
+        # Plant intermediate symlink: foo/link -> some other tmp dir with file.txt
+        external = tmp_path / "external"
+        external.mkdir()
+        (external / "file.txt").write_text("escaped content")
+        os.symlink(str(external), str(repo / "foo" / "link"))
+
+        # The leaf file.txt is NOT a symlink, but the intermediate "link" is.
+        # Today this slips past leaf-only is_symlink() and resolve() follows it.
+        with pytest.raises(ValueError, match="[Ss]ymlink"):
+            await adapter.read_file(str(repo), "foo/link/file.txt")
+
+    @pytest.mark.asyncio
+    async def test_read_file_rejects_symlink_to_temp_clone_internal(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """Even if symlink target is *inside* repo_dir, it must still be blocked."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        secret_dir = repo / ".git"
+        secret_dir.mkdir()
+        (secret_dir / "config").write_text("[user]\n  email = leak@example.com")
+        (repo / "src").mkdir()
+        # src/escape -> .git/config (inside repo, so passes is_relative_to)
+        os.symlink(str(secret_dir / "config"), str(repo / "src" / "escape"))
+
+        # The leaf IS a symlink — should be blocked by existing leaf check.
+        with pytest.raises(ValueError, match="[Ss]ymlink"):
+            await adapter.read_file(str(repo), "src/escape")
+
+    @pytest.mark.asyncio
+    async def test_walk_tree_does_not_traverse_symlinked_dirs(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """rglob follows symlinked directories — must use os.walk(followlinks=False)."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        external = tmp_path / "external"
+        external.mkdir()
+        (external / "leaked.txt").write_text("should not appear")
+        # Create symlinked directory inside repo
+        os.symlink(str(external), str(repo / "linkdir"))
+
+        tree = await adapter.get_file_tree(str(repo))
+        # leaked.txt must NOT appear under linkdir/ — the directory traversal
+        # should not follow the symlink at all.
+        assert not any("linkdir" in p for p in tree), (
+            f"Symlinked dir was traversed: {tree}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_validate_repo_size_does_not_traverse_symlinked_dirs(
+        self, adapter: GitAdapter, tmp_path
+    ):
+        """_check_size must not double-count via symlinked dirs (followlinks=False)."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        # External dir of huge size — would blow the limit if traversed
+        external = tmp_path / "external"
+        external.mkdir()
+        # Write a single small file; the test asserts we do NOT descend at all
+        (external / "leaked.bin").write_bytes(b"x" * 1024)
+        os.symlink(str(external), str(repo / "linkdir"))
+
+        # Should not raise — the linkdir must be skipped, not descended.
+        await adapter.validate_repo_size(str(repo))

@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
@@ -82,6 +83,53 @@ def _is_private_ip(hostname: str) -> bool:
         )
     except (socket.gaierror, OSError):
         return False
+
+
+def _reject_symlinks_in_path(target: Path, root: Path, requested: str) -> None:
+    """Reject if ``target`` or ANY parent up to ``root`` is a symlink.
+
+    Defends against intermediate-symlink-dir bypass: e.g. ``foo/link/file.txt``
+    where ``foo/link`` is a symlink. Leaf-only ``is_symlink()`` misses this;
+    ``Path.resolve()`` then silently follows the link.
+
+    Args:
+        target: Joined path (root / file_path) before resolving.
+        root: Resolved repo root — boundary for the parent walk.
+        requested: Original user-supplied path for error messages.
+
+    Raises:
+        ValueError: If any component along the path is a symlink.
+    """
+    current = target
+    while True:
+        if current.is_symlink():
+            msg = f"Symlink blocked: {requested}"
+            raise ValueError(msg)
+        if current == root or current.parent == current:
+            return
+        current = current.parent
+
+
+def _iter_real_files(root: Path):
+    """Yield every real file under ``root`` without following symlinked dirs.
+
+    ``Path.rglob`` follows directory symlinks; ``os.walk(followlinks=False)``
+    does not. ``.git/`` is also pruned in-place to avoid descending into git
+    metadata. Symlinked files are skipped.
+
+    Args:
+        root: Repo root.
+
+    Yields:
+        ``Path`` objects for each non-symlink file outside ``.git/``.
+    """
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        for name in filenames:
+            candidate = Path(dirpath) / name
+            if candidate.is_symlink() or not candidate.is_file():
+                continue
+            yield candidate
 
 
 class GitAdapter:
@@ -152,8 +200,8 @@ class GitAdapter:
 
         Security checks applied (in order):
             1. Reject null bytes and absolute paths.
-            2. Reject symlinks (before resolving).
-            3. Resolve and verify the path stays within ``repo_dir``.
+            2. Reject if any path component (leaf OR intermediate) is a symlink.
+            3. Verify the resolved path stays within ``repo_dir``.
             4. Reject files larger than 1 MB.
             5. 5-second read timeout.
 
@@ -165,9 +213,7 @@ class GitAdapter:
             raise ValueError(msg)
         root = Path(repo_dir).resolve()
         raw = root / file_path
-        if raw.is_symlink():
-            msg = f"Symlink blocked: {file_path}"
-            raise ValueError(msg)
+        _reject_symlinks_in_path(raw, root, file_path)
         full = raw.resolve()
         if not full.is_relative_to(root):
             msg = f"Path traversal blocked: {file_path}"
@@ -198,14 +244,12 @@ class GitAdapter:
         root = Path(repo_dir)
         count = 0
         total_bytes = 0
-        for p in root.rglob("*"):
-            if p.is_symlink() or not p.is_file() or ".git" in p.parts:
-                continue
+        for file_path in _iter_real_files(root):
             count += 1
             if count > _MAX_FILE_COUNT:
                 msg = f"Repository exceeds {_MAX_FILE_COUNT} file limit"
                 raise ValueError(msg)
-            total_bytes += p.stat().st_size
+            total_bytes += file_path.stat().st_size
             if total_bytes > _MAX_TOTAL_BYTES:
                 msg = f"Repository exceeds {_MAX_TOTAL_BYTES // (1024 * 1024)}MB limit"
                 raise ValueError(msg)
@@ -214,7 +258,5 @@ class GitAdapter:
     def _walk_tree(repo_dir: str) -> list[str]:
         root = Path(repo_dir)
         return sorted(
-            str(p.relative_to(root))
-            for p in root.rglob("*")
-            if p.is_file() and not p.is_symlink() and ".git" not in p.parts
+            str(p.relative_to(root)) for p in _iter_real_files(root)
         )
