@@ -138,9 +138,9 @@ async def _run_analysis(
 
         # ── DI Wiring: Agent Factory ──────────────────────────────
         # AgentFactory creates all 8 agents with the decorated gateway.
-        # MetaPrompter (Sonnet 4.5) plans from file tree only.
-        # 6 specialists (Opus 4.6) run in parallel via asyncio.gather.
-        # CritiqueAgent (Opus 4.6, extended thinking) validates findings.
+        # MetaPrompter (Opus 4.7, medium effort) plans from file tree only.
+        # 6 specialists (Opus 4.7, effort=xhigh) run in parallel via asyncio.gather.
+        # CritiqueAgent (Opus 4.7, adaptive thinking + task budget) validates findings.
         factory = AgentFactory(gateway=gateway)
         meta_prompter = factory.create("meta_prompter")
         specialists = factory.create_specialists()

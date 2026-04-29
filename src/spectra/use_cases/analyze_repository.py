@@ -5,7 +5,7 @@ Stages:
     2. PLAN — MetaPrompter creates per-agent focus areas.
     3. ANALYZE — 6 specialists run in parallel via ``asyncio.gather``.
     4. MERGE — Deduplicate findings and validate file paths.
-    5. CRITIQUE — CritiqueAgent validates findings (extended thinking).
+    5. CRITIQUE — CritiqueAgent validates findings (adaptive thinking).
     6. REPORT — Build ``AnalysisReport`` with computed ScoreCard.
 """
 
