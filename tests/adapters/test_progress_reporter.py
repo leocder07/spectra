@@ -141,3 +141,16 @@ class TestConcurrencySafety:
             reporter.on_agent_start(role)
         for role in roles:
             reporter.on_agent_success(role, 1.0)
+
+
+# ── Phase 3: per-batch cache observability ────────────────────
+
+
+class TestOnCacheLookup:
+    def test_on_cache_lookup_prints_dimension_and_hit_count(self):
+        reporter, buf = _make_reporter()
+        reporter.on_cache_lookup("security", hits=7, total=8)
+        output = buf.getvalue()
+        assert "security" in output
+        assert "7" in output
+        assert "8" in output

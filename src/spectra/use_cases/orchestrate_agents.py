@@ -48,10 +48,11 @@ Dependencies:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Protocol
 
 from spectra.entities.enums import AgentRole, PipelineState
-from spectra.entities.models import AgentOutput
+from spectra.entities.models import AgentOutput, BatchPrompt
 
 
 class AnalysisAgent(Protocol):
@@ -114,6 +115,97 @@ async def run_specialists(
     # return_exceptions=True: individual failures don't cancel siblings,
     # so 5 agents can succeed even if 1 times out or errors.
     return await asyncio.gather(*tasks, return_exceptions=True)
+
+
+@dataclass(frozen=True)
+class _BatchExecConfig:
+    """Bundled config for batched specialist execution.
+
+    Bundling keeps ``run_specialists_batched`` and helpers within the
+    ≤3-parameter rule (Fowler: Replace Long Parameter List with Parameter Object).
+    """
+
+    semaphore: asyncio.Semaphore
+    timeout_seconds: float
+
+
+async def run_specialists_batched(
+    agents: list[AnalysisAgent],
+    fresh_batches: dict[AgentRole, list[BatchPrompt]],
+    timeout_seconds: float = 120.0,
+    max_concurrency: int = 4,
+) -> dict[AgentRole, AgentOutput | Exception]:
+    """Run only the fresh batches for each specialist, gathered in parallel.
+
+    Phase 3 entry point. For each (agent, batch) pair the agent's
+    ``run`` is invoked with the batch's prompt; results are merged
+    into a single ``AgentOutput`` per agent so the rest of the
+    pipeline (merge, scoring, critique) is unchanged.
+    """
+    config = _BatchExecConfig(asyncio.Semaphore(max_concurrency), timeout_seconds)
+    tasks = _schedule_batch_tasks(agents, fresh_batches, config)
+    flat = await asyncio.gather(*tasks, return_exceptions=True)
+    return _collapse_batch_results(agents, fresh_batches, flat)
+
+
+async def _run_one_batch(
+    agent: AnalysisAgent,
+    prompt: str,
+    config: _BatchExecConfig,
+) -> AgentOutput:
+    """Acquire the semaphore then run a single batched call with timeout."""
+    async with config.semaphore:
+        return await asyncio.wait_for(agent.run(prompt), timeout=config.timeout_seconds)
+
+
+def _schedule_batch_tasks(
+    agents: list[AnalysisAgent],
+    fresh_batches: dict[AgentRole, list[BatchPrompt]],
+    config: _BatchExecConfig,
+) -> list[object]:
+    """Build the list of asyncio coroutines, one per (agent x batch) pair."""
+    tasks: list[object] = []
+    for agent in agents:
+        tasks.extend(_run_one_batch(agent, b.prompt_text, config) for b in fresh_batches.get(agent.role, []))
+    return tasks
+
+
+def _collapse_batch_results(
+    agents: list[AnalysisAgent],
+    fresh_batches: dict[AgentRole, list[BatchPrompt]],
+    flat: list[object],
+) -> dict[AgentRole, AgentOutput | Exception]:
+    """Merge per-batch outputs into one AgentOutput per agent role.
+
+    Failures bubble through unchanged so the use case treats them as
+    specialist failures and skips the cache write for that agent.
+    """
+    results: dict[AgentRole, AgentOutput | Exception] = {}
+    cursor = 0
+    for agent in agents:
+        batches = fresh_batches.get(agent.role, [])
+        slice_ = flat[cursor : cursor + len(batches)]
+        cursor += len(batches)
+        results[agent.role] = _merge_agent_batches(agent.role, slice_)
+    return results
+
+
+def _merge_agent_batches(
+    role: AgentRole,
+    batch_results: list[object],
+) -> AgentOutput | Exception:
+    """Combine per-batch AgentOutputs into one; first exception wins."""
+    first_error = next((r for r in batch_results if isinstance(r, Exception)), None)
+    if first_error is not None:
+        return first_error
+    outputs: list[AgentOutput] = list(batch_results)  # type: ignore[arg-type]
+    return AgentOutput(
+        agent_role=role,
+        findings=tuple(f for o in outputs for f in o.findings),
+        tokens_used=sum(o.tokens_used for o in outputs),
+        duration_seconds=sum(o.duration_seconds for o in outputs),
+        raw_response="{}",
+    )
 
 
 def evaluate_results(

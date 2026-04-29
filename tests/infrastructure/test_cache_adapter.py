@@ -16,6 +16,7 @@ import pytest
 from spectra.entities.errors import AgentError
 from spectra.entities.models import (
     AnalysisReport,
+    BatchCacheKey,
     CacheStats,
     DimensionScore,
     FileLocation,
@@ -390,3 +391,157 @@ class TestFullReportRoundTrip:
         loaded = adapter.get_full_report(_key())
         assert loaded is not None
         assert loaded.repo_url == "https://github.com/new/new"
+
+
+# ── Phase 3: per-batch findings + hit_log ──────────────────────
+
+
+def _batch_key(**overrides: object) -> BatchCacheKey:
+    base: dict[str, object] = {
+        "batch_id": "batch-1",
+        "dimension": "security",
+        "model_version": "claude-opus-4-7",
+        "prompt_version": "prompt-hash-v1",
+        "schema_version": "v1",
+        "spectra_version": "0.2.0",
+    }
+    base.update(overrides)
+    return BatchCacheKey(**base)  # type: ignore[arg-type]
+
+
+def _bind_default_context(adapter: SqliteCacheAdapter) -> None:
+    """Bind a default run context so subsequent get/put calls scope correctly."""
+    adapter.bind_run_context(
+        model_versions="claude-opus-4-7",
+        prompt_versions="prompt-hash-v1",
+        schema_version="v1",
+        spectra_version="0.2.0",
+    )
+
+
+class TestPhase3Schema:
+    def test_init_schema_creates_findings_cache_and_hit_log_tables(
+        self,
+        cache_path: Path,
+    ):
+        SqliteCacheAdapter(db_path=cache_path)
+        with sqlite3.connect(str(cache_path)) as conn:
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "findings_cache" in tables
+        assert "hit_log" in tables
+
+    def test_phase_2_full_report_still_works_after_phase_3_schema_extension(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        # Backward compat: full_report_cache survives the new tables.
+        adapter.put_full_report(_key(), _report())
+        assert adapter.get_full_report(_key()) is not None
+
+
+class TestBindRunContext:
+    def test_bind_run_context_is_atomic(self, adapter: SqliteCacheAdapter):
+        adapter.bind_run_context(
+            model_versions="claude-opus-4-7",
+            prompt_versions="prompt-hash-v1",
+            schema_version="v1",
+            spectra_version="0.2.0",
+        )
+        # Atomic: a single call configures every dimension's lookup.
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        assert adapter.get_batch_findings(_batch_key()) is not None
+
+
+class TestBatchFindingsRoundTrip:
+    def test_get_batch_findings_round_trip(self, adapter: SqliteCacheAdapter):
+        _bind_default_context(adapter)
+        findings = (_make_finding(), _make_finding(line=99, fid="F-002"))
+        adapter.put_batch_findings(_batch_key(), findings)
+        assert adapter.get_batch_findings(_batch_key()) == findings
+
+    def test_get_batch_findings_miss_returns_none(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        _bind_default_context(adapter)
+        assert adapter.get_batch_findings(_batch_key()) is None
+
+
+class TestBatchInvalidation:
+    def test_invalidation_on_model_version_change(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        _bind_default_context(adapter)
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        bumped = _batch_key(model_version="claude-opus-5-0")
+        assert adapter.get_batch_findings(bumped) is None
+
+    def test_invalidation_on_prompt_version_change(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        # Critique-prompt edits hash through into prompt_version.
+        _bind_default_context(adapter)
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        bumped = _batch_key(prompt_version="prompt-hash-v2-after-critique-edit")
+        assert adapter.get_batch_findings(bumped) is None
+
+    def test_invalidation_on_schema_version_change(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        _bind_default_context(adapter)
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        assert adapter.get_batch_findings(_batch_key(schema_version="v2")) is None
+
+    def test_invalidation_on_spectra_version_change(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        _bind_default_context(adapter)
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        bumped = _batch_key(spectra_version="0.3.0")
+        assert adapter.get_batch_findings(bumped) is None
+
+
+class TestHitLogTelemetry:
+    def test_record_hit_appends_to_hit_log(self, adapter: SqliteCacheAdapter, cache_path: Path):
+        adapter.record_hit("security", "batch-1", hit=True)
+        adapter.record_hit("security", "batch-1", hit=False)
+        with sqlite3.connect(str(cache_path)) as conn:
+            rows = conn.execute("SELECT hit FROM hit_log").fetchall()
+        assert len(rows) == 2
+
+    def test_record_hit_does_not_slow_get(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        # Perf smoke: a typical lookup must stay under 5ms even when hit_log is written.
+        import time as _time
+
+        _bind_default_context(adapter)
+        adapter.put_batch_findings(_batch_key(), (_make_finding(),))
+        start = _time.perf_counter()
+        adapter.get_batch_findings(_batch_key())
+        adapter.record_hit("security", "batch-1", hit=True)
+        elapsed = _time.perf_counter() - start
+        assert elapsed < 0.005
+
+    def test_stats_hit_rate_last_100_reads_from_hit_log(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        for _ in range(60):
+            adapter.record_hit("security", "b", hit=True)
+        for _ in range(40):
+            adapter.record_hit("security", "b", hit=False)
+        stats = adapter.stats()
+        assert abs(stats.hit_rate_last_100 - 0.6) < 0.01
+
+    def test_stats_hit_rate_last_100_zero_when_no_log_entries(
+        self,
+        adapter: SqliteCacheAdapter,
+    ):
+        stats = adapter.stats()
+        assert stats.hit_rate_last_100 == 0.0

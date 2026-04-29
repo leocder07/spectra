@@ -1647,3 +1647,448 @@ class TestPipelineCacheShortCircuit:
         # Observer.on_stage_start("CACHE", ...) is the load-bearing signal.
         stage_calls = [c.args for c in observer.on_stage_start.call_args_list]
         assert any(args and args[0] == "CACHE" for args in stage_calls)
+
+
+# ── Phase 3: per-batch caching ────────────────────────────────
+
+
+def _build_focus_plan(per_agent: dict[str, list[list[str]]]) -> str:
+    """Build a MetaPrompter-shaped JSON plan with multiple focus areas per agent."""
+    focus_areas = [
+        {"agent": agent, "files": files, "concerns": []} for agent, batches in per_agent.items() for files in batches
+    ]
+    return json.dumps({"repo_language": "python", "focus_areas": focus_areas, "token_allocation": {}})
+
+
+def _make_batch_cache_mock(
+    *,
+    hits: dict[tuple[str, str], tuple[Finding, ...]] | None = None,
+) -> MagicMock:
+    """Build a Phase 3 CachePort mock with batch_id-keyed hit map.
+
+    Keys in ``hits`` are ``(dimension, batch_id)``; missing keys return None
+    so callers default to a cold cache while pre-seeded entries return findings.
+    """
+    from spectra.entities.models import BatchCacheKey
+
+    cache = MagicMock()
+    cache.compute_repo_signature.return_value = "deadbeef" * 4
+    cache.get_full_report.return_value = None
+    cache.put_full_report.return_value = None
+    cache.bind_run_context.return_value = None
+    cache.record_hit.return_value = None
+    cache.put_batch_findings.return_value = None
+    table = hits or {}
+
+    def _key(batch_id: str, dimension: str) -> BatchCacheKey:
+        return BatchCacheKey(
+            batch_id=batch_id,
+            dimension=dimension,  # type: ignore[arg-type]
+            model_version="m",
+            prompt_version="p",
+            schema_version="v1",
+            spectra_version="0.2.0",
+        )
+
+    def _get(key: object) -> tuple[Finding, ...] | None:
+        return table.get((key.dimension, key.batch_id))  # type: ignore[attr-defined]
+
+    cache.batch_key_for.side_effect = _key
+    cache.get_batch_findings.side_effect = _get
+    return cache
+
+
+def _meta_with_focus_plan(make_agent, plan: str) -> MagicMock:
+    """Build a meta_prompter mock that emits ``plan`` as raw_response."""
+    agent = make_agent("meta_prompter")
+    agent.run.return_value = AgentOutput(
+        agent_role="meta_prompter",
+        findings=(),
+        tokens_used=500,
+        duration_seconds=1.0,
+        raw_response=plan,
+    )
+    return agent
+
+
+def _make_phase3_git_port() -> AsyncMock:
+    """Git port that returns path-dependent bytes so each file has a unique hash."""
+    git = AsyncMock()
+
+    async def _read(_repo_dir: str, path: str) -> str:
+        return f"# content of {path}"
+
+    git.read_file.side_effect = _read
+    return git
+
+
+class TestPhase3FileHashing:
+    @pytest.mark.asyncio
+    async def test_compute_file_hashes_deterministic(self, codebase):
+        from spectra.use_cases.analyze_repository import compute_file_hashes
+
+        git = AsyncMock()
+        git.read_file.return_value = "stable bytes"
+        a = await compute_file_hashes(git, codebase, ["src/main.py"])
+        b = await compute_file_hashes(git, codebase, ["src/main.py"])
+        assert a == b
+        assert "src/main.py" in a
+        assert isinstance(a["src/main.py"], str)
+
+
+class TestPhase3BatchPromptBuilder:
+    def test_build_specialist_prompts_returns_one_batch_per_focus_area(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+    ):
+        from spectra.use_cases.analyze_repository import (
+            _PipelineState,
+            build_batch_prompts,
+        )
+
+        plan = _build_focus_plan(
+            {
+                "security": [["src/auth/login.py"], ["src/auth/logout.py"]],
+            }
+        )
+        plan_output = AgentOutput(
+            agent_role="meta_prompter",
+            findings=(),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response=plan,
+        )
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+        )
+        state = _PipelineState()
+        file_hashes = {"src/auth/login.py": "h1", "src/auth/logout.py": "h2"}
+        result = build_batch_prompts(ctx, plan_output, state, file_hashes)
+        assert len(result["security"]) == 2
+
+    def test_build_specialist_prompts_falls_back_to_one_batch_per_dim_when_no_focus_areas(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+    ):
+        from spectra.use_cases.analyze_repository import (
+            _PipelineState,
+            build_batch_prompts,
+        )
+
+        # No focus_areas in the plan → one batch per specialist.
+        plan_output = AgentOutput(
+            agent_role="meta_prompter",
+            findings=(),
+            tokens_used=500,
+            duration_seconds=1.0,
+            raw_response='{"focus_areas": []}',
+        )
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+        )
+        state = _PipelineState()
+        result = build_batch_prompts(ctx, plan_output, state, {})
+        for spec in six_specialists:
+            assert len(result[spec.role]) == 1
+
+
+class TestPhase3PartitionByCache:
+    def test_partition_by_cache_returns_cached_findings_and_fresh_batches(
+        self,
+        sample_finding,
+    ):
+        from spectra.entities.models import BatchPrompt
+        from spectra.use_cases.analyze_repository import partition_by_cache
+
+        batch_a = BatchPrompt(
+            batch_id="a",
+            file_paths=("a.py",),
+            file_hashes=("h-a",),
+            prompt_text="prompt-a",
+        )
+        batch_b = BatchPrompt(
+            batch_id="b",
+            file_paths=("b.py",),
+            file_hashes=("h-b",),
+            prompt_text="prompt-b",
+        )
+        cache = _make_batch_cache_mock(hits={("security", "a"): (sample_finding,)})
+        cached, fresh = partition_by_cache([batch_a, batch_b], cache, "security")
+        assert cached == (sample_finding,)
+        assert fresh == [batch_b]
+
+
+class TestPhase3PipelineCacheIntegration:
+    @pytest.mark.asyncio
+    async def test_pipeline_skips_specialist_call_for_cached_batches(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+        sample_finding,
+    ):
+        plan = _build_focus_plan({"security": [["src/auth/login.py"]]})
+        meta = _meta_with_focus_plan(make_agent, plan)
+        sec = make_agent("security")
+        specialists = [
+            make_agent("architecture"),
+            sec,
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_batch_cache_mock(
+            hits={("security", _expected_batch_id(("src/auth/login.py",))): (sample_finding,)},
+        )
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            git_port=_make_phase3_git_port(),
+        )
+        await analyze_repository(ctx)
+        sec.run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pipeline_runs_only_fresh_batches(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+        sample_finding,
+    ):
+        plan = _build_focus_plan({"security": [["src/a.py"], ["src/b.py"]]})
+        meta = _meta_with_focus_plan(make_agent, plan)
+        sec = make_agent("security")
+        specialists = [
+            make_agent("architecture"),
+            sec,
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_batch_cache_mock(
+            hits={("security", _expected_batch_id(("src/a.py",))): (sample_finding,)},
+        )
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            git_port=_make_phase3_git_port(),
+        )
+        await analyze_repository(ctx)
+        # security ran exactly once for the missing batch.
+        assert sec.run.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_pipeline_writes_each_batch_to_cache_on_success(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+    ):
+        plan = _build_focus_plan({"security": [["src/a.py"], ["src/b.py"]]})
+        meta = _meta_with_focus_plan(make_agent, plan)
+        specialists = [
+            make_agent("architecture"),
+            make_agent("security"),
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_batch_cache_mock()
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            git_port=_make_phase3_git_port(),
+        )
+        await analyze_repository(ctx)
+        # Every batch the security specialist ran for must be persisted.
+        sec_writes = [c for c in cache.put_batch_findings.call_args_list if c.args[0].dimension == "security"]
+        assert len(sec_writes) == 2
+
+    @pytest.mark.asyncio
+    async def test_pipeline_does_not_cache_on_specialist_failure(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+    ):
+        plan = _build_focus_plan({"security": [["src/a.py"]]})
+        meta = _meta_with_focus_plan(make_agent, plan)
+        specialists = [
+            make_agent("architecture"),
+            make_agent("security", error=RuntimeError("boom")),
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_batch_cache_mock()
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            git_port=_make_phase3_git_port(),
+        )
+        await analyze_repository(ctx)
+        sec_writes = [c for c in cache.put_batch_findings.call_args_list if c.args[0].dimension == "security"]
+        assert sec_writes == []
+
+    @pytest.mark.asyncio
+    async def test_progress_observer_receives_cache_lookup_per_dimension(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+        sample_finding,
+    ):
+        plan = _build_focus_plan({"security": [["src/a.py"], ["src/b.py"]]})
+        meta = _meta_with_focus_plan(make_agent, plan)
+        specialists = [
+            make_agent("architecture"),
+            make_agent("security"),
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_batch_cache_mock(
+            hits={("security", _expected_batch_id(("src/a.py",))): (sample_finding,)},
+        )
+        observer = MagicMock()
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            observer=observer,
+            git_port=_make_phase3_git_port(),
+        )
+        await analyze_repository(ctx)
+        # observer.on_cache_lookup("security", hits=1, total=2) must fire.
+        sec_calls = [c for c in observer.on_cache_lookup.call_args_list if c.args and c.args[0] == "security"]
+        assert sec_calls, "expected on_cache_lookup for security dimension"
+        dim, hits, total = sec_calls[0].args
+        assert dim == "security"
+        assert hits == 1
+        assert total == 2
+
+    @pytest.mark.asyncio
+    async def test_critique_prompt_change_invalidates_per_file_cache(
+        self,
+        analysis_request,
+        codebase,
+        critique_agent,
+        make_agent,
+    ):
+        # Pre-populate the cache under one prompt_version, then bind a new one
+        # (mimicking a critique-prompt edit) and assert no batch hits.
+        from spectra.entities.models import BatchPrompt
+        from spectra.infrastructure.cache_adapter import SqliteCacheAdapter
+        from spectra.use_cases.analyze_repository import partition_by_cache
+
+        path = codebase.local_path
+        del path  # unused; just keeping the fixture wired
+        # Real adapter via a temp DB so we exercise the composite-key invalidation.
+        import tempfile
+        from pathlib import Path as _Path
+
+        with tempfile.TemporaryDirectory() as td:
+            adapter = SqliteCacheAdapter(db_path=_Path(td) / "cache.db")
+            adapter.bind_run_context(
+                model_versions="m",
+                prompt_versions="prompt-v1",
+                schema_version="v1",
+                spectra_version="0.2.0",
+            )
+            from spectra.entities.models import BatchCacheKey
+
+            key = BatchCacheKey(
+                batch_id="batch-x",
+                dimension="security",
+                model_version="m",
+                prompt_version="prompt-v1",
+                schema_version="v1",
+                spectra_version="0.2.0",
+            )
+            adapter.put_batch_findings(key, ())
+            # Critique prompt edit → new prompt_versions hash → bind, then look up.
+            adapter.bind_run_context(
+                model_versions="m",
+                prompt_versions="prompt-v2-after-critique-edit",
+                schema_version="v1",
+                spectra_version="0.2.0",
+            )
+            batch = BatchPrompt(
+                batch_id="batch-x",
+                file_paths=("src/a.py",),
+                file_hashes=("h",),
+                prompt_text="p",
+            )
+            cached, fresh = partition_by_cache([batch], adapter, "security")
+            assert cached == ()
+            assert fresh == [batch]
+            adapter.close()
+
+
+def _expected_batch_id(file_paths: tuple[str, ...]) -> str:
+    """Mirror the production batch_id: blake2b(sorted(file_hashes)).
+
+    Tests use ``_make_phase3_git_port`` which returns path-dependent
+    bytes (``# content of <path>``). compute_file_hashes uses
+    blake2b(file_bytes, digest_size=16). batch_id then uses
+    blake2b(sorted(file_hashes), digest_size=8).
+    """
+    from hashlib import blake2b as _blake2b
+
+    file_hashes = []
+    for path in file_paths:
+        h = _blake2b(digest_size=16)
+        h.update(f"# content of {path}".encode())
+        file_hashes.append(h.hexdigest())
+    digest = _blake2b(digest_size=8)
+    for fh in sorted(file_hashes):
+        digest.update(fh.encode("utf-8"))
+        digest.update(b"\x00")
+    return digest.hexdigest()

@@ -16,6 +16,8 @@ from spectra.entities.models import (
     AgentOutput,
     AnalysisReport,
     AnalysisRequest,
+    BatchCacheKey,
+    BatchPrompt,
     CacheEntry,
     CacheStats,
     Codebase,
@@ -980,3 +982,62 @@ class TestRepoCacheKey:
         # Frozen Pydantic models with hashable fields are hashable; needed for dict keys.
         key = _repo_cache_key()
         assert hash(key) == hash(_repo_cache_key())
+
+
+# ── BatchPrompt (Phase 3) ─────────────────────────────────────
+
+
+def _batch_prompt(**overrides: object) -> BatchPrompt:
+    base: dict[str, object] = {
+        "batch_id": "batch-aabbcc",
+        "file_paths": ("src/auth/login.py", "src/auth/logout.py"),
+        "file_hashes": ("hash-1", "hash-2"),
+        "prompt_text": "analyze these files",
+    }
+    base.update(overrides)
+    return BatchPrompt(**base)  # type: ignore[arg-type]
+
+
+class TestBatchPrompt:
+    def test_batch_prompt_frozen_and_hashable(self):
+        b = _batch_prompt()
+        with pytest.raises(ValidationError):
+            b.batch_id = "x"  # type: ignore[misc]
+        assert hash(b) == hash(_batch_prompt())
+
+
+# ── BatchCacheKey (Phase 3) ───────────────────────────────────
+
+
+def _batch_key(**overrides: object) -> BatchCacheKey:
+    base: dict[str, object] = {
+        "batch_id": "batch-aabbcc",
+        "dimension": "security",
+        "model_version": "claude-opus-4-7",
+        "prompt_version": "prompt-hash-v1",
+        "schema_version": "v1",
+        "spectra_version": "0.2.0",
+    }
+    base.update(overrides)
+    return BatchCacheKey(**base)  # type: ignore[arg-type]
+
+
+class TestBatchCacheKey:
+    def test_batch_cache_key_frozen_with_six_components(self):
+        key = _batch_key()
+        with pytest.raises(ValidationError):
+            key.batch_id = "other"  # type: ignore[misc]
+        assert {
+            "batch_id",
+            "dimension",
+            "model_version",
+            "prompt_version",
+            "schema_version",
+            "spectra_version",
+        } == set(BatchCacheKey.model_fields)
+
+    def test_batch_cache_key_equality_value_based(self):
+        assert _batch_key() == _batch_key()
+        assert _batch_key() != _batch_key(model_version="claude-opus-5-0")
+        assert _batch_key() != _batch_key(prompt_version="other")
+        assert _batch_key() != _batch_key(spectra_version="0.3.0")

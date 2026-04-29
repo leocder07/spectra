@@ -24,6 +24,7 @@ from typing import Protocol
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.models import (
     AnalysisReport,
+    BatchCacheKey,
     CacheStats,
     Finding,
     RepoCacheKey,
@@ -229,6 +230,14 @@ class ProgressObserver(Protocol):
         """Called when a stage-level error occurs."""
         ...
 
+    def on_cache_lookup(self, dimension: Dimension, hits: int, total: int) -> None:
+        """Report per-dimension batch-cache lookup tally (Phase 3).
+
+        Called once per dimension after ``partition_by_cache`` to surface
+        the killer-feature signal — e.g. ``security cache 7/8 hits``.
+        """
+        ...
+
 
 class CachePort(Protocol):
     """Port for the per-file finding cache.
@@ -285,4 +294,47 @@ class CachePort(Protocol):
 
     def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
         """Persist ``report`` under ``key`` for the Phase 2 short-circuit."""
+        ...
+
+    def get_batch_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
+        """Return cached findings for a batch, or ``None`` on miss (Phase 3)."""
+        ...
+
+    def put_batch_findings(
+        self,
+        key: BatchCacheKey,
+        findings: tuple[Finding, ...],
+    ) -> None:
+        """Persist findings for a batch under the composite key (Phase 3)."""
+        ...
+
+    def record_hit(
+        self,
+        dimension: Dimension,
+        batch_id: str,
+        hit: bool,
+    ) -> None:
+        """Append a row to ``hit_log`` — fire-and-forget telemetry."""
+        ...
+
+    def bind_run_context(
+        self,
+        model_versions: str,
+        prompt_versions: str,
+        schema_version: str,
+        spectra_version: str,
+    ) -> None:
+        """Atomically bind the four versions used by every cache key."""
+        ...
+
+    def batch_key_for(
+        self,
+        batch_id: str,
+        dimension: Dimension,
+    ) -> BatchCacheKey | None:
+        """Build a ``BatchCacheKey`` from the bound run context.
+
+        Returns ``None`` when ``bind_run_context`` has not been called —
+        callers short-circuit per-batch caching for that run.
+        """
         ...

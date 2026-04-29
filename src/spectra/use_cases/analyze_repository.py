@@ -15,6 +15,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from hashlib import blake2b
 from typing import TYPE_CHECKING
 
 from spectra.entities.enums import AgentRole, Dimension
@@ -24,6 +25,8 @@ from spectra.entities.models import (
     AgentOutput,
     AnalysisReport,
     AnalysisRequest,
+    BatchCacheKey,
+    BatchPrompt,
     Codebase,
     DimensionScore,
     Finding,
@@ -43,6 +46,7 @@ from spectra.use_cases.orchestrate_agents import (
     AnalysisAgent,
     evaluate_results,
     run_specialists,
+    run_specialists_batched,
 )
 
 if TYPE_CHECKING:
@@ -54,6 +58,21 @@ _log = logging.getLogger("spectra.pipeline")
 
 
 # ── Pipeline context ─────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CacheVersions:
+    """Four-tuple of versions that compose every Phase 3 cache key.
+
+    Held on ``PipelineContext`` rather than read off the adapter so the
+    use case never introspects infrastructure state — preserving the
+    dependency rule. Built once by the composition root.
+    """
+
+    model_versions: str
+    prompt_versions: str
+    schema_version: str
+    spectra_version: str
 
 
 @dataclass(frozen=True)
@@ -81,6 +100,7 @@ class PipelineContext:
     cache_port: CachePort | None = None
     cache_key_factory: CacheKeyFactory | None = None
     force_cache_bypass: bool = False
+    cache_versions: CacheVersions | None = None
 
 
 @dataclass
@@ -263,16 +283,20 @@ async def _run_analyze_stage(
 ) -> _AnalysisResult:
     """Run 6 specialists in parallel and collect results."""
     _notify(ctx.observer, "on_stage_start", "ANALYZE", "Running specialists")
-    prompts = _build_specialist_prompts(ctx, plan_output, state)
-    analysis = await _execute_specialists(
-        ctx.specialists,
-        prompts,
-        ctx.observer,
-    )
+    if _phase3_eligible(ctx):
+        analysis = await _run_analyze_stage_with_cache(ctx, plan_output, state)
+    else:
+        prompts = _build_specialist_prompts(ctx, plan_output, state)
+        analysis = await _execute_specialists(ctx.specialists, prompts, ctx.observer)
     _track_outputs(state, analysis.successes)
     _notify(ctx.observer, "on_stage_complete", "ANALYZE", "Analysis complete")
     _log_budget_warning(state)
     return analysis
+
+
+def _phase3_eligible(ctx: PipelineContext) -> bool:
+    """True when per-batch caching can run (cache + git both wired)."""
+    return ctx.cache_port is not None and ctx.git_port is not None and not ctx.force_cache_bypass
 
 
 def _build_specialist_prompts(
@@ -315,6 +339,282 @@ def _log_budget_warning(state: _PipelineState) -> None:
     remaining = check_budget_remaining(state.budget, state.tokens_used)
     if remaining == 0:
         _log.warning("SPEC-004: Token budget exhausted after analysis")
+
+
+# ── Phase 3: per-batch cache integration ──────────────────────
+
+
+async def _run_analyze_stage_with_cache(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+) -> _AnalysisResult:
+    """ANALYZE stage that consults + writes the per-batch cache."""
+    file_hashes = await _hash_planned_files(ctx, plan_output)
+    batches = build_batch_prompts(ctx, plan_output, state, file_hashes)
+    cached_per_role, fresh_per_role = _split_batches_by_cache(ctx, batches)
+    fresh_results = await run_specialists_batched(ctx.specialists, fresh_per_role)
+    _persist_fresh_batches(ctx, fresh_per_role, fresh_results)
+    return _assemble_phase3_result(ctx, cached_per_role, fresh_results)
+
+
+async def _hash_planned_files(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+) -> dict[str, str]:
+    """Hash every file mentioned in the MetaPrompter plan."""
+    if ctx.git_port is None:
+        return {}
+    paths = sorted(_extract_plan_files(plan_output.raw_response))
+    return await compute_file_hashes(ctx.git_port, ctx.codebase, paths)
+
+
+def _split_batches_by_cache(
+    ctx: PipelineContext,
+    batches: dict[AgentRole, list[BatchPrompt]],
+) -> tuple[dict[AgentRole, tuple[Finding, ...]], dict[AgentRole, list[BatchPrompt]]]:
+    """Partition each agent's batches into cached findings + fresh batches."""
+    cached_per_role: dict[AgentRole, tuple[Finding, ...]] = {}
+    fresh_per_role: dict[AgentRole, list[BatchPrompt]] = {}
+    for spec in ctx.specialists:
+        role_batches = batches.get(spec.role, [])
+        dim = _role_to_dimension(spec.role)
+        cached, fresh = partition_by_cache(role_batches, ctx.cache_port, dim)  # type: ignore[arg-type]
+        cached_per_role[spec.role] = cached
+        fresh_per_role[spec.role] = fresh
+        hits = len(role_batches) - len(fresh)
+        _notify(ctx.observer, "on_cache_lookup", dim, hits, len(role_batches))
+    return cached_per_role, fresh_per_role
+
+
+def _persist_fresh_batches(
+    ctx: PipelineContext,
+    fresh_per_role: dict[AgentRole, list[BatchPrompt]],
+    fresh_results: dict[AgentRole, AgentOutput | Exception],
+) -> None:
+    """Write each successful agent's fresh-batch findings to the cache."""
+    if ctx.cache_port is None:
+        return
+    for role, result in fresh_results.items():
+        if isinstance(result, Exception):
+            continue
+        for batch in fresh_per_role.get(role, []):
+            _write_batch_findings(ctx, role, batch, result.findings)
+
+
+def _write_batch_findings(
+    ctx: PipelineContext,
+    role: AgentRole,
+    batch: BatchPrompt,
+    findings: tuple[Finding, ...],
+) -> None:
+    """Persist a single batch's findings under its composite key."""
+    key = _build_batch_cache_key(ctx, role, batch.batch_id)
+    if key is None:
+        return
+    ctx.cache_port.put_batch_findings(key, findings)  # type: ignore[union-attr]
+
+
+def _assemble_phase3_result(
+    ctx: PipelineContext,
+    cached_per_role: dict[AgentRole, tuple[Finding, ...]],
+    fresh_results: dict[AgentRole, AgentOutput | Exception],
+) -> _AnalysisResult:
+    """Merge cached + fresh outputs into the standard _AnalysisResult shape."""
+    successes: list[AgentOutput] = []
+    failed_roles: list[AgentRole] = []
+    ordered: list[AgentOutput | Exception] = []
+    for spec in ctx.specialists:
+        result = fresh_results.get(spec.role)
+        merged = _merge_with_cache(spec.role, cached_per_role.get(spec.role, ()), result)
+        ordered.append(merged)
+        if isinstance(merged, Exception):
+            failed_roles.append(spec.role)
+        else:
+            successes.append(merged)
+    is_degraded = len(failed_roles) >= 2
+    return _AnalysisResult(ordered, failed_roles, is_degraded, successes)
+
+
+def _merge_with_cache(
+    role: AgentRole,
+    cached: tuple[Finding, ...],
+    fresh: AgentOutput | Exception | None,
+) -> AgentOutput | Exception:
+    """Combine cached findings with the fresh AgentOutput for one role."""
+    if isinstance(fresh, Exception):
+        return fresh
+    if fresh is None:
+        return AgentOutput(
+            agent_role=role,
+            findings=cached,
+            tokens_used=0,
+            duration_seconds=0.0,
+            raw_response="{}",
+        )
+    combined = tuple(cached) + tuple(fresh.findings)
+    return fresh.model_copy(update={"findings": combined})
+
+
+def _build_batch_cache_key(
+    ctx: PipelineContext,
+    role: AgentRole,
+    batch_id: str,
+) -> BatchCacheKey | None:
+    """Compose the BatchCacheKey for a (role, batch) pair, or None if unbound."""
+    if ctx.cache_port is None:
+        return None
+    return ctx.cache_port.batch_key_for(batch_id, _role_to_dimension(role))
+
+
+# ── Phase 3 public helpers (used by use case + tests) ─────────
+
+
+async def compute_file_hashes(
+    git_port: GitPort,
+    codebase: Codebase,
+    paths: list[str],
+) -> dict[str, str]:
+    """Return ``{path: blake2b(file_bytes, digest_size=16)}`` for each path."""
+    out: dict[str, str] = {}
+    for path in paths:
+        try:
+            content = await git_port.read_file(codebase.local_path, path)
+        except (ValueError, OSError):
+            continue
+        out[path] = _hash_bytes(content)
+    return out
+
+
+def _hash_bytes(content: str) -> str:
+    """Stable per-file hash used as input to ``batch_id`` derivation."""
+    return blake2b(content.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def build_batch_prompts(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+    file_hashes: dict[str, str],
+) -> dict[AgentRole, list[BatchPrompt]]:
+    """Build one BatchPrompt per ``focus_area`` per specialist.
+
+    Falls back to one batch per dimension when MetaPrompter returns
+    no ``focus_areas`` — preserving Phase 2 behavior for sparse plans.
+    """
+    focus_areas = _focus_areas_by_role(plan_output.raw_response)
+    if not focus_areas:
+        return _fallback_one_batch_per_dim(ctx, plan_output, state)
+    return _focus_area_batches(ctx, plan_output, state, focus_areas, file_hashes)
+
+
+def _focus_areas_by_role(raw_plan: str) -> dict[AgentRole, list[list[str]]]:
+    """Group focus_area file lists by agent role."""
+    try:
+        plan = json.loads(strip_code_fence(raw_plan))
+    except (json.JSONDecodeError, IndexError):
+        return {}
+    by_role: dict[AgentRole, list[list[str]]] = {}
+    for area in plan.get("focus_areas", []):
+        agent = area.get("agent", "")
+        files = [str(f) for f in area.get("files", [])]
+        if agent and files:
+            by_role.setdefault(agent, []).append(files)
+    return by_role
+
+
+def _fallback_one_batch_per_dim(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+) -> dict[AgentRole, list[BatchPrompt]]:
+    """One batch per specialist when no focus_areas are defined."""
+    string_prompts = _build_specialist_prompts(ctx, plan_output, state)
+    out: dict[AgentRole, list[BatchPrompt]] = {}
+    for role, prompt in string_prompts.items():
+        out[role] = [
+            BatchPrompt(
+                batch_id=blake2b(role.encode("utf-8"), digest_size=8).hexdigest(),
+                file_paths=ctx.codebase.file_tree,
+                file_hashes=(),
+                prompt_text=prompt,
+            )
+        ]
+    return out
+
+
+def _focus_area_batches(
+    ctx: PipelineContext,
+    plan_output: AgentOutput,
+    state: _PipelineState,
+    focus_areas: dict[AgentRole, list[list[str]]],
+    file_hashes: dict[str, str],
+) -> dict[AgentRole, list[BatchPrompt]]:
+    """Build one BatchPrompt per focus_area for every specialist."""
+    string_prompts = _build_specialist_prompts(ctx, plan_output, state)
+    out: dict[AgentRole, list[BatchPrompt]] = {}
+    for spec in ctx.specialists:
+        role_areas = focus_areas.get(spec.role, [])
+        if not role_areas:
+            out[spec.role] = []
+            continue
+        out[spec.role] = [
+            _make_batch_prompt(files, string_prompts.get(spec.role, ""), file_hashes) for files in role_areas
+        ]
+    return out
+
+
+def _make_batch_prompt(
+    files: list[str],
+    base_prompt: str,
+    file_hashes: dict[str, str],
+) -> BatchPrompt:
+    """Build a single BatchPrompt with deterministic batch_id."""
+    paths = tuple(files)
+    hashes = tuple(file_hashes.get(p, "") for p in paths)
+    return BatchPrompt(
+        batch_id=_compute_batch_id(hashes),
+        file_paths=paths,
+        file_hashes=hashes,
+        prompt_text=base_prompt,
+    )
+
+
+def _compute_batch_id(file_hashes: tuple[str, ...]) -> str:
+    """``blake2b(sorted(file_hashes), digest_size=8)`` hex."""
+    digest = blake2b(digest_size=8)
+    for h in sorted(file_hashes):
+        digest.update(h.encode("utf-8"))
+        digest.update(b"\x00")
+    return digest.hexdigest()
+
+
+def partition_by_cache(
+    batch_prompts: list[BatchPrompt],
+    cache: CachePort,
+    dimension: Dimension,
+) -> tuple[tuple[Finding, ...], list[BatchPrompt]]:
+    """Split batches into cached findings + fresh batches needing a specialist call."""
+    cached: list[Finding] = []
+    fresh: list[BatchPrompt] = []
+    for batch in batch_prompts:
+        result = _lookup_batch(cache, batch.batch_id, dimension)
+        cache.record_hit(dimension, batch.batch_id, hit=result is not None)
+        if result is None:
+            fresh.append(batch)
+        else:
+            cached.extend(result)
+    return tuple(cached), fresh
+
+
+def _lookup_batch(
+    cache: CachePort,
+    batch_id: str,
+    dimension: Dimension,
+) -> tuple[Finding, ...] | None:
+    """Single-line cache lookup; returns ``None`` when run context is unbound."""
+    key = cache.batch_key_for(batch_id, dimension)
+    return cache.get_batch_findings(key) if key is not None else None
 
 
 # ── Stage 4: MERGE ────────────────────────────────────────────
