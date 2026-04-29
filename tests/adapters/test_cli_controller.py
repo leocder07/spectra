@@ -671,3 +671,192 @@ class TestCLICacheFlags:
         kwargs = factory.call_args.kwargs
         assert kwargs["force"] is True
         assert kwargs["no_cache"] is True
+
+
+# ── Phase 4: spectra cache stats|clear|prune ────────────────────
+
+
+class _StubCachePort:
+    """Lightweight stub satisfying the CachePort surface used by Phase 4 CLI."""
+
+    def __init__(
+        self,
+        *,
+        stats_obj: object | None = None,
+        clear_all_returns: int = 0,
+        clear_by_repo_returns: int = 0,
+        prune_returns: dict[str, int] | None = None,
+    ) -> None:
+        from datetime import UTC, datetime
+
+        from spectra.entities.models import CacheStats
+
+        self._stats = stats_obj or CacheStats(
+            total_entries=7,
+            total_repos=2,
+            db_size_bytes=8192,
+            hit_rate_last_100=0.75,
+            oldest_entry_at=datetime.now(UTC),
+            full_report_entries=2,
+            batch_entries=4,
+            hit_log_entries=1,
+            hit_rate_by_dimension={"security": 0.9},
+            most_recent_activity_at=datetime.now(UTC),
+        )
+        self._clear_all_returns = clear_all_returns
+        self._clear_by_repo_returns = clear_by_repo_returns
+        self._prune_returns = prune_returns or {
+            "findings_cache": 0,
+            "full_report_cache": 0,
+            "findings_batches": 0,
+        }
+        self.clear_all_called = False
+        self.clear_by_repo_calls: list[str] = []
+        self.prune_calls: list[tuple[object, bool]] = []
+
+    def stats(self):
+        return self._stats
+
+    def clear_all(self) -> int:
+        self.clear_all_called = True
+        return self._clear_all_returns
+
+    def clear_by_repo(self, sig: str) -> int:
+        self.clear_by_repo_calls.append(sig)
+        return self._clear_by_repo_returns
+
+    def prune_older_than(
+        self,
+        cutoff: object,
+        include_hit_log: bool = False,
+    ) -> dict[str, int]:
+        self.prune_calls.append((cutoff, include_hit_log))
+        return self._prune_returns
+
+    def compute_repo_signature(self, file_tree: tuple[str, ...]) -> str:
+        del file_tree
+        return "deadbeefdeadbeefdeadbeefdeadbeef"
+
+    @property
+    def db_path(self):
+        from pathlib import Path
+
+        return Path("/tmp/cache.db")  # noqa: S108
+
+
+class TestCacheStatsCommand:
+    def test_cache_stats_command_renders_table(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "stats"])
+        assert result.exit_code == 0
+        # The Rich table renders the dimension header label and entry totals.
+        assert "Total" in result.output or "total" in result.output.lower()
+        assert "7" in result.output  # total_entries seeded above
+
+
+class TestCacheClearCommand:
+    def test_cache_clear_command_no_arg_prompts_for_confirm(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort(clear_all_returns=4)
+        set_cache_provider(lambda: port)
+        # Reply 'n' to the confirm prompt → no clear performed.
+        result = runner.invoke(app, ["cache", "clear"], input="n\n")
+        assert result.exit_code == 0
+        assert not port.clear_all_called
+
+    def test_cache_clear_command_with_yes_skips_prompt(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort(clear_all_returns=4)
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "clear", "--yes"])
+        assert result.exit_code == 0
+        assert port.clear_all_called
+
+    def test_cache_clear_command_with_repo_arg_clears_only_that_repo(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort(clear_by_repo_returns=2)
+        set_cache_provider(lambda: port)
+        result = runner.invoke(
+            app,
+            [
+                "cache",
+                "clear",
+                "https://github.com/test/repo",
+                "--yes",
+            ],
+        )
+        assert result.exit_code == 0
+        assert not port.clear_all_called
+        assert len(port.clear_by_repo_calls) == 1
+
+    def test_cache_clear_returns_row_count_in_output(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort(clear_all_returns=47)
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "clear", "--yes"])
+        assert result.exit_code == 0
+        assert "47" in result.output
+
+
+class TestCachePruneCommand:
+    def test_cache_prune_command_parses_30d(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort(
+            prune_returns={
+                "findings_cache": 1,
+                "full_report_cache": 0,
+                "findings_batches": 2,
+            }
+        )
+        set_cache_provider(lambda: port)
+        result = runner.invoke(
+            app,
+            ["cache", "prune", "--older-than", "30d"],
+        )
+        assert result.exit_code == 0
+        assert len(port.prune_calls) == 1
+
+    def test_cache_prune_command_parses_4w(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(
+            app,
+            ["cache", "prune", "--older-than", "4w"],
+        )
+        assert result.exit_code == 0
+        assert len(port.prune_calls) == 1
+
+    def test_cache_prune_command_dry_run_does_not_modify_cache(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(
+            app,
+            ["cache", "prune", "--older-than", "30d", "--dry-run"],
+        )
+        assert result.exit_code == 0
+        assert len(port.prune_calls) == 0
+
+    def test_cache_prune_invalid_duration_returns_friendly_error(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(
+            app,
+            ["cache", "prune", "--older-than", "blarg"],
+        )
+        assert result.exit_code == 1
+        assert "duration" in result.output.lower() or "older-than" in result.output.lower()
+        assert len(port.prune_calls) == 0
