@@ -136,10 +136,10 @@ If you need inline PR comments while reviewing diffs, run CodeRabbit. If you nee
 
 ```mermaid
 graph LR
-    A[INGEST<br/>Clone repo] --> B[PLAN<br/>MetaPrompter<br/>Sonnet 4.5]
-    B --> C[ANALYZE<br/>6 Specialists<br/>Opus 4.7]
+    A[INGEST<br/>Clone repo] --> B[PLAN<br/>MetaPrompter<br/>Opus 4.7 medium]
+    B --> C[ANALYZE<br/>6 Specialists<br/>Opus 4.7 xhigh]
     C --> D[MERGE<br/>Deduplicate<br/>& Score]
-    D --> E[CRITIQUE<br/>CritiqueAgent<br/>Opus 4.7 + ET]
+    D --> E[CRITIQUE<br/>CritiqueAgent<br/>Opus 4.7 adaptive]
     E --> F[REPORT<br/>HTML + Charts<br/>ScoreCard]
 
     style A fill:#7C3AED,stroke:#7C3AED,color:#fff
@@ -178,14 +178,14 @@ graph TD
 
 | Agent | Model | Role |
 |-------|-------|------|
-| **MetaPrompter** | Sonnet 4.5 | Reads file tree (never full code), builds analysis plan |
+| **MetaPrompter** | Opus 4.7 (medium effort) | Reads file tree (never full code), builds analysis plan |
 | **ArchitectureAgent** | Opus 4.7 | Layering, coupling, dependency analysis |
 | **SecurityAgent** | Opus 4.7 | OWASP Top 10, CWE mapping, vulnerability detection |
 | **QualityAgent** | Opus 4.7 | Code smells, complexity, test coverage gaps |
 | **DocumentationAgent** | Opus 4.7 | API docs, README quality, inline comments |
 | **DependencyAgent** | Opus 4.7 | Supply chain, outdated packages, license risks |
 | **PerformanceAgent** | Opus 4.7 | N+1 queries, memory leaks, async anti-patterns |
-| **CritiqueAgent** | Opus 4.7 + Extended Thinking | Validates all findings, removes false positives |
+| **CritiqueAgent** | Opus 4.7 + Adaptive Thinking | Validates all findings, removes false positives |
 
 ---
 
@@ -307,15 +307,15 @@ graph TB
 
 | Agent | Model | Why This Model |
 |-------|-------|----------------|
-| MetaPrompter | **Sonnet 4.5** | Fast planning from file tree — no deep reasoning needed |
-| 6 Specialists | **Opus 4.7** | Deep code understanding across all 6 dimensions |
-| CritiqueAgent | **Opus 4.7 + Extended Thinking** | Meta-reasoning to validate findings and reject false positives |
+| MetaPrompter | **Opus 4.7 (medium effort)** | Planning from file tree — fast, no deep reasoning needed |
+| 6 Specialists | **Opus 4.7 (xhigh effort)** | Deep code understanding across all 6 dimensions |
+| CritiqueAgent | **Opus 4.7 + Adaptive Thinking** | Meta-reasoning to validate findings and reject false positives |
 
 ### Key Capabilities Used
 
 - **Parallel execution** — 6 agents via `asyncio.gather` with semaphore rate limiting
 - **Token budget management** — 800K tokens distributed by MetaPrompter's plan
-- **Extended thinking** — CritiqueAgent reasons through each finding before passing judgment
+- **Adaptive thinking** — CritiqueAgent reasons through each finding before passing judgment
 - **Structured output** — Every agent returns Pydantic-validated JSON
 - **Prompt engineering** — Few-shot JSON examples, hallucination guardrails, CWE/OWASP references
 - **Graceful degradation** — If 2+ agents fail, partial report in DEGRADED state
@@ -327,7 +327,7 @@ graph TB
 | Component | Technology |
 |-----------|-----------|
 | Language | Python 3.12+ |
-| AI Models | Claude Opus 4.7, Claude Sonnet 4.5 |
+| AI Models | Claude Opus 4.7 (all 8 agents) |
 | AI SDK | `anthropic` Python SDK |
 | CLI Framework | Typer |
 | Terminal UI | Rich |
@@ -443,7 +443,7 @@ PRs welcome. Please follow the Clean Architecture dependency rule — it's enfor
 
 [![Anthropic Build Hackathon](https://img.shields.io/badge/Anthropic_Build-Hackathon_2025-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 
-Built with Claude Opus 4.7, Claude Sonnet 4.5, and Claude Code.
+Built with Claude Opus 4.7 and Claude Code.
 
 **MIT License** · [Repository](https://github.com/leocder07/spectra)
 
