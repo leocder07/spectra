@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-_yk5E_OkubT26lU_Z0O9Pbi98oN10-yYgwnHnBhQDGY'; style-src 'nonce-_yk5E_OkubT26lU_Z0O9Pbi98oN10-yYgwnHnBhQDGY' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-LMrEDrhqoydgb4RYMeIihFh0gdyCDKTpBfWw_PHCPTo'; style-src 'nonce-LMrEDrhqoydgb4RYMeIihFh0gdyCDKTpBfWw_PHCPTo' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
     <title>Spectra — anthropic-sdk-python</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <style nonce="_yk5E_OkubT26lU_Z0O9Pbi98oN10-yYgwnHnBhQDGY">
+    <style nonce="LMrEDrhqoydgb4RYMeIihFh0gdyCDKTpBfWw_PHCPTo">
         /* ═══════════════════════════════════════════════════════
            SPECTRA — Premium Report Theme
            Vercel × Linear × Terminal aesthetic
@@ -3457,7 +3457,7 @@
                  data-title="Massive duplication between APIResponse and LegacyAPIResponse"
                  data-location="src/anthropic/_legacy_response.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Massive duplication between APIResponse and LegacyAPIResponse</span>
@@ -3465,7 +3465,7 @@
                     <span class="hours-badge">~6.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3486,7 +3486,7 @@
                  data-title="Sync/async request loop duplicated nearly verbatim in BaseClient subclasses"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Sync/async request loop duplicated nearly verbatim in BaseClient subclasses</span>
@@ -3494,7 +3494,7 @@
                     <span class="hours-badge">~12.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3515,7 +3515,7 @@
                  data-title="SSE event-name dispatch is a hand-maintained string ladder duplicated sync/async"
                  data-location="src/anthropic/_streaming.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">SSE event-name dispatch is a hand-maintained string ladder duplicated sync/async</span>
@@ -3523,7 +3523,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3544,7 +3544,7 @@
                  data-title="Public package __init__ imports from lib/* unconditionally, coupling generated client to hand-written extensions"
                  data-location="src/anthropic/__init__.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Public package __init__ imports from lib/* unconditionally, coupling generated client to hand-written extensions</span>
@@ -3552,7 +3552,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3573,7 +3573,7 @@
                  data-title="BaseClient leaks subclass concerns: hard-coded model token table and Anthropic-specific timeout calc"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">BaseClient leaks subclass concerns: hard-coded model token table and Anthropic-specific timeout calc</span>
@@ -3581,7 +3581,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3602,7 +3602,7 @@
                  data-title="_DefaultHttpxClient and _DefaultAsyncHttpxClient duplicate full transport setup"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">_DefaultHttpxClient and _DefaultAsyncHttpxClient duplicate full transport setup</span>
@@ -3610,7 +3610,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3631,7 +3631,7 @@
                  data-title="AsyncHttpxClientWrapper.__del__ schedules aclose on event loop, risk of unawaited coroutine"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">AsyncHttpxClientWrapper.__del__ schedules aclose on event loop, risk of unawaited coroutine</span>
@@ -3641,7 +3641,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3662,7 +3662,7 @@
                  data-title="_make_status_error mapping duplicated between Anthropic and AsyncAnthropic"
                  data-location="src/anthropic/_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">_make_status_error mapping duplicated between Anthropic and AsyncAnthropic</span>
@@ -3670,7 +3670,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3691,7 +3691,7 @@
                  data-title="Implicit circular import between _streaming.py and lib/streaming"
                  data-location="src/anthropic/_streaming.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Implicit circular import between _streaming.py and lib/streaming</span>
@@ -3699,7 +3699,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3735,7 +3735,7 @@
                  data-title="Potentially sensitive request/response headers logged at DEBUG level"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Potentially sensitive request/response headers logged at DEBUG level</span>
@@ -3743,7 +3743,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3764,7 +3764,7 @@
                  data-title="Request options dump at DEBUG may include request bodies/JSON payloads"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Request options dump at DEBUG may include request bodies/JSON payloads</span>
@@ -3772,7 +3772,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3793,7 +3793,7 @@
                  data-title="follow_redirects=True by default may leak credentials on cross-origin redirects"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">follow_redirects=True by default may leak credentials on cross-origin redirects</span>
@@ -3803,7 +3803,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3824,7 +3824,7 @@
                  data-title="ANTHROPIC_BASE_URL environment variable accepted without validation"
                  data-location="src/anthropic/_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">ANTHROPIC_BASE_URL environment variable accepted without validation</span>
@@ -3834,7 +3834,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3855,7 +3855,7 @@
                  data-title="trust_env defaults to True via httpx, enabling environment-controlled proxying"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">trust_env defaults to True via httpx, enabling environment-controlled proxying</span>
@@ -3863,7 +3863,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3884,7 +3884,7 @@
                  data-title="API key stored as plain attribute and emitted via headers without protection"
                  data-location="src/anthropic/_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">API key stored as plain attribute and emitted via headers without protection</span>
@@ -3892,7 +3892,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3913,13 +3913,13 @@
                  data-title="Idempotency key derived from non-cryptographic uuid4 is acceptable but worth noting"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Idempotency key derived from non-cryptographic uuid4 is acceptable but worth noting</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3940,7 +3940,7 @@
                  data-title="Missing TLS minimum version / certificate pinning configuration"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Missing TLS minimum version / certificate pinning configuration</span>
@@ -3948,7 +3948,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3969,13 +3969,13 @@
                  data-title="Unable to verify AWS SigV4, Vertex/Google OAuth, MCP credential vault, and _logs setup"
                  data-location="SECURITY.md"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Unable to verify AWS SigV4, Vertex/Google OAuth, MCP credential vault, and _logs setup</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4011,7 +4011,7 @@
                  data-title="Significant code duplication between sync/async client implementations"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Significant code duplication between sync/async client implementations</span>
@@ -4019,7 +4019,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4040,7 +4040,7 @@
                  data-title="Long stream event matching uses repetitive or-chain instead of set/lookup"
                  data-location="src/anthropic/_streaming.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Long stream event matching uses repetitive or-chain instead of set/lookup</span>
@@ -4048,7 +4048,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4069,7 +4069,7 @@
                  data-title="construct_type function has high cyclomatic complexity"
                  data-location="src/anthropic/_models.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">construct_type function has high cyclomatic complexity</span>
@@ -4077,7 +4077,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4098,7 +4098,7 @@
                  data-title="ruff target-version mismatch with project requires-python"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">ruff target-version mismatch with project requires-python</span>
@@ -4106,7 +4106,7 @@
                     <span class="hours-badge">~0.2h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4127,13 +4127,13 @@
                  data-title="Test files referenced by plan were not provided for review"
                  data-location="tests/conftest.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Test files referenced by plan were not provided for review</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4169,7 +4169,7 @@
                  data-title="Public top-level client constructors lack documented exception behavior and parameter docs"
                  data-location="src/anthropic/_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Public top-level client constructors lack documented exception behavior and parameter docs</span>
@@ -4177,7 +4177,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4198,7 +4198,7 @@
                  data-title="`copy`/`with_options` parameters undocumented"
                  data-location="src/anthropic/_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">`copy`/`with_options` parameters undocumented</span>
@@ -4206,7 +4206,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4227,7 +4227,7 @@
                  data-title="Exception class hierarchy lacks docstrings on most concrete error types"
                  data-location="src/anthropic/_exceptions.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Exception class hierarchy lacks docstrings on most concrete error types</span>
@@ -4235,7 +4235,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4256,7 +4256,7 @@
                  data-title="`MODEL_NONSTREAMING_TOKENS` constant is undocumented"
                  data-location="src/anthropic/_constants.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">`MODEL_NONSTREAMING_TOKENS` constant is undocumented</span>
@@ -4264,7 +4264,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4285,7 +4285,7 @@
                  data-title="Stream event-name list is duplicated and undocumented in `Stream`/`AsyncStream`"
                  data-location="src/anthropic/_streaming.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Stream event-name list is duplicated and undocumented in `Stream`/`AsyncStream`</span>
@@ -4293,7 +4293,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4314,7 +4314,7 @@
                  data-title="Module-level docstrings missing from key public modules"
                  data-location="src/anthropic/_streaming.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Module-level docstrings missing from key public modules</span>
@@ -4322,7 +4322,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4343,7 +4343,7 @@
                  data-title="`DeadlineExceededError` and `ServiceUnavailableError` are defined but not exported"
                  data-location="src/anthropic/_exceptions.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`DeadlineExceededError` and `ServiceUnavailableError` are defined but not exported</span>
@@ -4351,7 +4351,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4372,7 +4372,7 @@
                  data-title="`HttpxBinaryResponseContent` lacks class docstring and exposes deprecated methods"
                  data-location="src/anthropic/_legacy_response.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`HttpxBinaryResponseContent` lacks class docstring and exposes deprecated methods</span>
@@ -4380,7 +4380,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4401,7 +4401,7 @@
                  data-title="`PageInfo` and pagination classes lack usage examples"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`PageInfo` and pagination classes lack usage examples</span>
@@ -4409,7 +4409,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4430,7 +4430,7 @@
                  data-title="`make_request_options`, `BaseClient`, `_DefaultHttpxClient` are public-by-name but underdocumented"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`make_request_options`, `BaseClient`, `_DefaultHttpxClient` are public-by-name but underdocumented</span>
@@ -4438,7 +4438,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4459,7 +4459,7 @@
                  data-title="`SyncAPIResource` and `AsyncAPIResource` have no docstrings"
                  data-location="src/anthropic/_resource.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`SyncAPIResource` and `AsyncAPIResource` have no docstrings</span>
@@ -4467,7 +4467,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4488,7 +4488,7 @@
                  data-title="`build`, `construct_type`, `set_pydantic_config`, `transform_schema` exposed without user-facing docs"
                  data-location="src/anthropic/_models.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">`build`, `construct_type`, `set_pydantic_config`, `transform_schema` exposed without user-facing docs</span>
@@ -4496,7 +4496,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4517,7 +4517,7 @@
                  data-title="README, api.md, helpers.md, tools.md, CHANGELOG.md, CONTRIBUTING.md, foundry.md content not provided for analysis"
                  data-location="README.md"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">README, api.md, helpers.md, tools.md, CHANGELOG.md, CONTRIBUTING.md, foundry.md content not provided for analysis</span>
@@ -4525,7 +4525,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4546,7 +4546,7 @@
                  data-title="Examples directory referenced but example file contents not provided"
                  data-location="examples/agents.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Examples directory referenced but example file contents not provided</span>
@@ -4554,7 +4554,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4590,7 +4590,7 @@
                  data-title="Permissive upper bound on pydantic enables untested v3 prereleases"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Permissive upper bound on pydantic enables untested v3 prereleases</span>
@@ -4598,7 +4598,7 @@
                     <span class="hours-badge">~8.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4619,7 +4619,7 @@
                  data-title="`aiohttp` extra has no version bound"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">`aiohttp` extra has no version bound</span>
@@ -4627,7 +4627,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4648,7 +4648,7 @@
                  data-title="Unpinned `sniffio` dependency"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Unpinned `sniffio` dependency</span>
@@ -4656,7 +4656,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4677,7 +4677,7 @@
                  data-title="Duplicate definitions for `aws` and `bedrock` extras encourage drift"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Duplicate definitions for `aws` and `bedrock` extras encourage drift</span>
@@ -4685,7 +4685,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4706,7 +4706,7 @@
                  data-title="ruff `target-version = &#34;py38&#34;` contradicts `requires-python = &#34;&gt;= 3.9&#34;`"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">ruff `target-version = &#34;py38&#34;` contradicts `requires-python = &#34;&gt;= 3.9&#34;`</span>
@@ -4714,7 +4714,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4735,7 +4735,7 @@
                  data-title="Dev tools pinned to exact versions without auto-update mechanism visible"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Dev tools pinned to exact versions without auto-update mechanism visible</span>
@@ -4743,7 +4743,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4764,7 +4764,7 @@
                  data-title="Pyright `pythonVersion = &#34;3.9&#34;` good, but mypy lacks explicit `python_version`"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Pyright `pythonVersion = &#34;3.9&#34;` good, but mypy lacks explicit `python_version`</span>
@@ -4772,7 +4772,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4793,7 +4793,7 @@
                  data-title="Optional `httpx_aiohttp` import lacks version compatibility check"
                  data-location="src/anthropic/_base_client.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Optional `httpx_aiohttp` import lacks version compatibility check</span>
@@ -4801,7 +4801,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4822,13 +4822,13 @@
                  data-title="Optional `mcp` extra correctly gated for Python &gt;= 3.10"
                  data-location="pyproject.toml"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Optional `mcp` extra correctly gated for Python &gt;= 3.10</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4864,7 +4864,7 @@
                  data-title="JSONL decoder uses O(n²) buffer concatenation"
                  data-location="src/anthropic/_decoders/jsonl.py"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">JSONL decoder uses O(n²) buffer concatenation</span>
@@ -4874,7 +4874,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -6596,34 +6596,22 @@
 
         <!-- Code Complexity -->
         
+        
+        
+        
         <section class="dd-section scroll-reveal dd-green" id="complexity">
             <div class="section-label">Code Complexity</div>
 
             
-            
 
-            <div class="cx-header">
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--green);">0</div>
-                    <div class="cx-stat-label">Max Complexity</div>
-                </div>
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--text-secondary);">0.0</div>
-                    <div class="cx-stat-label">Avg Complexity</div>
-                </div>
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--amber);">1</div>
-                    <div class="cx-stat-label">High Complexity Files</div>
-                </div>
-                <div>
-                    <span class="ir-rating-badge ir-rating-needs-work">
-                        unknown risk
-                    </span>
-                </div>
+            
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary); padding: 0.5rem 0;">
+                1 file flagged for complexity by specialists. No numeric complexity scores were extracted from finding text.
             </div>
+            
 
             
-            <div class="dd-subsection-label" style="margin-top: 0;">High Complexity Files</div>
+            <div class="dd-subsection-label" style="margin-top: 0.5rem;">Files flagged for complexity by specialists</div>
             <ul class="cx-file-list">
                 
                 <li class="cx-file-item">
@@ -6635,6 +6623,7 @@
             </ul>
             
         </section>
+        
         
 
         <!-- ROI Analysis -->
@@ -6649,15 +6638,15 @@
                         <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text);">$7.41</div>
                     </div>
                     <div>
-                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Manual equivalent ($175/hr &times; 4h)</div>
-                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text-secondary);">$700</div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Manual equivalent ($175/hr &times; 7h)</div>
+                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text-secondary);">$1225</div>
                     </div>
                 </div>
 
                 <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(34, 197, 94, 0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--green); font-weight: 600;">Spectra saved you</div>
-                        <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--green); filter: drop-shadow(0 0 12px var(--green-glow));">$693 <span style="font-size: 1rem; opacity: 0.8;">(99%)</span></div>
+                        <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--green); filter: drop-shadow(0 0 12px var(--green-glow));">$1218 <span style="font-size: 1rem; opacity: 0.8;">(99%)</span></div>
                     </div>
                     <div style="text-align: right;">
                         <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">Cost per finding</div>
@@ -6666,7 +6655,7 @@
                 </div>
             </div>
 
-            <p class="dd-disclaimer">Based on $175/hr senior engineer rate and ~4 hours for equivalent manual review. Actual costs vary.</p>
+            <p class="dd-disclaimer">Based on $175/hr senior engineer rate and ~7 hours for equivalent manual review. Actual costs vary.</p>
         </section>
         
 
@@ -6679,7 +6668,7 @@
                 <span class="sep"> &middot; </span>$7.41
             </div>
             <div class="footer-line">https://github.com/anthropics/anthropic-sdk-python</div>
-            <div class="footer-line" style="opacity: 0.5;">2026-04-29 10:10 UTC</div>
+            <div class="footer-line" style="opacity: 0.5;">2026-04-29 10:28 UTC</div>
         </footer>
     </div>
 
@@ -6695,7 +6684,7 @@
          SPECTRA — Premium Interactive JavaScript
          Filters, Search, Counters, Keyboard Nav, Scroll Spy
          ═══════════════════════════════════════════════════════ -->
-    <script nonce="_yk5E_OkubT26lU_Z0O9Pbi98oN10-yYgwnHnBhQDGY">
+    <script nonce="LMrEDrhqoydgb4RYMeIihFh0gdyCDKTpBfWw_PHCPTo">
     (function() {
         'use strict';
 
@@ -6970,6 +6959,33 @@
                 }, 2000);
             }
         };
+
+        /* ─── 6b. Event Delegation (CSP-safe replacement for inline onclick) ─── */
+        document.addEventListener('click', function(e) {
+            /* Copy button takes precedence over the row toggle */
+            var copyBtn = e.target.closest('[data-action="copy-finding"]');
+            if (copyBtn) {
+                e.stopPropagation();
+                window.copyFinding(copyBtn);
+                return;
+            }
+            /* Toggle row expand */
+            var row = e.target.closest('[data-toggle="finding"]');
+            if (row) {
+                row.classList.toggle('expanded');
+                row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+            }
+        });
+
+        /* Keyboard activation on focused finding (Space / Enter) */
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var row = e.target.closest && e.target.closest('[data-toggle="finding"]');
+            if (!row || row !== document.activeElement) return;
+            e.preventDefault();
+            row.classList.toggle('expanded');
+            row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+        });
 
         /* ─── 7. Keyboard Navigation ─── */
         var kbIndex = -1;

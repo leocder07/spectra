@@ -2502,8 +2502,18 @@ class TestComputeROI:
         assert result["cost_per_finding"] == 0.0
 
     def test_manual_cost_uses_hourly_rate(self):
+        """Manual hours scale with findings count: 2.0 base + 0.1/finding.
+        Pinned so the prior bug (constant 4.0 h regardless of repo size,
+        which made every report show ~$695 saved) cannot silently come
+        back. _minimal_report() yields 1 finding by default → 2.1 h."""
+        from spectra.infrastructure.report_adapter import _estimate_manual_hours
+
         report = _minimal_report()
         result = _compute_roi(report)
         assert result["engineer_rate"] == 175
-        assert result["manual_hours"] == 4.0
-        assert result["manual_cost"] == 700
+        assert result["manual_hours"] == 2.1
+        assert result["manual_cost"] == round(175 * 2.1)
+        # Scaling formula:
+        assert _estimate_manual_hours(0) == 2.0
+        assert _estimate_manual_hours(50) == 7.0
+        assert _estimate_manual_hours(200) == 22.0

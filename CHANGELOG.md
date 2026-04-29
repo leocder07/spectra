@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-29
+
+### Fixed
+- **Findings did not expand on click in the HTML report.** The strict CSP shipped in PR #6 (`script-src 'self' 'nonce-...'`) silently blocked the inline `onclick="this.classList.toggle('expanded')"` handler on every finding card. Replaced with CSP-safe event delegation inside the nonce-protected `<script>` block. Click + Space + Enter all expand a focused finding now.
+- **ROI section reported the same $700 manual cost on every report regardless of repo size.** `_MANUAL_REVIEW_HOURS` was hardcoded to `4.0`. Now scales with findings count via `_estimate_manual_hours = 2.0 + 0.1 * len(findings)` — a 50-finding repo shows ~7h ($1225) manual cost; a 200-finding repo shows ~22h ($3850). Pinned with regression tests at 0/50/200 findings.
+- **Code Complexity widget showed `Max 0 / Avg 0.0 / Unknown Risk` on every report** — the heuristic only text-mines findings for "cyclomatic N" patterns and almost never matches. The widget now hides the numeric stat row when no scores were extracted, replacing it with an honest "X file(s) flagged for complexity by specialists. No numeric complexity scores were extracted from finding text." line plus a one-line disclosure that Spectra does not yet AST-parse code.
+
 ## [0.3.2] - 2026-04-29
 
 ### Fixed

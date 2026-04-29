@@ -2767,7 +2767,7 @@
                  data-title="{{ finding.title }}"
                  data-location="{{ finding.location.file_path }}"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
                     <span class="finding-title">{{ finding.title }}</span>
@@ -2777,7 +2777,7 @@
                     {% if finding.validated_by_critique %}
                     <span class="validated-badge">✓ validated</span>
                     {% endif %}
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3360,15 +3360,18 @@
 
         <!-- Code Complexity -->
         {% if complexity %}
+        {% set cx_max = complexity.max_complexity | default(0) %}
+        {% set cx_files = complexity.high_complexity_files %}
+        {% if cx_max > 0 or cx_files %}
         <section class="dd-section scroll-reveal {% if complexity.risk_level == 'critical' %}dd-red{% elif complexity.risk_level == 'high' %}dd-red{% elif complexity.risk_level == 'moderate' %}dd-amber{% else %}dd-green{% endif %}" id="complexity">
             <div class="section-label">Code Complexity</div>
 
-            {% set cx_max = complexity.max_complexity | default(0) %}
             {% if cx_max > 30 %}{% set cx_color = 'var(--red)' %}
             {% elif cx_max > 20 %}{% set cx_color = 'var(--orange)' %}
             {% elif cx_max > 10 %}{% set cx_color = 'var(--amber)' %}
             {% else %}{% set cx_color = 'var(--green)' %}{% endif %}
 
+            {% if cx_max > 0 %}
             <div class="cx-header">
                 <div class="cx-stat-block">
                     <div class="cx-stat-num" style="color: {{ cx_color }};">{{ cx_max }}</div>
@@ -3388,11 +3391,19 @@
                     </span>
                 </div>
             </div>
+            <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-tertiary); margin-top: -0.5rem; margin-bottom: 0.75rem;">
+                Numbers extracted from finding text (e.g. "cyclomatic complexity 18"). Spectra does not yet AST-parse code; these are best-effort signals from what specialists wrote.
+            </div>
+            {% else %}
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-secondary); padding: 0.5rem 0;">
+                {{ cx_files | length }} file{% if cx_files | length != 1 %}s{% endif %} flagged for complexity by specialists. No numeric complexity scores were extracted from finding text.
+            </div>
+            {% endif %}
 
-            {% if complexity.high_complexity_files %}
-            <div class="dd-subsection-label" style="margin-top: 0;">High Complexity Files</div>
+            {% if cx_files %}
+            <div class="dd-subsection-label" style="margin-top: {% if cx_max > 0 %}0{% else %}0.5rem{% endif %};">Files flagged for complexity by specialists</div>
             <ul class="cx-file-list">
-                {% for item in complexity.high_complexity_files %}
+                {% for item in cx_files %}
                 <li class="cx-file-item">
                     <span class="cx-file-sev badge-{{ item.severity }}">{{ item.severity }}</span>
                     <span class="cx-file-title">{{ item.title }}</span>
@@ -3400,10 +3411,9 @@
                 </li>
                 {% endfor %}
             </ul>
-            {% elif complexity.risk_level == 'low' or complexity.risk_level == 'unknown' %}
-            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--green); margin-top: 0.5rem;">No high complexity files detected</div>
             {% endif %}
         </section>
+        {% endif %}
         {% endif %}
 
         <!-- ROI Analysis -->
@@ -3739,6 +3749,33 @@
                 }, 2000);
             }
         };
+
+        /* ─── 6b. Event Delegation (CSP-safe replacement for inline onclick) ─── */
+        document.addEventListener('click', function(e) {
+            /* Copy button takes precedence over the row toggle */
+            var copyBtn = e.target.closest('[data-action="copy-finding"]');
+            if (copyBtn) {
+                e.stopPropagation();
+                window.copyFinding(copyBtn);
+                return;
+            }
+            /* Toggle row expand */
+            var row = e.target.closest('[data-toggle="finding"]');
+            if (row) {
+                row.classList.toggle('expanded');
+                row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+            }
+        });
+
+        /* Keyboard activation on focused finding (Space / Enter) */
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var row = e.target.closest && e.target.closest('[data-toggle="finding"]');
+            if (!row || row !== document.activeElement) return;
+            e.preventDefault();
+            row.classList.toggle('expanded');
+            row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+        });
 
         /* ─── 7. Keyboard Navigation ─── */
         var kbIndex = -1;

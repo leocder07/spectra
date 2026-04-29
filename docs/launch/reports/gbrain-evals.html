@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-OOXqT-ZSrRNkG9GqraulaVg-ml3xeTrcpNA9J2r_Y0k'; style-src 'nonce-OOXqT-ZSrRNkG9GqraulaVg-ml3xeTrcpNA9J2r_Y0k' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-Zbi1jS_KZsbXrYFZzJV4oM3yKmJaSftVlwKOmGbE37M'; style-src 'nonce-Zbi1jS_KZsbXrYFZzJV4oM3yKmJaSftVlwKOmGbE37M' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
     <title>Spectra — gbrain-evals</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <style nonce="OOXqT-ZSrRNkG9GqraulaVg-ml3xeTrcpNA9J2r_Y0k">
+    <style nonce="Zbi1jS_KZsbXrYFZzJV4oM3yKmJaSftVlwKOmGbE37M">
         /* ═══════════════════════════════════════════════════════
            SPECTRA — Premium Report Theme
            Vercel × Linear × Terminal aesthetic
@@ -3492,7 +3492,7 @@
                  data-title="Adapter interface contract violated by agent adapter"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Adapter interface contract violated by agent adapter</span>
@@ -3500,7 +3500,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3521,7 +3521,7 @@
                  data-title="Adapter init() signature inconsistent across adapters (poisonFixtures only on agent adapter)"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Adapter init() signature inconsistent across adapters (poisonFixtures only on agent adapter)</span>
@@ -3529,7 +3529,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3550,7 +3550,7 @@
                  data-title="Optional adapter lifecycle methods (snapshot, teardown) inconsistently implemented"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Optional adapter lifecycle methods (snapshot, teardown) inconsistently implemented</span>
@@ -3558,7 +3558,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3579,7 +3579,7 @@
                  data-title="BrainState as opaque `any`-equivalent loses type safety across adapter boundary"
                  data-location="eval/runner/types.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">BrainState as opaque `any`-equivalent loses type safety across adapter boundary</span>
@@ -3587,7 +3587,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3608,7 +3608,7 @@
                  data-title="Runner orchestration mixes subprocess and programmatic categories ad-hoc"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Runner orchestration mixes subprocess and programmatic categories ad-hoc</span>
@@ -3616,7 +3616,7 @@
                     <span class="hours-badge">~8.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3637,7 +3637,7 @@
                  data-title="Cost-tracking and Anthropic client setup duplicated between gen.ts and amara-life-gen.ts"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Cost-tracking and Anthropic client setup duplicated between gen.ts and amara-life-gen.ts</span>
@@ -3645,7 +3645,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3666,7 +3666,7 @@
                  data-title="Bug: writeDocs path manipulation produces double-extension or misnamed files"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Bug: writeDocs path manipulation produces double-extension or misnamed files</span>
@@ -3676,7 +3676,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3697,7 +3697,7 @@
                  data-title="Console.log/error monkey-patching is a leaky abstraction"
                  data-location="eval/runner/adapters/vector-grep-rrf-fusion.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Console.log/error monkey-patching is a leaky abstraction</span>
@@ -3705,7 +3705,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3726,7 +3726,7 @@
                  data-title="Generators and runners share types only via deep relative imports"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Generators and runners share types only via deep relative imports</span>
@@ -3734,7 +3734,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3755,7 +3755,7 @@
                  data-title="Reference data hard-coded inside generator skeleton breaks generator/data separation"
                  data-location="eval/generators/amara-life.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Reference data hard-coded inside generator skeleton breaks generator/data separation</span>
@@ -3763,7 +3763,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3784,7 +3784,7 @@
                  data-title="Duplicated PRNG implementation across generator files"
                  data-location="eval/generators/world.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Duplicated PRNG implementation across generator files</span>
@@ -3792,7 +3792,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3813,7 +3813,7 @@
                  data-title="Adapter classes lack a registry — adapter selection is implicit"
                  data-location="eval/runner/adapters/grep-only.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Adapter classes lack a registry — adapter selection is implicit</span>
@@ -3821,7 +3821,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3842,7 +3842,7 @@
                  data-title="Dynamic require() inside async functions in all.ts"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Dynamic require() inside async functions in all.ts</span>
@@ -3850,7 +3850,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3886,7 +3886,7 @@
                  data-title="Command injection risk in browser open via execSync with file path"
                  data-location="eval/cli/world-view.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Command injection risk in browser open via execSync with file path</span>
@@ -3894,7 +3894,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3915,7 +3915,7 @@
                  data-title="pdf-parse dependency: known historical RCE/parsing vulnerabilities"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">pdf-parse dependency: known historical RCE/parsing vulnerabilities</span>
@@ -3923,7 +3923,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3944,7 +3944,7 @@
                  data-title="Unpinned git dependency: gbrain pulled from github master"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Unpinned git dependency: gbrain pulled from github master</span>
@@ -3952,7 +3952,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -3973,7 +3973,7 @@
                  data-title="JSON.parse on untrusted file path without size limit"
                  data-location="eval/cli/query-validate.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">JSON.parse on untrusted file path without size limit</span>
@@ -3981,7 +3981,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4002,7 +4002,7 @@
                  data-title="Tool execution errors swallowed and surfaced to LLM as tool_result content"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Tool execution errors swallowed and surfaced to LLM as tool_result content</span>
@@ -4010,7 +4010,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4031,7 +4031,7 @@
                  data-title="Subprocess spawn passes full process.env to children, including secrets"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Subprocess spawn passes full process.env to children, including secrets</span>
@@ -4039,7 +4039,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4060,7 +4060,7 @@
                  data-title="Manual .env parser writes attacker-controlled values into process.env"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Manual .env parser writes attacker-controlled values into process.env</span>
@@ -4070,7 +4070,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4091,7 +4091,7 @@
                  data-title="Prompt injection surface in adversarial generator (informational — by design)"
                  data-location="eval/runner/adversarial-injections.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-info">info</span>
                     <span class="finding-title">Prompt injection surface in adversarial generator (informational — by design)</span>
@@ -4099,7 +4099,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4135,7 +4135,7 @@
                  data-title="Multiple uses of `any` type and eslint-disable bypasses in agent adapter"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Multiple uses of `any` type and eslint-disable bypasses in agent adapter</span>
@@ -4143,7 +4143,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4164,7 +4164,7 @@
                  data-title="Bug in writeDocs path construction — dead/confusing code"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Bug in writeDocs path construction — dead/confusing code</span>
@@ -4174,7 +4174,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4195,7 +4195,7 @@
                  data-title="Silent console suppression in HybridNoGraphAdapter.init swallows real errors"
                  data-location="eval/runner/adapters/vector-grep-rrf-fusion.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Silent console suppression in HybridNoGraphAdapter.init swallows real errors</span>
@@ -4203,7 +4203,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4224,7 +4224,7 @@
                  data-title="all.ts uses CommonJS require() inside ES module"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">all.ts uses CommonJS require() inside ES module</span>
@@ -4232,7 +4232,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4253,7 +4253,7 @@
                  data-title="Incorrect grouping plural in renderRail (companys/persons)"
                  data-location="eval/generators/world-html.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Incorrect grouping plural in renderRail (companys/persons)</span>
@@ -4261,7 +4261,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4282,7 +4282,7 @@
                  data-title="Code duplication in injection helpers (createRng, pick, escapeRegex)"
                  data-location="eval/runner/adversarial-injections.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Code duplication in injection helpers (createRng, pick, escapeRegex)</span>
@@ -4290,7 +4290,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4311,7 +4311,7 @@
                  data-title="Test for renderRail relies on pluralization bug rather than feature"
                  data-location="eval/generators/world-html.test.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Test for renderRail relies on pluralization bug rather than feature</span>
@@ -4319,7 +4319,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4355,7 +4355,7 @@
                  data-title="Cat 5/8/9 &#39;programmatic-only&#39; runners lack external harness documentation"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Cat 5/8/9 &#39;programmatic-only&#39; runners lack external harness documentation</span>
@@ -4363,7 +4363,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4384,7 +4384,7 @@
                  data-title="Generator scripts assume undocumented .env.testing file with cross-worktree discovery"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Generator scripts assume undocumented .env.testing file with cross-worktree discovery</span>
@@ -4392,7 +4392,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4413,7 +4413,7 @@
                  data-title="Adapter contract (Adapter interface) is referenced everywhere but never documented in one place"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Adapter contract (Adapter interface) is referenced everywhere but never documented in one place</span>
@@ -4421,7 +4421,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4442,7 +4442,7 @@
                  data-title="Adding a new Tier 5.5 query / category lacks end-to-end contributor walkthrough"
                  data-location="eval/cli/query-new.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Adding a new Tier 5.5 query / category lacks end-to-end contributor walkthrough</span>
@@ -4450,7 +4450,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4471,7 +4471,7 @@
                  data-title="Adversarial injection kinds defined in code but no doc maps them to Cat 6 / Cat 10 scoring semantics"
                  data-location="eval/runner/adversarial-injections.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Adversarial injection kinds defined in code but no doc maps them to Cat 6 / Cat 10 scoring semantics</span>
@@ -4479,7 +4479,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4500,7 +4500,7 @@
                  data-title="Cost / budget guidance scattered across files without a central RUNBOOK section"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Cost / budget guidance scattered across files without a central RUNBOOK section</span>
@@ -4508,7 +4508,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4529,7 +4529,7 @@
                  data-title="Slug regex referenced by line number is fragile cross-file documentation"
                  data-location="eval/generators/amara-life.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Slug regex referenced by line number is fragile cross-file documentation</span>
@@ -4537,7 +4537,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4558,7 +4558,7 @@
                  data-title="world-html.ts XSS-safety design comment is excellent but not surfaced to contributors"
                  data-location="eval/generators/world-html.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">world-html.ts XSS-safety design comment is excellent but not surfaced to contributors</span>
@@ -4566,7 +4566,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4587,7 +4587,7 @@
                  data-title="package.json scripts have no inline description; eval:* commands rely on RUNBOOK"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">package.json scripts have no inline description; eval:* commands rely on RUNBOOK</span>
@@ -4595,7 +4595,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4631,7 +4631,7 @@
                  data-title="Git dependency pinned to mutable branch (master) instead of commit SHA"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-critical">critical</span>
                     <span class="finding-title">Git dependency pinned to mutable branch (master) instead of commit SHA</span>
@@ -4639,7 +4639,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4660,7 +4660,7 @@
                  data-title="Missing lockfile in repository"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Missing lockfile in repository</span>
@@ -4668,7 +4668,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4689,7 +4689,7 @@
                  data-title="@types/bun pinned to &#39;latest&#39; — non-reproducible dev environment"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">@types/bun pinned to &#39;latest&#39; — non-reproducible dev environment</span>
@@ -4699,7 +4699,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4720,7 +4720,7 @@
                  data-title="Runtime dependency on Bun without engines field declaration"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Runtime dependency on Bun without engines field declaration</span>
@@ -4728,7 +4728,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4749,7 +4749,7 @@
                  data-title="No automated dependency update tooling configured"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">No automated dependency update tooling configured</span>
@@ -4757,7 +4757,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4778,7 +4778,7 @@
                  data-title="Implicit dependency on subpath imports from gbrain (deep imports)"
                  data-location="eval/runner/adapters/vector-grep-rrf-fusion.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Implicit dependency on subpath imports from gbrain (deep imports)</span>
@@ -4786,7 +4786,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4807,7 +4807,7 @@
                  data-title="pdf-parse declared as devDependency but unused in shown sources / mis-classified"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">pdf-parse declared as devDependency but unused in shown sources / mis-classified</span>
@@ -4815,7 +4815,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4836,7 +4836,7 @@
                  data-title="License declared MIT but no LICENSE file referenced; gbrain transitive license unverified"
                  data-location="package.json"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">License declared MIT but no LICENSE file referenced; gbrain transitive license unverified</span>
@@ -4844,7 +4844,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4880,7 +4880,7 @@
                  data-title="Sequential per-item LLM generation in amara-life-gen wastes wall time"
                  data-location="eval/generators/amara-life-gen.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Sequential per-item LLM generation in amara-life-gen wastes wall time</span>
@@ -4888,7 +4888,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4909,7 +4909,7 @@
                  data-title="Agent loop appends full message history every turn — token cost grows quadratically"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-high">high</span>
                     <span class="finding-title">Agent loop appends full message history every turn — token cost grows quadratically</span>
@@ -4917,7 +4917,7 @@
                     <span class="hours-badge">~4.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4938,7 +4938,7 @@
                  data-title="all.ts ignores BRAINBENCH_LLM_CONCURRENCY across child subprocesses"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">all.ts ignores BRAINBENCH_LLM_CONCURRENCY across child subprocesses</span>
@@ -4948,7 +4948,7 @@
                     
                     <span class="validated-badge">✓ validated</span>
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4969,7 +4969,7 @@
                  data-title="VectorOnlyAdapter scores cosine over every doc on every query (O(N×D) full scan)"
                  data-location="eval/runner/adapters/vector.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">VectorOnlyAdapter scores cosine over every doc on every query (O(N×D) full scan)</span>
@@ -4977,7 +4977,7 @@
                     <span class="hours-badge">~3.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -4998,7 +4998,7 @@
                  data-title="HybridNoGraphAdapter init silences console globally — leaks across concurrent code"
                  data-location="eval/runner/adapters/vector-grep-rrf-fusion.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">HybridNoGraphAdapter init silences console globally — leaks across concurrent code</span>
@@ -5006,7 +5006,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -5027,7 +5027,7 @@
                  data-title="claude-sonnet-with-tools rate-limit backoff doesn&#39;t honor Retry-After header"
                  data-location="eval/runner/adapters/claude-sonnet-with-tools.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">claude-sonnet-with-tools rate-limit backoff doesn&#39;t honor Retry-After header</span>
@@ -5035,7 +5035,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -5056,7 +5056,7 @@
                  data-title="Subprocess output buffered unboundedly in memory in all.ts"
                  data-location="eval/runner/all.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">Subprocess output buffered unboundedly in memory in all.ts</span>
@@ -5064,7 +5064,7 @@
                     <span class="hours-badge">~2.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -5085,7 +5085,7 @@
                  data-title="VectorOnlyAdapter init batches embeddings serially despite batch loop"
                  data-location="eval/runner/adapters/vector.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-medium">medium</span>
                     <span class="finding-title">VectorOnlyAdapter init batches embeddings serially despite batch loop</span>
@@ -5093,7 +5093,7 @@
                     <span class="hours-badge">~1.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -5114,7 +5114,7 @@
                  data-title="BM25 candidate union scored individually instead of accumulated in a single pass"
                  data-location="eval/runner/adapters/grep-only.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">BM25 candidate union scored individually instead of accumulated in a single pass</span>
@@ -5122,7 +5122,7 @@
                     <span class="hours-badge">~1.0h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -5143,7 +5143,7 @@
                  data-title="Adversarial test runs 30s timeout per op via Promise.race — leaks setTimeout handles"
                  data-location="eval/runner/adversarial.ts"
                  role="button" tabindex="0" aria-expanded="false"
-                 onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
+                 data-toggle="finding">
                 <div class="finding-header">
                     <span class="badge badge-low">low</span>
                     <span class="finding-title">Adversarial test runs 30s timeout per op via Promise.race — leaks setTimeout handles</span>
@@ -5151,7 +5151,7 @@
                     <span class="hours-badge">~0.5h</span>
                     
                     
-                    <button class="finding-copy-btn" onclick="event.stopPropagation(); copyFinding(this);" title="Copy finding details">Copy</button>
+                    <button class="finding-copy-btn" data-action="copy-finding" title="Copy finding details">Copy</button>
                     <span class="finding-chevron">▶</span>
                 </div>
                 <div class="finding-location">
@@ -6860,36 +6860,9 @@
 
         <!-- Code Complexity -->
         
-        <section class="dd-section scroll-reveal dd-green" id="complexity">
-            <div class="section-label">Code Complexity</div>
-
-            
-            
-
-            <div class="cx-header">
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--green);">0</div>
-                    <div class="cx-stat-label">Max Complexity</div>
-                </div>
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--text-secondary);">0.0</div>
-                    <div class="cx-stat-label">Avg Complexity</div>
-                </div>
-                <div class="cx-stat-block">
-                    <div class="cx-stat-num" style="color: var(--amber);">0</div>
-                    <div class="cx-stat-label">High Complexity Files</div>
-                </div>
-                <div>
-                    <span class="ir-rating-badge ir-rating-needs-work">
-                        unknown risk
-                    </span>
-                </div>
-            </div>
-
-            
-            <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--green); margin-top: 0.5rem;">No high complexity files detected</div>
-            
-        </section>
+        
+        
+        
         
 
         <!-- ROI Analysis -->
@@ -6904,15 +6877,15 @@
                         <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text);">$6.32</div>
                     </div>
                     <div>
-                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Manual equivalent ($175/hr &times; 4h)</div>
-                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text-secondary);">$700</div>
+                        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.25rem;">Manual equivalent ($175/hr &times; 8h)</div>
+                        <div style="font-family: var(--font-mono); font-size: 1.8rem; font-weight: 700; color: var(--text-secondary);">$1312</div>
                     </div>
                 </div>
 
                 <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(34, 197, 94, 0.15); display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--green); font-weight: 600;">Spectra saved you</div>
-                        <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--green); filter: drop-shadow(0 0 12px var(--green-glow));">$694 <span style="font-size: 1rem; opacity: 0.8;">(99%)</span></div>
+                        <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: var(--green); filter: drop-shadow(0 0 12px var(--green-glow));">$1306 <span style="font-size: 1rem; opacity: 0.8;">(100%)</span></div>
                     </div>
                     <div style="text-align: right;">
                         <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary);">Cost per finding</div>
@@ -6921,7 +6894,7 @@
                 </div>
             </div>
 
-            <p class="dd-disclaimer">Based on $175/hr senior engineer rate and ~4 hours for equivalent manual review. Actual costs vary.</p>
+            <p class="dd-disclaimer">Based on $175/hr senior engineer rate and ~8 hours for equivalent manual review. Actual costs vary.</p>
         </section>
         
 
@@ -6934,7 +6907,7 @@
                 <span class="sep"> &middot; </span>$6.32
             </div>
             <div class="footer-line">https://github.com/garrytan/gbrain-evals</div>
-            <div class="footer-line" style="opacity: 0.5;">2026-04-29 10:10 UTC</div>
+            <div class="footer-line" style="opacity: 0.5;">2026-04-29 10:28 UTC</div>
         </footer>
     </div>
 
@@ -6950,7 +6923,7 @@
          SPECTRA — Premium Interactive JavaScript
          Filters, Search, Counters, Keyboard Nav, Scroll Spy
          ═══════════════════════════════════════════════════════ -->
-    <script nonce="OOXqT-ZSrRNkG9GqraulaVg-ml3xeTrcpNA9J2r_Y0k">
+    <script nonce="Zbi1jS_KZsbXrYFZzJV4oM3yKmJaSftVlwKOmGbE37M">
     (function() {
         'use strict';
 
@@ -7225,6 +7198,33 @@
                 }, 2000);
             }
         };
+
+        /* ─── 6b. Event Delegation (CSP-safe replacement for inline onclick) ─── */
+        document.addEventListener('click', function(e) {
+            /* Copy button takes precedence over the row toggle */
+            var copyBtn = e.target.closest('[data-action="copy-finding"]');
+            if (copyBtn) {
+                e.stopPropagation();
+                window.copyFinding(copyBtn);
+                return;
+            }
+            /* Toggle row expand */
+            var row = e.target.closest('[data-toggle="finding"]');
+            if (row) {
+                row.classList.toggle('expanded');
+                row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+            }
+        });
+
+        /* Keyboard activation on focused finding (Space / Enter) */
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var row = e.target.closest && e.target.closest('[data-toggle="finding"]');
+            if (!row || row !== document.activeElement) return;
+            e.preventDefault();
+            row.classList.toggle('expanded');
+            row.setAttribute('aria-expanded', row.classList.contains('expanded') ? 'true' : 'false');
+        });
 
         /* ─── 7. Keyboard Navigation ─── */
         var kbIndex = -1;
