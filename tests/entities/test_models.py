@@ -1034,7 +1034,7 @@ class TestBatchCacheKey:
             "prompt_version",
             "schema_version",
             "spectra_version",
-        } == set(key.model_fields)
+        } == set(BatchCacheKey.model_fields)
 
     def test_batch_cache_key_equality_value_based(self):
         assert _batch_key() == _batch_key()
