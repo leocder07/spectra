@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
@@ -602,14 +603,24 @@ class TestCLILocalPath:
 # ── Phase 2: --force / --no-cache flags ──────────────────────
 
 
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes and collapse whitespace.
+
+    Rich wraps narrow terminals by inserting ANSI sequences mid-token
+    (e.g. ``--force`` → ``-\\x1b[0m\\x1b[1;36m-force``). Substring
+    assertions need normalized text.
+    """
+    return re.sub(r"\x1b\[[\d;]*m", "", text).replace("\n", " ")
+
+
 class TestCLICacheFlags:
     def test_force_flag_help_listed(self):
         result = runner.invoke(app, ["analyze", "--help"])
-        assert "--force" in result.output
+        assert "--force" in _strip_ansi(result.output)
 
     def test_no_cache_flag_help_listed(self):
         result = runner.invoke(app, ["analyze", "--help"])
-        assert "--no-cache" in result.output
+        assert "--no-cache" in _strip_ansi(result.output)
 
     def test_cli_force_flag_parsed(self):
         factory = AsyncMock(return_value=_fake_report())
