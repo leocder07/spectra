@@ -374,11 +374,25 @@ def _parse_duration(spec: str) -> timedelta:
 
 
 @cache_app.command("stats")
-def cache_stats() -> None:
+def cache_stats(
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Output as JSON instead of a table (CI-friendly)",
+    ),
+) -> None:
     """Show cache file location, size, entries, and rolling hit rates."""
     cache = _get_cache()
     stats = cache.stats()
+    if as_json:
+        _print_stats_json(stats)
+        return
     _render_stats_table(cache, stats)
+
+
+def _print_stats_json(stats: CacheStats) -> None:
+    """Emit CacheStats as indent-2 JSON to stdout — no Rich formatting."""
+    typer.echo(stats.model_dump_json(indent=2))
 
 
 @cache_app.command("clear")

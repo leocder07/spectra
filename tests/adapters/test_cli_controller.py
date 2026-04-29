@@ -756,6 +756,70 @@ class TestCacheStatsCommand:
         assert "Total" in result.output or "total" in result.output.lower()
         assert "7" in result.output  # total_entries seeded above
 
+    def test_cache_stats_default_behavior_unchanged(self):
+        """Regression: without --json the Rich table still renders."""
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "stats"])
+        assert result.exit_code == 0
+        assert "Total" in result.output or "total" in result.output.lower()
+        assert "7" in result.output
+
+    def test_cache_stats_json_flag_outputs_valid_json(self):
+        import json
+
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "stats", "--json"])
+        assert result.exit_code == 0
+        # Output must parse as JSON without error.
+        parsed = json.loads(result.output)
+        assert isinstance(parsed, dict)
+
+    def test_cache_stats_json_includes_all_fields(self):
+        import json
+
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "stats", "--json"])
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        expected_keys = {
+            "total_entries",
+            "total_repos",
+            "db_size_bytes",
+            "hit_rate_last_100",
+            "oldest_entry_at",
+            "full_report_entries",
+            "batch_entries",
+            "hit_log_entries",
+            "hit_rate_by_dimension",
+            "most_recent_activity_at",
+        }
+        assert expected_keys.issubset(parsed.keys())
+
+    def test_cache_stats_json_no_rich_codes(self):
+        from spectra.adapters.cli_controller import set_cache_provider
+
+        port = _StubCachePort()
+        set_cache_provider(lambda: port)
+        result = runner.invoke(app, ["cache", "stats", "--json"])
+        assert result.exit_code == 0
+        # No ANSI escape sequences (Rich color codes) in JSON output.
+        assert "\x1b" not in result.output
+
+    def test_cache_stats_json_help_describes_flag(self):
+        result = runner.invoke(app, ["cache", "stats", "--help"])
+        assert result.exit_code == 0
+        lowered = result.output.lower()
+        assert "json" in lowered or "ci-friendly" in lowered
+
 
 class TestCacheClearCommand:
     def test_cache_clear_command_no_arg_prompts_for_confirm(self):
