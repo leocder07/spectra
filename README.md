@@ -6,6 +6,10 @@
 
 **Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in under 5 minutes.** It runs 8 specialized Claude agents in parallel (Opus 4.7) so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
 
+#### <a id="disclaimer"></a>Disclaimer
+
+**Indicative analysis — not auditor-grade evidence.** Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows. Use Spectra as a fast directional signal — pair it with deterministic SAST/DAST tooling and a human reviewer for anything compliance-bound. The same notice ships in every HTML, JSON, and SARIF report ([source](src/spectra/entities/disclaimer.py)).
+
 <!-- TODO: 15-second hero GIF showing spectra analyze <repo> → grade pop -->
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)

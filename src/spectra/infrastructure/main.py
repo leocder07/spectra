@@ -49,6 +49,7 @@ from spectra.adapters.cli_controller import (
     set_cache_provider,
 )
 from spectra.adapters.progress_reporter import RichProgressReporter
+from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
     AnalysisReport,
@@ -233,7 +234,7 @@ async def _run_analysis(
         observer.on_stage_start("REPORT", "Rendering report")
         try:
             if output_format == "json":
-                data = json.dumps(report.model_dump(mode="json"), indent=2)
+                data = json.dumps(build_json_payload(report), indent=2)
                 Path(output_path).write_text(data, encoding="utf-8")
             elif output_format == "sarif":
                 sarif = _build_sarif(report)
@@ -476,6 +477,45 @@ _SARIF_SEVERITY: dict[str, str] = {
 }
 
 
+def build_json_payload(report: AnalysisReport) -> dict[str, object]:
+    """Build the JSON output payload with the indicative-analysis disclaimer.
+
+    The disclaimer is a top-level data field so SAST consumers and
+    machine pipelines see it natively. It is always present and cannot
+    be dismissed (UI dismissal is HTML-only).
+
+    Args:
+        report: Completed analysis report.
+
+    Returns:
+        Dict ready for ``json.dumps`` — disclaimer first, then report fields.
+    """
+    return {
+        "disclaimer": disclaimer_payload(),
+        **report.model_dump(mode="json"),
+    }
+
+
+def _sarif_disclaimer_notification() -> dict[str, object]:
+    """SARIF ``notification`` carrying the indicative-analysis disclaimer.
+
+    Uses level=``note`` and a ``descriptor.helpUri`` that points at the
+    docs anchor — the standard SARIF mechanism for surfacing tool-level
+    advisories to consumers.
+    """
+    payload = disclaimer_payload()
+    return {
+        "level": "note",
+        "message": {"text": payload["text"]},
+        "descriptor": {
+            "id": "spectra/disclaimer/indicative-analysis",
+            "name": "IndicativeAnalysis",
+            "shortDescription": {"text": "Indicative analysis — not auditor-grade evidence."},
+            "helpUri": payload["url"],
+        },
+    }
+
+
 def _build_sarif(report: AnalysisReport) -> dict:
     """Build SARIF v2.1.0 output for GitHub Security tab integration.
 
@@ -521,6 +561,12 @@ def _build_sarif(report: AnalysisReport) -> dict:
                         "rules": [],
                     },
                 },
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "notifications": [_sarif_disclaimer_notification()],
+                    }
+                ],
                 "results": results,
             }
         ],
