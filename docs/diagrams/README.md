@@ -2,7 +2,7 @@
 
 All architecture and design diagrams for the Spectra project.
 
-> **SVGs are stale as of 2026-04-29.** Mermaid sources in `.md` files are the source of truth and have been updated for the Opus 4.7 migration, the new `LLMGateway` surface, the adaptive-thinking terminology, and the planned `CachePort`. The `.svg` siblings have *not* been re-rendered. Regenerate with a Mermaid CLI tool (TODO: commit a renderer script — for now use `npx -y @mermaid-js/mermaid-cli mmdc -i <source.md> -o <out.svg>`) on the diagrams listed under "Mermaid sources (current)" below.
+> Mermaid sources in `.md` files are the source of truth. To regenerate the rendered `.svg` siblings, run `npx -y @mermaid-js/mermaid-cli mmdc -i <source.mmd> -o <out.svg> -b white` against the canonical block listed below.
 
 ## Mermaid sources (current)
 
@@ -20,15 +20,15 @@ These `.md` files contain the live Mermaid definitions. Edit these, not the SVGs
 | [`er-domain-entities.md`](er-domain-entities.md) | ER diagram of all domain entities | 2026-04-29 — `AgentContext` reflects new fields |
 | [`design-patterns-catalog.md`](design-patterns-catalog.md) | All 11 design patterns with diagrams + file:line refs | 2026-04-29 — Factory updated; chain unchanged |
 
-## Generated artifacts (SVG — stale)
+## Generated artifacts (SVG)
 
-| File | Source of truth (Mermaid) | Status |
-|------|---------------------------|--------|
-| `Spectra-clean_architecture.svg` | `hld-system-architecture.md` (Clean Architecture Layers section) | **Stale** — regenerate after Opus 4.7 doc update |
-| `spectra-6-stage-analysis.svg` | `hld-system-architecture.md` (6-Stage Pipeline section) | **Stale** |
-| `spectra-uml-sequence-full-6-agent-pipeline.svg` | `sequence-analysis-pipeline.md` | **Stale** |
-| `spectra-domain-model-er.svg` | `er-domain-entities.md` | **Stale** |
-| `spectra-design-patterns.svg` | `design-patterns-catalog.md` | **Stale** |
+| File | Source of truth (Mermaid) |
+|------|---------------------------|
+| `Spectra-clean_architecture.svg` | `hld-system-architecture.md` (Clean Architecture Layers section) |
+| `spectra-6-stage-analysis.svg` | `hld-system-architecture.md` (6-Stage Pipeline section) |
+| `spectra-uml-sequence-full-6-agent-pipeline.svg` | `sequence-analysis-pipeline.md` (Complete Pipeline Sequence) |
+| `spectra-domain-model-er.svg` | `er-domain-entities.md` |
+| `spectra-design-patterns.svg` | `design-patterns-catalog.md` (Patterns Overview) |
 
 ## Conventions
 
@@ -39,4 +39,4 @@ These `.md` files contain the live Mermaid definitions. Edit these, not the SVGs
 
 ---
 
-*Last updated: 2026-04-29 — index refresh for Opus 4.7 + CachePort doc cycle.*
+*Last updated: 2026-04-29 — SVGs regenerated from Opus 4.7 Mermaid sources.*
