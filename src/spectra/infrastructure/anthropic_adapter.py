@@ -99,6 +99,7 @@ class AnthropicAdapter:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> str:
         """Send a streaming inference request.
 
@@ -107,6 +108,8 @@ class AnthropicAdapter:
             user_prompt: User-level content.
             model: Anthropic model identifier.
             max_tokens: Maximum response tokens.
+            effort: Optional ``output_config.effort``. On Opus 4.7 use ``xhigh``
+                for coding/agentic; ``high`` is the default sweet spot.
 
         Returns:
             Concatenated text from all content blocks.
@@ -114,7 +117,7 @@ class AnthropicAdapter:
         Raises:
             SpectraRetryError: On connection or rate-limit errors.
         """
-        return await self._call_streaming(system_prompt, user_prompt, model, max_tokens)
+        return await self._call_streaming(system_prompt, user_prompt, model, max_tokens, effort)
 
     async def analyze_with_thinking(
         self,
@@ -122,6 +125,8 @@ class AnthropicAdapter:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> str:
         """Send a streaming request with adaptive extended thinking.
 
@@ -129,7 +134,9 @@ class AnthropicAdapter:
             system_prompt: System-level instructions.
             user_prompt: User-level content.
             model: Anthropic model identifier.
-            max_tokens: Maximum response tokens.
+            max_tokens: Maximum response tokens (per-response cap).
+            effort: Optional ``output_config.effort``.
+            task_budget_tokens: Optional cumulative loop budget (min 20_000).
 
         Returns:
             Text content only (thinking blocks are excluded).
@@ -137,7 +144,14 @@ class AnthropicAdapter:
         Raises:
             SpectraRetryError: On connection or rate-limit errors.
         """
-        return await self._call_with_thinking(system_prompt, user_prompt, model, max_tokens)
+        return await self._call_with_thinking(
+            system_prompt,
+            user_prompt,
+            model,
+            max_tokens,
+            effort,
+            task_budget_tokens,
+        )
 
     async def close(self) -> None:
         """Close the underlying HTTP client and release connection pool."""
@@ -155,6 +169,7 @@ class AnthropicAdapter:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> str:
         try:
             # Streaming reduces time-to-first-token and memory usage
@@ -162,13 +177,15 @@ class AnthropicAdapter:
             collected_text = []
             input_tokens = 0
             output_tokens = 0
-            async with self._client.messages.stream(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=0.0,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-            ) as stream:
+            stream_kwargs: dict[str, object] = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}],
+            }
+            if effort is not None:
+                stream_kwargs["output_config"] = {"effort": effort}
+            async with self._client.messages.stream(**stream_kwargs) as stream:
                 async for event in stream:
                     if hasattr(event, "type"):
                         if event.type == "content_block_delta":
@@ -197,6 +214,8 @@ class AnthropicAdapter:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> str:
         """Streaming call with adaptive thinking."""
         response = await self._stream_thinking(
@@ -204,6 +223,8 @@ class AnthropicAdapter:
             user_prompt,
             model,
             max_tokens,
+            effort,
+            task_budget_tokens,
         )
         self._last_usage = (
             response.usage.input_tokens,
@@ -217,16 +238,36 @@ class AnthropicAdapter:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> anthropic.types.Message:
         """Send a thinking-enabled streaming request."""
+        output_config: dict[str, object] = {}
+        if effort is not None:
+            output_config["effort"] = effort
+        if task_budget_tokens is not None:
+            output_config["task_budget"] = {
+                "type": "tokens",
+                "total": task_budget_tokens,
+            }
+
+        stream_kwargs: dict[str, object] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}],
+            "thinking": {"type": "adaptive", "display": "summarized"},
+        }
+        if output_config:
+            stream_kwargs["output_config"] = output_config
+        # task_budget is gated behind a beta header
+        if task_budget_tokens is not None:
+            stream_kwargs["extra_headers"] = {
+                "anthropic-beta": "task-budgets-2026-03-13",
+            }
+
         try:
-            async with self._client.messages.stream(
-                model=model,
-                max_tokens=max_tokens,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}],
-                thinking={"type": "adaptive"},
-            ) as stream:
+            async with self._client.messages.stream(**stream_kwargs) as stream:
                 return await stream.get_final_message()
         except anthropic.APIConnectionError as exc:
             raise SpectraRetryError(ERRORS["SPEC-002"]) from exc

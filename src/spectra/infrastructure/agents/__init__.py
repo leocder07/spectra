@@ -5,12 +5,12 @@ deploys 8 agents across 3 stages:
 
 Pipeline flow::
 
-    Stage 2: MetaPrompter (Sonnet 4.5, file tree ONLY, ≤5K tokens)
+    Stage 2: MetaPrompter (Opus 4.7 medium effort, file tree ONLY, ≤5K tokens)
         ↓
-    Stage 3: 6 SpecialistAgents (all Opus 4.6, run in PARALLEL via asyncio.gather)
+    Stage 3: 6 SpecialistAgents (Opus 4.7 effort=xhigh, run in PARALLEL via asyncio.gather)
         Architecture · Security · Quality · Documentation · Dependency · Performance
         ↓
-    Stage 5: CritiqueAgent (Opus 4.6, EXTENDED THINKING, validates ALL findings)
+    Stage 5: CritiqueAgent (Opus 4.7, ADAPTIVE THINKING + task budget, validates ALL findings)
 
 Key design patterns:
 
@@ -25,7 +25,7 @@ Key design patterns:
 
 Hard rules:
   1. MetaPrompter NEVER gets full code — file tree only, ≤5K tokens.
-  2. Extended thinking: CritiqueAgent ONLY.
+  2. Adaptive thinking: CritiqueAgent ONLY.
   3. Every agent output validated against Pydantic before merge.
   4. 120s timeout per agent via ``asyncio.wait_for``.
 """

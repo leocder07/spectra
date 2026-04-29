@@ -64,6 +64,7 @@ class LoggingDecorator:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> str:
         start = time.monotonic()
         result = await self._inner.analyze(
@@ -71,6 +72,7 @@ class LoggingDecorator:
             user_prompt=user_prompt,
             model=model,
             max_tokens=max_tokens,
+            effort=effort,
         )
         self._log_call(model, start)
         return result
@@ -81,6 +83,8 @@ class LoggingDecorator:
         user_prompt: str,
         model: str,
         max_tokens: int,
+        effort: str | None = None,
+        task_budget_tokens: int | None = None,
     ) -> str:
         start = time.monotonic()
         result = await self._inner.analyze_with_thinking(
@@ -88,6 +92,8 @@ class LoggingDecorator:
             user_prompt=user_prompt,
             model=model,
             max_tokens=max_tokens,
+            effort=effort,
+            task_budget_tokens=task_budget_tokens,
         )
         self._log_call(model, start)
         return result

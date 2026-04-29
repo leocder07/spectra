@@ -140,9 +140,10 @@ class MetaPrompter(BaseAgent):
         super().__init__(
             role="meta_prompter",
             gateway=gateway,
-            model="claude-sonnet-4-5-20250929",
+            model="claude-opus-4-7",
             system_prompt=_SYSTEM_PROMPT,
             max_tokens=5_000,
+            effort="medium",
         )
 
     def validate_input(self, user_prompt: str) -> None:

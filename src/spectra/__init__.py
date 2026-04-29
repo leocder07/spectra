@@ -3,7 +3,7 @@
 The full spectrum of your codebase: architecture, security, quality,
 documentation, maintainability, and performance — analyzed in parallel
 by 6 specialist agents, planned by MetaPrompter, and validated by
-CritiqueAgent with extended thinking.
+CritiqueAgent with adaptive thinking on Claude Opus 4.7.
 
 Usage::
 

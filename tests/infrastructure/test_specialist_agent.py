@@ -500,7 +500,7 @@ class TestSpecialistDifferentRoles:
             id_prefix="SEC",
             system_prompt="test",
         )
-        assert agent._model == "claude-opus-4-6"
+        assert agent._model == "claude-opus-4-7"
 
     def test_default_max_tokens(self, mock_gateway: AsyncMock):
         agent = SpecialistAgent(

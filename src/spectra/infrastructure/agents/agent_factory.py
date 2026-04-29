@@ -11,10 +11,10 @@ shared ``LLMGateway``. No heavy initialization (no model loading, no
 network calls, no file I/O) occurs during agent creation.
 
 Factory dispatch logic:
-    - ``"meta_prompter"`` → ``MetaPrompter`` (Sonnet 4.5, file tree only)
-    - ``"critique"`` → ``CritiqueAgent`` (Opus 4.6, extended thinking)
+    - ``"meta_prompter"`` → ``MetaPrompter`` (Opus 4.7 medium effort, file tree only)
+    - ``"critique"`` → ``CritiqueAgent`` (Opus 4.7, adaptive thinking + task budget)
     - Any specialist role → ``SpecialistAgent`` parameterized with config
-      from ``specialist_prompts.SPECIALIST_CONFIGS``
+      from ``specialist_prompts.SPECIALIST_CONFIGS`` (Opus 4.7, effort=xhigh)
 
 The ``create_specialists()`` convenience method returns all 6 specialist
 agents in canonical order for parallel execution via ``asyncio.gather``.
@@ -66,10 +66,10 @@ class AgentFactory:
         """
         # Factory dispatch: special agents first, then parameterized specialists
         if role == "meta_prompter":
-            # MetaPrompter uses Sonnet 4.5, receives ONLY file tree (≤5K tokens)
+            # MetaPrompter uses Opus 4.7 (medium effort), receives ONLY the file tree (≤5K tokens)
             return MetaPrompter(gateway=self._gateway)
         if role == "critique":
-            # CritiqueAgent uses Opus 4.6 with extended thinking
+            # CritiqueAgent uses Opus 4.7 with adaptive thinking + task budget
             return CritiqueAgent(gateway=self._gateway)
 
         # All 6 specialist roles use the same SpecialistAgent class,

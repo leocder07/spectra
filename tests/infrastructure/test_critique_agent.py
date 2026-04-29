@@ -39,13 +39,17 @@ class TestCritiqueAgentInit:
         assert agent.role == "critique"
 
     def test_model_is_opus(self, agent: CritiqueAgent):
-        assert agent._model == "claude-opus-4-6"
+        assert agent._model == "claude-opus-4-7"
 
     def test_max_tokens(self, agent: CritiqueAgent):
-        assert agent._max_tokens == 16_000
+        assert agent._max_tokens == 64_000
 
-    def test_system_prompt_contains_extended_thinking(self, agent: CritiqueAgent):
-        assert "extended thinking" in agent._system_prompt.lower()
+    def test_system_prompt_instructs_careful_reasoning(self, agent: CritiqueAgent):
+        # Opus 4.7 critique prompt instructs "reason carefully" instead of
+        # the older "extended thinking" wording — the intent is identical.
+        prompt = agent._system_prompt.lower()
+        assert "reason" in prompt
+        assert "carefully" in prompt
 
     def test_system_prompt_mentions_false_positive(self, agent: CritiqueAgent):
         assert "false positive" in agent._system_prompt.lower()
@@ -105,15 +109,18 @@ class TestExecuteLLM:
     async def test_passes_correct_model(self, agent: CritiqueAgent, mock_gateway: AsyncMock):
         await agent.execute_llm("test prompt")
         call_kwargs = mock_gateway.analyze_with_thinking.call_args
-        assert call_kwargs.kwargs.get("model") == "claude-opus-4-6" or call_kwargs[1].get("model") == "claude-opus-4-6"
+        assert call_kwargs.kwargs.get("model") == "claude-opus-4-7" or call_kwargs[1].get("model") == "claude-opus-4-7"
 
     @pytest.mark.asyncio
     async def test_passes_system_prompt(self, agent: CritiqueAgent, mock_gateway: AsyncMock):
         await agent.execute_llm("test prompt")
         call_kwargs = mock_gateway.analyze_with_thinking.call_args
-        # system_prompt should be the CritiqueAgent's system prompt
+        # system_prompt should be the CritiqueAgent's system prompt — it
+        # instructs the model to reason carefully through each finding.
         sp = call_kwargs.kwargs.get("system_prompt") or call_kwargs[1].get("system_prompt", "")
-        assert "extended thinking" in sp.lower()
+        sp_lower = sp.lower()
+        assert "reason" in sp_lower
+        assert "carefully" in sp_lower
 
 
 # ── validate_output ───────────────────────────────────────────

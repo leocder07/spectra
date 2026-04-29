@@ -35,6 +35,7 @@ class BaseAgent(ABC):
         model: str,
         system_prompt: str,
         max_tokens: int,
+        effort: str | None = None,
     ) -> None:
         """Initialize the base agent.
 
@@ -44,12 +45,15 @@ class BaseAgent(ABC):
             model: Anthropic model ID.
             system_prompt: System prompt defining agent behavior.
             max_tokens: Maximum response tokens.
+            effort: Optional ``output_config.effort`` (Opus 4.7: ``xhigh``
+                recommended for coding/agentic; ``high`` is the default).
         """
         self._role = role
         self._gateway = gateway
         self._model = model
         self._system_prompt = system_prompt
         self._max_tokens = max_tokens
+        self._effort = effort
 
     @property
     def role(self) -> AgentRole:
@@ -90,6 +94,7 @@ class BaseAgent(ABC):
             user_prompt=prompt,
             model=self._model,
             max_tokens=self._max_tokens,
+            effort=self._effort,
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:

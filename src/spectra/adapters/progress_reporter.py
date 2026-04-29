@@ -53,14 +53,14 @@ AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
 }
 
 AGENT_MODELS: dict[AgentRole, str] = {
-    "meta_prompter": "claude-sonnet-4-5-20250929",
-    "architecture": "claude-opus-4-6",
-    "security": "claude-opus-4-6",
-    "quality": "claude-opus-4-6",
-    "documentation": "claude-opus-4-6",
-    "dependency": "claude-opus-4-6",
-    "performance": "claude-opus-4-6",
-    "critique": "claude-opus-4-6",
+    "meta_prompter": "claude-opus-4-7",
+    "architecture": "claude-opus-4-7",
+    "security": "claude-opus-4-7",
+    "quality": "claude-opus-4-7",
+    "documentation": "claude-opus-4-7",
+    "dependency": "claude-opus-4-7",
+    "performance": "claude-opus-4-7",
+    "critique": "claude-opus-4-7",
 }
 
 AGENT_DESCRIPTIONS: dict[AgentRole, str] = {
@@ -71,7 +71,7 @@ AGENT_DESCRIPTIONS: dict[AgentRole, str] = {
     "documentation": "docstring & readme audit",
     "dependency": "supply chain & licenses",
     "performance": "hotspots & async patterns",
-    "critique": "extended thinking validation",
+    "critique": "adaptive thinking validation",
 }
 
 # ── Stage aesthetics ────────────────────────────────────────────────────

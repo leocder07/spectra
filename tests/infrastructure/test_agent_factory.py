@@ -72,7 +72,7 @@ class TestAgentFactory:
 
     def test_meta_prompter_uses_sonnet_4_5(self, factory: AgentFactory):
         agent = factory.create("meta_prompter")
-        assert agent._model == "claude-sonnet-4-5-20250929"
+        assert agent._model == "claude-opus-4-7"
 
     def test_critique_uses_opus(self, factory: AgentFactory):
         agent = factory.create("critique")

@@ -23,9 +23,9 @@ Key modules:
 - **report_adapter.py** — Jinja2 HTML report rendering with VC due diligence
   frameworks (OWASP, SOC 2, bus factor, investment readiness).
 - **agents/** — Agent subsystem: ``BaseAgent`` (Template Method ABC),
-  ``AgentFactory`` (creates all 8 agents), ``MetaPrompter`` (Sonnet 4.5),
-  ``SpecialistAgent`` (6 dimensions, all Opus 4.6), ``CritiqueAgent``
-  (Opus 4.6 with extended thinking).
+  ``AgentFactory`` (creates all 8 agents), ``MetaPrompter`` (Opus 4.7,
+  medium effort), ``SpecialistAgent`` (6 dimensions, Opus 4.7 + xhigh
+  effort), ``CritiqueAgent`` (Opus 4.7 + adaptive thinking + task budget).
 
 **Dependency rule**: This layer may import from all inner layers.
 No inner layer imports from infrastructure.
