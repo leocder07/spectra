@@ -20,6 +20,7 @@ from rich.console import Console
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.entities.errors import AgentError, GitError, SpectraRetryError
+from spectra.use_cases.interfaces import is_local_path
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -53,6 +54,43 @@ def _validate_repo_url(url: str) -> str | None:
     if not _URL_PATTERN.match(url):
         return "Invalid URL format — expected https://host/path"
     return None
+
+
+def _validate_local_path(source: str) -> str | None:
+    """Validate a local repository path and return an error message or None.
+
+    Defensive checks: reject ``..`` segments, expand ``~``, require an
+    existing directory containing a ``.git/`` subdirectory, and reject
+    symlinked roots to avoid TOCTOU surprises.
+    """
+    raw = source[len("file://") :] if source.startswith("file://") else source
+    if ".." in Path(raw).parts:
+        return "Path traversal segments (..) are not allowed"
+    expanded = Path(raw).expanduser()
+    if expanded.is_symlink():
+        return f"Symlinked path is not allowed: {source}"
+    if not expanded.exists():
+        return f"Path does not exist: {source}"
+    if not expanded.is_dir():
+        return f"Not a directory: {source}"
+    if not (expanded / ".git").exists():
+        return f"Not a git repository (missing .git/): {source}"
+    return None
+
+
+def _validate_repo_source(source: str) -> str | None:
+    """Validate either a local path or an HTTPS URL based on the source shape."""
+    if is_local_path(source):
+        return _validate_local_path(source)
+    return _validate_repo_url(source)
+
+
+def _derive_display_name(source: str) -> str:
+    """Pick a friendly target name for the banner from a URL or local path."""
+    if is_local_path(source):
+        raw = source[len("file://") :] if source.startswith("file://") else source
+        return Path(raw).expanduser().resolve().name or "repo"
+    return source.rstrip("/").split("/")[-1].removesuffix(".git")
 
 
 _DEFAULT_OUTPUT = Path("spectra-report.html")
@@ -113,9 +151,9 @@ def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
         typer.Exit: If url is malformed, format is invalid, or the
             analyzer factory has not been injected by the composition root.
     """
-    url_error = _validate_repo_url(repo_url)
-    if url_error:
-        console.print(f"[{RED}]✗[/] {url_error}")
+    source_error = _validate_repo_source(repo_url)
+    if source_error:
+        console.print(f"[{RED}]✗[/] {source_error}")
         raise typer.Exit(code=1)
 
     if fmt not in ("html", "json", "sarif"):
@@ -188,7 +226,7 @@ def analyze(
     _validate_analyze_inputs(repo_url, fmt)
 
     _print_banner()
-    repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
+    repo_name = _derive_display_name(repo_url)
     console.print(f"  [{AMBER}]target:[/] {repo_name}  [dim]({repo_url})[/]")
     mode_label = "quick scan [dim](no critique)[/]" if quick else "full analysis [dim](8 agents)[/]"
     console.print(f"  [{AMBER}]mode:[/]   {mode_label}")
