@@ -5,6 +5,12 @@ Run Spectra on every pull request. 8 AI agents analyze your codebase across
 maintainability, performance — and post a single, idempotent PR comment
 with the grade and top findings.
 
+> **Note on this repo's own CI:** Spectra does not dogfood itself on its own
+> pull requests. Exposing `ANTHROPIC_API_KEY` to a `pull_request` workflow
+> means anyone who opens a PR could trigger LLM calls and exhaust the
+> maintainer's token quota. The recipes below are for **your** repo, where
+> you control who can open PRs (or use `pull_request_target` patterns).
+
 ## Quickstart
 
 Add this to `.github/workflows/spectra.yml` in your repo:
