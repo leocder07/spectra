@@ -11,7 +11,7 @@ from __future__ import annotations
 import secrets
 import sqlite3
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -32,9 +32,6 @@ from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -977,3 +974,136 @@ class TestHmacBackwardCompat:
         adapter.set_prompt_version("security", "p")
         adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
         assert adapter.get_findings("h", "security") is not None
+
+
+# ── ADR-012: Per-UID directory layout ──────────────────────────
+
+
+class TestPerUidPath:
+    def test_default_cache_path_includes_uid_segment(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """``default_cache_path()`` puts cache.db under the current effective UID."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 4242, raising=False)
+        path = default_cache_path()
+        assert path == tmp_path / "spectra" / "4242" / "cache.db"
+
+    def test_default_cache_path_falls_back_to_home_cache(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """When XDG_CACHE_HOME is unset, falls back to ~/.cache/spectra/$UID/."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.setattr("os.geteuid", lambda: 99, raising=False)
+        path = default_cache_path()
+        assert path == tmp_path / ".cache" / "spectra" / "99" / "cache.db"
+
+    def test_cache_dir_created_with_mode_0700(
+        self,
+        tmp_path: Path,
+    ):
+        """SqliteCacheAdapter creates its parent dir with mode 0700."""
+        nested = tmp_path / "uid-7" / "cache.db"
+        SqliteCacheAdapter(db_path=nested)
+        # Mask out anything beyond the permission bits.
+        mode = nested.parent.stat().st_mode & 0o777
+        assert mode == 0o700, f"expected 0700, got {oct(mode)}"
+
+    def test_cache_db_chmodded_to_0600(
+        self,
+        tmp_path: Path,
+    ):
+        """The cache.db file is chmodded to 0600 after open."""
+        nested = tmp_path / "uid-7" / "cache.db"
+        SqliteCacheAdapter(db_path=nested)
+        mode = nested.stat().st_mode & 0o777
+        assert mode == 0o600, f"expected 0600, got {oct(mode)}"
+
+
+# ── ADR-012: Cross-user isolation ──────────────────────────────
+
+
+class TestCrossUserIsolation:
+    def test_two_uids_get_different_default_paths(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Adapters running as different UIDs land in different files."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 1001, raising=False)
+        path_a = default_cache_path()
+        monkeypatch.setattr("os.geteuid", lambda: 1002, raising=False)
+        path_b = default_cache_path()
+        assert path_a != path_b
+        assert "1001" in str(path_a)
+        assert "1002" in str(path_b)
+
+    def test_uid_b_cannot_read_uid_a_rows(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """UID-A's rows live in a separate file; UID-B's adapter cannot see them."""
+        from spectra.infrastructure.cache_adapter import default_cache_path
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        monkeypatch.setattr("os.geteuid", lambda: 1001, raising=False)
+        adapter_a = SqliteCacheAdapter(db_path=default_cache_path())
+        adapter_a.set_model_version("m")
+        adapter_a.set_prompt_version("security", "p")
+        adapter_a.put_findings("hash-uid-a", "security", (_make_finding(),), "m", "p")
+        adapter_a.close()
+
+        monkeypatch.setattr("os.geteuid", lambda: 1002, raising=False)
+        adapter_b = SqliteCacheAdapter(db_path=default_cache_path())
+        adapter_b.set_model_version("m")
+        adapter_b.set_prompt_version("security", "p")
+        # UID-B opened a different file under .../1002/cache.db.
+        assert adapter_b.get_findings("hash-uid-a", "security") is None
+
+
+# ── ADR-012: Old-path migration ────────────────────────────────
+
+
+class TestOldPathMigration:
+    def test_old_unscoped_cache_db_is_dropped_on_first_run(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Pre-ADR-012 ``$XDG_CACHE_HOME/spectra/cache.db`` is removed at startup."""
+        from spectra.infrastructure.cache_adapter import migrate_legacy_cache
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        old_db = tmp_path / "spectra" / "cache.db"
+        old_db.parent.mkdir(parents=True)
+        old_db.write_bytes(b"legacy-cache-bytes")
+        assert old_db.exists()
+
+        migrated = migrate_legacy_cache()
+
+        assert migrated is True
+        assert not old_db.exists()
+
+    def test_migrate_legacy_cache_returns_false_when_no_old_db(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """When no legacy cache exists, migration is a no-op."""
+        from spectra.infrastructure.cache_adapter import migrate_legacy_cache
+
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+        assert migrate_legacy_cache() is False
