@@ -493,8 +493,8 @@ def score_to_grade(score: float) -> Grade:
 # ── Cost Estimation ───────────────────────────────────────────
 
 # Per-1K-token pricing (USD)
-_OPUS_INPUT_PER_1K: float = 0.015
-_OPUS_OUTPUT_PER_1K: float = 0.075
+_OPUS_INPUT_PER_1K: float = 0.005
+_OPUS_OUTPUT_PER_1K: float = 0.025
 _SONNET_INPUT_PER_1K: float = 0.003
 _SONNET_OUTPUT_PER_1K: float = 0.015
 
@@ -504,14 +504,14 @@ _OPUS_AVG_PER_1K: float = 0.7 * _OPUS_INPUT_PER_1K + 0.3 * _OPUS_OUTPUT_PER_1K
 _SONNET_AVG_PER_1K: float = 0.7 * _SONNET_INPUT_PER_1K + 0.3 * _SONNET_OUTPUT_PER_1K
 
 _MODEL_COST: dict[AgentRole, float] = {
-    "meta_prompter": _SONNET_AVG_PER_1K,  # Sonnet 4.5
+    "meta_prompter": _OPUS_AVG_PER_1K,  # Opus 4.7, effort=medium
     "architecture": _OPUS_AVG_PER_1K,
     "security": _OPUS_AVG_PER_1K,
     "quality": _OPUS_AVG_PER_1K,
     "documentation": _OPUS_AVG_PER_1K,
     "dependency": _OPUS_AVG_PER_1K,
     "performance": _OPUS_AVG_PER_1K,
-    "critique": _OPUS_AVG_PER_1K,  # Opus 4.6
+    "critique": _OPUS_AVG_PER_1K,  # Opus 4.7, adaptive thinking + task_budget
 }
 
 

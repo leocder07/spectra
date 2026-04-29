@@ -530,16 +530,19 @@ class TestCostCalculation:
         cost = estimate_cost(outputs)
         assert cost > 0.0
 
-    def test_estimate_cost_sonnet_cheaper(self):
-        opus_out = (
+    def test_meta_prompter_priced_same_as_specialist(self):
+        """All 8 agents now run on Opus 4.7, so per-token cost is identical
+        across roles. Used to assert Sonnet was cheaper; that's no longer
+        the wiring."""
+        spec_out = (
             AgentOutput(agent_role="security", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"),
         )
-        sonnet_out = (
+        meta_out = (
             AgentOutput(
                 agent_role="meta_prompter", findings=(), tokens_used=1000, duration_seconds=1.0, raw_response="{}"
             ),
         )
-        assert estimate_cost(sonnet_out) < estimate_cost(opus_out)
+        assert estimate_cost(meta_out) == estimate_cost(spec_out)
 
     def test_estimate_cost_empty(self):
         assert estimate_cost(()) == 0.0
