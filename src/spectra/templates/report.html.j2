@@ -2392,9 +2392,84 @@
             .kb-hint { display: none; }
             .heatmap-bar { width: 50px; }
         }
+
+        /* ─── Indicative-Analysis Disclaimer Banner ─── */
+        .disclaimer-banner {
+            background: #F59E0B;
+            color: #0b0b0d;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            padding: 0.85rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        .disclaimer-banner.is-dismissed { display: none; }
+
+        .disclaimer-banner-content {
+            max-width: 1100px;
+            flex: 1;
+        }
+
+        .disclaimer-banner-content strong { font-weight: 700; }
+
+        .disclaimer-banner-content a {
+            color: #0b0b0d;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-weight: 600;
+        }
+
+        .disclaimer-banner-dismiss {
+            background: transparent;
+            border: 1px solid rgba(11, 11, 13, 0.35);
+            color: #0b0b0d;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
+            padding: 0.35rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .disclaimer-banner-dismiss:hover {
+            background: rgba(11, 11, 13, 0.12);
+        }
+
+        .disclaimer-banner-dismiss:focus-visible {
+            outline: 2px solid #0b0b0d;
+            outline-offset: 2px;
+        }
+
+        @media print {
+            .disclaimer-banner-dismiss { display: none; }
+            .disclaimer-banner { position: static; }
+        }
     </style>
 </head>
 <body>
+    <!-- Indicative-Analysis Disclaimer (capability #61) -->
+    <div class="disclaimer-banner" id="disclaimer-banner" role="note" aria-label="Analysis disclaimer">
+        <div class="disclaimer-banner-content">
+            <strong>Indicative analysis — not auditor-grade evidence.</strong>
+            Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.
+            <a href="{{ disclaimer.url }}" rel="noopener">Learn more</a>
+        </div>
+        <button type="button"
+                class="disclaimer-banner-dismiss"
+                data-action="dismiss-disclaimer"
+                aria-label="Dismiss disclaimer for this session">×</button>
+    </div>
+
     <div class="container">
         <!-- Header -->
         <header class="header" id="top">
@@ -3901,12 +3976,47 @@
             updateSpy();
         }
 
+        /* ─── 9. Disclaimer Banner Dismissal (CSP-safe) ─── */
+        var DISCLAIMER_DISMISS_KEY = 'spectra:disclaimer:dismissed';
+
+        function safeSessionGet(key) {
+            try { return window.sessionStorage.getItem(key); }
+            catch (e) { return null; }
+        }
+
+        function safeSessionSet(key, value) {
+            try { window.sessionStorage.setItem(key, value); }
+            catch (e) { /* private mode or quota — fail open */ }
+        }
+
+        function initDisclaimerBanner() {
+            var banner = document.getElementById('disclaimer-banner');
+            if (!banner) return;
+
+            if (safeSessionGet(DISCLAIMER_DISMISS_KEY) === '1') {
+                banner.classList.add('is-dismissed');
+            }
+
+            /* Event delegation: no inline handlers, no per-element listeners.
+               Survives any future banners that reuse data-action="dismiss-disclaimer". */
+            document.addEventListener('click', function(evt) {
+                var target = evt.target;
+                if (!target || typeof target.closest !== 'function') return;
+                var trigger = target.closest('[data-action="dismiss-disclaimer"]');
+                if (!trigger) return;
+                evt.preventDefault();
+                banner.classList.add('is-dismissed');
+                safeSessionSet(DISCLAIMER_DISMISS_KEY, '1');
+            });
+        }
+
         /* ─── Initialize Everything ─── */
         document.addEventListener('DOMContentLoaded', function() {
             initRadarChart();
             initCounters();
             initScrollReveal();
             initScrollSpy();
+            initDisclaimerBanner();
         });
 
     })();

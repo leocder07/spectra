@@ -20,6 +20,7 @@ from pathlib import Path
 import jinja2
 
 from spectra.adapters.brand import build_verdict, dim_label
+from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.enums import AgentRole, Dimension, Grade
 from spectra.entities.models import AnalysisReport, Finding
 
@@ -1897,6 +1898,7 @@ class ReportAdapter:
             has_mermaid=has_mermaid,
             csp_nonce=csp_nonce,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+            disclaimer=disclaimer_payload(),
         )
         Path(output_path).write_text(html, encoding="utf-8")
         return output_path

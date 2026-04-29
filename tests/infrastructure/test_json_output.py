@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 # Import enums first so Pydantic can resolve forward refs in models.
+from spectra.entities.disclaimer import DISCLAIMER_TEXT, DISCLAIMER_URL
 from spectra.entities.enums import (  # noqa: F401
     AgentRole,
     Dimension,
@@ -21,6 +22,7 @@ from spectra.entities.models import (
     ScoreCard,
     score_to_grade,
 )
+from spectra.infrastructure.main import build_json_payload
 
 # Resolve deferred Pydantic annotations (TYPE_CHECKING guard in models.py).
 Finding.model_rebuild()
@@ -178,3 +180,36 @@ class TestJsonOutput:
             assert "score" in dim
             assert "grade" in dim
             assert "weight" in dim
+
+
+class TestJsonDisclaimer:
+    """JSON output carries the indicative-analysis disclaimer at the top level.
+
+    SAST consumers and machine pipelines read the disclaimer programmatically;
+    it is a data field, not a UI element, and cannot be dismissed.
+    """
+
+    def test_payload_has_top_level_disclaimer(self):
+        payload = build_json_payload(_minimal_report())
+        assert "disclaimer" in payload
+
+    def test_disclaimer_has_text_and_url(self):
+        payload = build_json_payload(_minimal_report())
+        assert payload["disclaimer"]["text"] == DISCLAIMER_TEXT
+        assert payload["disclaimer"]["url"] == DISCLAIMER_URL
+
+    def test_disclaimer_text_at_least_50_chars(self):
+        payload = build_json_payload(_minimal_report())
+        assert len(payload["disclaimer"]["text"]) >= 50
+
+    def test_disclaimer_does_not_clobber_report_fields(self):
+        payload = build_json_payload(_minimal_report())
+        # Report fields must still be present alongside the disclaimer.
+        assert payload["repo_name"] == "repo"
+        assert payload["score_card"]["overall_grade"]
+        assert isinstance(payload["findings"], list)
+
+    def test_json_serializes_round_trip(self):
+        payload = build_json_payload(_minimal_report())
+        roundtrip = json.loads(json.dumps(payload))
+        assert roundtrip["disclaimer"]["text"] == DISCLAIMER_TEXT

@@ -716,6 +716,33 @@ class TestBuildSarif:
         region = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]
         assert region["startLine"] == 1
 
+    def test_sarif_run_has_invocation_with_disclaimer_notification(self):
+        """SARIF run carries the indicative-analysis disclaimer in
+        ``invocations[0].notifications`` so SAST consumers see it natively
+        through the standard SARIF mechanism."""
+        from spectra.entities.disclaimer import DISCLAIMER_TEXT, DISCLAIMER_URL
+
+        sarif = _build_sarif(self._make_report())
+        run = sarif["runs"][0]
+        assert "invocations" in run
+        assert len(run["invocations"]) >= 1
+
+        notifications = run["invocations"][0].get("notifications", [])
+        disclaimer_notes = [n for n in notifications if n.get("level") == "note"]
+        assert disclaimer_notes, "disclaimer notification missing"
+
+        note = disclaimer_notes[0]
+        assert note["message"]["text"] == DISCLAIMER_TEXT
+        # Help URI surfaces the docs link to consumers that respect it.
+        assert note.get("descriptor", {}).get("helpUri") == DISCLAIMER_URL
+
+    def test_sarif_invocation_marks_execution_successful(self):
+        """The synthetic invocation must report executionSuccessful=True
+        (per SARIF 2.1.0 §3.20.7) so consumers do not flag it as a failure."""
+        sarif = _build_sarif(self._make_report())
+        invocation = sarif["runs"][0]["invocations"][0]
+        assert invocation.get("executionSuccessful") is True
+
     def test_provision_cache_only_returns_sqlite_adapter(self, tmp_path):
         """_provision_cache_only returns a usable SqliteCacheAdapter."""
         from spectra.infrastructure.cache_adapter import SqliteCacheAdapter

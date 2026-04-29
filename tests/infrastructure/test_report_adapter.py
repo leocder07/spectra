@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from importlib.resources import files
 from pathlib import Path
@@ -10,6 +11,7 @@ import jinja2
 import pytest
 
 from spectra.adapters.brand import build_verdict
+from spectra.entities.disclaimer import DISCLAIMER_URL
 from spectra.entities.models import (
     AnalysisReport,
     DimensionScore,
@@ -255,6 +257,70 @@ class TestReportAdapter:
             )
         finally:
             Path(path).unlink(missing_ok=True)
+
+
+# ── Indicative-Analysis Disclaimer Banner ────────────────────
+
+
+def _render_to_string(report: AnalysisReport) -> str:
+    """Render a report and return the HTML as a string."""
+    adapter = ReportAdapter()
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+        path = f.name
+    try:
+        adapter.render(report, path)
+        return Path(path).read_text(encoding="utf-8")
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+class TestDisclaimerBanner:
+    """The HTML report carries an indicative-analysis disclaimer banner.
+
+    The banner sits above the ScoreCard, uses an amber background, is
+    dismissible via session-scoped storage, and exposes the canonical
+    text + URL from ``spectra.entities.disclaimer``.
+    """
+
+    def test_html_contains_canonical_disclaimer_text(self):
+        # Use a regex to be tolerant of HTML escaping of "—" and quotes
+        # while still locking in the verbatim opening phrase.
+        html = _render_to_string(_minimal_report())
+        assert re.search(r"Indicative analysis\s*[—&#x2014;-]+\s*not auditor-grade evidence", html), (
+            "Banner phrase missing from HTML report"
+        )
+
+    def test_banner_includes_link_to_docs(self):
+        html = _render_to_string(_minimal_report())
+        assert DISCLAIMER_URL in html
+
+    def test_banner_uses_amber_background(self):
+        html = _render_to_string(_minimal_report())
+        # Brand amber. Lowercase and uppercase are both acceptable.
+        assert "#f59e0b" in html.lower()
+
+    def test_banner_renders_above_scorecard(self):
+        html = _render_to_string(_minimal_report())
+        banner_idx = html.find("disclaimer-banner")
+        scorecard_idx = html.find('id="scores"')
+        assert banner_idx != -1, "disclaimer-banner element missing"
+        assert scorecard_idx != -1, "scorecard anchor missing"
+        assert banner_idx < scorecard_idx, "banner must precede scorecard"
+
+    def test_banner_dismiss_uses_data_action_not_inline_onclick(self):
+        # CSP-safe: event delegation only. No inline onclick handlers.
+        html = _render_to_string(_minimal_report())
+        assert 'data-action="dismiss-disclaimer"' in html
+        # No inline event handlers anywhere on the banner element.
+        banner_block = html[html.find("disclaimer-banner") : html.find("disclaimer-banner") + 1500]
+        assert "onclick=" not in banner_block
+
+    def test_banner_dismiss_persists_in_session_storage(self):
+        # The script block must reference sessionStorage (not localStorage)
+        # so dismissal survives the tab but resets on a fresh window.
+        html = _render_to_string(_minimal_report())
+        assert "sessionStorage" in html
+        assert "localStorage" not in html or html.count("localStorage") == 0
 
 
 # ── Badge SVG generation ─────────────────────────────────────
