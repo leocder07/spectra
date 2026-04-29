@@ -224,7 +224,39 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 ## Architecture
 
-Clean Architecture with four strict layers:
+### System context
+
+Spectra in its environment — who invokes it and what it talks to. Two install paths (local pip + GitHub Action), one PyPI package. Source: [`docs/diagrams/system-context.md`](docs/diagrams/system-context.md).
+
+```mermaid
+flowchart LR
+    classDef person      fill:#dbeafe,stroke:#1e3a8a,stroke-width:2px,color:#1e293b
+    classDef system      fill:#ede9fe,stroke:#7C3AED,stroke-width:4px,color:#1e293b
+    classDef external    fill:#fef3c7,stroke:#92400e,stroke-width:2px,color:#1e293b
+    classDef storage     fill:#dcfce7,stroke:#166534,stroke-width:2px,color:#1e293b
+    classDef distribution fill:#fef3c7,stroke:#92400e,stroke-width:2px,color:#1e293b
+
+    Dev["<b>Developer</b><br/>[Person]<br/>Runs spectra analyze<br/>from a terminal"]:::person
+    PR["<b>GitHub PR</b><br/>[External CI]<br/>pull_request event<br/>invokes the Action"]:::person
+
+    Spectra(["<b>Spectra CLI</b><br/>[Software System]<br/>8 AI agents · 6 dimensions<br/>Clean Architecture · Python 3.12+<br/>5-stage pipeline + cache"]):::system
+
+    Anthropic["<b>Anthropic API</b><br/>[External SaaS]<br/>Claude Opus 4.7<br/>all 8 agents"]:::external
+    GitHub["<b>GitHub.com</b><br/>[External Service]<br/>Git clone source<br/>HTTPS only"]:::external
+    PyPI["<b>PyPI</b><br/>[Distribution]<br/>pip install spectra-ai<br/>also installed by Action"]:::distribution
+    FS[("<b>Local Filesystem</b><br/>[OS]<br/>~/.cache/spectra/cache.db (SQLite WAL)<br/>spectra-report.{html,json,sarif}")]:::storage
+
+    Dev      -- "spectra analyze ."          --> Spectra
+    PR       -- "uses: spectra-ai/spectra@v1" --> Spectra
+    Spectra  -- "HTTPS · streaming /messages" --> Anthropic
+    Spectra  -- "git clone (depth=1)"        --> GitHub
+    Spectra  <-- "cache R/W · report write"  --> FS
+    PyPI     -. "install (cold path)"        .-> Spectra
+```
+
+### Clean Architecture layers
+
+Four strict layers with one rule:
 
 ```mermaid
 graph TB
@@ -320,13 +352,13 @@ graph TB
 | Cost | $1-10 per analysis |
 | Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
-| Error codes | 9 typed (SPEC-001 to SPEC-009) |
+| Error codes | 10 typed (SPEC-001 to SPEC-010) |
 
 ---
 
 ## CI Integration
 
-Use the official GitHub Action — one step, no Python setup needed. See [docs/github-action.md](docs/github-action.md) for the full reference.
+The official GitHub Action installs Spectra from PyPI and runs `spectra analyze` on every PR — no Python setup, no extra steps. See [docs/github-action.md](docs/github-action.md) for the full reference.
 
 ```yaml
 # .github/workflows/spectra-analyze.yml
@@ -345,6 +377,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
+
+The Action also writes SARIF, which GitHub picks up under the **Security** tab — findings show inline on the PR.
 
 ---
 
