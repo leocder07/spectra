@@ -22,7 +22,12 @@ from pathlib import Path
 from typing import Protocol
 
 from spectra.entities.enums import AgentRole, Dimension
-from spectra.entities.models import AnalysisReport, CacheStats, Finding
+from spectra.entities.models import (
+    AnalysisReport,
+    CacheStats,
+    Finding,
+    RepoCacheKey,
+)
 
 # Prefixes that unambiguously denote a local filesystem source.
 _LOCAL_PREFIXES: tuple[str, ...] = ("/", "./", "../", "~", "file://")
@@ -266,4 +271,18 @@ class CachePort(Protocol):
 
     def clear(self, repo_signature: str | None = None) -> int:
         """Purge entries; return the count removed."""
+        ...
+
+    def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
+        """Return the full ``AnalysisReport`` cached under ``key``, or ``None`` on miss.
+
+        Phase 2 repo-level shortcut: when the file tree, model versions,
+        prompt versions, schema version, and spectra version all match
+        the previous successful run, callers can skip the entire ANALYZE
+        + CRITIQUE pipeline and return the cached report directly.
+        """
+        ...
+
+    def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
+        """Persist ``report`` under ``key`` for the Phase 2 short-circuit."""
         ...

@@ -5,17 +5,22 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from spectra.entities.models import (
     AgentOutput,
+    AnalysisReport,
     AnalysisRequest,
     Codebase,
+    DimensionScore,
     FileLocation,
     Finding,
+    RepoCacheKey,
+    ScoreCard,
     estimate_cost,
+    score_to_grade,
 )
 from spectra.use_cases.analyze_repository import (
     PipelineContext,
@@ -1409,3 +1414,236 @@ class TestPrepareWorkspaceIntegration:
         link.symlink_to(real)
         with pytest.raises(GitError):
             await adapter.prepare_workspace(str(link), target_dir="/tmp/x")  # noqa: S108
+
+
+# ── Phase 2: repo-level cache short-circuit ──────────────────
+
+
+def _stub_scorecard(score: float = 80.0) -> ScoreCard:
+    dim = DimensionScore(
+        dimension="security",
+        score=score,
+        grade=score_to_grade(score),
+        findings_count=0,
+        weight=1.0,
+    )
+    return ScoreCard(
+        overall_score=score,
+        overall_grade=score_to_grade(score),
+        dimensions=(dim,),
+        total_findings=0,
+    )
+
+
+def _stub_report(repo_url: str = "https://github.com/test/repo") -> AnalysisReport:
+    return AnalysisReport(
+        repo_url=repo_url,
+        repo_name="repo",
+        score_card=_stub_scorecard(),
+        findings=(),
+        analysis_duration_seconds=0.5,
+        total_tokens_used=42,
+        total_cost_usd=0.0,
+        agents_used=("security",),
+    )
+
+
+def _make_cache_mock(*, hit: AnalysisReport | None) -> MagicMock:
+    """Build a CachePort mock returning ``hit`` from get_full_report."""
+    cache = MagicMock()
+    cache.compute_repo_signature.return_value = "deadbeef" * 4
+    cache.get_full_report.return_value = hit
+    cache.put_full_report.return_value = None
+    return cache
+
+
+def _build_cache_key(repo_signature: str = "deadbeef" * 4) -> RepoCacheKey:
+    return RepoCacheKey(
+        repo_signature=repo_signature,
+        spectra_version="0.1.0",
+        model_versions="claude-opus-4-7|claude-opus-4-7",
+        prompt_versions="prompts-v1",
+        schema_version="v1",
+    )
+
+
+class TestPipelineCacheShortCircuit:
+    @pytest.mark.asyncio
+    async def test_pipeline_short_circuits_on_cache_hit(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        cached = _stub_report(repo_url=analysis_request.repo_url)
+        cache = _make_cache_mock(hit=cached)
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+        )
+
+        report = await analyze_repository(ctx)
+
+        # Specialists / critique / meta must not be invoked when cache hits.
+        meta_prompter.run.assert_not_called()
+        for spec in six_specialists:
+            spec.run.assert_not_called()
+        critique_agent.run.assert_not_called()
+        assert report is cached
+
+    @pytest.mark.asyncio
+    async def test_pipeline_writes_cache_on_success(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        cache = _make_cache_mock(hit=None)
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+        )
+
+        report = await analyze_repository(ctx)
+
+        cache.put_full_report.assert_called_once()
+        stored_key, stored_report = cache.put_full_report.call_args.args
+        assert isinstance(stored_key, RepoCacheKey)
+        assert stored_report is report
+
+    @pytest.mark.asyncio
+    async def test_pipeline_does_not_cache_on_failure(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        critique_agent,
+        make_agent,
+    ):
+        # Two failed specialists → degraded; cache write must be skipped.
+        specialists = [
+            make_agent("architecture", error=RuntimeError("fail")),
+            make_agent("security", error=RuntimeError("fail")),
+            make_agent("quality"),
+            make_agent("documentation"),
+            make_agent("dependency"),
+            make_agent("performance"),
+        ]
+        cache = _make_cache_mock(hit=None)
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+        )
+
+        await analyze_repository(ctx)
+
+        cache.put_full_report.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_force_flag_bypasses_cache_read(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        cached = _stub_report(repo_url=analysis_request.repo_url)
+        cache = _make_cache_mock(hit=cached)
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            force_cache_bypass=True,
+        )
+
+        report = await analyze_repository(ctx)
+
+        # --force MUST run the full pipeline despite the hit, then refresh cache.
+        meta_prompter.run.assert_called()
+        for spec in six_specialists:
+            spec.run.assert_called()
+        cache.put_full_report.assert_called_once()
+        assert report is not cached
+
+    @pytest.mark.asyncio
+    async def test_no_cache_flag_bypasses_both_read_and_write(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        cached = _stub_report(repo_url=analysis_request.repo_url)
+        cache = _make_cache_mock(hit=cached)
+        # --no-cache is modelled as "cache_port is None" at the use-case layer
+        # (the composition root makes the decision).
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+            cache_port=None,
+            cache_key_factory=_build_cache_key,
+        )
+
+        report = await analyze_repository(ctx)
+
+        meta_prompter.run.assert_called()
+        cache.get_full_report.assert_not_called()
+        cache.put_full_report.assert_not_called()
+        assert report.repo_url == analysis_request.repo_url
+
+    @pytest.mark.asyncio
+    async def test_progress_observer_notified_on_cache_hit(
+        self,
+        analysis_request,
+        codebase,
+        meta_prompter,
+        six_specialists,
+        critique_agent,
+    ):
+        cached = _stub_report(repo_url=analysis_request.repo_url)
+        cache = _make_cache_mock(hit=cached)
+        observer = MagicMock()
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+            cache_port=cache,
+            cache_key_factory=_build_cache_key,
+            observer=observer,
+        )
+
+        await analyze_repository(ctx)
+
+        # Observer.on_stage_start("CACHE", ...) is the load-bearing signal.
+        stage_calls = [c.args for c in observer.on_stage_start.call_args_list]
+        assert any(args and args[0] == "CACHE" for args in stage_calls)

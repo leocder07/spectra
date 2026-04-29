@@ -15,6 +15,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.errors import ERRORS, strip_code_fence
@@ -26,12 +27,13 @@ from spectra.entities.models import (
     Codebase,
     DimensionScore,
     Finding,
+    RepoCacheKey,
     ScoreCard,
     TokenBudget,
     estimate_cost,
     score_to_grade,
 )
-from spectra.use_cases.interfaces import GitPort, ProgressObserver
+from spectra.use_cases.interfaces import CachePort, GitPort, ProgressObserver
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
     allocate_specialist_budgets,
@@ -42,6 +44,11 @@ from spectra.use_cases.orchestrate_agents import (
     evaluate_results,
     run_specialists,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    CacheKeyFactory = Callable[[str], RepoCacheKey]
 
 _log = logging.getLogger("spectra.pipeline")
 
@@ -56,6 +63,11 @@ class PipelineContext:
     Bundles every input the 6-stage pipeline needs into a single value object
     so the public ``analyze_repository`` entry point honours the ≤3-parameter
     rule (Fowler: Replace Long Parameter List with Parameter Object).
+
+    Phase 2 cache hooks are optional: ``cache_port=None`` (the default and
+    the wiring used when ``--no-cache`` is passed at the CLI) skips both
+    the read and the write. ``force_cache_bypass=True`` ignores any hit
+    on read but still refreshes the cache on a successful run.
     """
 
     request: AnalysisRequest
@@ -66,6 +78,9 @@ class PipelineContext:
     git_port: GitPort | None = None
     observer: ProgressObserver | None = None
     source_files: dict[str, str] | None = None
+    cache_port: CachePort | None = None
+    cache_key_factory: CacheKeyFactory | None = None
+    force_cache_bypass: bool = False
 
 
 @dataclass
@@ -140,12 +155,66 @@ async def _run_pipeline(
     state: _PipelineState,
 ) -> AnalysisReport:
     """Thin coordinator that delegates to stage functions."""
+    cached = _try_serve_from_cache(ctx)
+    if cached is not None:
+        return cached
     plan = await _run_plan_stage(ctx, state)
     await _resolve_source_files(ctx, plan, state)
     state.analysis = await _run_analyze_stage(ctx, plan, state)
     findings = _run_merge_stage(state, ctx)
     output = await _run_critique_pipeline(ctx, findings, state)
-    return _build_report(ctx, state, output)
+    report = _build_report(ctx, state, output)
+    _store_in_cache(ctx, report)
+    return report
+
+
+# ── Phase 2: repo-level cache short-circuit ───────────────────
+
+
+def _try_serve_from_cache(ctx: PipelineContext) -> AnalysisReport | None:
+    """Return a cached report when eligible, else ``None``.
+
+    Returns ``None`` when caching is disabled (``cache_port`` or factory
+    missing), when ``--force`` bypass is set, or when the cache misses.
+    Notifies the observer with a CACHE stage marker on a hit so callers
+    surface the "served from cache" message to the user.
+    """
+    key = _resolve_cache_key(ctx)
+    if key is None or ctx.force_cache_bypass:
+        return None
+    cached = ctx.cache_port.get_full_report(key)  # type: ignore[union-attr]
+    if cached is None:
+        return None
+    _notify(
+        ctx.observer,
+        "on_stage_start",
+        "CACHE",
+        "full report served from cache (use --force to re-analyze)",
+    )
+    return cached
+
+
+def _store_in_cache(ctx: PipelineContext, report: AnalysisReport) -> None:
+    """Write ``report`` to the cache when eligible.
+
+    Skips writes on a degraded run — a partial report would poison the
+    cache. ``--force`` still triggers a write so the next run benefits
+    from the freshly-computed result.
+    """
+    if report.is_degraded:
+        return
+    key = _resolve_cache_key(ctx)
+    if key is None:
+        return
+    ctx.cache_port.put_full_report(key, report)  # type: ignore[union-attr]
+
+
+def _resolve_cache_key(ctx: PipelineContext) -> RepoCacheKey | None:
+    """Build the ``RepoCacheKey`` for this run, or ``None`` if disabled."""
+    if ctx.cache_port is None or ctx.cache_key_factory is None:
+        return None
+    repo_signature = ctx.cache_port.compute_repo_signature(ctx.codebase.file_tree)
+    return ctx.cache_key_factory(repo_signature)
 
 
 # ── Stage 2: PLAN ────────────────────────────────────────────

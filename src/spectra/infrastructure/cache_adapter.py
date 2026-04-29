@@ -28,7 +28,12 @@ from typing import TYPE_CHECKING, NamedTuple
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.entities.enums import Dimension, SchemaVersion
 from spectra.entities.errors import ERRORS, AgentError
-from spectra.entities.models import CacheStats, Finding
+from spectra.entities.models import (
+    AnalysisReport,
+    CacheStats,
+    Finding,
+    RepoCacheKey,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -65,6 +70,25 @@ _CREATE_HIT_LOG = """
 CREATE TABLE IF NOT EXISTS hit_log (
     ts        TIMESTAMP NOT NULL,
     hit       INTEGER NOT NULL
+)
+"""
+
+_CREATE_FULL_REPORT_TABLE = """
+CREATE TABLE IF NOT EXISTS full_report_cache (
+    repo_signature   TEXT NOT NULL,
+    spectra_version  TEXT NOT NULL,
+    model_versions   TEXT NOT NULL,
+    prompt_versions  TEXT NOT NULL,
+    schema_version   TEXT NOT NULL,
+    report_json      TEXT NOT NULL,
+    computed_at      TIMESTAMP NOT NULL,
+    PRIMARY KEY (
+        repo_signature,
+        spectra_version,
+        model_versions,
+        prompt_versions,
+        schema_version
+    )
 )
 """
 
@@ -158,6 +182,7 @@ class SqliteCacheAdapter:
             self._conn.execute(_CREATE_REPO_INDEX)
             self._conn.execute(_CREATE_AGE_INDEX)
             self._conn.execute(_CREATE_HIT_LOG)
+            self._conn.execute(_CREATE_FULL_REPORT_TABLE)
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
@@ -284,6 +309,25 @@ class SqliteCacheAdapter:
             digest.update(b"\x00")
         return digest.hexdigest()
 
+    # ── Phase 2: full-report storage ──────────────────────────
+
+    def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
+        """Return the full ``AnalysisReport`` cached under ``key``, or ``None`` on miss."""
+        with _guard_io():
+            row = self._conn.execute(
+                _SELECT_FULL_REPORT_SQL,
+                _full_report_key_params(key),
+            ).fetchone()
+        if row is None:
+            return None
+        return AnalysisReport.model_validate_json(row[0])
+
+    def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
+        """Persist ``report`` under ``key`` for the Phase 2 short-circuit."""
+        params = _full_report_upsert_params(key, report)
+        with _guard_io():
+            self._conn.execute(_UPSERT_FULL_REPORT_SQL, params)
+
     # ── Private helpers ───────────────────────────────────────
 
     def _prompt_for(self, dimension: Dimension) -> str:
@@ -341,6 +385,50 @@ FROM findings_cache
 """
 
 _HIT_LOG_SQL = "SELECT hit FROM hit_log ORDER BY ts DESC LIMIT 100"
+
+_SELECT_FULL_REPORT_SQL = """
+SELECT report_json
+FROM full_report_cache
+WHERE repo_signature = ?
+  AND spectra_version = ?
+  AND model_versions = ?
+  AND prompt_versions = ?
+  AND schema_version = ?
+"""
+
+_UPSERT_FULL_REPORT_SQL = """
+INSERT OR REPLACE INTO full_report_cache (
+    repo_signature, spectra_version, model_versions,
+    prompt_versions, schema_version, report_json, computed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def _full_report_key_params(key: RepoCacheKey) -> tuple[str, ...]:
+    """Pack a RepoCacheKey into the lookup parameter tuple."""
+    return (
+        key.repo_signature,
+        key.spectra_version,
+        key.model_versions,
+        key.prompt_versions,
+        key.schema_version,
+    )
+
+
+def _full_report_upsert_params(
+    key: RepoCacheKey,
+    report: AnalysisReport,
+) -> tuple[object, ...]:
+    """Pack key + report into the upsert parameter tuple."""
+    return (
+        key.repo_signature,
+        key.spectra_version,
+        key.model_versions,
+        key.prompt_versions,
+        key.schema_version,
+        report.model_dump_json(),
+        datetime.now(UTC),
+    )
 
 
 # ── SQLite type adapters (Python 3.12+ requires explicit registration) ──
