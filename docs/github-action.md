@@ -51,7 +51,7 @@ If you set `comment-on-pr: "false"` you can drop `pull-requests: write`.
 | Name                | Required | Default  | Description                                                                                                      |
 | ------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `anthropic-api-key` | yes      | —        | Your Anthropic API key. Pass via `${{ secrets.ANTHROPIC_API_KEY }}`.                                             |
-| `path`              | no       | `.`      | Path or URL to analyze. `.` resolves to the current `$GITHUB_REPOSITORY`.                                        |
+| `path`              | no       | `.`      | Path or https URL to analyze. `.` analyzes the checked-out workspace directly (no re-clone).                     |
 | `format`            | no       | `json`   | `json` (recommended for CI) or `html`.                                                                           |
 | `quick-mode`        | no       | `false`  | When `true`, skip the CritiqueAgent stage. Roughly 3x faster, slightly less accurate.                            |
 | `comment-on-pr`     | no       | `true`   | Post or update a PR comment with findings. No-op outside `pull_request` events.                                  |
@@ -123,10 +123,6 @@ roughly halve token usage on draft PRs.
 
 ## Troubleshooting
 
-- **"Only HTTPS repository URLs are supported"** — the CLI does not yet
-  accept local paths. The Action works around this by passing
-  `https://github.com/$GITHUB_REPOSITORY.git` when `path` is `.`. Make
-  sure your repo is public or the runner has clone access.
 - **Comment not posted** — check that the workflow grants
   `pull-requests: write` and that the secret name is exactly
   `ANTHROPIC_API_KEY`.
