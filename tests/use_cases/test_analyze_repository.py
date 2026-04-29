@@ -18,6 +18,7 @@ from spectra.entities.models import (
     estimate_cost,
 )
 from spectra.use_cases.analyze_repository import (
+    PipelineContext,
     _apply_critique,
     _build_source_context,
     _compute_scorecard,
@@ -102,13 +103,14 @@ def critique_agent(make_agent):
 class TestAnalyzeRepository:
     @pytest.mark.asyncio
     async def test_full_pipeline(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         assert report.repo_url == "https://github.com/test/repo"
         assert report.repo_name == "repo"
         assert report.is_degraded is False
@@ -118,25 +120,27 @@ class TestAnalyzeRepository:
     @pytest.mark.asyncio
     async def test_quick_mode_skips_critique(self, codebase, meta_prompter, six_specialists, critique_agent):
         req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
-        report = await analyze_repository(
-            req,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=req,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         critique_agent.run.assert_not_called()
         assert report.is_degraded is False
 
     @pytest.mark.asyncio
     async def test_no_critique_agent(self, analysis_request, codebase, meta_prompter, six_specialists):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            None,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=None,
         )
+        report = await analyze_repository(ctx)
         assert report.is_degraded is False
 
     @pytest.mark.asyncio
@@ -149,13 +153,14 @@ class TestAnalyzeRepository:
             make_agent("dependency"),
             make_agent("performance"),
         ]
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         assert report.is_degraded is True
         assert len(report.degraded_dimensions) == 2
 
@@ -169,13 +174,14 @@ class TestAnalyzeRepository:
             make_agent("dependency"),
             make_agent("performance"),
         ]
-        await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
         )
+        await analyze_repository(ctx)
         critique_agent.run.assert_not_called()
 
     @pytest.mark.asyncio
@@ -190,14 +196,15 @@ class TestAnalyzeRepository:
             make_agent("dependency"),
             make_agent("performance"),
         ]
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
+        )
         with caplog.at_level(logging.WARNING, logger="spectra.pipeline"):
-            await analyze_repository(
-                analysis_request,
-                codebase,
-                meta_prompter,
-                specialists,
-                critique_agent,
-            )
+            await analyze_repository(ctx)
         assert any("SPEC-007" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
@@ -205,14 +212,15 @@ class TestAnalyzeRepository:
         self, analysis_request, codebase, meta_prompter, six_specialists, make_agent, caplog
     ):
         bad_critique = make_agent("critique", error=RuntimeError("critique boom"))
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=bad_critique,
+        )
         with caplog.at_level(logging.WARNING, logger="spectra.pipeline"):
-            report = await analyze_repository(
-                analysis_request,
-                codebase,
-                meta_prompter,
-                six_specialists,
-                bad_critique,
-            )
+            report = await analyze_repository(ctx)
         assert any("SPEC-008" in r.message for r in caplog.records)
         assert report.is_degraded is False  # critique failure doesn't degrade
 
@@ -229,13 +237,14 @@ class TestAnalyzeRepository:
             make_agent("dependency"),
             make_agent("performance"),
         ]
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         sec_findings = [f for f in report.findings if f.dimension == "security"]
         assert len(sec_findings) <= 1
 
@@ -243,25 +252,27 @@ class TestAnalyzeRepository:
     async def test_scorecard_has_dimensions(
         self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
     ):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         assert len(report.score_card.dimensions) == 6
         assert 0 <= report.score_card.overall_score <= 100
 
     @pytest.mark.asyncio
     async def test_tokens_accumulated(self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         # meta_prompter(500) + 6 specialists(500 each) + critique(500) = 4000
         assert report.total_tokens_used == 4000
 
@@ -437,14 +448,15 @@ class TestPipelineWithGitPort:
         git_port = AsyncMock()
         git_port.read_file.return_value = "print('hello')"
 
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
             git_port=git_port,
         )
+        report = await analyze_repository(ctx)
         git_port.read_file.assert_called_once_with("/tmp/repo", "src/main.py")  # noqa: S108
         assert report.repo_url == "https://github.com/test/repo"
 
@@ -454,15 +466,16 @@ class TestPipelineWithGitPort:
     ):
         git_port = AsyncMock()
         source = {"src/main.py": "# pre-read content"}
-        await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
-            source_files=source,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
             git_port=git_port,
+            source_files=source,
         )
+        await analyze_repository(ctx)
         git_port.read_file.assert_not_called()
 
     @pytest.mark.asyncio
@@ -488,14 +501,15 @@ class TestPipelineWithGitPort:
         )
 
         git_port = AsyncMock()
-        await analyze_repository(
-            analysis_request,
-            codebase,
-            meta,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
             git_port=git_port,
         )
+        await analyze_repository(ctx)
         git_port.read_file.assert_not_called()
 
 
@@ -529,13 +543,14 @@ class TestCostCalculation:
     async def test_pipeline_reports_nonzero_cost(
         self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
     ):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
         )
+        report = await analyze_repository(ctx)
         assert report.total_cost_usd > 0.0
 
 
@@ -645,13 +660,14 @@ class TestCrossCuttingInsights:
             duration_seconds=1.0,
             raw_response=critique_response,
         )
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique,
         )
+        report = await analyze_repository(ctx)
         assert len(report.cross_cutting_insights) == 2
         assert "Insight one" in report.cross_cutting_insights
 
@@ -714,14 +730,15 @@ class TestObserverWiring:
         from unittest.mock import MagicMock
 
         observer = MagicMock()
-        await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
             observer=observer,
         )
+        await analyze_repository(ctx)
         observer.on_stage_start.assert_called()
         observer.on_stage_complete.assert_called()
         observer.on_agent_start.assert_called()
@@ -731,14 +748,15 @@ class TestObserverWiring:
     async def test_observer_none_doesnt_crash(
         self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
     ):
-        report = await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            six_specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
             observer=None,
         )
+        report = await analyze_repository(ctx)
         assert report.repo_url == "https://github.com/test/repo"
 
     @pytest.mark.asyncio
@@ -756,14 +774,15 @@ class TestObserverWiring:
             make_agent("dependency"),
             make_agent("performance"),
         ]
-        await analyze_repository(
-            analysis_request,
-            codebase,
-            meta_prompter,
-            specialists,
-            critique_agent,
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=specialists,
+            critique_agent=critique_agent,
             observer=observer,
         )
+        await analyze_repository(ctx)
         observer.on_agent_failure.assert_called_once()
 
 
