@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":dependencyDashboard"
+  ],
+  "timezone": "Etc/UTC",
+  "schedule": [
+    "before 6am on Monday"
+  ],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 8,
+  "rebaseWhen": "behind-base-branch",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on Monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group all minor + patch bumps into a single weekly PR — low review overhead, deterministic merges.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all minor + patch",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "Major bumps each get their own PR so the breaking changelog gets the attention it deserves.",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "addLabels": ["breaking-change"]
+    },
+    {
+      "description": "GitHub Actions track separately — minor pinned-by-digest bumps grouped weekly.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "automerge": false,
+  "dependencyDashboardAutoclose": true,
+  "ignoreTests": false,
+  "pip_requirements": {
+    "fileMatch": ["requirements\\.lock$", "(^|/)requirements.*\\.txt$"]
+  }
+}
