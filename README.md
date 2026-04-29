@@ -356,7 +356,7 @@ graph TB
 | Cost | $5-10 per analysis (Opus 4.7, full mode, real Anthropic spend) |
 | Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
-| Error codes | 10 typed (SPEC-001 to SPEC-010) |
+| Error codes | 11 typed (SPEC-001 to SPEC-011) |
 
 ---
 
@@ -423,6 +423,33 @@ The argument can be an HTTPS Git URL, a local path, or `.` for the current worki
 | `--min-score` | none | Quality gate — exit 1 if overall score is below this number |
 | `--force` | off | Bypass cache, force a fresh analysis |
 | `--no-cache` | off | Disable cache reads and writes for this run |
+| `--no-gitignore` | off | Do not honor `.gitignore` (`.spectraignore` is still applied) |
+| `--allow-secrets` | off | Continue past pre-flight secret detection (logs WARN) |
+
+### Pre-flight: secret scan + workspace filtering
+
+Spectra runs a fast pre-flight stage between INGEST and PLAN that:
+
+1. **Honors `.gitignore`** (root + every nested `.gitignore`) so excluded files
+   never reach a prompt or cache key. Use `--no-gitignore` to opt out.
+2. **Honors `.spectraignore`** — same `gitwildmatch` syntax — for Spectra-only
+   exclusions you don't want polluting your `.gitignore`. Always applied.
+3. **Scans for hard-coded secrets** with a curated regex list (AWS keys,
+   GitHub PATs, Anthropic keys, bearer tokens, Slack webhooks, RSA/OpenSSH
+   private keys, plus an `.env*` heuristic). On detection, fails with
+   `SPEC-011` listing every match. Override with `--allow-secrets` (CI-safe;
+   the run continues but every finding is logged at WARN).
+
+Example `.spectraignore`:
+
+```
+# Generated client SDKs we don't author
+clients/generated/
+# Vendored protobuf stubs
+**/proto/*_pb2.py
+# Large fixtures
+tests/fixtures/large_repo/
+```
 
 ### Per-agent model + effort
 

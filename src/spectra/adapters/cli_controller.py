@@ -25,7 +25,12 @@ from spectra import __version__
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.adapters.pr_comment_renderer import render_pr_comment
-from spectra.entities.errors import AgentError, GitError, SpectraRetryError
+from spectra.entities.errors import (
+    AgentError,
+    GitError,
+    SecretDetectedError,
+    SpectraRetryError,
+)
 from spectra.entities.models import AnalysisReport, CacheStats
 from spectra.use_cases.interfaces import CachePort, is_local_path
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
@@ -397,6 +402,16 @@ def analyze(
         "--no-cache",
         help="Neither read nor write the cache (CI-safe)",
     ),
+    no_gitignore: bool = typer.Option(
+        False,
+        "--no-gitignore",
+        help="Do not honor .gitignore (.spectraignore is still applied)",
+    ),
+    allow_secrets: bool = typer.Option(
+        False,
+        "--allow-secrets",
+        help="Continue past pre-flight secret detection (WARN, not abort)",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -480,11 +495,16 @@ def analyze(
                 force=force,
                 no_cache=no_cache,
                 agent_overrides=overrides,
+                honor_gitignore=not no_gitignore,
+                allow_secrets=allow_secrets,
             )
         )
     except KeyboardInterrupt:
         console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
         raise typer.Exit(code=130) from None
+    except SecretDetectedError as exc:
+        _print_secret_detection(exc)
+        raise typer.Exit(code=1) from exc
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
@@ -508,6 +528,25 @@ def analyze(
             raise typer.Exit(code=1)
         if sc:
             console.print(f"  [{GREEN}]✓[/] Quality gate passed: {sc.overall_score:.0f} >= {min_score:.0f}")
+
+
+def _print_secret_detection(exc: SecretDetectedError) -> None:
+    """Render the SPEC-011 brand-voice failure block listing every match.
+
+    Format constraints (CLAUDE.md §Brand Voice):
+      - Header line ≤80 chars, no trailing period
+      - One line per finding: ``  [pattern] file:line``
+      - Closing hint suggests the documented escape hatches
+    """
+    findings = exc.findings
+    file_count = len({getattr(f, "file_path", "?") for f in findings})
+    console.print(f"[{RED}]✗[/] {exc.error.code}: {len(findings)} secrets found in {file_count} files")
+    for f in findings:
+        path = getattr(f, "file_path", "?")
+        line = getattr(f, "line", "?")
+        pat = getattr(f, "pattern_name", "?")
+        console.print(f"  [{RED}]•[/] [{AMBER}]{pat}[/] {path}:{line}")
+    console.print("  [dim]Add to .gitignore / .spectraignore, or rerun with [/][bold]--allow-secrets[/]")
 
 
 def _print_summary(

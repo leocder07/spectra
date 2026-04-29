@@ -78,6 +78,7 @@ AGENT_DESCRIPTIONS: dict[AgentRole, str] = {
 
 _STAGE_TAGS: dict[str, str] = {
     "INGEST": "INIT",
+    "PREFLIGHT": "PREF",
     "PLAN": "PLAN",
     "ANALYZE": "SCAN",
     "MERGE": "LINK",
@@ -88,6 +89,7 @@ _STAGE_TAGS: dict[str, str] = {
 
 _STAGE_BARS: dict[str, str] = {
     "INIT": "\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591",
+    "PREF": "\u2593\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591",
     "PLAN": "\u2593\u2593\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591",
     "SCAN": "\u2593\u2593\u2593\u2593\u2591\u2591\u2591\u2591\u2591\u2591",
     "LINK": "\u2593\u2593\u2593\u2593\u2593\u2593\u2591\u2591\u2591\u2591",

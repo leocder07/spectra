@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`.gitignore` honor + `.spectraignore` + secret pre-flight scan** (roadmap #6, RICE-88). New Stage 1.5 between INGEST and PLAN: filters the file tree through `.gitignore` (root + nested) and `.spectraignore`, then scans the kept paths for hard-coded secrets via a curated regex list (AWS access keys, GitHub PATs, Anthropic keys, bearer tokens, Slack webhooks, RSA/OpenSSH private keys, plus an `.env*` heuristic). Secrets abort the run with new `SPEC-011`; `--allow-secrets` bypasses with a WARN log per finding. `--no-gitignore` opts out of `.gitignore` while still honoring `.spectraignore`. New `WorkspaceFilterPort` + `PathspecFilterAdapter` (adds `pathspec>=0.12` runtime dep) and `SecretScannerPort` + `RegexSecretScanner`. 60 new tests including a <200ms perf regression on a 50-file fixture.
+
 ## [0.4.0] - 2026-04-29
 
 ### Added

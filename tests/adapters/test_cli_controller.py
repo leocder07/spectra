@@ -7,11 +7,23 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
+import pytest
 from typer.testing import CliRunner
 
 from spectra.adapters.cli_controller import app, set_analyzer_factory
-from spectra.entities.errors import ERRORS, AgentError, GitError, SpectraRetryError
-from spectra.entities.models import DimensionScore, ScoreCard, score_to_grade
+from spectra.entities.errors import (
+    ERRORS,
+    AgentError,
+    GitError,
+    SecretDetectedError,
+    SpectraRetryError,
+)
+from spectra.entities.models import (
+    DimensionScore,
+    ScoreCard,
+    SecretFinding,
+    score_to_grade,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1189,3 +1201,89 @@ class TestCacheDoctorCommand:
         # Stub seeds 1 failed batch row; the count must surface.
         assert "1" in result.output
         assert "findings_batches" in result.output
+
+
+# ── Pre-flight flag wiring ───────────────────────────────────
+
+
+class TestCLIPreflightFlags:
+    """CLI surface for capability #6 — secret pre-flight + .gitignore."""
+
+    def test_analyze_command_registers_no_gitignore(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--no-gitignore" in flags
+
+    def test_analyze_command_registers_allow_secrets(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--allow-secrets" in flags
+
+    def test_default_passes_flags_safely(self):
+        """No --no-gitignore means honor_gitignore=True; no --allow-secrets means False."""
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        assert kwargs["honor_gitignore"] is True
+        assert kwargs["allow_secrets"] is False
+
+    def test_no_gitignore_flag_inverts_honor_flag(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--no-gitignore"],
+        )
+        assert result.exit_code == 0
+        assert factory.call_args.kwargs["honor_gitignore"] is False
+
+    def test_allow_secrets_flag_propagates(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--allow-secrets"],
+        )
+        assert result.exit_code == 0
+        assert factory.call_args.kwargs["allow_secrets"] is True
+
+    def test_secret_detected_error_renders_brand_voice_failure(self):
+        findings = (
+            SecretFinding(file_path=".env", line=1, pattern_name="aws_access_key"),
+            SecretFinding(file_path="src/leak.py", line=42, pattern_name="github_pat"),
+        )
+        factory = AsyncMock(side_effect=SecretDetectedError(findings))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-011" in result.output
+        # Per-finding listing
+        assert "aws_access_key" in result.output
+        assert ".env" in result.output
+        assert "github_pat" in result.output
+        assert "src/leak.py" in result.output
+        # Escape hatch hint
+        assert "--allow-secrets" in result.output
+
+    def test_secret_detected_message_no_trailing_period(self):
+        findings = (SecretFinding(file_path=".env", line=1, pattern_name="aws_access_key"),)
+        factory = AsyncMock(side_effect=SecretDetectedError(findings))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        # Find the SPEC-011 line and check no trailing period
+        for line in result.output.splitlines():
+            if "SPEC-011" in line:
+                # strip trailing whitespace/Rich markup remnants
+                stripped = re.sub(r"\s+$", "", line)
+                assert not stripped.endswith(".")
+                break
+        else:
+            pytest.fail("SPEC-011 line not found in output")
