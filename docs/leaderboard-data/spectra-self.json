@@ -1,0 +1,763 @@
+{
+  "repo_url": "https://github.com/leocder07/spectra",
+  "repo_name": "spectra",
+  "score_card": {
+    "overall_score": 85.1,
+    "overall_grade": "B+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 84.6,
+        "grade": "B+",
+        "findings_count": 9,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 89.0,
+        "grade": "A-",
+        "findings_count": 7,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 82.1,
+        "grade": "B",
+        "findings_count": 7,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 85.6,
+        "grade": "B+",
+        "findings_count": 6,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 83.6,
+        "grade": "B+",
+        "findings_count": 3,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 83.3,
+        "grade": "B+",
+        "findings_count": 6,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 38
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Composition root reaches into infrastructure internals to compute cache key versions",
+      "description": "main.py imports private symbols `_SYSTEM_PROMPT` from critique_agent and `_SHARED_GUIDANCE` from specialist_prompts to compute prompt version digests. While this is documented as 'preserving the dependency rule by keeping prompt knowledge in the composition root,' it actually couples main.py to private module internals (leading underscore names), creating a fragile dependency. A refactor that renames or restructures these constants will silently break cache key composition.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 60,
+        "line_end": 65
+      },
+      "recommendation": "Expose a public API in the agents package (e.g., `get_prompt_version_inputs()` returning the bytes to digest) so main.py depends on a stable contract rather than module-private constants. Alternatively, encapsulate the digest computation in a `PromptVersions` helper class within the agents package.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Composition root has grown beyond pure DI wiring (mixed responsibilities)",
+      "description": "infrastructure/main.py now contains: DI wiring, workspace allocation, file heuristics (`_read_key_source_files`, `_prioritize_source_files`), SARIF report builder (`_build_sarif`), cache version composition (`_composite_model_versions`, `_composite_prompt_versions`), and report rendering branching. A composition root should primarily wire dependencies; additional orchestration logic belongs in use cases or dedicated adapters. The SARIF builder in particular is a presentation concern that should live in an adapter alongside `ReportAdapter`.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 280,
+        "line_end": 360
+      },
+      "recommendation": "Extract `_build_sarif` into a dedicated `SarifAdapter` (or extend `ReportAdapter`) implementing a `ReportPort.render(report, format, path)` contract. Move `_read_key_source_files`/`_prioritize_source_files` into a `SourceFileSelector` adapter or a use-case helper. Keep main.py focused on construction.",
+      "agent_role": "architecture",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Module-level mutable globals for DI in CLI controller",
+      "description": "`cli_controller.py` uses module-level `_analyzer_factory` and `_cache_provider` globals mutated via `set_analyzer_factory` / `set_cache_provider`. This is a pragmatic Typer integration, but it makes the CLI harder to test in isolation, prevents concurrent invocations with different factories, and relies on import-time global state. The `global` keyword usage and `noqa: PLW0603` suppressions are smells indicating the pattern is suboptimal.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 110,
+        "line_end": 130
+      },
+      "recommendation": "Encapsulate the injected dependencies in a `CliContext` dataclass stored on the Typer app's `obj` (via `ctx.obj`), or build the Typer app inside a factory function `build_cli(analyzer_factory, cache_provider) -> Typer` so dependencies flow in via closure rather than module globals.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "AgentFactory leaks specialist role list duplication with specialist_prompts",
+      "description": "`AgentFactory.create_specialists()` hardcodes the list of 6 specialist roles, but the canonical source of truth is the `SPECIALIST_CONFIGS` dictionary in `specialist_prompts.py`. The two can drift: adding a new specialist to `SPECIALIST_CONFIGS` will not automatically include it in `create_specialists()`. The `progress_reporter.py` `_SPECIALIST_ROLES` constant is a third copy of this list.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/agent_factory.py",
+        "line_start": 80,
+        "line_end": 95
+      },
+      "recommendation": "Derive the specialist role list from `SPECIALIST_CONFIGS.keys()` (sorted for determinism) so adding a new specialist requires changing one place only. Export a canonical `SPECIALIST_ROLES` tuple from `specialist_prompts.py` and reuse it in `progress_reporter.py`.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Circular import risk: specialist_agent imports from use_cases at runtime",
+      "description": "`specialist_agent.py` imports `LLMGateway` directly at runtime from `spectra.use_cases.interfaces` (not under TYPE_CHECKING). This is correct for the dependency rule (infrastructure \u2192 use_cases is allowed inward), but the same module also imports `MIN_CONFIDENCE` from `entities.models`, mixing entity and use-case dependencies. base_agent.py also imports `LLMGateway` at runtime. While currently fine, runtime imports of Protocols (vs TYPE_CHECKING) add load-time coupling that is unnecessary since Protocols use structural typing.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/specialist_agent.py",
+        "line_start": 13,
+        "line_end": 14
+      },
+      "recommendation": "Move `LLMGateway` import under `if TYPE_CHECKING:` block (consistent with critique_agent.py and meta_prompter.py which already do this). This decouples module load order and clarifies that the gateway is a structural type.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "BaseAgent.parse_output / format_result violate Liskov for non-finding agents",
+      "description": "`BaseAgent.run()` calls `validate_output(parsed) -> tuple[Finding, ...]` and then `format_result(findings, ...)` on the result. However, `MetaPrompter.validate_output` and `CritiqueAgent.validate_output` always return `()` because their outputs are not findings \u2014 they are plans and critiques. Callers must then call `get_plan()` or `get_critique_result()` separately by re-parsing `raw_response`, parsing the same JSON twice. This indicates `BaseAgent`'s Template Method is over-fitted to specialists.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/base_agent.py",
+        "line_start": 55,
+        "line_end": 75
+      },
+      "recommendation": "Generalize `BaseAgent` to be parametric in output type (e.g., `BaseAgent[T]` with abstract `parse_result(parsed) -> T`) or split into two ABCs: `FindingProducingAgent` for specialists and `StructuredOutputAgent` for MetaPrompter/CritiqueAgent. This avoids the double-parse and the empty-tuple workaround.",
+      "agent_role": "architecture",
+      "confidence": 0.87,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Composition root performs use-case-level orchestration (Stage 1 INGEST and Stage 6 REPORT)",
+      "description": "`_run_analysis` in main.py executes Stage 1 (clone, validate size, get file tree, read key source files) and Stage 6 (render report) directly, while delegating Stages 2\u20135 to `analyze_repository`. This split is asymmetric and leaks pipeline orchestration into the composition root. The `PipelineContext` is also constructed in main.py, which means changing the pipeline shape requires touching main.py rather than the use case.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 145,
+        "line_end": 245
+      },
+      "recommendation": "Move INGEST and REPORT stages into `analyze_repository` (or a top-level `run_pipeline` use case) so main.py only constructs ports and calls a single use-case entry point. The use case should accept a `ReportPort` and call it for rendering, keeping format-branching out of the composition root.",
+      "agent_role": "architecture",
+      "confidence": 0.83,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "PipelineContext over-injection suggests missing abstraction",
+      "description": "`PipelineContext` (constructed in main.py) carries 11 fields including `meta_prompter`, `specialists`, `critique_agent`, `git_port`, `observer`, `source_files`, `cache_port`, `cache_key_factory`, `force_cache_bypass`, `request`, `codebase`. This is a parameter object, but the breadth suggests `analyze_repository` is doing too much. Mixing transient state (source_files, codebase) with long-lived ports (git_port, cache_port) and policy (force_cache_bypass) in one struct couples unrelated concerns.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 195,
+        "line_end": 215
+      },
+      "recommendation": "Split into two structures: `PipelineDependencies` (immutable per-process \u2014 agents, ports, observer, key factory) and `PipelineRequest` (per-run \u2014 request, codebase, source_files, force flag). The use case method then has a clearer signature: `analyze_repository(deps, request)`.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Strong architectural foundation: ports, frozen entities, and explicit composition root",
+      "description": "Positive findings: (1) Entities are frozen Pydantic models with no spectra-internal imports \u2014 pure inner layer. (2) Enums use `Literal` types for JSON-safety. (3) `interfaces.py` defines Protocol-based ports (`LLMGateway`, `CachePort`, `GitPort` implied) enabling structural subtyping. (4) main.py is clearly demarcated as the composition root with thorough docstrings explaining DI wiring. (5) Decorator chain (Logging \u2192 Retry \u2192 Anthropic) is composed at construction time, not via inheritance. (6) Adapter layer (`adapters/`) is correctly separated from infrastructure (`infrastructure/`). (7) Per-layer `__init__.py` files document the layer's role and dependency rules. This represents mature Clean Architecture discipline.",
+      "location": {
+        "file_path": "src/spectra/entities/models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Maintain these patterns. Consider documenting them in an ADR and adding `import-linter` contracts to CI to prevent regressions.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "low",
+      "title": "URL validation regex allows credentials in authority and arbitrary characters in path",
+      "description": "The `_URL_PATTERN` regex in `cli_controller.py` matches `https://[host](/[^\\s]*)?$` but does not reject userinfo (e.g. `https://user:pass@evil.com/legit-looking-path`) or unusual characters that may confuse downstream `git clone`. Combined with the fact that the URL is passed to GitPython for cloning, this widens the input surface for SSRF/credential-injection style abuse. CWE-20 (Improper Input Validation), OWASP A10:2021 SSRF.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 30,
+        "line_end": 33
+      },
+      "recommendation": "Use `urllib.parse.urlparse` to extract scheme/netloc/path, reject any URL with `userinfo` (`@` in netloc), restrict netloc to a known allow-list of hosts (github.com, gitlab.com, bitbucket.org) when feasible, and disallow control characters in the path. Pair with the existing GitAdapter SSRF/host checks (which the comments describe) for defense-in-depth.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": true,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Local path validation has TOCTOU window between symlink check and use",
+      "description": "`_validate_local_path` checks `expanded.is_symlink()` and `(expanded / '.git').exists()` but the path is later passed to `GitPort.prepare_workspace` for indexing. Between validation and use an attacker with write access to that directory could swap the path for a symlink (TOCTOU). Furthermore the `..` check is on the user-supplied raw input only \u2014 symlinked components inside the directory tree are not blocked. CWE-367 (TOCTOU Race Condition), CWE-22 (Path Traversal).",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 47,
+        "line_end": 64
+      },
+      "recommendation": "Resolve the path with `Path(...).resolve(strict=True)` once and pass the resolved canonical path downstream. In `GitAdapter.read_file`, ensure each resolved file path remains under the canonical workspace root (`commonpath` check) to prevent symlink escapes during indexing.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Unredacted exception message printed to console (may leak secrets in tracebacks)",
+      "description": "In `cli_controller.analyze`, the catch-all `except Exception as exc` prints `f\"Unexpected error: {exc}\"` and, when `--verbose` is set, dumps a full `traceback.format_exc()` to the terminal. If an exception bubbles up from the Anthropic SDK or HTTP layer it can include the request URL, headers, or partially-sanitized API key fragments. CWE-209 (Information Exposure Through an Error Message), CWE-532 (Insertion of Sensitive Information into Log File).",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 215,
+        "line_end": 220
+      },
+      "recommendation": "Pipe unexpected exceptions through the same redaction logic used by `LoggingDecorator` (which the module docstring notes redacts `sk-ant-*`). Apply a regex scrub for `sk-ant-[A-Za-z0-9_-]+` and common bearer-token shapes before printing the message or traceback. Consider gating full tracebacks behind an explicit `--debug` flag separate from `--verbose`.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "SARIF/HTML report fields are populated with attacker-controlled finding text without explicit encoding guarantees",
+      "description": "`_build_sarif` and the Jinja2 HTML template render `Finding.title`, `description`, `recommendation`, and `code_snippet` \u2014 fields that ultimately come from LLM output of attacker-controlled repository contents (filenames, code snippets, embedded HTML, JavaScript, or markdown). For SARIF this is JSON-encoded so it is safe; for the HTML report (`report_renderer.render`), the security depends on Jinja2 autoescape being enabled \u2014 which is NOT visible in the provided code. CWE-79 (Cross-site Scripting), OWASP A03:2021 Injection.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 286,
+        "line_end": 318
+      },
+      "recommendation": "Confirm `ReportAdapter` constructs its `Environment` with `autoescape=select_autoescape(['html', 'htm', 'j2'])` (or `autoescape=True`). Add a unit test that renders a finding containing `<script>alert(1)</script>` and asserts the output escapes it. For `code_snippet` rendered inside `<pre>`, still escape \u2014 autoescape covers this. Also set `Content-Security-Policy` via `<meta>` in the template if the report may be hosted online.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": true,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Tempdir cleanup uses ignore_errors=True, masking failure to remove cloned repo",
+      "description": "`shutil.rmtree(workspace_dir, ignore_errors=True)` in the `finally` block silently swallows cleanup errors. If cleanup fails (e.g. file lock on Windows, permission issue), cloned source code \u2014 which may include secrets, proprietary code, or `.env` files from the analyzed repo \u2014 persists in `/tmp/spectra-*` past process exit. The `0o700` perms limit exposure to other users but not to the same user's other processes or backups. CWE-459 (Incomplete Cleanup).",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 230,
+        "line_end": 232
+      },
+      "recommendation": "On cleanup failure, log a warning so operators know stale clones exist. Consider using `tempfile.TemporaryDirectory()` context manager which provides better diagnostics, or run a startup sweep that removes stale `spectra-*` directories from `tempfile.gettempdir()` older than N hours.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-007",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Heuristic file reader silently swallows all read errors",
+      "description": "`_read_key_source_files` uses `except Exception: continue` (with `# noqa: S112`) when reading source files. While the `noqa` shows intent, this masks security-relevant failures such as path-traversal attempts caught by `GitPort.read_file`, file size limit violations, or symlink rejections. Without logging, an attacker probing the indexing path gets no visibility but neither do operators investigating an incident. CWE-755 (Improper Handling of Exceptional Conditions).",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 313,
+        "line_end": 319
+      },
+      "recommendation": "Replace the bare `except Exception` with explicit catches for `OSError`, `GitError`, and the size-limit exception. Log at DEBUG so operators can opt into visibility via `--verbose` without producing noise on healthy runs.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Repository name derived from URL is used unsafely in display without sanitization",
+      "description": "`_derive_repo_name` returns `source.rstrip('/').split('/')[-1].removesuffix('.git')`. This name flows into the Rich console (`console.print(f\"target: {repo_name}\")`) and the HTML report. Rich interprets `[...]` as markup, so a repo URL ending in `.../[red]injected[/red].git` would render colored text in the terminal \u2014 a low-impact UX issue but a precedent for richer markup injection if the value is later embedded in HTML without escaping. CWE-117 (Improper Output Neutralization for Logs).",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 261,
+        "line_end": 263
+      },
+      "recommendation": "When passing user-controlled values into Rich, use `console.print(..., markup=False)` or wrap the value with `rich.markup.escape(repo_name)`. For HTML, rely on Jinja2 autoescape (and verify it is enabled \u2014 see related finding).",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "CritiqueAgent.validate_output silently discards parsed structure and returns empty tuple",
+      "description": "validate_output checks only that required keys exist, then returns (). The actual validated/rejected/severity-adjusted findings live in `parsed` but are never returned through the BaseAgent contract \u2014 callers must use the side-channel get_critique_result() and re-parse the raw output. This is duplicated parsing work and an inconsistency with the Template Method contract: validate_output advertises (Finding, ...) but cannot meaningfully fulfill it for critique. The dual-path design (validate_output + get_critique_result) is a code smell that invites callers to forget one of them.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/critique_agent.py",
+        "line_start": 155,
+        "line_end": 168
+      },
+      "recommendation": "Either store the parsed critique result on the instance during validate_output (so get_critique_result returns it without re-parsing), or extend AgentOutput with an optional critique_payload field so the contract is honored without dual entry points.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Bare `except Exception` swallows file-read errors silently with noqa: S112",
+      "description": "_read_key_source_files catches every Exception during file reading or token counting and silently `continue`s. The noqa: S112 acknowledges this but no logging occurs. Real I/O errors (permission denied, decoding errors, mid-flight corruption) become invisible, which is a debuggability hazard especially for the heuristic source-file pipeline where missing files materially change specialist input quality.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 326,
+        "line_end": 332
+      },
+      "recommendation": "Narrow the except clause to (OSError, UnicodeDecodeError) and log at DEBUG level with the file path and exception class. This preserves resilience while making silent skips diagnosable.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Validation strategy in SpecialistAgent.validate_output uses unsafe coercions",
+      "description": "validate_output uses str(...)/int(...)/float(...) on raw LLM dict values without try/except. If the LLM produces a non-numeric line_start (e.g. 'unknown'), int() raises ValueError, the entire batch fails, and a single bad finding kills all valid findings in that response. Severity is also coerced via str() but never validated against the Severity Literal \u2014 invalid severities will pass into Pydantic and fail there, yielding a less actionable error.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/specialist_agent.py",
+        "line_start": 73,
+        "line_end": 96
+      },
+      "recommendation": "Wrap each finding construction in try/except (ValueError, ValidationError) and skip individual bad findings with a debug log. Validate severity \u2208 {critical,high,medium,low,info} explicitly before constructing Finding so the failure mode is clear.",
+      "agent_role": "quality",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "_run_analysis function exceeds 100 lines and has 7 boolean/string parameters",
+      "description": "_run_analysis in main.py is the composition root's async entry point and runs ~120 lines with 7 parameters (skip_critique, output_format, verbose, force, no_cache, plus the two required). It mixes DI wiring, ingest stage, agent factory, pipeline call, and three output-format branches in one function. PLR0913 is globally ignored, but the function still has high cognitive load \u2014 and the Stage 6 REPORT branch logic (json/sarif/else) is duplicated logic that belongs in a presenter.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 90,
+        "line_end": 215
+      },
+      "recommendation": "Extract three helpers: (a) _build_pipeline_context(...) for DI wiring through PipelineContext, (b) _emit_report(report, output_path, fmt, renderer) for Stage 6 dispatch, and (c) bundle the 7 flags into a small frozen RunOptions model. Target the function under 40 lines.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Duplicate model-version literals risk drift in cache key composition",
+      "description": "_composite_model_versions hardcodes 'claude-opus-4-7' twice for MetaPrompter and CritiqueAgent, while specialist_prompts.py defines _OPUS = 'claude-opus-4-7' and meta_prompter.py / critique_agent.py also pin the same string in their __init__. Five separate sources of truth for the same model literal \u2014 a model version bump must touch all of them or cache invalidation will be inconsistent.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 263,
+        "line_end": 270
+      },
+      "recommendation": "Define a single MODEL_OPUS constant in entities/enums.py or a dedicated models.py and import it from MetaPrompter, CritiqueAgent, specialist_prompts, AGENT_MODELS, and _composite_model_versions.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Module-level mutable globals (_analyzer_factory, _cache_provider) create test isolation hazards",
+      "description": "cli_controller.py uses module-level globals set via set_analyzer_factory and set_cache_provider with `global` declarations and noqa: PLW0603. These globals persist across test invocations and across sequential CLI calls within one process, creating ordering dependencies and making CLI tests require explicit teardown. There is no reset_for_tests() seam.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 137,
+        "line_end": 158
+      },
+      "recommendation": "Either (a) thread the analyzer/cache provider through a small CLIContext object passed to the Typer commands, or (b) at minimum add a module-level reset() function that nulls both globals, and call it in conftest.py autouse fixture.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Missing __all__ in agents/specialist_prompts.py allows accidental private import drift",
+      "description": "specialist_prompts.py exports module-level constants (_SHARED_GUIDANCE, ARCHITECTURE_PROMPT, ...PROMPT, SPECIALIST_CONFIGS) but defines no __all__. main.py reaches into the module to grab _SHARED_GUIDANCE (underscore-prefixed = nominally private). Either the convention should be honored (rename to SHARED_GUIDANCE and export), or main.py should not import the private name.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/specialist_prompts.py",
+        "line_start": 595,
+        "line_end": 605
+      },
+      "recommendation": "Rename _SHARED_GUIDANCE to SHARED_GUIDANCE, add __all__ = ['SHARED_GUIDANCE', 'SPECIALIST_CONFIGS', 'ARCHITECTURE_PROMPT', ...], and update main.py import accordingly.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Stale model/effort references in pipeline info banner",
+      "description": "The CLI banner advertises 'sonnet-4.5 planner' and 'opus-4.6' for specialists/critique, but the actual code uses 'claude-opus-4-7' for all 8 agents (per AGENT_MODELS, SPECIALIST_CONFIGS, MetaPrompter, and CritiqueAgent). User-facing documentation embedded in the CLI contradicts the implementation, which will mislead users and undermine trust in the report.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 134,
+        "line_end": 142
+      },
+      "recommendation": "Update _PIPELINE_INFO to reflect the current model identifiers and effort levels (opus-4.7 across all agents; medium for MetaPrompter, xhigh for specialists, high+adaptive thinking for Critique).",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": true,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "MetaPrompter docstring/module header contradicts actual model",
+      "description": "The module docstring at meta_prompter.py states 'MetaPrompter agent \u2014 Sonnet 4.5, planning from file tree only' and the class docstring repeats 'Sonnet 4.5, never sees full code', but the constructor wires model='claude-opus-4-7' with effort='medium'. This inconsistency will confuse contributors reading the code and may cause incorrect cost/latency assumptions.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/agents/meta_prompter.py",
+        "line_start": 1,
+        "line_end": 10
+      },
+      "recommendation": "Update the module docstring and class docstring to read 'Opus 4.7, medium effort'. Also update the prompt-caching note's date if applicable.",
+      "agent_role": "documentation",
+      "confidence": 0.98,
+      "validated_by_critique": true,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "estimate_cost docstring contradicts implementation",
+      "description": "The docstring of estimate_cost() in models.py says 'Sonnet is used for MetaPrompter; Opus for all others', but _MODEL_COST maps every agent (including meta_prompter) to _OPUS_AVG_PER_1K. The docstring is misleading and will confuse anyone reading cost-estimation logic or trying to extend pricing.",
+      "location": {
+        "file_path": "src/spectra/entities/models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Rewrite the docstring to state that all agents use Opus 4.7 pricing, or restore Sonnet pricing for meta_prompter if that's the intended cost model. Keep the note about the 70/30 input/output assumption.",
+      "agent_role": "documentation",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Severity guide for findings is undocumented for users",
+      "description": "Severity (critical|high|medium|low|info) is defined as a Literal in entities/enums.py with a one-liner docstring 'Finding severity from most to least urgent', but there's no user-facing guide explaining what each level means in Spectra's report. Specialist prompts contain calibration internally, but the public docs (API.md, README) are unverified, and entity docs don't define the semantics for report consumers.",
+      "location": {
+        "file_path": "src/spectra/entities/enums.py",
+        "line_start": 10,
+        "line_end": 11
+      },
+      "recommendation": "Either expand the Severity docstring with a per-level definition (critical = exploit/data loss; high = major bug; medium = code smell; low = style; info = note) or add a 'Severity Levels' section to API.md / README and link from the docstring.",
+      "agent_role": "documentation",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-012",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Public CLI cache subcommands lack a getting-started example",
+      "description": "The 'spectra cache' Typer subapp exposes stats/clear/prune with non-trivial flags (--older-than 30d|4w|1m, --include-hit-log, --dry-run, --json, --yes, optional repo URL or 32-hex signature). The functions have docstrings but there's no aggregated reference showing typical workflows (e.g., 'inspect cache size before pruning', 'CI: spectra cache prune --older-than 7d --dry-run'). Users will reverse-engineer behavior from --help.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 312,
+        "line_end": 396
+      },
+      "recommendation": "Add a 'Cache management' section in docs/guides/getting-started.md (or a dedicated docs/guides/cache.md) with end-to-end examples for each subcommand and the JSON output schema (CacheStats fields).",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-013",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "SPEC-010 error code not surfaced to users despite being raised",
+      "description": "ERRORS dict defines SPEC-010 'Cache I/O failed' (retryable=False), and main.py swallows it on cache init/close paths. The errors registry is internal but no user-facing doc enumerates all SPEC-* codes. When users see 'SPEC-002: Anthropic API unreachable' in CLI output, they have nowhere to look up code meanings or suggested actions.",
+      "location": {
+        "file_path": "src/spectra/entities/errors.py",
+        "line_start": 30,
+        "line_end": 50
+      },
+      "recommendation": "Add a 'Troubleshooting / Error Codes' section to README.md or docs/guides/troubleshooting.md listing each SPEC-* code, what it means, whether it's retryable, and remediation tips. Keep the list in sync via a generated table from ERRORS dict if possible.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Runtime dependencies use lower-bound-only version specifiers",
+      "description": "All seven runtime dependencies in pyproject.toml use unbounded lower-bound specifiers (e.g. anthropic>=0.40, pydantic>=2.5, jinja2>=3.1). Without upper bounds, a future major release with breaking changes (e.g. pydantic 3.x, anthropic 1.x) will be silently installed and may break end-user installations. For a published package on PyPI (spectra-ai 0.3.3), this is a reproducibility and supply-chain stability risk. The Anthropic SDK in particular has had breaking changes between minor versions.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 27,
+        "line_end": 33
+      },
+      "recommendation": "Add upper bounds to runtime dependencies, e.g. 'anthropic>=0.40,<1.0', 'pydantic>=2.5,<3', 'jinja2>=3.1,<4'. This caps the API surface to known-compatible major versions and is standard practice for PyPI-published libraries.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "gitpython runtime dependency carries known historical CVE history",
+      "description": "gitpython>=3.1.30 is pinned with no upper bound. The 3.1.x line has had multiple security advisories (e.g. CVE-2023-40590 RCE on Windows in 3.1.32 and earlier, CVE-2023-41040 blind local file inclusion in 3.1.32 and earlier). The floor 3.1.30 is below the fixed versions for these CVEs. A fresh install on a system where pip resolves to 3.1.30 would pull a vulnerable version.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 31,
+        "line_end": 31
+      },
+      "recommendation": "Raise the gitpython floor to a version past the known CVEs, e.g. 'gitpython>=3.1.41,<4'. Cross-check against GitHub's GHSA database for gitpython before finalizing.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Dev dependency group lacks pip-audit / safety / bandit for self-scanning",
+      "description": "The [dev] optional-dependencies group contains test/lint/type tooling but no dedicated supply-chain scanner (pip-audit, safety, or osv-scanner). For a project whose business is finding security issues in other repos, the absence of automated CVE scanning of its own dependency tree in CI is a notable gap. Ruff's 'S' bandit rules cover code patterns but not transitive CVEs.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 38,
+        "line_end": 46
+      },
+      "recommendation": "Add pip-audit (or osv-scanner) to the dev group and a CI job that runs it on every PR. Combine with Dependabot's security-updates for end-to-end CVE coverage.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Sequential file reads in heuristic source loader block pipeline startup",
+      "description": "_read_key_source_files iterates up to 20 files sequentially, awaiting git_port.read_file and tiktoken counting one at a time. Each read is async I/O but they're not concurrent, so wall-clock latency = sum of individual reads instead of max. On large repos with slow disk, this adds noticeable startup overhead before the parallel specialist stage can begin. asyncio.gather with a small semaphore would parallelize this safely.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 245,
+        "line_end": 260
+      },
+      "recommendation": "Use asyncio.gather with a semaphore (e.g., 5-10 concurrent reads) to read files in parallel. Tokens can still be counted sequentially after gather since tiktoken is CPU-bound and fast. Alternatively, read all bytes first, then count tokens in a thread pool.",
+      "agent_role": "performance",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "No concurrency bound on parallel specialist agent execution",
+      "description": "Specialists run via asyncio.gather over all 6 agents simultaneously. Each agent makes a long-running Anthropic API call with effort=xhigh and up to 80K output tokens. Without a semaphore or rate-limit-aware scheduler, all 6 hit the API at once and can trigger 429 rate limits, causing the RetryDecorator to back off all 6 in lockstep. This wastes wall-clock time vs. staggering or limiting concurrency to 3-4.",
+      "location": {
+        "file_path": "src/spectra/use_cases/orchestrate_agents.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add an asyncio.Semaphore (e.g., concurrency=4) around specialist invocations, or implement a token-bucket rate limiter aware of Anthropic's tier limits. Alternatively, use exponential jitter on the retry decorator (currently fixed 1s/2s/4s) to desynchronize retries.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Fixed exponential backoff without jitter causes thundering-herd retries",
+      "description": "RetryDecorator uses backoff_base=1.0 with deterministic 1s/2s/4s delays (per docstring). When all 6 specialists hit a 429 rate limit simultaneously, they all retry at exactly t+1s, t+3s, t+7s, repeatedly hammering the API in synchronized waves. Adding jitter (random 0-1s offset) would spread retries and improve overall throughput under contention.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/retry_decorator.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Introduce random jitter in backoff: sleep_time = backoff_base * (2 ** attempt) + random.uniform(0, backoff_base). For 429 responses, prefer the Retry-After header from Anthropic when present.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-006",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "_prioritize_source_files iterates file tree 4 times implicitly via tier classification",
+      "description": "The tier classification loop is O(n) but each path runs through 4 conditional checks plus a Path() construction. For a 50K-file tree this is ~200K Python-level operations on the main thread, blocking the event loop briefly during INGEST. Path objects are also allocated per file (50K allocations).",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 268,
+        "line_end": 285
+      },
+      "recommendation": "Avoid Path() allocation: use os.path.splitext / str.rsplit for stem and suffix extraction (5-10\u00d7 faster). Short-circuit non-source extensions with a single suffix check before tier dispatch. For very large trees, consider running this in a thread via asyncio.to_thread.",
+      "agent_role": "performance",
+      "confidence": 0.72,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Composite prompt/model version recomputation per call to factory",
+      "description": "_make_cache_key_factory calls _composite_model_versions() and _composite_prompt_versions() once per analysis run, but _composite_prompt_versions iterates all SPECIALIST_CONFIGS and computes a blake2b digest over potentially hundreds of KB of prompt text. This is fine per-run but if cache_key_factory is invoked many times (e.g., per-batch in Phase 3), recomputation could become a hotspot. Currently mitigated since the factory closes over the precomputed values, but _bind_cache_run_context computes them again.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 200,
+        "line_end": 230
+      },
+      "recommendation": "Memoize _composite_model_versions and _composite_prompt_versions at module scope using functools.cache \u2014 they are pure functions of constants. Compute once, share between cache binding and key factory.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-011",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Token counting via tiktoken_adapter not reused across agents \u2014 same content counted multiple times",
+      "description": "Each specialist receives the same source_files dict and likely calls token-counting on the same content. If 6 specialists each tokenize the same 100K-token corpus, that's 6\u00d7 redundant CPU work (~6\u00d7100ms = 0.6s blocking). The TiktokenAdapter docstring mentions hash-based caching, but if the cache is per-instance and a fresh adapter is created per agent, the cache is cold each time.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 240,
+        "line_end": 260
+      },
+      "recommendation": "Use a module-level shared TiktokenAdapter singleton with content-hash \u2192 token-count LRU cache. Inject the same instance into all consumers (orchestrate_agents, manage_token_budget, _read_key_source_files). Pre-tokenize source_files once and pass token counts in the AgentContext rather than re-counting downstream.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": true,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 256.94,
+  "total_tokens_used": 462827,
+  "total_cost_usd": 5.0911,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [
+    "arch-000, arch-004, arch-008, qual-005, qual-011 all describe the same root cause: model/prompt/role identifiers duplicated across multiple modules with no single source of truth. Fixing once (canonical constants module) addresses architecture, quality, and DRY concerns simultaneously.",
+    "doc-001, doc-002, doc-003 all stem from a model rename (Sonnet\u2192Opus) that updated code but missed documentation strings. A single sweep of model references across docstrings/banners resolves all three.",
+    "arch-002, arch-007, qual-004 converge on main.py being overloaded with non-DI orchestration. Extracting Stage 1/Stage 6 into use cases solves all three.",
+    "arch-003 and qual-008 are duplicate findings about CLI module globals from architecture vs quality lenses \u2014 single fix (CliContext) addresses both.",
+    "arch-006 and qual-001 both describe the BaseAgent contract mismatch for non-finding agents \u2014 single refactor (parametric BaseAgent[T] or split ABCs) resolves both.",
+    "sec-002, sec-007, qual-002 share the pattern of bare except-and-swallow without scrubbing/logging; a unified error-handling policy with redaction and DEBUG logging addresses all three.",
+    "perf-002, perf-003 together describe synchronized rate-limit thundering herd; concurrency cap + jitter must ship together for either to be effective.",
+    "Several doc-* and dep-* findings (doc-004/005/007/008/009, dep-002/003) admit source material was not provided \u2014 these reflect audit scope gaps rather than code defects and should be reframed as 'audit completion items' not 'findings.'"
+  ],
+  "hallucination_removed_count": 3
+}

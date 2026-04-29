@@ -1,37 +1,100 @@
 # Spectra Leaderboard — Real OSS Scans (Full Mode)
 
-Live scans of well-known open-source projects, run with `spectra-ai==0.3.2`
-on Claude Opus 4.7. **Full pipeline** (all 8 agents including the CritiqueAgent
-stage that filters false positives via adaptive thinking + task budget). All
-findings link to the actual file:line on GitHub. No cherry-picking — each
-scan is one shot.
+Live scans of well-known open-source projects, run with `spectra-ai==0.3.3` on Claude Opus 4.7. **Full pipeline** (all 8 agents including the CritiqueAgent stage that filters false positives via adaptive thinking + task budget). All findings link to the actual file:line on GitHub. No cherry-picking — each scan is one shot, including the self-scan.
+
+> **Note on the self-scan:** Spectra grading itself is biased by definition — the same prompts that wrote the findings also defined what counts as good. Treat the self-grade as a sanity check ("does our own architecture clear our own bar?") rather than as a benchmark vs the others.
 
 ## 📄 Open the styled reports in your browser
 
-- [`anthropic-sdk-python.html`](reports/anthropic-sdk-python.html) — **B+** (85.6)
-- [`gstack.html`](reports/gstack.html) — **C** (72.7)
-- [`gbrain.html`](reports/gbrain.html) — **C+** (73.0)
-- [`gbrain-evals.html`](reports/gbrain-evals.html) — **C+** (76.1)
-- [`alphaclaw.html`](reports/alphaclaw.html) — **C+** (74.6)
-
-Each HTML report includes the animated scorecard, per-dimension breakdown,
-full findings list with severity, file:line, fix recommendation, estimated
-hours, agent attribution, and confidence — exactly what `spectra analyze`
-writes to `spectra-report.html` by default.
+- [`spectra (this repo)`](reports/spectra-self.html) — **B+** (85.1)
+- [`anthropic-sdk-python`](reports/anthropic-sdk-python.html) — **B+** (85.6)
+- [`gstack`](reports/gstack.html) — **C** (72.7)
+- [`gbrain`](reports/gbrain.html) — **C+** (73.0)
+- [`gbrain-evals`](reports/gbrain-evals.html) — **C+** (76.1)
+- [`alphaclaw`](reports/alphaclaw.html) — **C+** (74.6)
 
 ## Summary
 
 | # | Repo | Stars | Grade | Score | Findings | Critical | High | Wall | Cost | HTML | JSON |
 |---:|---|---:|:---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
-| 1 | [`anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+** | 85.6 | 50 | 0 | 0 | 248s | $7.41 | [📄](reports/anthropic-sdk-python.html) | [📦](../leaderboard-data/anthropic-sdk-python.json) |
-| 2 | [`gstack`](https://github.com/garrytan/gstack) | 86k | **C** | 72.7 | 49 | 1 | 7 | 190s | $9.16 | [📄](reports/gstack.html) | [📦](../leaderboard-data/gstack.json) |
-| 3 | [`gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+** | 73.0 | 61 | 0 | 7 | 264s | $5.25 | [📄](reports/gbrain.html) | [📦](../leaderboard-data/gbrain.json) |
-| 4 | [`gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+** | 76.1 | 55 | 1 | 6 | 276s | $6.32 | [📄](reports/gbrain-evals.html) | [📦](../leaderboard-data/gbrain-evals.json) |
-| 5 | [`alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+** | 74.6 | 50 | 0 | 7 | 234s | $5.30 | [📄](reports/alphaclaw.html) | [📦](../leaderboard-data/alphaclaw.json) |
+| 1 | [`spectra (this repo)`](https://github.com/leocder07/spectra) | (self) | **B+** | 85.1 | 38 | 0 | 0 | 257s | $5.09 | [📄](reports/spectra-self.html) | [📦](../leaderboard-data/spectra-self.json) |
+| 2 | [`anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+** | 85.6 | 50 | 0 | 0 | 248s | $7.41 | [📄](reports/anthropic-sdk-python.html) | [📦](../leaderboard-data/anthropic-sdk-python.json) |
+| 3 | [`gstack`](https://github.com/garrytan/gstack) | 86k | **C** | 72.7 | 49 | 1 | 7 | 190s | $9.16 | [📄](reports/gstack.html) | [📦](../leaderboard-data/gstack.json) |
+| 4 | [`gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+** | 73.0 | 61 | 0 | 7 | 264s | $5.25 | [📄](reports/gbrain.html) | [📦](../leaderboard-data/gbrain.json) |
+| 5 | [`gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+** | 76.1 | 55 | 1 | 6 | 276s | $6.32 | [📄](reports/gbrain-evals.html) | [📦](../leaderboard-data/gbrain-evals.json) |
+| 6 | [`alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+** | 74.6 | 50 | 0 | 7 | 234s | $5.30 | [📄](reports/alphaclaw.html) | [📦](../leaderboard-data/alphaclaw.json) |
 
-**Totals: 265 findings · 2 critical · 27 high · $33.44 real Anthropic spend across all 5 scans.**
+**Totals: 303 findings · $38.53 real Anthropic spend across all 6 scans.**
 
-Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pricing ($5/M input + $25/M output) at the typical 70/30 input/output split. The earlier 3× cost-overstatement bug (PR #28) is fixed in v0.3.2.
+---
+
+## `spectra (this repo)` — Grade B+ (85.1)
+
+📄 **[Full HTML report](reports/spectra-self.html)** · 📦 **[Raw JSON](../leaderboard-data/spectra-self.json)** · 🔗 **[Repo on GitHub](https://github.com/leocder07/spectra)**
+
+**Findings:** 38 total — 🟡 14 medium · 🟢 20 low · ⚪ 4 info
+**Wall-clock:** 257s · **Cost:** $5.09 · **Tokens:** 462,827
+
+### Per-dimension
+
+| Dimension | Grade | Score | Weight | Findings |
+|---|:---:|---:|---:|---:|
+| Security | A- | 89.0 | 25% | 7 |
+| Documentation | B+ | 85.6 | 10% | 6 |
+| Architecture | B+ | 84.6 | 25% | 9 |
+| Maintainability | B+ | 83.6 | 10% | 3 |
+| Performance | B+ | 83.3 | 10% | 6 |
+| Quality | B | 82.1 | 20% | 7 |
+
+### Top findings (clickable entry points → GitHub)
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/main.py:326`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/main.py#L326)
+  - **Bare `except Exception` swallows file-read errors silently with noqa: S112**
+  - _read_key_source_files catches every Exception during file reading or token counting and silently `continue`s. The noqa: S112 acknowledges this but no logging occurs. Real I/O errors (permission denied, decoding errors, mid-flight corruption) become invisible, which is a debuggability hazard especia…
+  - *Fix:* Narrow the except clause to (OSError, UnicodeDecodeError) and log at DEBUG level with the file path and exception class. This preserves resilience while making silent skips diagnosable.
+  - *agent: `quality` · confidence: 0.90 · est: 0.5h*
+
+- 🟡 **MEDIUM** · [`pyproject.toml:27`](https://github.com/leocder07/spectra/blob/HEAD/pyproject.toml#L27)
+  - **Runtime dependencies use lower-bound-only version specifiers**
+  - All seven runtime dependencies in pyproject.toml use unbounded lower-bound specifiers (e.g. anthropic>=0.40, pydantic>=2.5, jinja2>=3.1). Without upper bounds, a future major release with breaking changes (e.g. pydantic 3.x, anthropic 1.x) will be silently installed and may break end-user installati…
+  - *Fix:* Add upper bounds to runtime dependencies, e.g. 'anthropic>=0.40,<1.0', 'pydantic>=2.5,<3', 'jinja2>=3.1,<4'. This caps the API surface to known-compatible major versions and is standard practice for P…
+  - *agent: `dependency` · confidence: 0.90 · est: 1.0h*
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/main.py:280`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/main.py#L280)
+  - **Composition root has grown beyond pure DI wiring (mixed responsibilities)**
+  - infrastructure/main.py now contains: DI wiring, workspace allocation, file heuristics (`_read_key_source_files`, `_prioritize_source_files`), SARIF report builder (`_build_sarif`), cache version composition (`_composite_model_versions`, `_composite_prompt_versions`), and report rendering branching. …
+  - *Fix:* Extract `_build_sarif` into a dedicated `SarifAdapter` (or extend `ReportAdapter`) implementing a `ReportPort.render(report, format, path)` contract. Move `_read_key_source_files`/`_prioritize_source_…
+  - *agent: `architecture` · confidence: 0.88 · est: 4.0h*
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/agents/specialist_agent.py:73`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/agents/specialist_agent.py#L73)
+  - **Validation strategy in SpecialistAgent.validate_output uses unsafe coercions**
+  - validate_output uses str(...)/int(...)/float(...) on raw LLM dict values without try/except. If the LLM produces a non-numeric line_start (e.g. 'unknown'), int() raises ValueError, the entire batch fails, and a single bad finding kills all valid findings in that response. Severity is also coerced vi…
+  - *Fix:* Wrap each finding construction in try/except (ValueError, ValidationError) and skip individual bad findings with a debug log. Validate severity ∈ {critical,high,medium,low,info} explicitly before cons…
+  - *agent: `quality` · confidence: 0.88 · est: 1.5h*
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/agents/base_agent.py:55`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/agents/base_agent.py#L55)
+  - **BaseAgent.parse_output / format_result violate Liskov for non-finding agents**
+  - `BaseAgent.run()` calls `validate_output(parsed) -> tuple[Finding, ...]` and then `format_result(findings, ...)` on the result. However, `MetaPrompter.validate_output` and `CritiqueAgent.validate_output` always return `()` because their outputs are not findings — they are plans and critiques. Caller…
+  - *Fix:* Generalize `BaseAgent` to be parametric in output type (e.g., `BaseAgent[T]` with abstract `parse_result(parsed) -> T`) or split into two ABCs: `FindingProducingAgent` for specialists and `StructuredO…
+  - *agent: `architecture` · confidence: 0.87 · est: 4.0h*
+
+- 🟡 **MEDIUM** · [`src/spectra/adapters/cli_controller.py:110`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/adapters/cli_controller.py#L110)
+  - **Module-level mutable globals for DI in CLI controller**
+  - `cli_controller.py` uses module-level `_analyzer_factory` and `_cache_provider` globals mutated via `set_analyzer_factory` / `set_cache_provider`. This is a pragmatic Typer integration, but it makes the CLI harder to test in isolation, prevents concurrent invocations with different factories, and re…
+  - *Fix:* Encapsulate the injected dependencies in a `CliContext` dataclass stored on the Typer app's `obj` (via `ctx.obj`), or build the Typer app inside a factory function `build_cli(analyzer_factory, cache_p…
+  - *agent: `architecture` · confidence: 0.85 · est: 3.0h*
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/agents/critique_agent.py:155`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/agents/critique_agent.py#L155)
+  - **CritiqueAgent.validate_output silently discards parsed structure and returns empty tuple**
+  - validate_output checks only that required keys exist, then returns (). The actual validated/rejected/severity-adjusted findings live in `parsed` but are never returned through the BaseAgent contract — callers must use the side-channel get_critique_result() and re-parse the raw output. This is duplic…
+  - *Fix:* Either store the parsed critique result on the instance during validate_output (so get_critique_result returns it without re-parsing), or extend AgentOutput with an optional critique_payload field so …
+  - *agent: `quality` · confidence: 0.85 · est: 2.0h*
+
+- 🟡 **MEDIUM** · [`src/spectra/infrastructure/main.py:90`](https://github.com/leocder07/spectra/blob/HEAD/src/spectra/infrastructure/main.py#L90)
+  - **_run_analysis function exceeds 100 lines and has 7 boolean/string parameters**
+  - _run_analysis in main.py is the composition root's async entry point and runs ~120 lines with 7 parameters (skip_critique, output_format, verbose, force, no_cache, plus the two required). It mixes DI wiring, ingest stage, agent factory, pipeline call, and three output-format branches in one function…
+  - *Fix:* Extract three helpers: (a) _build_pipeline_context(...) for DI wiring through PipelineContext, (b) _emit_report(report, output_path, fmt, renderer) for Stage 6 dispatch, and (c) bundle the 7 flags int…
+  - *agent: `quality` · confidence: 0.85 · est: 3.0h*
 
 ---
 
@@ -42,7 +105,7 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 **Findings:** 50 total — 🟡 16 medium · 🟢 20 low · ⚪ 14 info
 **Wall-clock:** 248s · **Cost:** $7.41 · **Tokens:** 673,411
 
-### Per-dimension scores
+### Per-dimension
 
 | Dimension | Grade | Score | Weight | Findings |
 |---|:---:|---:|---:|---:|
@@ -112,7 +175,7 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 **Findings:** 49 total — 🔴 1 critical · 🟠 7 high · 🟡 15 medium · 🟢 15 low · ⚪ 11 info
 **Wall-clock:** 190s · **Cost:** $9.16 · **Tokens:** 832,859
 
-### Per-dimension scores
+### Per-dimension
 
 | Dimension | Grade | Score | Weight | Findings |
 |---|:---:|---:|---:|---:|
@@ -182,7 +245,7 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 **Findings:** 61 total — 🟠 7 high · 🟡 26 medium · 🟢 22 low · ⚪ 6 info
 **Wall-clock:** 264s · **Cost:** $5.25 · **Tokens:** 477,328
 
-### Per-dimension scores
+### Per-dimension
 
 | Dimension | Grade | Score | Weight | Findings |
 |---|:---:|---:|---:|---:|
@@ -252,7 +315,7 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 **Findings:** 55 total — 🔴 1 critical · 🟠 6 high · 🟡 27 medium · 🟢 19 low · ⚪ 2 info
 **Wall-clock:** 276s · **Cost:** $6.32 · **Tokens:** 574,385
 
-### Per-dimension scores
+### Per-dimension
 
 | Dimension | Grade | Score | Weight | Findings |
 |---|:---:|---:|---:|---:|
@@ -322,7 +385,7 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 **Findings:** 50 total — 🟠 7 high · 🟡 22 medium · 🟢 15 low · ⚪ 6 info
 **Wall-clock:** 234s · **Cost:** $5.30 · **Tokens:** 482,023
 
-### Per-dimension scores
+### Per-dimension
 
 | Dimension | Grade | Score | Weight | Findings |
 |---|:---:|---:|---:|---:|
@@ -387,19 +450,9 @@ Verified against the Anthropic console: cost numbers reflect honest Opus 4.7 pri
 
 ## Methodology
 
-- All scans use **full mode** (8 agents including CritiqueAgent — `--no-cache` for honest cold-run cost).
-- Models: all 8 agents on Claude Opus 4.7 with per-role effort tuning (meta=medium, specialists=xhigh, critique=high+task_budget).
+- Scans use the **full pipeline** (8 agents including CritiqueAgent — `--no-cache` for honest cold-run cost).
+- Models: Claude Opus 4.7 with per-role effort tuning (meta=medium, specialists=xhigh, critique=high+task_budget).
 - Per-dimension weights: Architecture 25%, Security 25%, Quality 20%, Documentation 10%, Maintainability 10%, Performance 10%.
 - Cost = sum of input + output tokens × Opus 4.7 pricing ($5/M input, $25/M output) at the typical 70/30 split.
+- Self-scan: a Spectra binary scanning the same Spectra source. Useful as a sanity check; not a benchmark.
 - Scans done 2026-04-29 by Vivek Kumar.
-
-## Reproduce
-
-```bash
-pip install spectra-ai==0.3.2
-export ANTHROPIC_API_KEY=sk-ant-...
-spectra analyze https://github.com/<owner>/<repo>
-# default output is HTML; pass --format json -o report.json for CI integration
-```
-
-Raw JSON outputs and full HTML reports are checked into [`docs/leaderboard-data/`](../leaderboard-data/) and [`docs/launch/reports/`](reports/) respectively — the source of truth for every number above.
