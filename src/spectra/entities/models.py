@@ -370,6 +370,55 @@ class CacheStats(BaseModel, frozen=True):
     oldest_entry_at: datetime | None = None
 
 
+class BatchPrompt(BaseModel, frozen=True):
+    """Per-``focus_area`` analysis batch — Phase 3 cache unit.
+
+    Each ``BatchPrompt`` represents one specialist call: the prompt text
+    that will be sent to the LLM, the files it covers, and the
+    deterministic ``batch_id`` (``blake2b`` of sorted file hashes) used
+    as the cache key. Tuples preserve immutability so the value object
+    remains hashable and safe to share across asyncio tasks.
+
+    Attributes:
+        batch_id: ``blake2b(sorted(file_hashes))`` hex digest.
+        file_paths: Repo-relative paths covered by this batch.
+        file_hashes: Per-file blake2b digests, same order as ``file_paths``.
+        prompt_text: Fully composed user prompt for the specialist call.
+    """
+
+    batch_id: str
+    file_paths: tuple[str, ...]
+    file_hashes: tuple[str, ...]
+    prompt_text: str
+
+
+class BatchCacheKey(BaseModel, frozen=True):
+    """Composite key for the per-batch findings cache (Phase 3).
+
+    A row in ``findings_cache`` is reused only when every component
+    matches. Bumping any of model, prompt, schema, or spectra version
+    naturally misses the cache without touching disk — invalidation
+    is implicit, not policy.
+
+    Attributes:
+        batch_id: Deterministic batch identifier (see ``BatchPrompt``).
+        dimension: Analysis dimension that produced the findings.
+        model_version: LLM model id for this dimension's specialist.
+        prompt_version: ``blake2b`` of ``specialist_prompt + shared + critique``.
+        schema_version: ``Finding`` schema version literal.
+        spectra_version: ``spectra.__version__`` at lookup time.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    batch_id: str
+    dimension: Dimension
+    model_version: str
+    prompt_version: str
+    schema_version: str
+    spectra_version: str
+
+
 class RepoCacheKey(BaseModel, frozen=True):
     """Composite key for the repo-level full-report cache (Phase 2).
 
