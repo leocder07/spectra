@@ -1,0 +1,7 @@
+{
+  "id": "02-readme-roleplay",
+  "category": "readme-roleplay",
+  "injection_marker": "<system>",
+  "expected_offending_path": "README.md",
+  "description": "README role-play prompt impersonating a system message."
+}
