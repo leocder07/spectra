@@ -353,6 +353,25 @@ class CacheEntry(BaseModel, frozen=True):
     computed_at: datetime
 
 
+class CacheSecret(BaseModel, frozen=True):
+    """Per-user 32-byte HMAC key bound to the cache adapter.
+
+    Wraps the random secret returned by ``SecretBackend``. Construction
+    enforces the 32-byte length contract — any other length is rejected
+    so a misconfigured backend cannot silently weaken the MAC strength.
+    The secret is never serialized to disk or surfaced in error messages;
+    the wrapping entity exists to keep the use-case layer free of raw
+    ``bytes`` plumbing.
+
+    Attributes:
+        value: 32 random bytes from ``secrets.token_bytes(32)``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value: bytes = Field(min_length=32, max_length=32)
+
+
 class CacheStats(BaseModel, frozen=True):
     """Aggregate cache metrics surfaced by ``CachePort.stats``.
 
