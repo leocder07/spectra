@@ -1056,7 +1056,7 @@ class TestEstimateScoreParametrized:
         assert 0.0 <= result <= 100.0
 
     @pytest.mark.parametrize(
-        "sev,penalty",
+        ("sev", "penalty"),
         [
             ("critical", 15.0),
             ("high", 8.0),

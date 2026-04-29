@@ -1108,10 +1108,7 @@ def _matches_soc2_criterion(
     keywords = criterion.get("keywords", ())
     if any(kw in text for kw in keywords):
         return True
-    for ctrl in criterion.get("controls", []):
-        if any(kw in text for kw in ctrl.get("keywords", ())):
-            return True
-    return False
+    return any(any(kw in text for kw in ctrl.get("keywords", ())) for ctrl in criterion.get("controls", []))
 
 
 def _match_finding_to_cc(
@@ -1709,10 +1706,7 @@ def _build_benchmark_context(
     score = report.score_card.overall_score
     grade_letter = report.score_card.overall_grade[0]
 
-    if lang:
-        lang_label = lang.capitalize()
-    else:
-        lang_label = "all"
+    lang_label = lang.capitalize() if lang else "all"
 
     if score >= median + 10:
         percentile = f"Well above industry median for {lang_label} projects"

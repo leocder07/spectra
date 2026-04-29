@@ -1824,7 +1824,7 @@ class TestSoc2ZeroFindings:
         for c in result["criteria"]:
             assert c["finding_count"] == 0
             assert c["has_critical"] is False
-            for k, v in c["severity_counts"].items():
+            for v in c["severity_counts"].values():
                 assert v == 0
 
     def test_coverage_pct_is_zero(self):
@@ -2009,7 +2009,7 @@ class TestSeparateStrengths:
             desc="comprehensive test coverage",
             line=1,
         )
-        strengths, issues = _separate_strengths((finding,))
+        strengths, _issues = _separate_strengths((finding,))
         assert len(strengths) == 1
 
     def test_properly_keyword_detected(self):
@@ -2018,7 +2018,7 @@ class TestSeparateStrengths:
             desc="properly configured error handling",
             line=1,
         )
-        strengths, issues = _separate_strengths((finding,))
+        strengths, _issues = _separate_strengths((finding,))
         assert len(strengths) == 1
 
 
