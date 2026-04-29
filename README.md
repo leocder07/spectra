@@ -57,6 +57,16 @@ spectra analyze <repo-url> --force           # Bypass cache, force a fresh analy
 spectra analyze <repo-url> --no-cache        # Disable cache reads and writes for this run
 ```
 
+### Cache management
+
+Spectra caches per-`focus_area` batches and full reports under `${XDG_CACHE_HOME:-~/.cache}/spectra/`. Three subcommands manage it:
+
+```bash
+spectra cache stats     # Show entry count, on-disk size, per-dimension hit rate
+spectra cache clear     # Drop all cache entries (full reset)
+spectra cache prune     # Physically delete stale rows that no current key matches
+```
+
 ---
 
 ## Key Features
