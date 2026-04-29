@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import bisect
 from datetime import datetime  # noqa: TC003 — used by Pydantic at runtime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from spectra.entities.enums import (
     AgentRole,
@@ -488,6 +489,75 @@ def score_to_grade(score: float) -> Grade:
     """
     idx = bisect.bisect_right(_GRADE_THRESHOLDS, score)
     return _GRADE_LABELS[idx]
+
+
+# ── Per-Agent Run Configuration ───────────────────────────────
+
+ModelId = Literal[
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+]
+"""Anthropic model identifiers accepted by Spectra's --model flag."""
+
+EffortLevel = Literal["low", "medium", "high", "xhigh", "max"]
+"""Reasoning effort levels accepted by Spectra's --effort flag."""
+
+# Effort levels reserved for Opus-tier models (Sonnet/Haiku reject these).
+_OPUS_TIER_MODELS: frozenset[str] = frozenset({"claude-opus-4-7", "claude-opus-4-6"})
+_OPUS_ONLY_EFFORTS: frozenset[str] = frozenset({"xhigh", "max"})
+
+
+class AgentRunConfig(BaseModel, frozen=True):
+    """Per-agent runtime configuration: model + effort + optional task budget.
+
+    Frozen so the resolved configs can be shared across asyncio tasks
+    without risk of mutation. The ``model``/``effort`` validation rejects
+    unknown models, unknown effort levels, and the Opus-tier-only effort
+    levels (``xhigh``, ``max``) when paired with a Sonnet or Haiku model.
+
+    Attributes:
+        model: Anthropic model id (one of ``ModelId``).
+        effort: Reasoning effort level (one of ``EffortLevel``).
+        task_budget_tokens: Adaptive-thinking budget in tokens; only
+            populated for the CritiqueAgent today.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    model: ModelId
+    effort: EffortLevel
+    task_budget_tokens: int | None = None
+
+    @model_validator(mode="after")
+    def _validate_opus_tier_effort(self) -> AgentRunConfig:
+        """Reject ``xhigh``/``max`` effort on non-Opus models."""
+        if self.effort in _OPUS_ONLY_EFFORTS and self.model not in _OPUS_TIER_MODELS:
+            msg = (
+                f"effort={self.effort!r} is Opus-tier only — "
+                f"model={self.model!r} does not support it. "
+                f"Use one of: {sorted(_OPUS_TIER_MODELS)}."
+            )
+            raise ValueError(msg)
+        return self
+
+
+_DEFAULT_AGENT_CONFIGS: dict[AgentRole, AgentRunConfig] = {
+    "meta_prompter": AgentRunConfig(model="claude-opus-4-7", effort="medium"),
+    "architecture": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "quality": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "documentation": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "dependency": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "performance": AgentRunConfig(model="claude-opus-4-7", effort="xhigh"),
+    "critique": AgentRunConfig(
+        model="claude-opus-4-7",
+        effort="high",
+        task_budget_tokens=80_000,
+    ),
+}
+"""Hardcoded defaults — every agent's model + effort prior to PR #31."""
 
 
 # ── Cost Estimation ───────────────────────────────────────────

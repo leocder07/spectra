@@ -8,12 +8,14 @@ import pytest
 from pydantic import ValidationError
 
 from spectra.entities.models import (
+    _DEFAULT_AGENT_CONFIGS,
     DEFAULT_DIMENSION_SCORE,
     EXCELLENT_SCORE,
     MIN_CONFIDENCE,
     PASSING_SCORE,
     AgentContext,
     AgentOutput,
+    AgentRunConfig,
     AnalysisReport,
     AnalysisRequest,
     BatchCacheKey,
@@ -1116,3 +1118,83 @@ class TestBatchCacheKey:
         assert _batch_key() != _batch_key(model_version="claude-opus-5-0")
         assert _batch_key() != _batch_key(prompt_version="other")
         assert _batch_key() != _batch_key(spectra_version="0.3.0")
+
+
+# ── AgentRunConfig (per-agent model + effort) ─────────────────
+
+
+class TestAgentRunConfig:
+    def test_agent_run_config_frozen(self):
+        cfg = AgentRunConfig(model="claude-opus-4-7", effort="xhigh")
+        with pytest.raises(ValidationError):
+            cfg.model = "claude-sonnet-4-6"  # type: ignore[misc]
+
+    def test_agent_run_config_defaults_are_complete(self):
+        expected = {
+            "meta_prompter",
+            "architecture",
+            "security",
+            "quality",
+            "documentation",
+            "dependency",
+            "performance",
+            "critique",
+        }
+        assert set(_DEFAULT_AGENT_CONFIGS) == expected
+
+    def test_agent_run_config_specialists_use_xhigh(self):
+        for role in ("architecture", "security", "quality", "documentation", "dependency", "performance"):
+            assert _DEFAULT_AGENT_CONFIGS[role].effort == "xhigh"
+            assert _DEFAULT_AGENT_CONFIGS[role].model == "claude-opus-4-7"
+
+    def test_agent_run_config_critique_has_task_budget(self):
+        critique = _DEFAULT_AGENT_CONFIGS["critique"]
+        assert critique.effort == "high"
+        assert critique.task_budget_tokens == 80_000
+
+    def test_agent_run_config_meta_uses_medium(self):
+        meta = _DEFAULT_AGENT_CONFIGS["meta_prompter"]
+        assert meta.effort == "medium"
+        assert meta.model == "claude-opus-4-7"
+
+    def test_agent_run_config_validates_known_model(self):
+        for model in ("claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"):
+            cfg = AgentRunConfig(model=model, effort="medium")
+            assert cfg.model == model
+
+    def test_agent_run_config_rejects_unknown_model(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="gpt-4", effort="medium")
+
+    def test_agent_run_config_validates_effort_level(self):
+        for effort in ("low", "medium", "high", "xhigh", "max"):
+            cfg = AgentRunConfig(model="claude-opus-4-7", effort=effort)
+            assert cfg.effort == effort
+
+    def test_agent_run_config_rejects_unknown_effort(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="claude-opus-4-7", effort="ultra")
+
+    def test_agent_run_config_max_effort_rejected_for_haiku(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="claude-haiku-4-5", effort="max")
+
+    def test_agent_run_config_max_effort_rejected_for_sonnet(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="claude-sonnet-4-6", effort="max")
+
+    def test_agent_run_config_xhigh_effort_rejected_for_haiku(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="claude-haiku-4-5", effort="xhigh")
+
+    def test_agent_run_config_xhigh_effort_rejected_for_sonnet(self):
+        with pytest.raises(ValidationError):
+            AgentRunConfig(model="claude-sonnet-4-6", effort="xhigh")
+
+    def test_agent_run_config_max_effort_accepted_for_opus(self):
+        cfg = AgentRunConfig(model="claude-opus-4-7", effort="max")
+        assert cfg.effort == "max"
+
+    def test_agent_run_config_task_budget_optional(self):
+        cfg = AgentRunConfig(model="claude-opus-4-7", effort="high")
+        assert cfg.task_budget_tokens is None
