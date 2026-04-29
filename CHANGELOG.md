@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-29
+
+### Added
+- **Per-agent model and effort configuration via CLI flags.** Override the default Claude Opus 4.7 wiring on a per-agent basis. New flags: `--model`, `--effort`, `--<role>-model`, `--<role>-effort` for each of the 8 roles (meta, architecture, security, quality, documentation, dependency, performance, critique), plus `--model-overrides`/`--effort-overrides` JSON for power users. Allowed models: claude-opus-4-7, claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5. Allowed effort levels: low, medium, high, xhigh, max. Validation enforces `max`/`xhigh` is Opus-tier only (Sonnet/Haiku reject). New `AgentRunConfig` value object, `resolve_agent_configs` use-case helper, and AgentFactory configs param. Backward-compat: zero flags = existing defaults. 46 new tests.
+
+### Removed
+- The leftover `spectra-analysis` job in `.github/workflows/ci.yml` — same token-abuse vector as the workflows deleted in PR #14. Failing on every PR with no actionable signal. The `Test & Lint` required check is unchanged.
+
 ## [0.3.3] - 2026-04-29
 
 ### Fixed
