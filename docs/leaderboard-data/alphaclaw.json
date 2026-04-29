@@ -1,0 +1,1204 @@
+{
+  "repo_url": "https://github.com/garrytan/alphaclaw",
+  "repo_name": "alphaclaw",
+  "score_card": {
+    "overall_score": 73.2,
+    "overall_grade": "C+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 73.1,
+        "grade": "C+",
+        "findings_count": 12,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 81.4,
+        "grade": "B",
+        "findings_count": 5,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 65.6,
+        "grade": "D+",
+        "findings_count": 13,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 69.6,
+        "grade": "C-",
+        "findings_count": 13,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 75.6,
+        "grade": "C+",
+        "findings_count": 8,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 69.0,
+        "grade": "C-",
+        "findings_count": 12,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 63
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "PLAN target files not provided for analysis",
+      "description": "The PLAN focuses on lib/server.js, lib/server/startup.js, lib/server/init/*, lib/server/agents/service.js, lib/server/gateway.js, and bin/alphaclaw.js. None of these files were included in the source code section. Only frontend components and a usage-tracker plugin were provided. Server-side architectural concerns (lifecycle/runtime init coupling, route/service/db separation, module boundaries across agents/cron/watchdog/webhooks) cannot be evaluated against actual code. Findings below are limited to the frontend composition and the one plugin file provided.",
+      "location": {
+        "file_path": "lib/server.js",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run analysis with the actual server.js, startup.js, init/*.js, gateway.js, agents/service.js, and registered routes included so server-side architecture can be evaluated.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "App component is a god component composing all routes inline",
+      "description": "lib/public/js/app.js is ~370 lines and directly composes every route (Agents, Browse, Chat, Cron, Envars, Models, Nodes, General, Doctor, Telegram, Usage, Watchdog, Webhooks), threads dozens of props per route, runs route-specific regex parsing inline (selectedAgentId, agentDetailTab, selectedCronJobId), and mixes layout, navigation, controller wiring, and authentication side effects in one place. This concentrates cross-cutting concerns, violates separation between shell and route composition, and makes adding a new route a multi-place change. Note that components/routes/index.js exists as a barrel \u2014 the route wrapper indirection is set up but App.js bypasses it for layout-specific routes.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 96,
+        "line_end": 370
+      },
+      "recommendation": "Extract a RouteShell/RouteSwitch component that owns route matching and pane selection. Move per-route prop wiring (e.g. AgentsPane, CronPane, ChatPane wrappers) into the routes/ folder so app.js only renders <Sidebar/>, <StatusBar/>, and <RouteOutlet/>. Move the regex-based location parsing into a dedicated useRouteParams hook.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Two route composition strategies coexist in the shell",
+      "description": "App.js uses imperative isXRoute booleans to render full-pane routes (Agents, Chat, Cron, Envars, Models, Nodes, Browse) outside of <Switch>, while a separate <Switch> with <Route> handles General/Doctor/Telegram/Watchdog/Usage/Webhooks. This dual model means route registration is split between two places, ordering matters in the boolean cascade, and the wouter router state is decoupled from half the routes. New developers must understand both mechanisms.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 197,
+        "line_end": 340
+      },
+      "recommendation": "Unify on a single routing strategy. Either move the layout-specific routes into <Route> entries with a wrapper component that selects pane className, or remove <Switch> entirely and drive everything through declarative route table data.",
+      "agent_role": "architecture",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Window-global flag used as cross-component event channel",
+      "description": "kPendingCreateAgentWindowFlag = '__alphaclawPendingCreateAgent' is set on the global window object by the sidebar's onAddAgent and read by an effect in App, then a CustomEvent 'alphaclaw:create-agent' is dispatched on window and listened to by AgentsTab. This implicit global coupling bypasses the component tree and props, making the data flow hard to trace, defeats SSR/multiple-mount safety (note the explicit defensive 'render(null, rootElement)' on line 364), and creates ordering dependencies between effects.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 44,
+        "line_end": 124
+      },
+      "recommendation": "Replace the window flag and DOM CustomEvent with explicit state passed via props or a small context (e.g., useAgentsActions().requestCreate()). Have AgentsTab consume the same actions object instead of subscribing to window events.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Plugin layer reaches directly into filesystem and SQLite without an injected storage abstraction",
+      "description": "lib/plugin/usage-tracker/index.js resolves its own root directory via env vars, mkdirs the db folder, opens a SQLite database, and prepares statements \u2014 all inside the plugin module. There is no injected database/storage port from the host. This couples the plugin to node:sqlite and the filesystem layout, prevents reuse against alternate stores, and means initialization side effects (resolveRootDir, fs.mkdirSync) happen on first event rather than at register time. It also means every plugin that wants persistence will reinvent the same pattern.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 100,
+        "line_end": 115
+      },
+      "recommendation": "Have the plugin host pass a storage/db factory or a scoped data directory through the api object in register(api). Plugins should declare their schema and receive a configured DatabaseSync handle from the host, not resolve OPENCLAW_HOME/ALPHACLAW_ROOT_DIR themselves.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Schema migration logic embedded in feature plugin",
+      "description": "ensureSchema in usage-tracker performs CREATE TABLE, CREATE INDEX, and ALTER TABLE ADD COLUMN for session_key as an idempotent migration with try/catch on 'duplicate column name'. Migration is a cross-cutting concern that belongs in a dedicated migration layer (versioned, ordered, auditable). Embedding ad-hoc ALTERs in plugin init means schema evolution is opaque, untracked, and cannot be coordinated across plugins or rolled back.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 21,
+        "line_end": 95
+      },
+      "recommendation": "Introduce a migration runner with numbered/named migrations stored separately. Plugins declare migrations (e.g. migrations/001_init.sql) and the host applies them in order, recording applied versions in a schema_migrations table.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Module-level singleton plugin instance prevents test isolation",
+      "description": "createPlugin() is invoked at module load time and the resulting object (with its closed-over database/statements) is exported as both module.exports and module.exports.default. Once the module is required, every consumer shares the same database connection state. There is no factory the host can call to produce a fresh, isolated plugin per test or per gateway instance.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 251,
+        "line_end": 254
+      },
+      "recommendation": "Export the createPlugin factory rather than a pre-instantiated singleton: module.exports = { createPlugin } or module.exports = createPlugin. Let the host invoke it per registration scope.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Frontend module reaches into localStorage directly across components",
+      "description": "telegram-workspace/index.js defines its own loadTelegramWorkspaceState/saveTelegramWorkspaceState/loadTelegramWorkspaceCache helpers that touch window.localStorage directly with try/catch swallowed errors, while ui-settings.js (referenced from app.js as readUiSettings/writeUiSettings) is the apparent canonical UI persistence layer. Two parallel persistence patterns increase the surface where storage keys and serialization rules drift.",
+      "location": {
+        "file_path": "lib/public/js/components/telegram-workspace/index.js",
+        "line_start": 36,
+        "line_end": 86
+      },
+      "recommendation": "Consolidate browser storage access into a single lib/storage module (or extend ui-settings.js) that owns key resolution, JSON safety, and quota errors. Have telegram-workspace import that module instead of reimplementing it.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Models component branches between embedded and standalone shell, violating single responsibility",
+      "description": "models-tab/index.js exports a Models component that takes an 'embedded' prop and renders a different top-level shell (PaneShell+PageHeader vs flex header). This conflates two concerns: 'show models settings' and 'how to host the models settings'. Callers from agent detail (embedded) and the /models route both share rendering logic but the shell selection should live at the call site.",
+      "location": {
+        "file_path": "lib/public/js/components/models-tab/index.js",
+        "line_start": 88,
+        "line_end": 232
+      },
+      "recommendation": "Split into ModelsBody (no shell) and ModelsRoute (wraps body in PaneShell+PageHeader). The agent detail screen imports ModelsBody; the /models route imports ModelsRoute. Drop the 'embedded' prop.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Doctor component owns polling, filtering, status mutations, and pending-run state machine",
+      "description": "components/doctor/index.js holds three usePolling instances, derives pendingRun, manages selectedRunFilter/pendingRunSelectionId reconciliation across multiple effects, performs API mutations (startDoctorRun, updateDoctorCardStatus), and owns rendering. The state-machine logic (selecting active vs pending vs completed runs) and the polling logic each warrant extraction to dedicated hooks (e.g. useDoctorRuns, useDoctorRunSelection) so the component is purely presentational.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 41,
+        "line_end": 200
+      },
+      "recommendation": "Move the three polls and selection-reconciliation effects into a useDoctorTab hook (mirroring use-cron-tab.js, use-general-tab.js, use-models.js patterns already used elsewhere). The component should consume {state, actions} only.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Inline workspace-path parsing duplicated in agents-tab",
+      "description": "agents-tab/index.js defines resolveWorkspaceBrowsePath inline to extract a relative path under .openclaw/ from a workspace path. This is domain logic about workspace layout that other features (browse, doctor open-file links, chat) likely also need. Embedding it in a UI component file mixes layers.",
+      "location": {
+        "file_path": "lib/public/js/components/agents-tab/index.js",
+        "line_start": 13,
+        "line_end": 22
+      },
+      "recommendation": "Move to lib/workspace-paths.js (or similar) and unit-test the path normalization. Import from agents-tab and any other consumer.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "arch-011",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Strong evidence of clean component decomposition in feature folders",
+      "description": "Positive: feature folders (agents-tab, cron-tab, doctor, google, models-tab, nodes-tab, file-viewer, telegram-workspace) consistently split into a top-level index.js (composition), use-*.js hooks (state/actions), and child components. Barrel exports via components/routes/index.js cleanly separate route surface from layout. The use-app-shell-controller, use-app-shell-ui, use-browse-navigation, useAgents, useAgentSessions hooks in app.js demonstrate disciplined extraction of shell logic into hooks. This is mature for a frontend codebase and should be preserved.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 26,
+        "line_end": 42
+      },
+      "recommendation": "Continue this pattern. Apply the same use-*-tab hook pattern to doctor/index.js (currently the outlier).",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "high",
+      "title": "postMessage handler accepts any origin for OAuth completion",
+      "description": "The window message handler processes event.data.google === 'success' or 'error' without validating event.origin. Any page the user visits (or any iframe/popup) can postMessage to this window and trigger toast notifications, refresh of accounts, and force handleCheckApis with an attacker-supplied accountId. While the underlying API call should still enforce auth on the server, this is a missing defense-in-depth check and could enable UI spoofing or trigger unintended state refreshes. CWE-346: Origin Validation Error. OWASP A01:2021.",
+      "location": {
+        "file_path": "lib/public/js/components/google/index.js",
+        "line_start": 215,
+        "line_end": 230
+      },
+      "recommendation": "Validate event.origin against window.location.origin (or an explicit allowlist) before processing message data. Example: if (event.origin !== window.location.origin) return;",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Reconnect command UI displays gateway token in copyable form",
+      "description": "buildReconnectCommand embeds OPENCLAW_GATEWAY_TOKEN directly into a shell command string that is copied to the clipboard. Although the visible text in the readonly input is masked ('****'), the full token value is held in client memory and copied verbatim via handleCopyText with maskToken: false. This is a deliberate feature, but the token then sits in the user's clipboard (often readable by other apps and clipboard managers) and may also appear in shell history if pasted. CWE-522: Insufficiently Protected Credentials. OWASP A07:2021.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/connected-nodes/index.js",
+        "line_start": 13,
+        "line_end": 31
+      },
+      "recommendation": "Consider issuing one-time pairing codes/short-lived enrollment tokens instead of the long-lived gateway token, prefixing the copied command with a leading space to skip shell history (HISTCONTROL=ignorespace), or warn the user before copying. Document token rotation steps if token leaks.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Untrusted markdown rendered with dangerouslySetInnerHTML (low risk \u2014 static input, but pattern is fragile)",
+      "description": "marked.parse output is injected via dangerouslySetInnerHTML. The current input (kSetupInstructionsMarkdown) is a hardcoded string literal, so XSS is not exploitable today. However, marked by default does not sanitize HTML embedded in markdown, so if this component is ever refactored to accept dynamic markdown (e.g. from server APIs or release notes), it becomes an XSS sink. CWE-79.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/browser-attach/index.js",
+        "line_start": 50,
+        "line_end": 60
+      },
+      "recommendation": "Configure marked with a sanitizer (e.g. DOMPurify on the output) project-wide, or document that this component must only ever receive trusted static markdown. Consider a shared <SafeMarkdown /> wrapper that always sanitizes.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Sensitive data possibly persisted to localStorage (Telegram workspace state)",
+      "description": "TelegramWorkspace persists workspace onboarding state including groupId, groupInfo (chat metadata), allowUserId, and topic ids to localStorage via saveTelegramWorkspaceState. localStorage is accessible to any JS executing in the same origin, including injected scripts (XSS) and browser extensions. While this data is not credentials, leaking group/user IDs and topic mapping reduces the attacker effort if any XSS is found. CWE-922: Insecure Storage of Sensitive Information.",
+      "location": {
+        "file_path": "lib/public/js/components/telegram-workspace/index.js",
+        "line_start": 51,
+        "line_end": 73
+      },
+      "recommendation": "Avoid storing identifiers that could be used to target/spoof messages in localStorage. Where possible, keep state server-side and re-fetch on load. If client persistence is required, scope to sessionStorage and consider including a server-issued nonce so stolen state cannot be replayed cross-session.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Raw SQL string composition uses parameter binding correctly \u2014 informational positive note",
+      "description": "lib/plugin/usage-tracker/index.js uses node:sqlite prepared statements with named parameters ($timestamp, $session_id, etc.) consistently for INSERT/UPDATE flows. No string concatenation of user input into SQL was observed. CWE-89 is properly mitigated here. Including this so the report acknowledges good practice, not as a deduction.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 100,
+        "line_end": 175
+      },
+      "recommendation": "No action required. Maintain prepared-statement pattern for any future schema additions.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "App component exceeds 350 lines with deeply nested JSX and inline handlers",
+      "description": "The App component in app.js spans roughly 300+ lines with deeply nested template literals, multiple inline IIFEs for route parsing, inline event handlers creating closures on every render, and conditional rendering for 7+ routes. Cyclomatic complexity is elevated by cascading isXxxRoute checks and the fallback Switch. This makes the component hard to test, modify, and reason about.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 47,
+        "line_end": 460
+      },
+      "recommendation": "Extract route parsing IIFEs into helper functions (e.g., parseSelectedAgentId(location)). Move the long Switch/Route block into a dedicated <AppRoutes> component. Lift inline onclick handlers (e.g., the onAddAgent body) into named handlers. Target component size <150 lines.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "DoctorTab component is a god-component with excessive state and effects",
+      "description": "DoctorTab in lib/public/js/components/doctor/index.js is ~400 lines, manages 5 useState hooks, 4 useEffect hooks with complex interdependent dependency arrays, 3 polling subscriptions, multiple useMemo computations, and inline JSX rendering for run pills, banners, summaries, and findings. The interplay between selectedRunFilter, pendingRunSelectionId, activeRunId, and selectedRunIsActiveRun is hard to follow and a likely source of subtle bugs.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 36,
+        "line_end": 460
+      },
+      "recommendation": "Extract a useDoctorRunSelection hook encapsulating run filter state and the three sync effects. Split rendering into <DoctorRunTabs>, <DoctorBanners>, and <DoctorEmptyState> sub-components. Move pure helpers (getRunTabClassName, getRunMarkerClassName) to a helpers module.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "Google component has 15+ useState hooks indicating over-broad responsibility",
+      "description": "Google component declares roughly 8 useState hooks plus delegates more state to two custom hooks (useGoogleAccounts, useGmailWatch). It mixes concerns: account expansion UI, scope editing per-account, API status checking, credentials modal state, add-account modal state, disconnect dialog, Gmail wizard. Multiple useEffect chains synchronize derived state across these (lines 156-198). High coupling and state surface indicates this should be decomposed.",
+      "location": {
+        "file_path": "lib/public/js/components/google/index.js",
+        "line_start": 39,
+        "line_end": 470
+      },
+      "recommendation": "Extract per-account scope/API-status state into a useAccountScopes(accountId) hook. Split modal management into a useGoogleModals hook returning {credentials, addCompany, gmailWizard, disconnect}. This reduces top-level state to <=4 hooks.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Empty catch block silently swallows errors",
+      "description": "In handleSidebarLogout (app.js ~line 116), localStorage/sessionStorage clearing uses `} catch {}` silently. Similar empty catches appear in telegram-workspace/index.js storage helpers (load/save/remove functions, ~lines 33-86) and bootstrapWorkspace (`} catch {}`). Silent failures hide real bugs (e.g., quota exceeded, JSON parse errors) and complicate debugging.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 113,
+        "line_end": 120
+      },
+      "recommendation": "Log to console.warn with a contextual message in catch blocks, even if errors are non-fatal. For storage helpers, return a specific sentinel and log the actual error.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Empty catch with `return` is used instead of removing the try/catch",
+      "description": "In agents-tab/index.js handleEdit, the catch block does nothing but `return`, which is equivalent to letting the error propagate suppressed. The pattern is misleading because handleUpdateAgent already shows a toast and re-throws \u2014 wrapping it just to swallow is redundant.",
+      "location": {
+        "file_path": "lib/public/js/components/agents-tab/index.js",
+        "line_start": 76,
+        "line_end": 83
+      },
+      "recommendation": "Remove the redundant try/catch in handleEdit. Use `await handleUpdateAgent(id, patch).then(() => setEditingAgent(null)).catch(() => {});` or check the result and only update modal state on success.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Significant duplication of localStorage helpers across modules",
+      "description": "telegram-workspace/index.js defines 6 nearly-identical functions (loadTelegramWorkspaceState/saveTelegramWorkspaceState/removeTelegramWorkspaceState and the cache trio) that differ only by storage key. The same try/catch + JSON.parse + window.localStorage pattern likely repeats in other components based on the readUiSettings/writeUiSettings imports in app.js.",
+      "location": {
+        "file_path": "lib/public/js/components/telegram-workspace/index.js",
+        "line_start": 33,
+        "line_end": 86
+      },
+      "recommendation": "Extract a generic createScopedLocalStorage(baseKey) factory returning {load, save, remove} that handles JSON serialization, scoping by suffix, and quota errors uniformly. Replace the 6 duplicated functions with two factory calls.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Duplicate code between writeUsageEvent and writeToolEvent in usage-tracker plugin",
+      "description": "lib/plugin/usage-tracker/index.js writeUsageEvent and writeToolEvent both call getDatabase(), construct String() coercions for sessionId/sessionKey, and use Date.now()/timestamp similarly. Additionally, both event handlers in register() share an identical try/catch logger pattern. The branching String coercion (`String(event?.sessionId || ctx?.sessionId || \"\")`) is repeated three times.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 159,
+        "line_end": 226
+      },
+      "recommendation": "Extract a helper `withErrorLogging(name, fn)` that wraps the try/catch+logger pattern. Add a small `resolveSessionContext(event, ctx)` helper to compute sessionId/sessionKey once.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "ensureSchema function performs 11 separate DDL statements without transaction",
+      "description": "ensureSchema in lib/plugin/usage-tracker/index.js (lines 30-100) executes ~11 sequential database.exec/safeAlterTable calls. If any statement fails mid-sequence, the schema is left in a partial state. The function is also long (~70 lines) with repetitive index/table creation that obscures intent.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 30,
+        "line_end": 100
+      },
+      "recommendation": "Wrap ensureSchema body in `BEGIN; ... COMMIT;` (or use database.exec with all statements concatenated). Split into ensureUsageEventsSchema() and ensureToolEventsSchema() helpers for readability.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "safeAlterTable swallows non-duplicate-column errors via fragile string match",
+      "description": "safeAlterTable (lines 21-28) catches all errors and re-throws only when the message does NOT contain 'duplicate column name'. This is locale/version dependent \u2014 a future SQLite version, different language, or different SQL error (e.g., syntax error in the ALTER) could be silently swallowed if the message happens to contain that substring or unrelated errors leak through.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 21,
+        "line_end": 28
+      },
+      "recommendation": "Check column existence via PRAGMA table_info before issuing ALTER TABLE, or compare error.code/errno rather than message text. node:sqlite errors expose `code` for SQLITE_ERROR vs duplicate columns.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "CronTab hasUnsavedDetailChanges useMemo has high cognitive complexity",
+      "description": "lib/public/js/components/cron-tab/index.js declares an 18-line useMemo (line 32-58) computing hasUnsavedDetailChanges with three pairs of String coercions plus three boolean comparisons spread over multiple branches. The dependency array has 6 entries and the logic is hard to scan.",
+      "location": {
+        "file_path": "lib/public/js/components/cron-tab/index.js",
+        "line_start": 32,
+        "line_end": 58
+      },
+      "recommendation": "Extract `computeRoutingDirty(routingDraft, selectedJob)` and `computePromptDirty(promptValue, savedPromptValue)` pure helpers. Combine them in a thin useMemo. This reduces dependency array complexity and improves testability.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "buildReconnectCommand and inline command template are hard to test inline",
+      "description": "lib/public/js/components/nodes-tab/connected-nodes/index.js defines buildReconnectCommand and escapeDoubleQuotes at module level (lines 11-32) but the function mixes default/fallback logic, conditional inclusion of flags, and shell escaping in a single chain. Without tests, regressions in shell-escaping (e.g., unbalanced quotes from displayName) are likely to be missed.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/connected-nodes/index.js",
+        "line_start": 11,
+        "line_end": 32
+      },
+      "recommendation": "Move buildReconnectCommand to a separate module (e.g., reconnect-command.js) and add unit tests covering: empty token, TLS on/off, displayName containing quotes/backslashes, missing connectInfo.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-011",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Tests folder paths referenced in PLAN are absent from provided code",
+      "description": "The analysis plan references tests/server/, tests/frontend/, vitest.config.js, lib/server/agents/, lib/server/doctor/, and lib/server/routes/. None of these are included in the provided source. Without seeing tests, coverage gaps for these complex frontend components (DoctorTab, App, Google, telegram-workspace) cannot be confirmed but appear likely given the absence of any test imports/references.",
+      "location": {
+        "file_path": "vitest.config.js",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add unit tests for pure helpers (buildReconnectCommand, deriveToolSuccess, coerceCount, resolveWorkspaceBrowsePath, resolveStorageKey). Add component tests for DoctorTab run-filter sync logic and App route parsing IIFEs.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "qual-012",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Magic strings duplicated for window globals and storage keys",
+      "description": "app.js uses string literals like '__alphaclawPendingCreateAgent', '__alphaclawSetupAppBootCount' (line 466), and 'alphaclaw:create-agent' event name. The 'alphaclaw:create-agent' event is dispatched from app.js (line 88) and listened in agents-tab/index.js (line 38) \u2014 two separate string literals that must stay in sync. Similarly, isAgentsRoute/isChatRoute checks compare to literal '/agents', '/chat', etc.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 33,
+        "line_end": 35
+      },
+      "recommendation": "Define route constants (kAgentsRoute, kChatRoute) and event constants (kCreateAgentEvent) in a shared constants module. Import them in both producers and consumers to ensure consistency.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Documentation files referenced in PLAN are not provided for review",
+      "description": "The analysis plan calls for reviewing README.md, AGENTS.md, CONTRIBUTING.md, lib/setup/core-prompts/AGENTS.md, lib/setup/core-prompts/TOOLS.md, and lib/setup/skills/gog-cli/, but the source code section only contains JavaScript implementation files. The documentation files are listed at the top but their contents are not available, limiting the ability to assess setup instructions, contributor architecture overviews, and skill prompt accuracy.",
+      "location": {
+        "file_path": "README.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Provide the actual contents of the documentation files (README.md, AGENTS.md, CONTRIBUTING.md, core-prompts/*.md, skills/gog-cli/*) so a thorough documentation review can be performed against their stated focus areas.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Plugin module lacks file-level and function-level JSDoc",
+      "description": "The usage-tracker plugin exports an event-driven plugin with non-trivial schema management, environment variable resolution (ALPHACLAW_ROOT_DIR/OPENCLAW_HOME/OPENCLAW_ROOT_DIR), and SQLite migrations, but has no module-level overview, no JSDoc on createPlugin, ensureSchema, writeUsageEvent, writeToolEvent, or deriveToolSuccess. Contributors cannot easily understand the event contract (what fields llm_output and tool_result_persist receive) without reading every line.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 1,
+        "line_end": 250
+      },
+      "recommendation": "Add a module header describing the plugin's purpose, the events it subscribes to, the SQLite tables it writes, and the environment variables it honors. Add JSDoc to writeUsageEvent and writeToolEvent including expected event/ctx shapes (sessionId, sessionKey, runId, provider, model, usage.{input,output,cacheRead,cacheWrite,total}).",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Environment variable precedence is undocumented",
+      "description": "resolveRootDir() falls back through ALPHACLAW_ROOT_DIR \u2192 OPENCLAW_HOME \u2192 OPENCLAW_ROOT_DIR \u2192 ~/.alphaclaw, but this precedence and the meaning of each variable is not documented in any visible source comment or referenced in CONTRIBUTING. Operators migrating between the alphaclaw and openclaw naming will not know which variable wins.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 14,
+        "line_end": 19
+      },
+      "recommendation": "Add an inline comment block explaining the precedence and document the supported environment variables in README.md (or a dedicated docs/configuration.md). Note that the dual alphaclaw/openclaw naming is a known compatibility surface.",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Schema migration logic lacks explanatory comment",
+      "description": "safeAlterTable swallows 'duplicate column name' errors to make ALTER TABLE idempotent, which is a non-obvious migration pattern. Without a comment, future contributors may either remove the try/catch or duplicate the pattern incorrectly.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 21,
+        "line_end": 28
+      },
+      "recommendation": "Add a JSDoc/comment above safeAlterTable explaining that node:sqlite has no IF NOT EXISTS for ADD COLUMN, so the function intentionally suppresses only the duplicate-column error to support idempotent re-runs against existing databases.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public Preact components missing prop-type / JSDoc documentation",
+      "description": "Major UI components (App, AgentBindingsSection, AgentOverview, AgentToolsPanel, AgentsTab, CronTab, DoctorTab, FileViewer, GeneralTab, Google, Models, NodesTab, TelegramWorkspace) accept many props with default values but have no JSDoc describing prop shapes, callback signatures, or required vs optional props. For example, AgentOverview takes onUpdateAgent, onSwitchToTools, toolsSummary etc. with no documented contract, and FileViewer's lineTarget/browseView semantics are not described.",
+      "location": {
+        "file_path": "lib/public/js/components/agents-tab/agent-overview/index.js",
+        "line_start": 9,
+        "line_end": 22
+      },
+      "recommendation": "Add JSDoc @typedef blocks for shared shapes (Agent, ToolsSummary, ChannelStatus, DoctorStatus) in a central types file, then annotate component prop destructures with @param descriptions. At minimum, document callback signatures (e.g. onUpdateAgent(id, patch, successMessage?) returns Promise<Agent>).",
+      "agent_role": "documentation",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "App.js routing and global window flags lack architecture overview",
+      "description": "lib/public/js/app.js wires together hash routing, an app shell controller, agent sessions, browse navigation, and global window flags (__alphaclawPendingCreateAgent, __alphaclawSetupAppBootCount). There is no module header describing the component composition, why hash routing is used, how onboarding state gates rendering, or the rationale for the defensive double-render guard. Contributors must read several hooks to understand the boot sequence.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 1,
+        "line_end": 50
+      },
+      "recommendation": "Add a top-of-file comment summarizing: (1) routing strategy (hash router with wouter-preact), (2) onboarding gate (controllerState.onboarded null/false/true states), (3) shell composition (AppSidebar + content panes + statusbar), (4) the duplicate-bootstrap guard. Consider an ADR under docs/adr/ explaining the hash-route + global-flag design.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Branding inconsistency between code (alphaclaw) and external links (openclaw) is undocumented",
+      "description": "The codebase mixes 'alphaclaw' identifiers (kPendingCreateAgentWindowFlag, __alphaclawSetupAppBootCount, ALPHACLAW_ROOT_DIR, kFallbackRootDir = ~/.alphaclaw, kPluginId, dispatched event 'alphaclaw:create-agent') with 'openclaw' branding in user-facing UI ('OpenClaw Gateway Dashboard', docs.openclaw.ai, github.com/openclaw/openclaw, OPENCLAW_GATEWAY_TOKEN). Without a documented rationale (rename, fork relationship, internal vs marketing names) new contributors will be confused and may use the wrong identifier.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 41,
+        "line_end": 41
+      },
+      "recommendation": "Document the alphaclaw/openclaw relationship in CONTRIBUTING.md or an ADR: which identifiers are stable, which are legacy, and the migration plan if any. Cross-reference from the usage-tracker plugin's env-var fallback chain.",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Custom hook contracts (useFileViewer, useCronTab, useGoogleAccounts, etc.) undocumented",
+      "description": "Components destructure complex shapes from hooks like useFileViewer (state, derived, refs, actions, context), useCronTab (state, actions), useGoogleAccounts ({accounts, loading, hasCompanyCredentials, refreshAccounts}), useGmailWatch, useModels, useNodesTab. Without documented return shapes, consumers cannot know what fields exist or what invariants hold (e.g. when state.ready becomes true, when actions are safe to call).",
+      "location": {
+        "file_path": "lib/public/js/components/file-viewer/index.js",
+        "line_start": 21,
+        "line_end": 30
+      },
+      "recommendation": "Add JSDoc @typedef for each hook's return value adjacent to the hook definition. Include which fields are stable refs vs reactive state, and which actions are async. This is critical given how many components consume these hooks.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Node setup wizard relies on undocumented external CLI commands",
+      "description": "NodesSetupWizard guides users through 'npm install -g openclaw' and 'openclaw node run --host ... --port ... --tls --display-name ...' but there is no in-repo reference for these CLI flags, no link to OpenClaw CLI docs, and no version compatibility note (BrowserAttachCard hardcodes 'OpenClaw 2026.3.13+' but NodesSetupWizard does not). Users hitting CLI errors will have nowhere to look.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/setup-wizard/index.js",
+        "line_start": 14,
+        "line_end": 35
+      },
+      "recommendation": "Either link to canonical CLI documentation from inside the wizard markdown, or include a docs/nodes.md describing required CLI version, all flags, and pairing flow. Cross-reference from BrowserAttachCard to keep version requirements in sync.",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "BrowserAttachCard hardcodes a release URL and version that will drift",
+      "description": "kReleaseNotesUrl points to a specific tag (v2026.3.13) and kSetupInstructionsMarkdown asserts 'OpenClaw 2026.3.13+' and 'Chrome 144+'. There is no comment indicating who owns updating these strings when a new version ships, and nothing automates the link from a manifest or package.json version. The documentation will silently go stale.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/browser-attach/index.js",
+        "line_start": 9,
+        "line_end": 11
+      },
+      "recommendation": "Add a comment indicating the update procedure (e.g. 'Bumped on each release; see CONTRIBUTING.md#release-checklist'), or extract the version into a shared constant pulled from package.json/build metadata. Add a release checklist entry to CONTRIBUTING.md.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.75,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Telegram workspace storage keys and onboarding state shape undocumented",
+      "description": "TelegramWorkspace persists onboarding progress in localStorage under kTelegramWorkspaceStorageKey/kTelegramWorkspaceCacheKey with per-account suffixes, but neither the schema of the persisted state ({step, groupId, groupInfo, verifyGroupError, allowUserId, topics}) nor the cache invalidation strategy is documented. resolveStorageKey's special-casing of 'default' is also non-obvious.",
+      "location": {
+        "file_path": "lib/public/js/components/telegram-workspace/index.js",
+        "line_start": 30,
+        "line_end": 90
+      },
+      "recommendation": "Add JSDoc for loadTelegramWorkspaceState/saveTelegramWorkspaceState describing the persisted shape and cache-vs-state distinction. Document why 'default' is treated as the unsuffixed key (backward compatibility) so future refactors don't break existing users.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Doctor tab has many derived states without documented invariants",
+      "description": "DoctorTab tracks selectedRunFilter, pendingRunSelectionId, activeRunId, selectedRunIsActiveRun, shouldRenderPendingRunTab, displayRuns, etc., with multiple useEffects reconciling them. The relationships (e.g., when pendingRunSelectionId is cleared, what 'all' means, why a synthetic pending run is injected) are not documented and would be hard to modify safely.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 60,
+        "line_end": 130
+      },
+      "recommendation": "Add a comment block at the top of DoctorTab explaining the run-selection state machine: states (all | active | pending | historical), transitions, and which effect owns each transition. This will significantly reduce onboarding cost for contributors fixing run-tab bugs.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "doc-012",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "No inline examples for plugin event payload shapes",
+      "description": "writeUsageEvent reads event.usage.{input,output,cacheRead,cacheWrite,total}, event.sessionId, event.runId, event.provider, event.model and writeToolEvent reads event.toolName, event.message.{isError,ok,error}, event.durationMs, ctx.sessionKey, ctx.sessionId. None of these payload shapes are documented in the file or referenced to a plugin SDK doc, making it impossible to write a compatible producer without reverse-engineering.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 162,
+        "line_end": 220
+      },
+      "recommendation": "Add a JSDoc @typedef LLMOutputEvent and @typedef ToolResultPersistEvent above the handlers, including all fields read with their types and semantics. If a plugin SDK doc exists, link to it; otherwise create lib/plugin/README.md describing the event surface.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "high",
+      "title": "Dependency manifest files referenced in PLAN but not provided for analysis",
+      "description": "The PLAN explicitly lists package.json, package-lock.json, .npmrc, patches/openclaw+2026.4.1.patch, scripts/apply-openclaw-patches.js, and .github/workflows/ci.yml as the focus files for dependency analysis. However, none of these files were included in the source code provided \u2014 only application source files (lib/plugin/*, lib/public/js/components/*) were supplied. Without the manifest, lockfile, .npmrc, patch, and CI workflow, it is impossible to verify pinned versions, lockfile hygiene, registry configuration, the patched upstream dependency risk, dev vs prod boundaries, CVE exposure, or CI dependency caching/auditing.",
+      "location": {
+        "file_path": "package.json",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the dependency analysis with the actual manifest files attached: package.json, package-lock.json, .npmrc, patches/openclaw+2026.4.1.patch, scripts/apply-openclaw-patches.js, and .github/workflows/ci.yml. These are required to assess pinning, CVEs, license compliance, patch drift, and CI coverage.",
+      "agent_role": "dependency",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Use of patch-package style override on upstream 'openclaw' dependency",
+      "description": "The presence of patches/openclaw+2026.4.1.patch and scripts/apply-openclaw-patches.js (referenced in PLAN) indicates the project carries a local patch against the openclaw package version 2026.4.1. Patched dependencies are a known maintenance and supply-chain risk: upstream upgrades can silently break the patch, the patch may mask security fixes, and CI must apply it deterministically. Source code references (e.g. resolveRootDir reading OPENCLAW_HOME / OPENCLAW_ROOT_DIR, links to github.com/openclaw/openclaw) confirm openclaw is a real upstream dependency being customized.",
+      "location": {
+        "file_path": "patches/openclaw+2026.4.1.patch",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Document the rationale for each hunk in the patch file header, pin the openclaw version exactly in package.json (no caret/tilde) so the patch hash check from patch-package fails loudly on drift, add a CI step that verifies `npx patch-package --error-on-fail`, and open an upstream PR to remove the need for the local patch.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Custom patch-application script bypasses standard patch-package lifecycle",
+      "description": "The PLAN lists scripts/apply-openclaw-patches.js as a custom patcher rather than relying on the standard `patch-package` postinstall hook. Custom scripts can drift from the well-tested patch-package semantics (hash verification, idempotency, fail-on-mismatch) and are a frequent source of silently-skipped patches in CI vs. local installs.",
+      "location": {
+        "file_path": "scripts/apply-openclaw-patches.js",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Prefer the canonical patch-package toolchain wired via `\"postinstall\": \"patch-package\"` in package.json. If a custom script is required, ensure it (1) verifies file hashes before patching, (2) exits non-zero on any mismatch, (3) is idempotent, and (4) is invoked in CI before any build/test step.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Runtime depends on node:sqlite, requiring Node.js >= 22.5",
+      "description": "lib/plugin/usage-tracker/index.js imports DatabaseSync from the built-in 'node:sqlite' module. This module is experimental and only available in Node.js 22.5+ (stabilizing in 22.x/23.x). If package.json does not declare an `engines.node` constraint of >=22.5.0 (and CI does not test against it), installs on older Node versions will fail at runtime with a cryptic 'Cannot find module node:sqlite' error.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 4,
+        "line_end": 4
+      },
+      "recommendation": "Add `\"engines\": { \"node\": \">=22.5.0\" }` to package.json, set `engine-strict=true` in .npmrc, and pin the Node version in .github/workflows/ci.yml (e.g. actions/setup-node with node-version: '22.x' and a matrix that excludes <22.5).",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "ESM frontend imports bare specifiers without a documented bundler/import-map",
+      "description": "lib/public/js/app.js and many components import bare specifiers like 'preact', 'preact/hooks', 'htm', 'wouter-preact', and 'marked' directly in browser-served files (lib/public/js/...). Browsers cannot resolve bare specifiers natively; this implies either a bundler step, an importmap, or a CDN rewrite that is not visible in the analyzed code. If the build pipeline is not declared in package.json scripts and CI, dependency resolution for the frontend is fragile and version drift between the lockfile and what the browser actually loads is a real maintenance risk.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 1,
+        "line_end": 7
+      },
+      "recommendation": "Make the frontend dependency strategy explicit: either commit an importmap (with versions matching package-lock.json), document the bundler in package.json scripts, and add a CI step that fails when bundled output drifts from the lockfile. Pin 'preact', 'htm', 'wouter-preact', and 'marked' to exact versions and add them to a Dependabot/Renovate group.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "marked used to render server-driven content with dangerouslySetInnerHTML",
+      "description": "lib/public/js/components/nodes-tab/browser-attach/index.js calls marked.parse(...) and feeds the result into dangerouslySetInnerHTML. While the input here is a static constant (kSetupInstructionsMarkdown), the same pattern is also used elsewhere for release-notes/preview HTML. Older versions of `marked` (<4.0) shipped with XSS vulnerabilities (e.g. CVE-2022-21680, CVE-2022-21681 ReDoS). Without sight of package.json/package-lock.json the exact pinned version cannot be confirmed, but the dependency choice and usage pattern warrant pinning to a current major (>=12) and adding a sanitizer like DOMPurify for any dynamic markdown.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/browser-attach/index.js",
+        "line_start": 4,
+        "line_end": 4
+      },
+      "recommendation": "Pin `marked` to the latest stable major (>=12.x) in package.json with an exact version, and pipe marked output through DOMPurify before assigning to dangerouslySetInnerHTML for any non-static markdown source. Add Dependabot/Renovate to track marked CVEs.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "No visible automated dependency update / SBOM tooling",
+      "description": "The PLAN mentions CI pipeline coverage but the provided code shows no Dependabot config, Renovate config, npm audit step, or SBOM generator (cyclonedx-npm/syft). For a project that ships an installable CLI ('npm install -g openclaw' is shown in setup-wizard) and pulls in a non-trivial frontend stack (preact, wouter-preact, htm, marked), the absence of automated CVE monitoring is a meaningful maintainability risk.",
+      "location": {
+        "file_path": ".github/workflows/ci.yml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a .github/dependabot.yml (or renovate.json) covering the npm ecosystem, plus a CI job that runs `npm audit --audit-level=high` and `npx cyclonedx-npm --output-file sbom.json` on each PR. Upload SBOM as a build artifact for release traceability.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Hard-coded reference to a specific OpenClaw release in user-facing UI",
+      "description": "lib/public/js/components/nodes-tab/browser-attach/index.js hardcodes a release URL for OpenClaw 2026.3.13 while patches/ directory targets 2026.4.1. The two versions will drift, and users will be pointed at an outdated release-notes URL relative to the dependency actually installed.",
+      "location": {
+        "file_path": "lib/public/js/components/nodes-tab/browser-attach/index.js",
+        "line_start": 9,
+        "line_end": 10
+      },
+      "recommendation": "Derive the release notes URL from the installed openclaw version at build time (read from package.json or package-lock.json) instead of hardcoding 2026.3.13, or at minimum add a CI check that fails when the patch version (2026.4.1) and the documented version diverge.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Doctor tab uses 2-second polling instead of SSE/WebSocket for run status",
+      "description": "The Doctor tab maintains three separate polls (status, runs, cards) at 2s intervals while a run is in progress. With 3 endpoints \u00d7 every 2s = ~90 requests/min per active user during a run. Each request hits the gateway, traverses auth middleware, and queries the database. For a server with 10 concurrent users viewing Doctor, this generates 900 req/min of redundant polling. SSE or WebSocket push would reduce this to near-zero idle traffic.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 42,
+        "line_end": 80
+      },
+      "recommendation": "Replace usePolling with the existing SSE infrastructure (lib/public/js/lib/sse.js) for run progress events. Server should push status/run/card updates only when state changes. Keep polling as a fallback when SSE is unavailable.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Cron tab triple-poll fan-out with no event-driven update",
+      "description": "useCronTab spawns multiple concurrent polling streams (jobs, runs, usage, trends, sessions). Each tab switch or job selection triggers cascading refetches. Without coalescing or SSE, every connected admin generates continuous DB queries against cron_runs and usage tables (likely scanning timeseries indexes).",
+      "location": {
+        "file_path": "lib/public/js/components/cron-tab/index.js",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Consolidate cron polling into a single SSE channel that pushes only deltas. For run history, paginate aggressively and cache per-job in api-cache.js. Avoid refetching full job list on every status change.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Multiple concurrent useEffect refresh triggers cause redundant fetches",
+      "description": "DoctorTab has 4+ useEffects that call statusPoll.refresh()/runsPoll.refresh()/cardsPoll.refresh(). The handleRunDoctor handler explicitly calls each refresh twice (immediate + setTimeout 1200ms), totaling 6 extra requests per click. Without debouncing, rapid state changes (run selection, status filter) cause request storms.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 255,
+        "line_end": 265
+      },
+      "recommendation": "Debounce refresh calls and let the polling interval handle convergence. Replace setTimeout-based double-refresh with a single optimistic update, then rely on SSE/poll convergence.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Synchronous SQLite writes on hot LLM event path",
+      "description": "writeUsageEvent runs two synchronous SQLite statements (INSERT + UPSERT) on every llm_output event using node:sqlite's DatabaseSync. For a busy gateway with frequent token streaming events, this blocks the event loop on disk I/O. Even with WAL mode, fsync-induced stalls under load (multiple agents, high TPS) can produce >10ms event-loop pauses, harming WebSocket and HTTP latency.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 180,
+        "line_end": 220
+      },
+      "recommendation": "Batch writes using a write queue: buffer events for ~100ms or 50 events, then flush in a single transaction (BEGIN/COMMIT). Consider moving SQLite writes to a worker_thread to remove main-thread fsync stalls. Use a single combined INSERT for both tables in one transaction.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "No transaction wrapping for paired usage_events + usage_daily writes",
+      "description": "Each LLM event triggers two separate prepared statement runs without a transaction. Without BEGIN IMMEDIATE; ... COMMIT;, SQLite implicitly commits twice \u2192 2\u00d7 fsync per event. With synchronous=NORMAL this is bounded but still measurable; combined with high event volume it materially increases write amplification and disk wear.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 195,
+        "line_end": 215
+      },
+      "recommendation": "Wrap the two statements in a transaction (database.exec('BEGIN'); ... database.exec('COMMIT')) or use database.transaction() helper. Halves fsync count.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Missing composite index on usage_events(timestamp, session_key)",
+      "description": "Schema has separate indexes on timestamp DESC, session_id, and session_key, but queries that filter timeseries by session (likely common: 'show me last N events for this session in date range') will need a composite index. SQLite will pick one index and post-filter, causing scans on hot timeseries tables.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 49,
+        "line_end": 65
+      },
+      "recommendation": "Add CREATE INDEX idx_usage_events_session_ts ON usage_events(session_key, timestamp DESC) and similar for tool_events. Verify with EXPLAIN QUERY PLAN against the actual queries in lib/server/db/usage/.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-006",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "App.js performs O(N) regex matches per render for route parsing",
+      "description": "Every render of App() runs 4+ location.match() calls (selectedAgentId, agentDetailTab, selectedCronJobId) plus startsWith() checks. For a frequently re-rendering shell (every state change including polling refresh propagation), this is wasteful. Each location string allocation and regex compile adds up.",
+      "location": {
+        "file_path": "lib/public/js/app.js",
+        "line_start": 70,
+        "line_end": 90
+      },
+      "recommendation": "Memoize route parsing with useMemo([location]) and use a single regex pass. Consider extracting to a useRouteMatch hook.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Tools panel uses CSS columns layout that re-flows on every toolStates change",
+      "description": "AgentToolsPanel renders kSections.map inside `style=\"columns: 2\"`. CSS multi-column layout forces full re-flow on any child change (toggle a tool \u2192 entire 2-column cascade recomputes). For users with many tools, this causes noticeable jank.",
+      "location": {
+        "file_path": "lib/public/js/components/agents-tab/agent-tools/index.js",
+        "line_start": 79,
+        "line_end": 95
+      },
+      "recommendation": "Replace CSS columns with CSS grid (grid-template-columns: 1fr 1fr) which avoids cascading reflow. Each section becomes an independent grid item.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Telegram workspace localStorage write on every state change",
+      "description": "useEffect saves entire workspace state JSON to localStorage on any change to step/groupId/groupInfo/verifyGroupError/allowUserId/topics. localStorage.setItem is synchronous and triggers a structured-clone serialization. With deep groupInfo objects this can cause 1\u20135ms main-thread stalls per keystroke in inputs that update these states.",
+      "location": {
+        "file_path": "lib/public/js/components/telegram-workspace/index.js",
+        "line_start": 273,
+        "line_end": 282
+      },
+      "recommendation": "Debounce the save with a 250\u2013500ms timeout. Avoid serializing groupInfo (large object); persist only minimal identifiers needed for resume.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-009",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "No memoization of catalog filter/sort in Models tab",
+      "description": "pickerModels, popularPickerModels, and configuredModelEntries are wrapped in useMemo, which is good. However, getModelsTabAuthProvider is called inside the .map loop for every render and on every catalog re-emission. For a large model catalog (50+ entries) and frequent state changes, this is acceptable; flagged as info.",
+      "location": {
+        "file_path": "lib/public/js/components/models-tab/index.js",
+        "line_start": 85,
+        "line_end": 105
+      },
+      "recommendation": "If catalog grows large, precompute a Map<modelKey, provider> once per catalog change. Current implementation is fine for typical sizes.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-010",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "DoctorTab cards filter recomputes full array on every render",
+      "description": "cards = useMemo(allCards.filter(...)) and openCards = useMemo(allCards.filter(...)) iterate full card list. With deeply-nested status casting (String(card?.status || 'open').trim().toLowerCase()) on every card on every memo recompute (whenever allCards reference changes \u2014 which happens on every poll cycle), this is O(N) work per 2s. Acceptable for typical N<200 cards.",
+      "location": {
+        "file_path": "lib/public/js/components/doctor/index.js",
+        "line_start": 290,
+        "line_end": 315
+      },
+      "recommendation": "Pre-normalize card.status server-side or in api-cache.js so the filter is a simple equality check. Minor improvement; flag for high-volume scenarios.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": ""
+    },
+    {
+      "id": "perf-011",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Server-side files (chat-ws.js, watchdog.js, cron-service.js) not provided despite plan",
+      "description": "The PLAN identified lib/server/chat-ws.js, watchdog.js, watchdog-terminal-ws.js, cron-service.js, system-resources.js, and lib/server/db/usage/, lib/server/db/watchdog/ as primary performance concerns (WebSocket backpressure, reconnection, DB query patterns in timeseries, cron scheduling overhead). These files were not included in the analyzed code, so backend findings are limited to the usage-tracker plugin and frontend polling patterns.",
+      "location": {
+        "file_path": "lib/plugin/usage-tracker/index.js",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Provide the listed server files in a follow-up review for full performance assessment of WebSocket backpressure, SSE channels, watchdog timeseries queries, and cron scheduler overhead.",
+      "agent_role": "performance",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": ""
+    }
+  ],
+  "analysis_duration_seconds": 161.66,
+  "total_tokens_used": 451240,
+  "total_cost_usd": 14.5726,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 1
+}
