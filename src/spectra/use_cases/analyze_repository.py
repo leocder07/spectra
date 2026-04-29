@@ -114,16 +114,7 @@ class _ReportMeta:
 # ── Public entry point ────────────────────────────────────────
 
 
-async def analyze_repository(
-    request: AnalysisRequest,
-    codebase: Codebase,
-    meta_prompter: AnalysisAgent,
-    specialists: list[AnalysisAgent],
-    critique_agent: AnalysisAgent | None,
-    source_files: dict[str, str] | None = None,
-    git_port: GitPort | None = None,
-    observer: ProgressObserver | None = None,
-) -> AnalysisReport:
+async def analyze_repository(ctx: PipelineContext) -> AnalysisReport:
     """Run the full 6-stage analysis pipeline.
 
     This is the main entry point for the use-case layer. It
@@ -131,30 +122,15 @@ async def analyze_repository(
     and report assembly.
 
     Args:
-        request: User analysis request with URL and options.
-        codebase: Cloned repository metadata and file tree.
-        meta_prompter: Planning agent (Sonnet 4.5).
-        specialists: List of 6 specialist agents.
-        critique_agent: Validation agent, or None to skip.
-        source_files: Pre-read source files, or None to read lazily.
-        git_port: Git adapter for lazy file reads.
-        observer: Progress callback for terminal display.
+        ctx: Immutable pipeline context bundling the request,
+            codebase, agents, ports, and any pre-read source files.
 
     Returns:
         Complete analysis report with scores and findings.
     """
-    ctx = PipelineContext(
-        request,
-        codebase,
-        meta_prompter,
-        specialists,
-        critique_agent,
-        git_port,
-        observer,
-    )
     state = _PipelineState(
         start_time=time.monotonic(),
-        source_files=source_files,
+        source_files=ctx.source_files,
     )
     return await _run_pipeline(ctx, state)
 

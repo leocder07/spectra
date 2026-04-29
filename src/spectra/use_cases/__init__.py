@@ -22,7 +22,7 @@ Key modules:
 It never imports from adapters or infrastructure.
 """
 
-from spectra.use_cases.analyze_repository import analyze_repository
+from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import (
     GitPort,
     LLMGateway,
@@ -50,6 +50,7 @@ __all__ = [
     # interfaces (ports)
     "GitPort",
     "LLMGateway",
+    "PipelineContext",
     "ProgressObserver",
     "ReportPort",
     "TokenPort",

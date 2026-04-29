@@ -458,9 +458,9 @@ class TestRunAnalysis:
                 skip_critique=True,
             )
 
-            # critique_agent kwarg should be None when skipping
-            call_kwargs = mock_analyze.call_args[1]
-            assert call_kwargs["critique_agent"] is None
+            # critique_agent on the PipelineContext should be None when skipping
+            ctx_arg = mock_analyze.call_args.args[0]
+            assert ctx_arg.critique_agent is None
 
     @pytest.mark.asyncio
     async def test_local_path_skips_tempdir_and_cleanup(self, tmp_path):

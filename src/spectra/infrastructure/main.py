@@ -55,7 +55,7 @@ from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
-from spectra.use_cases.analyze_repository import analyze_repository
+from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import is_local_path
 
 
@@ -167,16 +167,17 @@ async def _run_analysis(
             output_format=output_format,
         )
 
-        report = await analyze_repository(
+        ctx = PipelineContext(
             request=request,
             codebase=codebase,
             meta_prompter=meta_prompter,
             specialists=specialists,
             critique_agent=critique_agent,
-            source_files=source_files,
             git_port=git,
             observer=observer,
+            source_files=source_files,
         )
+        report = await analyze_repository(ctx)
 
         # Stage 6: REPORT
         observer.on_stage_start("REPORT", "Rendering report")
