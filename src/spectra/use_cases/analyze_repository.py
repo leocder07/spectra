@@ -51,7 +51,12 @@ _log = logging.getLogger("spectra.pipeline")
 
 @dataclass(frozen=True)
 class PipelineContext:
-    """Immutable config: request, codebase, agents, and ports."""
+    """Immutable config: request, codebase, agents, ports, and pre-read sources.
+
+    Bundles every input the 6-stage pipeline needs into a single value object
+    so the public ``analyze_repository`` entry point honours the ≤3-parameter
+    rule (Fowler: Replace Long Parameter List with Parameter Object).
+    """
 
     request: AnalysisRequest
     codebase: Codebase
@@ -60,6 +65,7 @@ class PipelineContext:
     critique_agent: AnalysisAgent | None = None
     git_port: GitPort | None = None
     observer: ProgressObserver | None = None
+    source_files: dict[str, str] | None = None
 
 
 @dataclass
