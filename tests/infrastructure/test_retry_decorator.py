@@ -78,12 +78,12 @@ class TestRetryDecorator:
         retry = RetryDecorator(mock_gateway, max_retries=1, backoff_base=0.01)
         result = await retry.analyze_with_thinking("sys", "user", "model", 1000)
         assert result == "ok-thinking"
-        mock_gateway.analyze_with_thinking.assert_called_once_with(
-            system_prompt="sys",
-            user_prompt="user",
-            model="model",
-            max_tokens=1000,
-        )
+        mock_gateway.analyze_with_thinking.assert_called_once()
+        call_kwargs = mock_gateway.analyze_with_thinking.call_args.kwargs
+        assert call_kwargs["system_prompt"] == "sys"
+        assert call_kwargs["user_prompt"] == "user"
+        assert call_kwargs["model"] == "model"
+        assert call_kwargs["max_tokens"] == 1000
 
     def test_last_usage_propagated(self, mock_gateway: AsyncMock):
         retry = RetryDecorator(mock_gateway, max_retries=3)

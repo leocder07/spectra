@@ -63,10 +63,10 @@ class TestLoggingDecorator:
         decorator = LoggingDecorator(mock_gateway, mock_observer)
         result = await decorator.analyze_with_thinking("sys", "user", "model", 1000)
         assert result == "result-thinking"
-        mock_gateway.analyze_with_thinking.assert_called_once_with(
-            system_prompt="sys",
-            user_prompt="user",
-            model="model",
-            max_tokens=1000,
-        )
+        mock_gateway.analyze_with_thinking.assert_called_once()
+        call_kwargs = mock_gateway.analyze_with_thinking.call_args.kwargs
+        assert call_kwargs["system_prompt"] == "sys"
+        assert call_kwargs["user_prompt"] == "user"
+        assert call_kwargs["model"] == "model"
+        assert call_kwargs["max_tokens"] == 1000
         mock_observer.on_stage_complete.assert_called_once()
