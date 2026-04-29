@@ -139,7 +139,7 @@ class TestRunAnalysis:
         # Mock git operations
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
-        mock_git.prepare_workspace = AsyncMock(return_value="/tmp/spectra-test")
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py", "README.md"])
 
@@ -221,7 +221,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
-        mock_git.prepare_workspace = AsyncMock(return_value="/tmp/spectra-test")
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
 
@@ -293,7 +293,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
-        mock_git.prepare_workspace = AsyncMock(return_value="/tmp/spectra-test")
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
@@ -359,7 +359,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
-        mock_git.prepare_workspace = AsyncMock(return_value="/tmp/spectra-test")
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
@@ -424,7 +424,7 @@ class TestRunAnalysis:
 
         mock_git = AsyncMock()
         mock_git.clone = AsyncMock()
-        mock_git.prepare_workspace = AsyncMock(return_value="/tmp/spectra-test")
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
 
