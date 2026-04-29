@@ -83,6 +83,12 @@ class Finding(BaseModel, frozen=True):
     validated_by_critique: bool = False
     estimated_hours: float = 0.0
     code_snippet: str = ""
+    rule_id: str = ""
+    """Stable identifier for sentinel findings (ADR-011 §2). Default is
+    the empty string so existing findings remain valid. Set to
+    ``"SPEC-PROMPT-INJECTION-DETECTED"`` by the CritiqueAgent when an
+    injection attempt is detected; the orchestrator uses this sentinel
+    to mark the run compromised."""
 
     def __hash__(self) -> int:
         """Hash by (file_path, line_start, dimension) for deduplication."""
@@ -264,6 +270,11 @@ class AnalysisReport(BaseModel, frozen=True):
     degraded_dimensions: tuple[Dimension, ...] = ()
     cross_cutting_insights: tuple[str, ...] = ()
     hallucination_removed_count: int = 0
+    is_compromised: bool = False
+    """ADR-011 §2: True when the CritiqueAgent detected a prompt-injection
+    attempt and emitted a ``SPEC-PROMPT-INJECTION-DETECTED`` finding.
+    The report renderer surfaces a banner; public-mode reports refuse to
+    publish a grade for compromised runs."""
 
     def critical_finding_count(self) -> int:
         """Return the number of findings with critical severity."""

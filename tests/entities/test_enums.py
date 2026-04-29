@@ -106,13 +106,20 @@ class TestPipelineState:
             "complete",
             "degraded",
             "failed",
+            "compromised",
         }
         assert set(values) == expected
 
     def test_count(self):
-        assert len(get_args(PipelineState)) == 10
+        assert len(get_args(PipelineState)) == 11
 
     def test_terminal_states(self):
         values = set(get_args(PipelineState))
-        terminal = {"complete", "degraded", "failed"}
+        terminal = {"complete", "degraded", "failed", "compromised"}
         assert terminal.issubset(values)
+
+    def test_compromised_is_a_terminal_state(self):
+        # ADR-011 §2: a run flagged with SPEC-PROMPT-INJECTION-DETECTED
+        # is marked compromised; the report must surface this terminal
+        # outcome alongside complete/degraded/failed.
+        assert "compromised" in get_args(PipelineState)

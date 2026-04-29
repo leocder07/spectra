@@ -29,6 +29,7 @@ from spectra.entities.models import (
     BatchPrompt,
     Codebase,
     DimensionScore,
+    FileLocation,
     Finding,
     RepoCacheKey,
     ScoreCard,
@@ -133,10 +134,17 @@ class _AnalysisResult:
 
 @dataclass(frozen=True)
 class _StageOutput:
-    """Output from critique pipeline: findings + insights."""
+    """Output from critique pipeline: findings + insights + state.
+
+    ``is_compromised`` (ADR-011 §2) is True when the CritiqueAgent
+    appended at least one ``SPEC-PROMPT-INJECTION-DETECTED`` finding to
+    the response. The orchestrator surfaces this on the final
+    ``AnalysisReport`` so renderers and CI gates can act on it.
+    """
 
     findings: tuple[Finding, ...]
     insights: tuple[str, ...]
+    is_compromised: bool = False
 
 
 @dataclass(frozen=True)
@@ -682,7 +690,7 @@ async def _execute_critique(
     findings: tuple[Finding, ...],
     state: _PipelineState,
 ) -> _StageOutput:
-    """Execute CritiqueAgent and apply results."""
+    """Execute CritiqueAgent, fold compromised findings, and assemble result."""
     _notify(ctx.observer, "on_stage_start", "CRITIQUE", "Validating findings")
     filtered, insights, out = await _run_critique_stage(
         ctx.critique_agent,
@@ -690,10 +698,12 @@ async def _execute_critique(
         ctx.observer,
         state.flagged_files,
     )
+    compromised = _extract_compromised_findings(out.raw_response if out is not None else "")
+    final_findings = filtered + compromised
     if out is not None:
         _track_output(state, out)
     _notify(ctx.observer, "on_stage_complete", "CRITIQUE", "Critique complete")
-    return _StageOutput(filtered, insights)
+    return _StageOutput(final_findings, insights, is_compromised=bool(compromised))
 
 
 # ── Stage 6: REPORT ──────────────────────────────────────────
@@ -724,6 +734,7 @@ def _build_report(
         degraded_dimensions=meta.degraded_dims,
         cross_cutting_insights=output.insights,
         hallucination_removed_count=meta.hallucinations,
+        is_compromised=output.is_compromised,
     )
 
 
@@ -982,6 +993,49 @@ async def _run_critique_stage(
         critique_output.raw_response,
     )
     return filtered, insights, critique_output
+
+
+_INJECTION_RULE_ID = "SPEC-PROMPT-INJECTION-DETECTED"
+
+
+def _extract_compromised_findings(raw_critique: str) -> tuple[Finding, ...]:
+    """Build SPEC-PROMPT-INJECTION-DETECTED Findings from critique output.
+
+    ADR-011 §2: the CritiqueAgent appends an entry to
+    ``compromised_findings`` when it detects a prompt-injection attempt.
+    Each entry is materialised as a critical security Finding with the
+    sentinel ``rule_id`` so the orchestrator and downstream consumers
+    (CI gates, report banners) can react.
+    """
+    parsed = _parse_critique_json(raw_critique)
+    if parsed is None:
+        return ()
+    raw_entries = parsed.get("compromised_findings", [])
+    if not isinstance(raw_entries, list):
+        return ()
+    return tuple(
+        _build_compromised_finding(entry, idx) for idx, entry in enumerate(raw_entries) if isinstance(entry, dict)
+    )
+
+
+def _build_compromised_finding(entry: dict, idx: int) -> Finding:
+    """Materialise one compromised_findings entry into a Finding."""
+    return Finding(
+        id=f"INJ-{idx:03d}",
+        dimension="security",
+        severity="critical",
+        title=str(entry.get("title", "Prompt-injection attempt detected")),
+        description=str(entry.get("description", "")),
+        location=FileLocation(
+            file_path=str(entry.get("file_path", "")),
+            line_start=int(entry.get("line_start", 1) or 1),
+        ),
+        recommendation=str(entry.get("recommendation", "Quarantine PR; manual review required")),
+        agent_role="critique",
+        confidence=1.0,
+        validated_by_critique=True,
+        rule_id=_INJECTION_RULE_ID,
+    )
 
 
 def _build_critique_input(

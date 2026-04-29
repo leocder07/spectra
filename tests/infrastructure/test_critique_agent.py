@@ -54,6 +54,25 @@ class TestCritiqueAgentInit:
     def test_system_prompt_mentions_false_positive(self, agent: CritiqueAgent):
         assert "false positive" in agent._system_prompt.lower()
 
+    def test_system_prompt_includes_adversarial_section(self, agent: CritiqueAgent):
+        # ADR-011 §2: CritiqueAgent gains an adversarial-input check.
+        prompt = agent._system_prompt.lower()
+        assert "prompt-injection" in prompt or "prompt injection" in prompt
+        assert "spec-prompt-injection-detected" in prompt
+
+    def test_system_prompt_describes_compromised_finding_shape(self, agent: CritiqueAgent):
+        # The instruction must explain the rule_id + severity contract
+        # so the model emits a structurally-valid critical finding when
+        # injection is detected.
+        prompt = agent._system_prompt
+        assert "SPEC-PROMPT-INJECTION-DETECTED" in prompt
+        assert "critical" in prompt.lower()
+
+    def test_system_prompt_mentions_flagged_files(self, agent: CritiqueAgent):
+        # Pre-flight scanner output flows in as `flagged_files` — the
+        # prompt must tell the model how to read it.
+        assert "flagged_files" in agent._system_prompt
+
 
 # ── validate_input ────────────────────────────────────────────
 

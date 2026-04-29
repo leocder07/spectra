@@ -60,8 +60,14 @@ PipelineState = Literal[
     "complete",
     "degraded",
     "failed",
+    "compromised",
 ]
-"""Pipeline lifecycle state machine values."""
+"""Pipeline lifecycle state machine values.
+
+``compromised`` is the terminal state for a run where the CritiqueAgent
+detected a prompt-injection attempt in the analyzed inputs (ADR-011 §2).
+It is reported alongside the special ``SPEC-PROMPT-INJECTION-DETECTED``
+finding and forces the report to render with a banner."""
 
 SchemaVersion = Literal["v1"]
 """Cache schema version. Bumped when ``Finding`` or ``AgentOutput`` shape changes;
