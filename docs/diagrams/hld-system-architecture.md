@@ -13,9 +13,9 @@ graph TB
         TIKTOKEN["TiktokenAdapter<br/><i>Token counting</i>"]
         REPORT["ReportAdapter<br/><i>Jinja2 HTML</i>"]
         FACTORY["AgentFactory"]
-        META["MetaPrompter<br/><i>Sonnet 4.5</i>"]
-        SPEC_AGENTS["6 SpecialistAgents<br/><i>Opus 4.6</i>"]
-        CRITIQUE["CritiqueAgent<br/><i>Opus 4.6 + Thinking</i>"]
+        META["MetaPrompter<br/><i>Opus 4.7 — effort=medium</i>"]
+        SPEC_AGENTS["6 SpecialistAgents<br/><i>Opus 4.7 — effort=xhigh</i>"]
+        CRITIQUE["CritiqueAgent<br/><i>Opus 4.7 — effort=high<br/>adaptive thinking + task_budget</i>"]
     end
 
     subgraph "Layer 3 — Adapters"
@@ -115,10 +115,10 @@ graph LR
 ```mermaid
 graph LR
     S1["1. INGEST<br/><i>Git clone + file tree</i>"]
-    S2["2. PLAN<br/><i>MetaPrompter</i><br/><i>Sonnet 4.5</i>"]
-    S3["3. ANALYZE<br/><i>6 Specialists</i><br/><i>asyncio.gather</i>"]
+    S2["2. PLAN<br/><i>MetaPrompter</i><br/><i>Opus 4.7 — medium</i>"]
+    S3["3. ANALYZE<br/><i>6 Specialists</i><br/><i>Opus 4.7 — xhigh</i><br/><i>asyncio.gather</i>"]
     S4["4. MERGE<br/><i>Deduplicate +</i><br/><i>validate paths</i>"]
-    S5["5. CRITIQUE<br/><i>CritiqueAgent</i><br/><i>Opus 4.6 + Thinking</i>"]
+    S5["5. CRITIQUE<br/><i>CritiqueAgent</i><br/><i>Opus 4.7 — high<br/>adaptive + task_budget</i>"]
     S6["6. REPORT<br/><i>Jinja2 HTML /</i><br/><i>JSON / SARIF</i>"]
 
     S1 --> S2 --> S3 --> S4 --> S5 --> S6
@@ -133,23 +133,25 @@ graph LR
 
 ## 8 Agents — Model Assignment
 
+All 8 agents run on `claude-opus-4-7`. Effort and thinking modes vary by role.
+
 ```mermaid
 graph TB
     subgraph "Planning"
-        MP["MetaPrompter<br/>claude-sonnet-4-5<br/><i>File tree only, 5K tokens</i>"]
+        MP["MetaPrompter<br/>claude-opus-4-7<br/><i>effort=medium · 5K tokens · file tree only</i>"]
     end
 
     subgraph "6 Parallel Specialists — asyncio.gather"
-        ARCH["ArchitectureAgent<br/>claude-opus-4-6"]
-        SEC["SecurityAgent<br/>claude-opus-4-6"]
-        QUAL["QualityAgent<br/>claude-opus-4-6"]
-        DOC["DocumentationAgent<br/>claude-opus-4-6"]
-        DEP["DependencyAgent<br/>claude-opus-4-6"]
-        PERF["PerformanceAgent<br/>claude-opus-4-6"]
+        ARCH["ArchitectureAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
+        SEC["SecurityAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
+        QUAL["QualityAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
+        DOC["DocumentationAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
+        DEP["DependencyAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
+        PERF["PerformanceAgent<br/>claude-opus-4-7<br/><i>effort=xhigh</i>"]
     end
 
     subgraph "Validation"
-        CR["CritiqueAgent<br/>claude-opus-4-6<br/><i>Adaptive thinking</i>"]
+        CR["CritiqueAgent<br/>claude-opus-4-7<br/><i>effort=high · adaptive thinking<br/>task_budget=80K · max_tokens=64K</i>"]
     end
 
     MP --> ARCH
@@ -178,11 +180,15 @@ graph TB
 
 ## ScoreCard Weights
 
-| Dimension | Weight | Agent | Model |
-|-----------|--------|-------|-------|
-| Architecture | 25% | ArchitectureAgent | Opus 4.6 |
-| Security | 25% | SecurityAgent | Opus 4.6 |
-| Quality | 20% | QualityAgent | Opus 4.6 |
-| Documentation | 10% | DocumentationAgent | Opus 4.6 |
-| Maintainability | 10% | DependencyAgent | Opus 4.6 |
-| Performance | 10% | PerformanceAgent | Opus 4.6 |
+| Dimension | Weight | Agent | Model | Effort |
+|-----------|--------|-------|-------|--------|
+| Architecture | 25% | ArchitectureAgent | Opus 4.7 | xhigh |
+| Security | 25% | SecurityAgent | Opus 4.7 | xhigh |
+| Quality | 20% | QualityAgent | Opus 4.7 | xhigh |
+| Documentation | 10% | DocumentationAgent | Opus 4.7 | xhigh |
+| Maintainability | 10% | DependencyAgent | Opus 4.7 | xhigh |
+| Performance | 10% | PerformanceAgent | Opus 4.7 | xhigh |
+
+---
+
+*Last updated: 2026-04-29 — all agents on Opus 4.7 with per-role effort tuning.*

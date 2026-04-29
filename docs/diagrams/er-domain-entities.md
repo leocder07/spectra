@@ -31,7 +31,9 @@ erDiagram
         string user_prompt
         string model
         int max_tokens
-        bool extended_thinking
+        bool adaptive_thinking
+        string effort "low|medium|high|xhigh|max"
+        int task_budget_tokens "nullable"
     }
 
     AgentOutput {
@@ -135,3 +137,7 @@ erDiagram
 ### Immutability
 
 All entities use `frozen=True` (Pydantic BaseModel). Mutations create new instances via `model_copy(update={...})`, used in severity adjustment during the critique stage.
+
+---
+
+*Last updated: 2026-04-29 — `AgentContext` reflects Opus 4.7 surface (`adaptive_thinking`, `effort`, `task_budget_tokens`).*

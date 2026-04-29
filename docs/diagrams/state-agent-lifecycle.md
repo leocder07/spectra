@@ -98,7 +98,7 @@ stateDiagram-v2
     end note
 ```
 
-## CritiqueAgent — Extended Thinking Lifecycle
+## CritiqueAgent — Adaptive Thinking Lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -117,8 +117,11 @@ stateDiagram-v2
 
     calling_llm --> thinking : analyze_with_thinking()
     note right of thinking
-        Adaptive thinking (type: "adaptive")
-        Opus 4.6 decides reasoning depth
+        Adaptive thinking
+        thinking={type: "adaptive", display: "summarized"}
+        Opus 4.7 decides reasoning depth
+        effort=high · task_budget=80K · max_tokens=64K
+        beta header: task-budgets-2026-03-13
         Only agent using this feature
     end note
 
@@ -140,3 +143,7 @@ stateDiagram-v2
 
     complete --> [*]
 ```
+
+---
+
+*Last updated: 2026-04-29 — terminology change ("extended" → "adaptive" thinking) and Opus 4.7 settings.*
