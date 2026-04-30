@@ -803,8 +803,7 @@ def _emit_cost_preflight_warning(max_cost_usd: float) -> None:
     """
     if max_cost_usd < _MIN_PIPELINE_COST_USD:
         console.print(
-            f"  [{AMBER}]⚠[/] --max-cost-usd ${max_cost_usd:.4f} below "
-            f"~${_MIN_PIPELINE_COST_USD:.2f} 8-agent floor"
+            f"  [{AMBER}]⚠[/] --max-cost-usd ${max_cost_usd:.4f} below ~${_MIN_PIPELINE_COST_USD:.2f} 8-agent floor"
         )
 
 
