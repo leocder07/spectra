@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import time
 
+from spectra.entities.models import CacheUsage
 from spectra.use_cases.interfaces import LLMGateway, ProgressObserver
 
 _MAX_LOG_CHARS = 500
@@ -58,6 +59,11 @@ class LoggingDecorator:
         """Propagate token usage from the inner gateway."""
         return getattr(self._inner, "last_usage", (0, 0))
 
+    @property
+    def last_cache_usage(self) -> CacheUsage:
+        """Propagate prompt-cache token counters from the inner gateway."""
+        return getattr(self._inner, "last_cache_usage", CacheUsage())
+
     async def analyze(
         self,
         system_prompt: str,
@@ -65,6 +71,7 @@ class LoggingDecorator:
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         start = time.monotonic()
         result = await self._inner.analyze(
@@ -73,6 +80,7 @@ class LoggingDecorator:
             model=model,
             max_tokens=max_tokens,
             effort=effort,
+            cache_breakpoint_index=cache_breakpoint_index,
         )
         self._log_call(model, start)
         return result
@@ -85,6 +93,7 @@ class LoggingDecorator:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         start = time.monotonic()
         result = await self._inner.analyze_with_thinking(
@@ -94,6 +103,7 @@ class LoggingDecorator:
             max_tokens=max_tokens,
             effort=effort,
             task_budget_tokens=task_budget_tokens,
+            cache_breakpoint_index=cache_breakpoint_index,
         )
         self._log_call(model, start)
         return result

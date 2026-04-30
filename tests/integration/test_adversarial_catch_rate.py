@@ -136,6 +136,7 @@ class _FakeGateway:
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         # Plan vs. specialist routing — meta_prompter receives the
         # file tree only, specialists receive prompts that include the
@@ -152,6 +153,7 @@ class _FakeGateway:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         # CritiqueAgent path. The use case ships findings + flagged_files
         # (ADR-011 §3) into the prompt as structured JSON. The fake

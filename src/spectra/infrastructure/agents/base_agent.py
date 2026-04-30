@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 
 from spectra.entities.enums import AgentRole
 from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
-from spectra.entities.models import AgentOutput, Finding
+from spectra.entities.models import AgentOutput, CacheUsage, Finding
 from spectra.use_cases.interfaces import LLMGateway
 
 _log = logging.getLogger("spectra.parse")
@@ -54,6 +54,12 @@ class BaseAgent(ABC):
         self._system_prompt = system_prompt
         self._max_tokens = max_tokens
         self._effort = effort
+        # ADR-024: every agent's system prompt is stable per release. The
+        # entire system prompt is therefore the cacheable prefix; the
+        # dynamic per-call payload sits in the user message and is never
+        # cached. Subclasses that need a different breakpoint (e.g. a
+        # version-stamped suffix) override this property.
+        self._cache_breakpoint_index: int | None = len(system_prompt)
 
     @property
     def role(self) -> AgentRole:
@@ -77,10 +83,13 @@ class BaseAgent(ABC):
         raw_output = await self.execute_llm(prompt)
         duration = time.monotonic() - start
         tokens = self._get_tokens_used()
+        cache_usage = self._get_cache_usage()
         parsed = self.parse_output(raw_output)
         findings = self.validate_output(parsed)
         dim_score = self._extract_dimension_score(parsed)
-        return self.format_result(findings, raw_output, duration, tokens, dim_score)
+        return self.format_result(
+            findings, raw_output, duration, tokens, dim_score, cache_usage,
+        )
 
     @abstractmethod
     def validate_input(self, user_prompt: str) -> None: ...
@@ -95,6 +104,7 @@ class BaseAgent(ABC):
             model=self._model,
             max_tokens=self._max_tokens,
             effort=self._effort,
+            cache_breakpoint_index=self._cache_breakpoint_index,
         )
 
     def parse_output(self, raw: str) -> dict[str, list[dict[str, str | int | float]]]:
@@ -124,6 +134,18 @@ class BaseAgent(ABC):
         inp, out = usage
         return inp + out if (inp + out) > 0 else 0
 
+    def _get_cache_usage(self) -> CacheUsage:
+        """Get prompt-cache token counters from the gateway's last call.
+
+        Defaults to a zero-valued ``CacheUsage`` so test doubles and
+        legacy adapters that do not surface the property never break
+        the pipeline. Only real ``CacheUsage`` instances are propagated;
+        anything else (e.g. ``MagicMock`` from un-spec'd test doubles)
+        degrades silently to the empty default.
+        """
+        usage = getattr(self._gateway, "last_cache_usage", None)
+        return usage if isinstance(usage, CacheUsage) else CacheUsage()
+
     def _extract_dimension_score(self, parsed: dict) -> float | None:
         """Extract the LLM's holistic dimension score from parsed output."""
         score = parsed.get("dimension_score")
@@ -138,6 +160,7 @@ class BaseAgent(ABC):
         duration: float,
         tokens_used: int = 0,
         dimension_score: float | None = None,
+        cache_usage: CacheUsage | None = None,
     ) -> AgentOutput:
         """Build an AgentOutput from a completed LLM call."""
         final_tokens = tokens_used if tokens_used > 0 else max(len(raw_response) // 4, 1)
@@ -148,6 +171,7 @@ class BaseAgent(ABC):
             duration_seconds=round(duration, 2),
             raw_response=raw_response,
             dimension_score=dimension_score,
+            cache_usage=cache_usage if cache_usage is not None else CacheUsage(),
         )
 
 

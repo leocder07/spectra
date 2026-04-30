@@ -406,3 +406,183 @@ class TestMultipleContentBlocks:
         client.messages.stream = MagicMock(return_value=_FakeStream(events))
         result = await a.analyze("sys", "user", "model", 1000)
         assert result == "hello world"
+
+
+# ── Prompt caching (ADR-024 Part A) ───────────────────────────
+
+
+def _make_cache_events(
+    text: str = "ok",
+    input_tokens: int = 100,
+    output_tokens: int = 50,
+    cache_creation_input_tokens: int = 0,
+    cache_read_input_tokens: int = 0,
+):
+    """Build streaming events that include cache-token usage fields."""
+    return [
+        SimpleNamespace(
+            type="message_start",
+            message=SimpleNamespace(
+                usage=SimpleNamespace(
+                    input_tokens=input_tokens,
+                    cache_creation_input_tokens=cache_creation_input_tokens,
+                    cache_read_input_tokens=cache_read_input_tokens,
+                ),
+            ),
+        ),
+        SimpleNamespace(
+            type="content_block_delta",
+            delta=SimpleNamespace(text=text),
+        ),
+        SimpleNamespace(
+            type="message_delta",
+            usage=SimpleNamespace(output_tokens=output_tokens),
+        ),
+    ]
+
+
+class TestPromptCacheBreakpoint:
+    """Adapter must emit ``cache_control`` markers when a breakpoint is given."""
+
+    @pytest.mark.asyncio
+    async def test_no_breakpoint_sends_plain_string_system(self, adapter):
+        """Backward-compat: omitting cache_breakpoint_index keeps system as a string."""
+        a, client = adapter
+        client.messages.stream = MagicMock(return_value=_FakeStream(_make_events()))
+        await a.analyze("plain system prompt", "user", "model", 1000)
+        call_kwargs = client.messages.stream.call_args.kwargs
+        assert call_kwargs["system"] == "plain system prompt"
+
+    @pytest.mark.asyncio
+    async def test_breakpoint_splits_system_into_cached_prefix(self, adapter):
+        """When given an index, system becomes a list with cache_control on the prefix."""
+        a, client = adapter
+        client.messages.stream = MagicMock(return_value=_FakeStream(_make_events()))
+        prompt = "stable preamble.SUFFIX"
+        prefix_len = len("stable preamble.")
+        await a.analyze(
+            system_prompt=prompt,
+            user_prompt="user",
+            model="model",
+            max_tokens=1000,
+            cache_breakpoint_index=prefix_len,
+        )
+        call_kwargs = client.messages.stream.call_args.kwargs
+        system_blocks = call_kwargs["system"]
+        assert isinstance(system_blocks, list)
+        assert system_blocks[0]["text"] == "stable preamble."
+        assert system_blocks[0]["cache_control"] == {"type": "ephemeral"}
+        # The dynamic suffix follows uncached
+        assert system_blocks[1]["text"] == "SUFFIX"
+        assert "cache_control" not in system_blocks[1]
+
+    @pytest.mark.asyncio
+    async def test_breakpoint_at_end_omits_empty_suffix(self, adapter):
+        """If the entire system is cacheable, no empty suffix block is emitted."""
+        a, client = adapter
+        client.messages.stream = MagicMock(return_value=_FakeStream(_make_events()))
+        prompt = "fully cacheable"
+        await a.analyze(
+            system_prompt=prompt,
+            user_prompt="user",
+            model="model",
+            max_tokens=1000,
+            cache_breakpoint_index=len(prompt),
+        )
+        call_kwargs = client.messages.stream.call_args.kwargs
+        system_blocks = call_kwargs["system"]
+        assert len(system_blocks) == 1
+        assert system_blocks[0]["text"] == "fully cacheable"
+        assert system_blocks[0]["cache_control"] == {"type": "ephemeral"}
+
+    @pytest.mark.asyncio
+    async def test_thinking_call_supports_cache_breakpoint(self, adapter):
+        """analyze_with_thinking accepts cache_breakpoint_index too."""
+        a, client = adapter
+        resp = _mock_thinking_response()
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
+        prompt = "preamble.tail"
+        await a.analyze_with_thinking(
+            system_prompt=prompt,
+            user_prompt="u",
+            model="m",
+            max_tokens=2000,
+            cache_breakpoint_index=len("preamble."),
+        )
+        call_kwargs = client.messages.stream.call_args.kwargs
+        system_blocks = call_kwargs["system"]
+        assert isinstance(system_blocks, list)
+        assert system_blocks[0]["cache_control"] == {"type": "ephemeral"}
+
+    @pytest.mark.asyncio
+    async def test_zero_or_negative_breakpoint_disables_cache(self, adapter):
+        """An index of 0 (nothing to cache) falls back to the plain-string form."""
+        a, client = adapter
+        client.messages.stream = MagicMock(return_value=_FakeStream(_make_events()))
+        await a.analyze(
+            system_prompt="prompt",
+            user_prompt="user",
+            model="model",
+            max_tokens=1000,
+            cache_breakpoint_index=0,
+        )
+        call_kwargs = client.messages.stream.call_args.kwargs
+        assert call_kwargs["system"] == "prompt"
+
+
+class TestPromptCacheUsage:
+    """Adapter must read cache token counts from the streaming usage block."""
+
+    @pytest.mark.asyncio
+    async def test_records_cache_creation_tokens(self, adapter):
+        a, client = adapter
+        events = _make_cache_events(cache_creation_input_tokens=4000)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        await a.analyze("sys", "user", "model", 1000)
+        assert a.last_cache_usage.creation_tokens == 4000
+        assert a.last_cache_usage.read_tokens == 0
+
+    @pytest.mark.asyncio
+    async def test_records_cache_read_tokens(self, adapter):
+        a, client = adapter
+        events = _make_cache_events(cache_read_input_tokens=3500)
+        client.messages.stream = MagicMock(return_value=_FakeStream(events))
+        await a.analyze("sys", "user", "model", 1000)
+        assert a.last_cache_usage.read_tokens == 3500
+
+    @pytest.mark.asyncio
+    async def test_resets_cache_usage_each_call(self, adapter):
+        a, client = adapter
+        # First call populates
+        client.messages.stream = MagicMock(
+            return_value=_FakeStream(_make_cache_events(cache_creation_input_tokens=2000)),
+        )
+        await a.analyze("sys", "user", "model", 1000)
+        assert a.last_cache_usage.creation_tokens == 2000
+        # Second call without cache fields resets to zero
+        client.messages.stream = MagicMock(return_value=_FakeStream(_make_events()))
+        await a.analyze("sys", "user", "model", 1000)
+        assert a.last_cache_usage.creation_tokens == 0
+        assert a.last_cache_usage.read_tokens == 0
+
+    @pytest.mark.asyncio
+    async def test_thinking_call_records_cache_usage(self, adapter):
+        a, client = adapter
+        usage = SimpleNamespace(
+            input_tokens=200,
+            output_tokens=100,
+            cache_creation_input_tokens=1500,
+            cache_read_input_tokens=800,
+        )
+        text_block = SimpleNamespace(type="text", text="ok")
+        resp = SimpleNamespace(content=[text_block], usage=usage)
+        client.messages.stream = MagicMock(return_value=_FakeThinkingStream(resp))
+        await a.analyze_with_thinking("sys", "user", "model", 2000)
+        assert a.last_cache_usage.creation_tokens == 1500
+        assert a.last_cache_usage.read_tokens == 800
+
+    def test_initial_cache_usage_is_zero(self):
+        with patch("spectra.infrastructure.anthropic_adapter.anthropic.AsyncAnthropic"):
+            a = AnthropicAdapter(api_key="test")
+            assert a.last_cache_usage.creation_tokens == 0
+            assert a.last_cache_usage.read_tokens == 0

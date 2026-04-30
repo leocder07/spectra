@@ -227,6 +227,7 @@ class CritiqueAgent(BaseAgent):
             max_tokens=self._max_tokens,
             effort=self._effort,
             task_budget_tokens=_TASK_BUDGET_TOKENS,
+            cache_breakpoint_index=self._cache_breakpoint_index,
         )
 
     def validate_output(self, parsed: dict[str, list[dict[str, str | int | float]]]) -> tuple[Finding, ...]:

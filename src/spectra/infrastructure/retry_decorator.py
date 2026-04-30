@@ -12,6 +12,7 @@ import random
 from collections.abc import Callable, Coroutine
 
 from spectra.entities.errors import SpectraRetryError
+from spectra.entities.models import CacheUsage
 from spectra.use_cases.interfaces import LLMGateway
 
 # Async callable that accepts keyword args and returns str
@@ -47,6 +48,11 @@ class RetryDecorator:
         """Propagate token usage from the inner gateway."""
         return getattr(self._inner, "last_usage", (0, 0))
 
+    @property
+    def last_cache_usage(self) -> CacheUsage:
+        """Propagate prompt-cache token counters from the inner gateway."""
+        return getattr(self._inner, "last_cache_usage", CacheUsage())
+
     async def analyze(
         self,
         system_prompt: str,
@@ -54,6 +60,7 @@ class RetryDecorator:
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Analyze with automatic retry on transient failures."""
         return await self._retry(
@@ -63,6 +70,7 @@ class RetryDecorator:
             model=model,
             max_tokens=max_tokens,
             effort=effort,
+            cache_breakpoint_index=cache_breakpoint_index,
         )
 
     async def analyze_with_thinking(
@@ -73,6 +81,7 @@ class RetryDecorator:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Analyze with thinking, with automatic retry on transient failures."""
         return await self._retry(
@@ -83,6 +92,7 @@ class RetryDecorator:
             max_tokens=max_tokens,
             effort=effort,
             task_budget_tokens=task_budget_tokens,
+            cache_breakpoint_index=cache_breakpoint_index,
         )
 
     async def _retry(

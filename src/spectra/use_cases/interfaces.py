@@ -101,6 +101,7 @@ class LLMGateway(Protocol):
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Send a standard inference request.
 
@@ -111,6 +112,10 @@ class LLMGateway(Protocol):
             max_tokens: Maximum response tokens.
             effort: Optional ``output_config.effort`` (``low|medium|high|xhigh|max``).
                 Opus 4.7 supports ``xhigh``; ``max`` is Opus-tier only.
+            cache_breakpoint_index: Optional byte index into ``system_prompt``
+                marking the end of the cacheable prefix (ADR-024). When set,
+                Anthropic-backed adapters add a ``cache_control: ephemeral``
+                marker on the prefix; other adapters silently ignore the hint.
 
         Returns:
             Raw LLM text response.
@@ -125,6 +130,7 @@ class LLMGateway(Protocol):
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Send an inference request with adaptive thinking enabled.
 
@@ -136,6 +142,7 @@ class LLMGateway(Protocol):
             effort: Optional ``output_config.effort`` (``low|medium|high|xhigh|max``).
             task_budget_tokens: Optional cumulative loop budget (min 20_000).
                 Activates the ``task-budgets-2026-03-13`` beta header.
+            cache_breakpoint_index: See :meth:`analyze` (ADR-024).
 
         Returns:
             Raw LLM text response (thinking blocks excluded).

@@ -219,6 +219,24 @@ class ScoreCard(BaseModel, frozen=True):
         return None
 
 
+class CacheUsage(BaseModel, frozen=True):
+    """Anthropic prompt-cache token accounting for a single LLM call (ADR-024).
+
+    Anthropic returns two cache-related counters in the response usage block:
+
+    - ``creation_tokens``: Input tokens billed at 1.25x to write a fresh
+      cache entry on the server (paid once per entry per TTL window).
+    - ``read_tokens``: Input tokens served from a previously-written cache
+      entry. Billed at 0.10x — the 90% saving the ADR is built around.
+
+    Both default to 0 — adapters that do not use prompt caching emit
+    zero-valued instances so downstream code never special-cases.
+    """
+
+    creation_tokens: int = Field(default=0, ge=0)
+    read_tokens: int = Field(default=0, ge=0)
+
+
 class AgentOutput(BaseModel, frozen=True):
     """Validated output from a single agent run.
 
@@ -229,6 +247,9 @@ class AgentOutput(BaseModel, frozen=True):
         duration_seconds: Wall-clock time for the LLM call.
         raw_response: Unprocessed LLM response text.
         dimension_score: Optional LLM-assigned holistic score (0-100).
+        cache_usage: Anthropic prompt-cache token accounting (ADR-024).
+            Defaults to a zero-valued instance for adapters that do not
+            participate in prompt caching.
     """
 
     agent_role: AgentRole
@@ -237,6 +258,7 @@ class AgentOutput(BaseModel, frozen=True):
     duration_seconds: float
     raw_response: str
     dimension_score: float | None = None
+    cache_usage: CacheUsage = CacheUsage()
 
 
 class AgentContext(BaseModel, frozen=True):
@@ -714,6 +736,41 @@ def estimate_cost(outputs: tuple[AgentOutput, ...]) -> float:
         rate = _MODEL_COST.get(out.agent_role, _OPUS_AVG_PER_1K)
         total += (out.tokens_used / 1000.0) * rate
     return round(total, 4)
+
+
+# Anthropic prompt-cache pricing multipliers vs. base input rate (ADR-024).
+# A cache READ is billed at 10% of the standard input rate; a cache WRITE
+# is billed at 125%. The savings vs. the no-cache baseline therefore are:
+#   savings = (read_tokens * 0.90 - creation_tokens * 0.25) * input_rate
+# This is why the 90% headline number is "per cached token READ" — the
+# first-write premium recovers itself the second time the prefix is reused.
+_CACHE_READ_DISCOUNT: float = 0.90
+_CACHE_WRITE_PREMIUM: float = 0.25
+
+
+def estimate_cache_savings(outputs: tuple[AgentOutput, ...]) -> float:
+    """Estimate USD saved (vs. no-cache baseline) from prompt-cache reads.
+
+    Computes the dollar delta between what Anthropic billed and what the
+    same workload would cost without prompt caching. Positive values mean
+    cache reads dominated; negative values mean we paid the write premium
+    on a prefix that was never re-read (cache miss in the second-call sense).
+
+    Args:
+        outputs: Completed agent outputs with cache token counts.
+
+    Returns:
+        Estimated USD saved, rounded to 4 decimal places. Always uses the
+        Opus input rate — Spectra runs Opus 4.7 for every cached call.
+    """
+    saved = 0.0
+    for out in outputs:
+        usage = out.cache_usage
+        saved += (
+            usage.read_tokens * _CACHE_READ_DISCOUNT
+            - usage.creation_tokens * _CACHE_WRITE_PREMIUM
+        ) * (_OPUS_INPUT_PER_1K / 1000.0)
+    return round(saved, 4)
 
 
 # ── Policy + Waiver (Capabilities #17, #18) ───────────────────
