@@ -51,9 +51,7 @@ class _StubRemoteCache:
 
 def test_remote_cache_port_is_a_protocol() -> None:
     """``RemoteCachePort`` must be a Protocol so adapters opt-in structurally."""
-    assert hasattr(RemoteCachePort, "_is_protocol"), (
-        "RemoteCachePort must inherit from typing.Protocol"
-    )
+    assert hasattr(RemoteCachePort, "_is_protocol"), "RemoteCachePort must inherit from typing.Protocol"
 
 
 def test_stub_satisfies_remote_cache_port() -> None:
