@@ -40,10 +40,49 @@ import anthropic
 import httpx
 
 from spectra.entities.errors import ERRORS, SpectraRetryError
+from spectra.entities.models import CacheUsage
 
 _log = logging.getLogger("spectra.adapter")
 
 _MAX_CONNECTIONS = 10
+_EPHEMERAL_MARKER: dict[str, str] = {"type": "ephemeral"}
+
+
+def _build_system_blocks(
+    system_prompt: str,
+    cache_breakpoint_index: int | None,
+) -> str | list[dict[str, object]]:
+    """Translate ``cache_breakpoint_index`` into the Anthropic system shape.
+
+    Returns the plain ``system_prompt`` string when no caching is requested
+    or when the requested split is degenerate (index ``<= 0`` or ``>= len``).
+    Otherwise emits the two-block list with ``cache_control: ephemeral`` on
+    the cacheable prefix only — the dynamic suffix is sent uncached so a
+    new run never invalidates the cache by mutating the prefix.
+    """
+    if cache_breakpoint_index is None or cache_breakpoint_index <= 0:
+        return system_prompt
+    if cache_breakpoint_index >= len(system_prompt):
+        return [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": _EPHEMERAL_MARKER,
+            },
+        ]
+    prefix = system_prompt[:cache_breakpoint_index]
+    suffix = system_prompt[cache_breakpoint_index:]
+    return [
+        {"type": "text", "text": prefix, "cache_control": _EPHEMERAL_MARKER},
+        {"type": "text", "text": suffix},
+    ]
+
+
+def _read_cache_usage(usage: object) -> CacheUsage:
+    """Extract Anthropic cache token counters from a usage block."""
+    creation = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+    return CacheUsage(creation_tokens=creation, read_tokens=read)
 
 
 class AnthropicAdapter:
@@ -87,11 +126,17 @@ class AnthropicAdapter:
             ),
         )
         self._last_usage: tuple[int, int] = (0, 0)
+        self._last_cache_usage: CacheUsage = CacheUsage()
 
     @property
     def last_usage(self) -> tuple[int, int]:
         """(input_tokens, output_tokens) from the most recent API call."""
         return self._last_usage
+
+    @property
+    def last_cache_usage(self) -> CacheUsage:
+        """Anthropic prompt-cache token counters for the most recent call."""
+        return self._last_cache_usage
 
     async def analyze(
         self,
@@ -100,6 +145,7 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Send a streaming inference request.
 
@@ -110,6 +156,11 @@ class AnthropicAdapter:
             max_tokens: Maximum response tokens.
             effort: Optional ``output_config.effort``. On Opus 4.7 use ``xhigh``
                 for coding/agentic; ``high`` is the default sweet spot.
+            cache_breakpoint_index: Optional byte index into ``system_prompt``
+                marking the end of the cacheable prefix (ADR-024). When set
+                the adapter sends the system block list with a ``cache_control``
+                marker on the prefix; otherwise the system prompt is sent as
+                a plain string (no caching).
 
         Returns:
             Concatenated text from all content blocks.
@@ -117,7 +168,9 @@ class AnthropicAdapter:
         Raises:
             SpectraRetryError: On connection or rate-limit errors.
         """
-        return await self._call_streaming(system_prompt, user_prompt, model, max_tokens, effort)
+        return await self._call_streaming(
+            system_prompt, user_prompt, model, max_tokens, effort, cache_breakpoint_index,
+        )
 
     async def analyze_with_thinking(
         self,
@@ -127,6 +180,7 @@ class AnthropicAdapter:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Send a streaming request with adaptive extended thinking.
 
@@ -137,6 +191,7 @@ class AnthropicAdapter:
             max_tokens: Maximum response tokens (per-response cap).
             effort: Optional ``output_config.effort``.
             task_budget_tokens: Optional cumulative loop budget (min 20_000).
+            cache_breakpoint_index: See :meth:`analyze` (ADR-024).
 
         Returns:
             Text content only (thinking blocks are excluded).
@@ -151,6 +206,7 @@ class AnthropicAdapter:
             max_tokens,
             effort,
             task_budget_tokens,
+            cache_breakpoint_index,
         )
 
     async def close(self) -> None:
@@ -170,33 +226,34 @@ class AnthropicAdapter:
         model: str,
         max_tokens: int,
         effort: str | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         try:
-            # Streaming reduces time-to-first-token and memory usage
-            # compared to waiting for the full response
-            collected_text = []
+            collected_text: list[str] = []
             input_tokens = 0
             output_tokens = 0
+            cache_usage = CacheUsage()
             stream_kwargs: dict[str, object] = {
                 "model": model,
                 "max_tokens": max_tokens,
-                "system": system_prompt,
+                "system": _build_system_blocks(system_prompt, cache_breakpoint_index),
                 "messages": [{"role": "user", "content": user_prompt}],
             }
             if effort is not None:
                 stream_kwargs["output_config"] = {"effort": effort}
             async with self._client.messages.stream(**stream_kwargs) as stream:
                 async for event in stream:
-                    if hasattr(event, "type"):
-                        if event.type == "content_block_delta":
-                            if hasattr(event.delta, "text"):
-                                collected_text.append(event.delta.text)
-                        elif event.type == "message_delta":
-                            if hasattr(event.usage, "output_tokens"):
-                                output_tokens = event.usage.output_tokens
-                        elif event.type == "message_start" and hasattr(event.message, "usage"):
-                            input_tokens = event.message.usage.input_tokens
+                    if not hasattr(event, "type"):
+                        continue
+                    if event.type == "content_block_delta" and hasattr(event.delta, "text"):
+                        collected_text.append(event.delta.text)
+                    elif event.type == "message_delta" and hasattr(event.usage, "output_tokens"):
+                        output_tokens = event.usage.output_tokens
+                    elif event.type == "message_start" and hasattr(event.message, "usage"):
+                        input_tokens = event.message.usage.input_tokens
+                        cache_usage = _read_cache_usage(event.message.usage)
             self._last_usage = (input_tokens, output_tokens)
+            self._last_cache_usage = cache_usage
             return "".join(collected_text)
         except anthropic.APIConnectionError as exc:
             raise SpectraRetryError(ERRORS["SPEC-002"]) from exc
@@ -216,6 +273,7 @@ class AnthropicAdapter:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> str:
         """Streaming call with adaptive thinking."""
         response = await self._stream_thinking(
@@ -225,11 +283,13 @@ class AnthropicAdapter:
             max_tokens,
             effort,
             task_budget_tokens,
+            cache_breakpoint_index,
         )
         self._last_usage = (
             response.usage.input_tokens,
             response.usage.output_tokens,
         )
+        self._last_cache_usage = _read_cache_usage(response.usage)
         return _extract_text_blocks(response)
 
     async def _stream_thinking(
@@ -240,6 +300,7 @@ class AnthropicAdapter:
         max_tokens: int,
         effort: str | None = None,
         task_budget_tokens: int | None = None,
+        cache_breakpoint_index: int | None = None,
     ) -> anthropic.types.Message:
         """Send a thinking-enabled streaming request."""
         output_config: dict[str, object] = {}
@@ -254,7 +315,7 @@ class AnthropicAdapter:
         stream_kwargs: dict[str, object] = {
             "model": model,
             "max_tokens": max_tokens,
-            "system": system_prompt,
+            "system": _build_system_blocks(system_prompt, cache_breakpoint_index),
             "messages": [{"role": "user", "content": user_prompt}],
             "thinking": {"type": "adaptive", "display": "summarized"},
         }
