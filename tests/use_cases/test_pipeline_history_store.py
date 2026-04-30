@@ -7,7 +7,7 @@ non-fatal — same pattern as the audit port.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -79,7 +79,7 @@ def _build_ctx(report_store: Any | None) -> PipelineContext:
         codebase=Codebase(
             repo_url="https://github.com/octocat/spoon-knife",
             repo_name="spoon-knife",
-            local_path="/tmp/spoon",
+            local_path="/tmp/spoon",  # noqa: S108 — synthetic test path, never opened
             file_tree=("src/main.py", "README.md"),
         ),
         meta_prompter=_make_meta_agent(),
@@ -107,14 +107,14 @@ class _CapturingStore:
     async def store(self, report: ReportSummary) -> None:
         self.stored.append(report)
 
-    async def latest(self, repo_signature: str) -> ReportSummary | None:  # noqa: ARG002
+    async def latest(self, repo_signature: str) -> ReportSummary | None:
         return self.stored[-1] if self.stored else None
 
     async def history(
         self,
-        repo_signature: str,  # noqa: ARG002
-        since: datetime,  # noqa: ARG002
-        until: datetime,  # noqa: ARG002
+        repo_signature: str,
+        since: datetime,
+        until: datetime,
     ) -> tuple[ReportSummary, ...]:
         return tuple(self.stored)
 

@@ -55,17 +55,17 @@ async def test_in_memory_stub_satisfies_port() -> None:
         async def store(self, report: ReportSummary) -> None:
             self.stored.append(report)
 
-        async def latest(self, repo_signature: str) -> ReportSummary | None:  # noqa: ARG002
+        async def latest(self, repo_signature: str) -> ReportSummary | None:
             return self.stored[-1] if self.stored else None
 
         async def history(
             self,
-            repo_signature: str,  # noqa: ARG002
-            since: datetime,  # noqa: ARG002
-            until: datetime,  # noqa: ARG002
+            repo_signature: str,
+            since: datetime,
+            until: datetime,
         ) -> tuple[ReportSummary, ...]:
             return tuple(self.stored)
 
-    port: ReportStorePort = cast(ReportStorePort, _Stub())  # structural typing check
+    port: ReportStorePort = cast("ReportStorePort", _Stub())  # structural typing check
     assert (await port.latest("anything")) is None
     assert (await port.history("anything", datetime.now(UTC) - timedelta(days=7), datetime.now(UTC))) == ()
