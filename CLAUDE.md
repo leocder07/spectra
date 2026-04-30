@@ -138,9 +138,10 @@ spectra/
 │       ├── entities/                  # Layer 1 — ZERO spectra imports
 │       │   ├── __init__.py            # __all__ barrel export
 │       │   ├── enums.py              # Literal type aliases
-│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-013)
+│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-014)
 │       │   └── models.py             # Pydantic frozen models (incl. CacheEntry,
-│       │                              # CacheStats, BatchPrompt, BatchCacheKey, RepoCacheKey)
+│       │                              # CacheStats, BatchPrompt, BatchCacheKey, RepoCacheKey,
+│       │                              # AuditEvent, Receipt, Waiver, Policy, classification)
 │       ├── use_cases/                 # Layer 2 — entities/ only
 │       │   ├── __init__.py
 │       │   ├── interfaces.py         # Protocol classes (ports — incl. CachePort)
@@ -149,9 +150,12 @@ spectra/
 │       │   └── manage_token_budget.py
 │       ├── adapters/                  # Layer 3
 │       │   ├── __init__.py
-│       │   ├── cli_controller.py     # Typer app (analyze, cache stats|clear|prune)
+│       │   ├── cli_controller.py     # Typer app (analyze, cache stats|clear|prune|shred|doctor,
+│       │   │                          #            verify, waive, approver register,
+│       │   │                          #            render pr-comment)
 │       │   ├── progress_reporter.py  # Rich Progress (implements ProgressObserver,
 │       │   │                          # incl. on_cache_lookup hook)
+│       │   ├── pr_comment_renderer.py # Markdown-safe PR comment + field allowlist (v0.5.0)
 │       │   └── analysis_presenter.py # Rich Console ScoreCard display
 │       └── infrastructure/            # Layer 4
 │           ├── __init__.py
@@ -210,7 +214,7 @@ section per code with when it fires, what to do, and the retry policy.
 | SPEC-011 | Security | No | Secret detected by pre-flight scan — bypass with `--allow-secrets` |
 | SPEC-012 | Config | No | `.spectra-policy.yml` / `.spectra-waivers.yml` malformed (#17, #18) |
 | SPEC-013 | Policy | No | Policy gate failed — fix violations or update `.spectra-policy.yml` (#17) |
-| SPEC-014 | Cost Budget | No | `--max-cost-usd` / `--max-cost-per-hour` cap exceeded — rerun with a higher cap or split scope |
+| SPEC-014 | Cost Budget | No | `--max-cost-usd` / `--max-cost-per-hour` cap exceeded — rerun with a higher cap or split scope (#5) |
 
 ---
 
@@ -250,26 +254,37 @@ Grades: A+ (95-100), A (90-94), A- (87-89), B+ (83-86), B (80-82), B- (77-79), C
 
 ## Key Dependencies
 
+Conservative upper bounds on every runtime dep (Q1 #9): a transitive minor
+bump cannot silently land in a regulated SDLC.
+
 ```toml
 [project]
 dependencies = [
-    "anthropic>=0.40",
-    "typer>=0.12",
-    "rich>=13",
-    "pydantic>=2.5",
-    "gitpython>=3.1",
-    "tiktoken>=0.7",
-    "jinja2>=3.1",
-    "httpx>=0.27",
+    "anthropic>=0.40,<2.0",
+    "typer>=0.12,<1.0",
+    "rich>=13,<15",
+    "pydantic>=2.5,<3.0",
+    "gitpython>=3.1.30,<4.0",
+    "tiktoken>=0.7,<1.0",
+    "jinja2>=3.1,<4.0",
+    "httpx>=0.27,<1.0",
+    "keyring>=24,<26",        # ADR-012 — per-user cache HMAC secret
+    "pathspec>=0.12,<1.0",    # #6 — .gitignore + .spectraignore
+    "pysqlcipher3>=1.2,<2.0", # #13 — SQLCipher cache encryption (optional)
+    "cryptography>=43,<46",   # #57 + #18 — Ed25519 receipts + waiver signatures
+    "pyyaml>=6,<7",           # #17 — .spectra-policy.yml + .spectra-waivers.yml
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8",
-    "pytest-asyncio>=0.24",
-    "pytest-cov>=5",
-    "ruff>=0.8",
-    "mypy>=1.13",
+    "pytest>=8,<10",
+    "pytest-asyncio>=0.24,<2.0",
+    "pytest-cov>=5,<8",
+    "pytest-timeout>=2.2,<3.0",
+    "ruff>=0.8,<1.0",
+    "mypy>=1.13,<2.0",
+    "build>=1.2,<2.0",
+    "pyyaml>=6,<7",
 ]
 ```
 
