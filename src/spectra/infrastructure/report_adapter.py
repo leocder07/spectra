@@ -6,10 +6,17 @@ Transforms an ``AnalysisReport`` into a self-contained HTML file with:
 - Severity-sorted findings list
 - VC due diligence frameworks (OWASP, SOC 2, issue concentration, etc.)
 - Investment readiness score
+
+Capability #56 — dual-mode classification:
+The renderer picks ``report_confidential.html.j2`` (default — full
+findings + watermark + DLP meta tag) or ``report_public.html.j2``
+(strictly redacted summary) based on ``report.classification``.
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import secrets
 from collections import Counter
@@ -19,6 +26,7 @@ from pathlib import Path
 
 import jinja2
 
+from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.adapters.brand import build_verdict, dim_label
 from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.enums import AgentRole, Dimension, Grade
@@ -1828,6 +1836,105 @@ def _build_coverage_summary(
     }
 
 
+# ── Classification — Capability #56 ──────────────────────────
+
+_CLASSIFICATION_TEMPLATES: dict[str, str] = {
+    "confidential": "report_confidential.html.j2",
+    "public": "report_public.html.j2",
+}
+"""Template filename per ``AnalysisReport.classification`` literal."""
+
+_CLASSIFICATION_FILENAME_SUFFIX: dict[str, str] = {
+    "confidential": "report-confidential",
+    "public": "report-public",
+}
+"""Output filename stem per classification (capability #56 §8)."""
+
+
+def _actor_id_hash() -> str:
+    """Stable, non-identifying actor hash for the watermark.
+
+    Capability #56 §3 requires the CONFIDENTIAL watermark to identify the
+    actor for deterrent value while never embedding the raw username,
+    email, or process UID. We blake2b-hash the effective UID + login name
+    + machine hostname into 8 hex chars — enough entropy to deter casual
+    forwarding, no PII to leak.
+    """
+    parts = [
+        os.environ.get("USER", os.environ.get("USERNAME", "anonymous")),
+        os.environ.get("HOSTNAME", os.environ.get("COMPUTERNAME", "host")),
+        str(getattr(os, "geteuid", lambda: 0)()),
+    ]
+    digest = hashlib.blake2b("|".join(parts).encode("utf-8"), digest_size=4)
+    return digest.hexdigest()
+
+
+def _watermark_payload(report: AnalysisReport) -> dict[str, str]:
+    """Build the watermark text payload for the HTML template.
+
+    Confidential watermark surfaces actor + timestamp for deterrent value.
+    Public watermark surfaces only the Spectra version so the redacted
+    summary is identifiable as a Spectra artifact at a glance.
+    """
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    if report.classification == "public":
+        return {
+            "text": f"Public summary — Spectra v{_SPECTRA_VERSION}",
+            "timestamp": timestamp,
+            "actor_id_hash": "",
+        }
+    return {
+        "text": (
+            f"CONFIDENTIAL — Spectra report — {timestamp} — {_actor_id_hash()}"
+        ),
+        "timestamp": timestamp,
+        "actor_id_hash": _actor_id_hash(),
+    }
+
+
+def classification_filename(output_path: str, classification: str) -> str:
+    """Suffix the output filename with the classification mode.
+
+    ``spectra-report.html`` becomes ``spectra-report-confidential.html`` /
+    ``spectra-report-public.html`` so both modes can coexist on disk
+    without overwriting each other.
+    """
+    suffix = _CLASSIFICATION_FILENAME_SUFFIX[classification]
+    path = Path(output_path)
+    stem = path.stem
+    if stem.endswith("-confidential") or stem.endswith("-public"):
+        # Strip an existing classification suffix so re-runs are idempotent.
+        stem = stem.rsplit("-", 1)[0]
+    new_stem = f"{stem}-{suffix.split('-', 1)[1]}" if "-" in suffix else f"{stem}-{suffix}"
+    return str(path.with_name(f"{new_stem}{path.suffix}"))
+
+
+def _public_dimension_summaries(report: AnalysisReport) -> list[dict[str, object]]:
+    """Build the dimension-score rows shown in the public summary.
+
+    Each row carries the per-dimension grade, score, weight, and a
+    findings count — enough signal for an outsider to compare projects
+    without exposing any individual finding.
+    """
+    rows: list[dict[str, object]] = []
+    dim_lookup = {d.dimension: d for d in report.score_card.dimensions}
+    for dim in _DIMENSIONS_ORDER:
+        ds = dim_lookup.get(dim)
+        if ds is None:
+            continue
+        rows.append(
+            {
+                "label": dim_label(dim),
+                "score": int(round(ds.score)),
+                "grade": ds.grade,
+                "weight_pct": int(round(ds.weight * 100)),
+                "findings_count": ds.findings_count,
+                "grade_class": _grade_class(ds.grade),
+            }
+        )
+    return rows
+
+
 # ── Report Adapter Class ─────────────────────────────────────
 
 
@@ -1858,6 +1965,11 @@ class ReportAdapter:
     def render(self, report: AnalysisReport, output_path: str) -> str:
         """Render the analysis report to an HTML file.
 
+        The classification on ``report`` selects the template:
+        ``report_confidential.html.j2`` (full findings + CONFIDENTIAL
+        watermark + DLP meta tag) or ``report_public.html.j2`` (strict
+        redacted summary suitable for sharing). See capability #56.
+
         Args:
             report: Completed analysis report.
             output_path: Destination file path for the HTML.
@@ -1865,7 +1977,21 @@ class ReportAdapter:
         Returns:
             The output path string.
         """
-        template = self._env.get_template("report.html.j2")
+        template_name = _CLASSIFICATION_TEMPLATES[report.classification]
+        template = self._env.get_template(template_name)
+        watermark = _watermark_payload(report)
+        if report.classification == "public":
+            return self._render_public(report, template, output_path, watermark)
+        return self._render_confidential(report, template, output_path, watermark)
+
+    def _render_confidential(
+        self,
+        report: AnalysisReport,
+        template: jinja2.Template,
+        output_path: str,
+        watermark: dict[str, str],
+    ) -> str:
+        """Render the full-detail confidential report."""
         has_mermaid = any("```mermaid" in f.description for f in report.findings)
         dd_frameworks = self._build_dd_frameworks(report)
         csp_nonce = secrets.token_urlsafe(32)
@@ -1899,6 +2025,36 @@ class ReportAdapter:
             csp_nonce=csp_nonce,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
             disclaimer=disclaimer_payload(),
+            watermark=watermark,
+        )
+        Path(output_path).write_text(html, encoding="utf-8")
+        return output_path
+
+    def _render_public(
+        self,
+        report: AnalysisReport,
+        template: jinja2.Template,
+        output_path: str,
+        watermark: dict[str, str],
+    ) -> str:
+        """Render the strictly redacted public summary.
+
+        Drops every individual finding (titles, descriptions, file paths,
+        code snippets, recommendations) — only the overall grade, the per-
+        dimension scores, and aggregate counts survive.
+        """
+        csp_nonce = secrets.token_urlsafe(32)
+        html = template.render(
+            report=report,
+            spectrum_segments=_build_spectrum_segments(report),
+            badge_svg=self.render_badge(report),
+            benchmark=_build_benchmark_context(report),
+            csp_nonce=csp_nonce,
+            generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
+            disclaimer=disclaimer_payload(),
+            watermark=watermark,
+            spectra_version=_SPECTRA_VERSION,
+            dimension_summaries=_public_dimension_summaries(report),
         )
         Path(output_path).write_text(html, encoding="utf-8")
         return output_path

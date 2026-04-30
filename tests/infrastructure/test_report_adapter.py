@@ -222,18 +222,20 @@ class TestReportAdapter:
         Path(path).unlink()
 
     def test_template_ships_inside_installed_package(self):
-        """Template must live INSIDE the spectra package so the wheel ships it.
+        """Both classification templates must live INSIDE the spectra package.
 
-        Resolves the template via importlib.resources — the same API the
-        adapter uses in production. If the template lives outside the
+        Resolves the templates via importlib.resources — the same API the
+        adapter uses in production. If a template lives outside the
         package (repo root), this raises FileNotFoundError because the
-        wheel will not contain it for end users.
+        wheel will not contain it for end users. Capability #56 ships
+        both confidential and public modes; the wheel must carry both.
         """
-        template_path = files("spectra") / "templates" / "report.html.j2"
-        assert template_path.is_file(), (
-            "report.html.j2 must ship inside the spectra package "
-            "(src/spectra/templates/) so it's included in the published wheel"
-        )
+        for name in ("report_confidential.html.j2", "report_public.html.j2"):
+            template_path = files("spectra") / "templates" / name
+            assert template_path.is_file(), (
+                f"{name} must ship inside the spectra package "
+                "(src/spectra/templates/) so it's included in the published wheel"
+            )
 
     def test_template_loads_from_installed_package(self):
         """ReportAdapter().render() must succeed with no extra config.
@@ -2659,3 +2661,289 @@ class TestComputeROI:
         assert _estimate_manual_hours(0) == 2.0
         assert _estimate_manual_hours(50) == 7.0
         assert _estimate_manual_hours(200) == 22.0
+
+
+# ── Capability #56 — Classification (dual-mode render) ───────
+
+
+def _classified_report(
+    classification: str = "confidential",
+    *,
+    findings: tuple[Finding, ...] | None = None,
+) -> AnalysisReport:
+    """Build a report with the chosen classification for dual-mode tests."""
+    base = _minimal_report(findings=findings)
+    return base.model_copy(update={"classification": classification})
+
+
+def _render(report: AnalysisReport) -> str:
+    """Render to a temp file and return the HTML body as a string."""
+    adapter = ReportAdapter()
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+        path = f.name
+    try:
+        adapter.render(report, path)
+        return Path(path).read_text(encoding="utf-8")
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def _sensitive_findings() -> tuple[Finding, ...]:
+    """Findings that plant common-sensitive markers in title/body/snippet.
+
+    The grep test in ``TestPublicModeNoSensitiveLeakage`` ensures none of
+    these substrings (or any close variant) leak into the public report.
+    """
+    return (
+        Finding(
+            id="SEC-RSA-001",
+            dimension="security",
+            severity="critical",
+            title="Hardcoded RSA private key in config loader",
+            description=(
+                "The deploy bundle ships a -----BEGIN RSA PRIVATE KEY----- "
+                "block embedded as a string literal. Rotate immediately."
+            ),
+            location=FileLocation(file_path="src/config/secrets.py", line_start=42),
+            recommendation="Move to KMS and rotate the leaked key.",
+            agent_role="security",
+            confidence=0.97,
+            estimated_hours=4.0,
+            code_snippet="PRIVATE = '-----BEGIN RSA PRIVATE KEY-----\\nMIIE...'",
+            rule_id="SPEC-SEC-PRIVATE-KEY",
+        ),
+        Finding(
+            id="SEC-AKIA-002",
+            dimension="security",
+            severity="high",
+            title="AWS access key (AKIAIOSFODNN7EXAMPLE) committed to repo",
+            description=(
+                "AKIAIOSFODNN7EXAMPLE appears in .env.production. Revoke and "
+                "rotate via IAM. This password-like value is auto-detected."
+            ),
+            location=FileLocation(file_path=".env.production", line_start=7),
+            recommendation="Revoke the AKIA-prefixed key in IAM and remove .env from git.",
+            agent_role="security",
+            confidence=0.99,
+            estimated_hours=2.0,
+            code_snippet="AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+            rule_id="SPEC-SEC-AWS-KEY",
+        ),
+        Finding(
+            id="SEC-PWD-003",
+            dimension="security",
+            severity="high",
+            title="Plaintext password in test fixtures",
+            description="Test fixture contains password='hunter2-DO-NOT-LEAK-publicly'.",
+            location=FileLocation(file_path="tests/fixtures/users.json", line_start=15),
+            recommendation="Replace with a generated test secret loaded at runtime.",
+            agent_role="security",
+            confidence=0.92,
+            estimated_hours=1.0,
+            code_snippet='{"username": "admin", "password": "hunter2-DO-NOT-LEAK-publicly"}',
+            rule_id="SPEC-SEC-PLAINTEXT-PWD",
+        ),
+    )
+
+
+class TestConfidentialModeRender:
+    """Confidential mode is the default and renders the full report.
+
+    Watermark, DLP meta tag, and the CONFIDENTIAL banner ride above the
+    existing executive summary, ScoreCard, and findings list.
+    """
+
+    def test_default_classification_is_confidential(self):
+        # Capability #56 §3 — backward-compat for existing users.
+        report = _minimal_report()
+        assert report.classification == "confidential"
+
+    def test_confidential_html_contains_dlp_meta_tag(self):
+        html = _render(_classified_report("confidential"))
+        assert 'name="x-dlp-classification"' in html
+        assert 'content="confidential"' in html
+
+    def test_confidential_html_contains_watermark_text(self):
+        html = _render(_classified_report("confidential"))
+        # CONFIDENTIAL appears in both the banner and the watermark.
+        assert "CONFIDENTIAL" in html
+        # Watermark element is present.
+        assert "spectra-watermark" in html
+
+    def test_confidential_banner_distinct_from_disclaimer(self):
+        html = _render(_classified_report("confidential"))
+        assert "classification-banner" in html
+        assert "disclaimer-banner" in html
+        # Banner copy lives separately from disclaimer copy.
+        assert "Do not share outside your organization" in html
+
+    def test_confidential_preserves_finding_titles_and_snippets(self):
+        report = _classified_report("confidential", findings=_sensitive_findings())
+        html = _render(report)
+        # Full mode: every finding title, file path, and snippet survives.
+        assert "Hardcoded RSA private key" in html
+        assert "src/config/secrets.py" in html
+        assert "AKIAIOSFODNN7EXAMPLE" in html
+
+    def test_confidential_filename_suffix(self, tmp_path):
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "spectra-report.html")
+        suffixed = classification_filename(out, "confidential")
+        assert suffixed.endswith("spectra-report-confidential.html")
+
+    def test_confidential_uses_csp_safe_event_handling(self):
+        # Capability #56 §Standards — model after PR #38: no inline onclick.
+        html = _render(_classified_report("confidential"))
+        assert 'data-action="dismiss-disclaimer"' in html
+        # Verify no inline event handler attributes exist on the watermark or banner.
+        watermark_block = html[html.find("spectra-watermark") : html.find("spectra-watermark") + 1500]
+        assert "onclick=" not in watermark_block
+        banner_block = html[html.find("classification-banner") : html.find("classification-banner") + 1500]
+        assert "onclick=" not in banner_block
+
+
+class TestPublicModeRender:
+    """Public mode strictly redacts every individual finding."""
+
+    def test_public_html_drops_all_finding_titles(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        # No finding titles survive.
+        assert "Hardcoded RSA private key" not in html
+        assert "AWS access key" not in html
+        assert "Plaintext password" not in html
+
+    def test_public_html_drops_all_file_paths(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        assert "src/config/secrets.py" not in html
+        assert ".env.production" not in html
+        assert "tests/fixtures/users.json" not in html
+
+    def test_public_html_drops_all_code_snippets(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        assert "AKIAIOSFODNN7EXAMPLE" not in html
+        assert "hunter2-DO-NOT-LEAK-publicly" not in html
+        assert "BEGIN RSA PRIVATE KEY" not in html
+
+    def test_public_html_keeps_scores_and_grade(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        # Overall grade and overall score must still surface.
+        assert report.score_card.overall_grade in html
+        # Per-dimension scores must surface.
+        for dim_score in report.score_card.dimensions:
+            assert dim_score.grade in html
+
+    def test_public_html_keeps_findings_count(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        assert str(len(report.findings)) in html
+        # Redaction notice text spelled exactly per capability #56 §4.
+        assert "findings detected" in html
+        assert "Full details available in the confidential report" in html
+
+    def test_public_html_omits_dlp_meta_tag(self):
+        # DLP marker is confidential-only — its absence is intentional.
+        html = _render(_classified_report("public"))
+        assert 'name="x-dlp-classification"' not in html
+
+    def test_public_html_marks_classification_in_meta(self):
+        html = _render(_classified_report("public"))
+        assert 'name="x-spectra-classification"' in html
+        assert 'content="public"' in html
+
+    def test_public_watermark_text(self):
+        html = _render(_classified_report("public"))
+        # "Public summary — Spectra v{ver}" text per capability #56 §4.
+        assert "Public summary" in html
+        assert "spectra-watermark" in html
+
+    def test_public_banner_text(self):
+        html = _render(_classified_report("public"))
+        assert "classification-banner" in html
+        assert "redacted for sharing" in html
+
+    def test_public_filename_suffix(self, tmp_path):
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "spectra-report.html")
+        suffixed = classification_filename(out, "public")
+        assert suffixed.endswith("spectra-report-public.html")
+
+    def test_public_uses_csp_safe_event_handling(self):
+        html = _render(_classified_report("public"))
+        # No inline event handlers anywhere in the public template.
+        assert "onclick=" not in html
+        assert 'data-action="dismiss-disclaimer"' in html
+
+    def test_public_includes_disclaimer_banner(self):
+        # Capability #56 §6 — disclaimer ride-along applies to public too.
+        html = _render(_classified_report("public"))
+        assert "Indicative analysis" in html
+
+
+class TestPublicModeNoSensitiveLeakage:
+    """Grep test — common sensitive substrings must never appear in public bytes.
+
+    Plants findings whose titles, descriptions, snippets, and recommendations
+    embed every well-known sensitive marker, then confirms none leak through.
+    """
+
+    _FORBIDDEN = (
+        "BEGIN RSA",
+        "PRIVATE KEY",
+        "AKIAIOSFODNN7EXAMPLE",
+        "hunter2",
+        "password",
+        "AKIA",
+    )
+
+    def test_no_sensitive_substrings_in_public_html(self):
+        report = _classified_report("public", findings=_sensitive_findings())
+        html = _render(report)
+        leaks = [s for s in self._FORBIDDEN if s in html]
+        assert not leaks, f"Public report leaked sensitive substrings: {leaks}"
+
+    def test_confidential_intentionally_contains_findings(self):
+        # Sanity check the planted fixtures — confidential MUST keep them.
+        report = _classified_report("confidential", findings=_sensitive_findings())
+        html = _render(report)
+        # At least one of the markers must appear in confidential output —
+        # otherwise the redaction test above is vacuous.
+        present = [s for s in self._FORBIDDEN if s in html]
+        assert present, "Sensitive fixtures missing from confidential report — test is vacuous"
+
+
+class TestClassificationFilename:
+    """The output filename is suffixed with the classification."""
+
+    def test_confidential_suffix(self, tmp_path):
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "report.html")
+        assert classification_filename(out, "confidential").endswith("report-confidential.html")
+
+    def test_public_suffix(self, tmp_path):
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "report.html")
+        assert classification_filename(out, "public").endswith("report-public.html")
+
+    def test_idempotent_on_already_suffixed_path(self, tmp_path):
+        # Re-suffixing must not produce report-confidential-confidential.html.
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "report-confidential.html")
+        result = classification_filename(out, "public")
+        assert result.endswith("report-public.html")
+        assert "confidential" not in result
+
+    def test_preserves_directory(self, tmp_path):
+        from spectra.infrastructure.report_adapter import classification_filename
+
+        out = str(tmp_path / "subdir" / "spectra.html")
+        result = classification_filename(out, "confidential")
+        assert str(tmp_path / "subdir") in result
