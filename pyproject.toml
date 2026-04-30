@@ -45,6 +45,8 @@ dependencies = [
     # underlying ``libsqlcipher`` is unavailable on the platform (Windows
     # wheels are scarce). Cache + HMAC remain functional under fallback.
     "pysqlcipher3>=1.2,<2.0",
+    # #57 + ADR-018: Ed25519 signed scan receipts
+    "cryptography>=41,<46",
 ]
 
 [project.optional-dependencies]
