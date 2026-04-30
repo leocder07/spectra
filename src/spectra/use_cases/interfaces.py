@@ -28,11 +28,15 @@ from spectra.entities.audit import AuditEvent
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.models import (
     AnalysisReport,
+    Approver,
     BatchCacheKey,
     CacheStats,
     Finding,
+    Policy,
     RepoCacheKey,
     SecretFinding,
+    Violation,
+    Waiver,
 )
 
 # Prefixes that unambiguously denote a local filesystem source.
@@ -414,6 +418,61 @@ class AuditPort(Protocol):
         Called once at pipeline shutdown. Adapters with no buffer return
         immediately.
         """
+        ...
+
+
+class PolicyPort(Protocol):
+    """Port for ``.spectra-policy.yml`` loading and evaluation (Capability #17).
+
+    Implemented by ``YamlPolicyAdapter``. ``load`` returns ``EmptyPolicy``
+    for missing files (no-op gate); malformed YAML raises ``AgentError``
+    SPEC-012 with the failing field path baked into the message.
+    """
+
+    def load(self, path: Path) -> Policy:
+        """Read ``.spectra-policy.yml`` from ``path``; return a frozen ``Policy``."""
+        ...
+
+    def evaluate(
+        self,
+        policy: Policy,
+        report: AnalysisReport,
+    ) -> tuple[Violation, ...]:
+        """Run every gate; return a tuple of ``Violation`` (empty = pass)."""
+        ...
+
+
+class WaiverPort(Protocol):
+    """Port for ``.spectra-waivers.yml`` loading and signature verification (#18).
+
+    Implemented by ``YamlWaiverAdapter``. Waivers without a valid Ed25519
+    signature (against the approver public keys in ``.spectra-approvers.yml``)
+    are silently dropped — never a soft fail. Expired waivers are kept but
+    surfaced via the ``expired_waivers`` channel so callers can warn.
+    """
+
+    def load(
+        self,
+        waivers_path: Path,
+        approvers_path: Path,
+    ) -> tuple[tuple[Waiver, ...], tuple[Waiver, ...]]:
+        """Return ``(active, expired)`` tuples of validated waivers.
+
+        Both tuples contain only signature-verified waivers; ``active``
+        excludes any waiver past ``expires_at``.
+        """
+        ...
+
+    def load_approvers(self, path: Path) -> tuple[Approver, ...]:
+        """Read ``.spectra-approvers.yml``; empty file → empty tuple."""
+        ...
+
+    def verify(
+        self,
+        waiver: Waiver,
+        approvers: tuple[Approver, ...],
+    ) -> bool:
+        """Verify ``waiver.signature`` against any approver public key."""
         ...
 
 

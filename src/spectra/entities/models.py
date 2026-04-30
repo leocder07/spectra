@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import bisect
 import secrets
-from datetime import datetime  # noqa: TC003 — used by Pydantic at runtime
+from datetime import datetime, timedelta, timezone  # noqa: TC003 — used by Pydantic at runtime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from spectra.entities.enums import (
     AgentRole,
@@ -702,3 +702,194 @@ def estimate_cost(outputs: tuple[AgentOutput, ...]) -> float:
         rate = _MODEL_COST.get(out.agent_role, _OPUS_AVG_PER_1K)
         total += (out.tokens_used / 1000.0) * rate
     return round(total, 4)
+
+
+# ── Policy + Waiver (Capabilities #17, #18) ───────────────────
+
+SeverityGate = Literal["critical", "high", "medium", "low", "none"]
+"""Highest severity level allowed in a passing run.
+
+``"none"`` disables the severity gate entirely (the default for
+``EmptyPolicy``); ``"critical"`` fails the run on any critical finding;
+``"low"`` fails on any non-info finding."""
+
+ViolationKind = Literal[
+    "severity_gate",
+    "forbidden_rule_id",
+    "min_score_overall",
+    "required_dimension",
+]
+"""Why the policy gate rejected the run."""
+
+_VALID_DIMENSIONS: frozenset[str] = frozenset(
+    {
+        "architecture",
+        "security",
+        "quality",
+        "documentation",
+        "maintainability",
+        "performance",
+    }
+)
+
+
+class Policy(BaseModel, frozen=True):
+    """Org governance: severity gates, weight overrides, required dimensions.
+
+    Loaded from ``.spectra-policy.yml`` at the repo root via
+    ``YamlPolicyAdapter``. Empty file → ``EmptyPolicy()`` no-op.
+
+    Attributes:
+        version: Schema version (currently 1). Bumped on breaking change.
+        severity_gate: Highest severity allowed; ``"none"`` disables the gate.
+        dimension_overrides: Override default dimension weights. Keys must
+            be one of the six known ``Dimension`` literals; values must be
+            non-negative floats. Empty dict means use the defaults.
+        min_score_overall: Optional floor for the ScoreCard's overall_score.
+            ``None`` disables the check.
+        forbidden_rule_ids: Tuple of ``rule_id`` values that fail the run on
+            any single occurrence — independent of the severity gate.
+        required_dimensions: Tuple of dimensions that must appear in
+            ``score_card.dimensions``. A missing dimension fails the gate
+            even if no findings exist (catches silent agent failures).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    version: int = 1
+    severity_gate: SeverityGate = "none"
+    dimension_overrides: dict[Dimension, float] = Field(default_factory=dict)
+    min_score_overall: float | None = Field(default=None, ge=0.0, le=100.0)
+    forbidden_rule_ids: tuple[str, ...] = ()
+    required_dimensions: tuple[Dimension, ...] = ()
+
+    @field_validator("dimension_overrides")
+    @classmethod
+    def _validate_overrides(cls, value: dict[str, float]) -> dict[str, float]:
+        """Reject unknown dimensions or negative weights."""
+        for dim, weight in value.items():
+            if dim not in _VALID_DIMENSIONS:
+                msg = f"unknown dimension in override: {dim!r}"
+                raise ValueError(msg)
+            if weight < 0:
+                msg = f"dimension weight must be non-negative: {dim}={weight}"
+                raise ValueError(msg)
+        return value
+
+
+def EmptyPolicy() -> Policy:  # noqa: N802 — Capital E intentional; reads as constructor
+    """No-op policy used when ``.spectra-policy.yml`` is absent."""
+    return Policy()
+
+
+class Violation(BaseModel, frozen=True):
+    """One reason the policy gate rejected the run.
+
+    Attributes:
+        kind: Which rule fired (severity_gate, forbidden_rule_id, …).
+        message: Human-readable, ≤80 chars, brand-voice ✗-style.
+        finding_id: Optional Finding.id when the violation cites a specific finding.
+        rule_id: Optional rule_id for forbidden-rule violations.
+        dimension: Optional dimension for required-dimension violations.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: ViolationKind
+    message: str
+    finding_id: str | None = None
+    rule_id: str | None = None
+    dimension: Dimension | None = None
+
+
+# ── Waivers (#18) ─────────────────────────────────────────────
+
+_DEFAULT_WAIVER_TTL_DAYS: int = 180
+_MIN_WAIVER_REASON_LEN: int = 10
+
+
+def _default_waiver_expiry() -> datetime:
+    """Return ``utcnow + 180d`` for the default waiver TTL."""
+    return datetime.now(timezone.utc) + timedelta(days=_DEFAULT_WAIVER_TTL_DAYS)
+
+
+class Waiver(BaseModel, frozen=True):
+    """One signed entry in ``.spectra-waivers.yml``.
+
+    The ``finding_signature`` is a stable hash of
+    ``blake2b(file_path || rule_id || severity)`` so waivers survive
+    cosmetic finding renumbering. The ``signature`` field is an Ed25519
+    signature over the canonical JSON of every other field; verified by
+    the loader against the public keys in ``.spectra-approvers.yml``.
+
+    Attributes:
+        repo_signature: 32-hex blake2b of the repo's file tree at waiver time.
+        finding_signature: blake2b(file_path||rule_id||severity) — 16 hex chars.
+        reason: Human-readable justification (>=10 chars).
+        waived_by: Approver display name (must match ``.spectra-approvers.yml``).
+        waived_at: UTC datetime the waiver was signed.
+        expires_at: UTC datetime the waiver becomes void (default +180d).
+        signature: Hex-encoded Ed25519 signature (64 bytes → 128 hex chars).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    repo_signature: str
+    finding_signature: str
+    reason: str = Field(min_length=_MIN_WAIVER_REASON_LEN)
+    waived_by: str
+    waived_at: datetime
+    expires_at: datetime = Field(default_factory=_default_waiver_expiry)
+    signature: str = ""
+    """Hex-encoded Ed25519 signature. Empty string allowed for the
+    canonical-payload step that PRECEDES signing; loaders reject any
+    waiver with an empty signature on disk."""
+
+    def is_expired(self, now: datetime) -> bool:
+        """Return True when ``now`` is at or past ``expires_at``."""
+        return now >= self.expires_at
+
+
+class Approver(BaseModel, frozen=True):
+    """One entry in ``.spectra-approvers.yml`` — public keys for waiver verification.
+
+    Attributes:
+        name: Display name (matches ``Waiver.waived_by``).
+        email: Contact email for audit.
+        public_key: 32-byte Ed25519 public key, hex-encoded (64 chars).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    email: str
+    public_key: str = Field(min_length=64, max_length=64)
+
+
+def compute_finding_signature(
+    file_path: str,
+    rule_id: str,
+    severity: str,
+) -> str:
+    """Stable blake2b hash used to identify a waivable finding.
+
+    Defined in entities so both the use-case layer (filtering during
+    pipeline) and the CLI seam (signing waivers) share one definition.
+
+    Args:
+        file_path: Repo-relative path of the finding's location.
+        rule_id: Rule identifier; empty string for findings without one.
+        severity: Severity literal value.
+
+    Returns:
+        16-character hex digest.
+    """
+    import hashlib
+
+    h = hashlib.blake2b(digest_size=8)
+    h.update(file_path.encode("utf-8"))
+    h.update(b"\x00")
+    h.update(rule_id.encode("utf-8"))
+    h.update(b"\x00")
+    h.update(severity.encode("utf-8"))
+    return h.hexdigest()
