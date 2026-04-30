@@ -94,11 +94,11 @@ class TestErrorsDict:
         for code in ("SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009", "SPEC-012"):
             assert ERRORS[code].max_retries == 0
 
-    def test_spec_012_present_and_non_retryable(self):
-        spec012 = ERRORS["SPEC-012"]
-        assert spec012.code == "SPEC-012"
-        assert spec012.retryable is False
-        assert "budget" in spec012.message.lower()
+    def test_spec_014_present_and_non_retryable(self):
+        spec014 = ERRORS["SPEC-014"]
+        assert spec014.code == "SPEC-014"
+        assert spec014.retryable is False
+        assert "budget" in spec014.message.lower()
 
 
 # ── BudgetExceededError (SPEC-012) ──────────────────────────────
@@ -113,18 +113,18 @@ class TestBudgetExceededError:
         assert err.budget_usd == 0.40
         assert err.per_agent == {"architecture": 0.50}
 
-    def test_uses_spec_012(self):
+    def test_uses_spec_014(self):
         from spectra.entities.errors import BudgetExceededError
 
         err = BudgetExceededError(spent_usd=1.0, budget_usd=0.5, per_agent={})
-        assert err.error.code == "SPEC-012"
+        assert err.error.code == "SPEC-014"
         assert err.error.retryable is False
 
     def test_message_contains_code(self):
         from spectra.entities.errors import BudgetExceededError
 
         err = BudgetExceededError(spent_usd=1.0, budget_usd=0.5, per_agent={})
-        assert "SPEC-012" in str(err)
+        assert "SPEC-014" in str(err)
 
     def test_is_exception(self):
         from spectra.entities.errors import BudgetExceededError

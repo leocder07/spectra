@@ -107,14 +107,14 @@ class SpectraRetryError(Exception):
 
 
 class BudgetExceededError(Exception):
-    """Raised when the next agent call would push spend over the cap (SPEC-012).
+    """Raised when the next agent call would push spend over the cap (SPEC-014).
 
     Carries the per-agent breakdown so the CLI can render a brand-voice
     failure listing which dimension consumed the most. Non-retryable —
     the operator must rerun with a higher cap or split scope.
 
     Attributes:
-        error: The underlying ``SpectraError`` (always SPEC-012).
+        error: The underlying ``SpectraError`` (always SPEC-014).
         spent_usd: Total USD recorded so far when the gate fired.
         budget_usd: The cap that was exceeded.
         per_agent: ``{agent_name: cost_usd}`` map for the run.
@@ -126,7 +126,7 @@ class BudgetExceededError(Exception):
         budget_usd: float,
         per_agent: dict[str, float],
     ) -> None:
-        self.error = ERRORS["SPEC-012"]
+        self.error = ERRORS["SPEC-014"]
         self.spent_usd = spent_usd
         self.budget_usd = budget_usd
         self.per_agent = per_agent

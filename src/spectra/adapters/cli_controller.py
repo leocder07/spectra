@@ -29,6 +29,7 @@ from spectra.adapters.waiver_cli import approver_app, waive_command
 from spectra.entities.errors import (
     ERRORS,
     AgentError,
+    BudgetExceededError,
     GitError,
     SecretDetectedError,
     SpectraError,
@@ -583,6 +584,16 @@ def analyze(
         "--classification",
         help="Report classification: confidential (default, full findings) or public (redacted summary)",
     ),
+    max_cost_usd: float | None = typer.Option(
+        None,
+        "--max-cost-usd",
+        help="Per-run cost cap (USD). Pipeline aborts (SPEC-014) when exceeded.",
+    ),
+    max_cost_per_hour: float | None = typer.Option(
+        None,
+        "--max-cost-per-hour",
+        help="Rolling 1-hour cost cap (USD). Persists across runs via cache.db.",
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -622,6 +633,8 @@ def analyze(
     suffixed_output = _classification_filename(str(output), classification)
 
     _print_run_header(repo_url, suffixed_output, fmt, classification, quick=quick)
+    if max_cost_usd is not None:
+        _emit_cost_preflight_warning(max_cost_usd)
 
     try:
         report = asyncio.run(
@@ -638,6 +651,8 @@ def analyze(
                 allow_secrets=allow_secrets,
                 audit_sink=audit_sink,
                 classification=classification,
+                max_cost_usd=max_cost_usd,
+                max_cost_per_hour=max_cost_per_hour,
             )
         )
     except KeyboardInterrupt:
@@ -648,6 +663,9 @@ def analyze(
         raise typer.Exit(code=1) from exc
     except PolicyGateError as exc:
         _print_policy_violations(exc.violations)
+        raise typer.Exit(code=1) from exc
+    except BudgetExceededError as exc:
+        _print_budget_exceeded(exc)
         raise typer.Exit(code=1) from exc
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
@@ -712,6 +730,100 @@ def _print_policy_violations(violations: tuple[Violation, ...]) -> None:
     console.print(
         "  [dim]Fix the violations or update .spectra-policy.yml; see https://github.com/leocder07/spectra#policy[/]"
     )
+
+
+def _invoke_analyzer(
+    *,
+    repo_url: str,
+    output_path: str,
+    quick: bool,
+    fmt: str,
+    verbose: bool,
+    force: bool,
+    no_cache: bool,
+    overrides: dict[str, object],
+    no_gitignore: bool,
+    allow_secrets: bool,
+    max_cost_usd: float | None,
+    max_cost_per_hour: float | None,
+) -> object | None:
+    """Run the analyzer and translate domain exceptions into Typer.Exit.
+
+    Extracted from ``analyze`` to keep that function under the cyclomatic
+    branch ceiling — adding SPEC-014 pushed it over.
+    """
+    if _analyzer_factory is None:  # pragma: no cover — guarded by _validate_analyze_inputs
+        raise typer.Exit(code=1)
+    try:
+        return asyncio.run(
+            _analyzer_factory(
+                repo_url=repo_url,
+                output_path=output_path,
+                skip_critique=quick,
+                output_format=fmt,
+                verbose=verbose,
+                force=force,
+                no_cache=no_cache,
+                agent_overrides=overrides,
+                honor_gitignore=not no_gitignore,
+                allow_secrets=allow_secrets,
+                max_cost_usd=max_cost_usd,
+                max_cost_per_hour=max_cost_per_hour,
+            )
+        )
+    except KeyboardInterrupt:
+        console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
+        raise typer.Exit(code=130) from None
+    except SecretDetectedError as exc:
+        _print_secret_detection(exc)
+        raise typer.Exit(code=1) from exc
+    except BudgetExceededError as exc:
+        _print_budget_exceeded(exc)
+        raise typer.Exit(code=1) from exc
+    except (GitError, SpectraRetryError, AgentError) as exc:
+        err = exc.error
+        console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
+        if verbose:
+            console.print(traceback.format_exc())
+        raise typer.Exit(code=1) from exc
+
+
+# Conservative floor: 8 agents x ~$0.005 minimum input cost per call.
+_MIN_PIPELINE_COST_USD = 0.04
+
+
+def _emit_cost_preflight_warning(max_cost_usd: float) -> None:
+    """Warn (don't abort) when the cap is below the 8-agent input floor.
+
+    Brand voice: ≤80 chars, no trailing period. Warn-only — operators may
+    intentionally probe with a tiny budget to verify the gate fires.
+    """
+    if max_cost_usd < _MIN_PIPELINE_COST_USD:
+        console.print(
+            f"  [{AMBER}]⚠[/] --max-cost-usd ${max_cost_usd:.4f} below "
+            f"~${_MIN_PIPELINE_COST_USD:.2f} 8-agent floor"
+        )
+
+
+def _print_budget_exceeded(exc: BudgetExceededError) -> None:
+    """Render the SPEC-014 brand-voice failure block.
+
+    Format constraints (CLAUDE.md §Brand Voice):
+      - Header line ≤80 chars, no trailing period
+      - Per-agent breakdown rendered under the header
+      - Closing hint suggests rerun-with-higher-cap or split-scope
+    """
+    console.print(
+        f"[{RED}]✗[/] {exc.error.code}: budget exceeded "
+        f"(${exc.spent_usd:.2f} spent, ${exc.budget_usd:.2f} limit): "
+        f"rerun with --max-cost-usd <higher> or split scope"
+    )
+    if exc.per_agent:
+        for agent, cost in sorted(exc.per_agent.items(), key=lambda kv: -kv[1]):
+            console.print(f"  [{RED}]•[/] [{AMBER}]{agent}[/] ${cost:.4f}")
 
 
 def _print_secret_detection(exc: SecretDetectedError) -> None:

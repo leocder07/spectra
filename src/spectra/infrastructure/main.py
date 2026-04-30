@@ -83,6 +83,10 @@ from spectra.infrastructure.cache_adapter import (
     migrate_legacy_cache,
     shred_cache_file,
 )
+from spectra.infrastructure.cost_tracker import (
+    InMemoryCostTracker,
+    SqliteCostTracker,
+)
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
@@ -151,6 +155,8 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
     allow_secrets: bool = False,
     audit_sink: str | None = None,
     classification: str = "confidential",
+    max_cost_usd: float | None = None,
+    max_cost_per_hour: float | None = None,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -266,6 +272,7 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
 
         # Load .spectra-waivers.yml + .spectra-approvers.yml from the workspace root
         active_waivers, expired_waivers = _load_waivers(workspace_dir)
+        cost_tracker = _build_cost_tracker(max_cost_per_hour)
         ctx = PipelineContext(
             request=request,
             codebase=codebase,
@@ -284,6 +291,8 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
             run_id=run_id,
             waivers=active_waivers,
             expired_waivers=expired_waivers,
+            cost_tracker=cost_tracker,
+            max_cost_usd=max_cost_usd,
         )
         report = await analyze_repository(ctx)
         report = _attach_receipt(report, run_id)
@@ -449,6 +458,20 @@ def _shred_cache_and_keys() -> Path:
                 exc.error.code,
             )
     return db_path
+
+
+def _build_cost_tracker(max_cost_per_hour: float | None) -> InMemoryCostTracker | SqliteCostTracker:
+    """Pick the tracker flavour that satisfies the requested caps.
+
+    SqliteCostTracker is required only when ``--max-cost-per-hour`` is
+    set (the rolling window must survive process restarts). For per-run
+    caps the in-memory ledger is sufficient and avoids a sqlite write
+    per agent on the hot path.
+    """
+    if max_cost_per_hour is not None:
+        run_id = os.urandom(8).hex()
+        return SqliteCostTracker(db_path=default_cache_path(), run_id=run_id)
+    return InMemoryCostTracker()
 
 
 def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
