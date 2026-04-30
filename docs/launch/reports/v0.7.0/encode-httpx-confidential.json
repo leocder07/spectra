@@ -1,0 +1,1368 @@
+{
+  "disclaimer": {
+    "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
+    "url": "https://github.com/leocder07/spectra#disclaimer"
+  },
+  "repo_url": "https://github.com/encode/httpx",
+  "repo_name": "httpx",
+  "score_card": {
+    "overall_score": 85.4,
+    "overall_grade": "B+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 87.5,
+        "grade": "A-",
+        "findings_count": 8,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 91.0,
+        "grade": "A",
+        "findings_count": 11,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 80.8,
+        "grade": "B",
+        "findings_count": 13,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 73.5,
+        "grade": "C+",
+        "findings_count": 16,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 94.5,
+        "grade": "A",
+        "findings_count": 6,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 78.4,
+        "grade": "B-",
+        "findings_count": 13,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 67
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Significant code duplication between Client and AsyncClient",
+      "description": "The `Client` and `AsyncClient` classes in `_client.py` have nearly identical implementations for `request()`, `stream()`, `send()`, `_send_handling_auth()`, `_send_handling_redirects()`, `_send_single_request()`, plus all HTTP method shortcuts (`get`, `post`, `put`, etc.) and `_init_transport`/`_init_proxy_transport`. This roughly doubles the surface area for bugs, with the only differences being `await` keywords, async iterator protocol, and sync/async transport types. While Python's lack of true sync/async generic abstractions makes this difficult to fully eliminate, the parity is currently maintained by manual review only \u2014 there is no shared template or test that enforces signature/behavior parity between the two clients.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 624,
+        "line_end": 1255
+      },
+      "recommendation": "Consider extracting the auth-flow / redirect-flow state machine into a sync/async-agnostic generator (similar to how httpcore separates sans-IO logic) so both clients drive the same core logic. At minimum, add automated tests that introspect both classes and assert their public method signatures stay in sync.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Wildcard re-exports in __init__.py undermine explicit public API control",
+      "description": "`httpx/__init__.py` uses `from ._api import *`, `from ._client import *`, etc. for 11 internal modules and then defines a separate `__all__` list. This creates two parallel sources of truth: the underscored module `__all__` exports drive what `*` imports, while the package `__all__` controls `from httpx import *`. The pattern relies on each submodule maintaining a correct `__all__` (e.g. `_models.py` only lists 4 names but imports/exports many more), and any drift silently leaks names into the `httpx` namespace. The `setattr(__locals[__name], '__module__', 'httpx')` hack at the bottom further indicates the internal module structure is bleeding into public introspection.",
+      "location": {
+        "file_path": "httpx/__init__.py",
+        "line_start": 2,
+        "line_end": 86
+      },
+      "recommendation": "Replace wildcard imports with explicit `from ._client import Client, AsyncClient, USE_CLIENT_DEFAULT` style imports. This makes the public surface auditable in one file and removes the need for the `__module__` rewriting hack.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Layer violation: _models.py imports concrete encoding/decoder/multipart implementations",
+      "description": "`_models.py` (the domain layer for Request/Response/Headers/Cookies) imports concrete encoders from `_content`, decoders from `_decoders`, and multipart helpers from `_multipart`. This means the model layer cannot be used or tested independently of the encoding subsystem, and `Request.__init__` directly invokes `encode_request(...)` and `get_multipart_boundary_from_content_type(...)`. A cleaner layering would have models depend only on stream protocols (`SyncByteStream`/`AsyncByteStream`) with encoding performed by the client or a helper layer. This coupling is why the import graph in this package is essentially flat rather than layered.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 13,
+        "line_end": 25
+      },
+      "recommendation": "Move request/response body encoding out of `Request.__init__`/`Response.__init__` into a builder/factory in `_content.py` or the client. `Request` should accept a pre-encoded stream + headers, keeping `_models.py` focused on the data model.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "BaseTransport is an abstract class without using abc.ABC",
+      "description": "`BaseTransport.handle_request` and `AsyncBaseTransport.handle_async_request` raise `NotImplementedError` to signal they are abstract, but the classes do not inherit from `abc.ABC` and the methods are not decorated `@abstractmethod`. As a result, instantiating `BaseTransport()` directly is allowed, and the abstract contract is only discovered at request time. Given that the transport boundary is a key extension point of the architecture (documented as a public protocol), it should be enforced statically.",
+      "location": {
+        "file_path": "httpx/_transports/base.py",
+        "line_start": 15,
+        "line_end": 73
+      },
+      "recommendation": "Either make `BaseTransport`/`AsyncBaseTransport` inherit from `abc.ABC` and decorate the request methods with `@abstractmethod`, or convert them to `typing.Protocol` classes if duck-typing is preferred. A Protocol better matches the existing `MockTransport` and third-party transport pattern.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "MockTransport conflates sync and async transport contracts",
+      "description": "`MockTransport` inherits from both `AsyncBaseTransport` and `BaseTransport` and accepts either a sync or async handler. `handle_request` then asserts the handler returned a non-coroutine, while `handle_async_request` awaits it if it's a coroutine. This is convenient for tests but is a Liskov substitution violation: a caller holding a `BaseTransport` reference may receive a transport whose `handle_request` will fail at runtime when the supplied handler is actually async. The single-class union also blocks static type checkers from catching the mismatch.",
+      "location": {
+        "file_path": "httpx/_transports/mock.py",
+        "line_start": 16,
+        "line_end": 38
+      },
+      "recommendation": "Split into `MockTransport` (sync, accepts `SyncHandler` only) and `AsyncMockTransport` (async, accepts `AsyncHandler` only), mirroring the `HTTPTransport`/`AsyncHTTPTransport` split. Keep the dual-base class as a deprecated shim if backward compatibility is required.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "BaseClient mixes data model, configuration, and routing concerns",
+      "description": "`BaseClient` is a ~470 line god-class that owns: HTTP defaults (headers/cookies/params), auth construction, URL merging, redirect computation (`_build_redirect_request`, `_redirect_method`, `_redirect_url`, `_redirect_headers`, `_redirect_stream`), proxy-map building, timeout normalization, and lifecycle state. The redirect logic in particular is pure functions of (request, response) and has no dependency on client state aside from `self.cookies`/`self.max_redirects` \u2014 yet it lives on the base class, making it harder to test in isolation and increasing the coupling between configuration and protocol behavior.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 152,
+        "line_end": 619
+      },
+      "recommendation": "Extract the redirect-handling helpers into a standalone module (e.g. `_redirects.py`) that takes a request/response and returns the next request, plus a separate `_proxy_map.py` for `_get_proxy_map`. `BaseClient` would then only orchestrate configuration; the protocol-flow logic becomes independently testable.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Direct exception type-mapping table built at import time inside default transport",
+      "description": "`HTTPCORE_EXC_MAP` is a module-level mutable global that is lazily initialized from inside `map_httpcore_exceptions()`. The `global` mutation pattern works but couples error-translation policy directly to the default transport. If a user uses `MockTransport` they never hit this code, yet the exception hierarchy in `_exceptions.py` is designed around the httpcore mapping. This is more of an architectural smell than a defect: the exception layer implicitly assumes httpcore semantics.",
+      "location": {
+        "file_path": "httpx/_transports/default.py",
+        "line_start": 60,
+        "line_end": 91
+      },
+      "recommendation": "Move the exception map into a small `_transports/_exceptions.py` helper that initializes once at import time (httpcore is a hard dependency anyway) and remove the `global` mutation. Document that the public exception hierarchy is shaped to mirror httpcore.",
+      "agent_role": "architecture",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Top-level _api functions duplicate Client construction logic",
+      "description": "Each of `httpx.request`, `stream`, `get`, `post`, ... constructs an ephemeral `Client(...)` and forwards a hand-curated subset of arguments. Adding any new client option (e.g. a future `verify_mode`) requires touching all 8 functions plus `Client.__init__`. There is no helper that maps the module-level kwargs to client-level kwargs, so signatures drift easily \u2014 note that `_api.request` accepts `verify`/`trust_env` but not `http2`, `limits`, `headers`, `mounts`, or `event_hooks`, which is intentional but undocumented.",
+      "location": {
+        "file_path": "httpx/_api.py",
+        "line_start": 39,
+        "line_end": 165
+      },
+      "recommendation": "Introduce a single `_request_via_client(method, url, **kwargs)` helper that the per-method functions delegate to. This collapses 7 near-identical bodies into one and centralizes the choice of which client kwargs are exposed at module level.",
+      "agent_role": "architecture",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "TLS verification can be disabled with verify=False",
+      "description": "The `create_ssl_context` function permits `verify=False`, which constructs an SSLContext with `check_hostname = False` and `verify_mode = ssl.CERT_NONE`. This is exposed throughout the public API (`Client`, `AsyncClient`, top-level `request/get/post/...`, and the CLI `--no-verify` flag). While disabling verification is sometimes a legitimate option, it leaves the door open for misuse leading to MITM attacks. CWE-295: Improper Certificate Validation. OWASP A02:2021 Cryptographic Failures. Note: defaults are secure (`verify=True`) so this is a configuration risk, not a default flaw.",
+      "location": {
+        "file_path": "httpx/_config.py",
+        "line_start": 41,
+        "line_end": 44
+      },
+      "recommendation": "Consider emitting a warning (e.g. via `warnings.warn`) when `verify=False` is used at runtime so that misconfiguration is loudly visible. Document strongly in user-facing docs that `verify=False` should never be used in production. Optionally provide a strict-mode flag that disallows `verify=False`.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Authorization header retained on HTTP\u2192HTTPS same-host redirect",
+      "description": "In `_redirect_headers`, when redirecting cross-origin the code strips `Authorization`, but it explicitly does NOT strip it for `_is_https_redirect` (an http\u2192https upgrade on the same host:80\u2192443). While this is intentional and documented, it is a subtle deviation from a strict zero-trust posture: an attacker who can MITM a plaintext HTTP request can observe the redirect-following client send the Authorization header on the HTTPS leg only after being able to influence the original HTTP-side response. Practically the credential leak risk is limited because the upgrade is to HTTPS, but a strictly safer behavior is to drop credentials on any non-TLS originating request and require the caller to opt-in. CWE-200, CWE-522.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 446,
+        "line_end": 452
+      },
+      "recommendation": "Consider documenting this behavior prominently and/or stripping Authorization whenever the originating scheme is `http` (i.e. when credentials were sent in cleartext) regardless of whether the redirect target is the HTTPS upgrade. At minimum, ensure `Proxy-Authorization` is also stripped on cross-origin redirects (currently only `Authorization` is popped).",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "low",
+      "title": "DigestAuth supports weak hash algorithms (MD5, SHA-1)",
+      "description": "`DigestAuth._ALGORITHM_TO_HASH_FUNCTION` includes MD5 and SHA-1, both of which are cryptographically broken for collision resistance. While HTTP Digest auth's threat model relies on preimage resistance (still considered safe for MD5 in this narrow use), MD5/SHA-1 are widely banned by compliance frameworks (FIPS, PCI). The default algorithm if the server omits one is also `MD5`. CWE-327: Use of a Broken or Risky Cryptographic Algorithm. OWASP A02:2021. Note: this is dictated by the server's WWW-Authenticate header per RFC 7616, so the client is largely a victim of the server's choice.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 175,
+        "line_end": 184
+      },
+      "recommendation": "Document that MD5/SHA-1 digest are weak and strongly recommend SHA-256/SHA-512 server-side. Optionally add a configuration knob to refuse weak digest algorithms (`DigestAuth(..., min_algorithm='SHA-256')`).",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Weak client nonce generation in DigestAuth (SHA-1, time-based, truncated)",
+      "description": "`_get_client_nonce` builds the cnonce from `nonce_count + server_nonce + time.ctime() + os.urandom(8)` and then takes the first 16 hex chars of SHA-1. While `os.urandom(8)` provides 64 bits of entropy, truncating to 16 hex chars (64 bits of output) and using SHA-1 is suboptimal. The cnonce should be generated directly from a CSPRNG with sufficient length. CWE-330: Use of Insufficiently Random Values. CWE-327. Practical impact is limited because the cnonce only needs to be unique-ish per request, but best practice would be `secrets.token_hex(16)`.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 273,
+        "line_end": 278
+      },
+      "recommendation": "Replace with `return secrets.token_hex(16).encode()` (or use `os.urandom(16).hex().encode()`), removing the dependency on time/SHA-1 mixing.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-005",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Digest WWW-Authenticate parsing trusts server-supplied algorithm without validation",
+      "description": "`DigestAuth._parse_challenge` reads `algorithm` directly from the server header and looks it up in `_ALGORITHM_TO_HASH_FUNCTION` via `.upper()`. If the server sends an unknown algorithm, a `KeyError` is raised that is not converted to `ProtocolError` (only `realm`/`nonce` KeyErrors are caught at the parse step; the algorithm KeyError surfaces during `_build_auth_header`, where it would propagate as an uncaught KeyError). This is more of a robustness issue than a strict security vulnerability, but a malicious server could trigger an unexpected exception type. CWE-754.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 245,
+        "line_end": 248
+      },
+      "recommendation": "In `_build_auth_header`, validate `challenge.algorithm.upper()` is in `_ALGORITHM_TO_HASH_FUNCTION` and raise a `ProtocolError` with the request context if not. This produces a clean, typed exception instead of a KeyError.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Request URLs (potentially containing credentials/tokens) are written to logs",
+      "description": "`_send_single_request` (sync and async) emits a log line containing the full `request.url` at INFO level: `logger.info('HTTP Request: %s %s ...')`. URLs commonly contain sensitive data: BasicAuth credentials embedded as `https://user:pass@host/...` (httpx specifically supports this via `_build_request_auth`), API keys/session tokens in query parameters (e.g. `?api_key=...`, `?access_token=...`, signed S3 URLs). When an application enables INFO-level logging for `httpx`, these secrets are persisted to log files. CWE-532: Insertion of Sensitive Information into Log File. OWASP A09:2021.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 1018,
+        "line_end": 1025
+      },
+      "recommendation": "Sanitize the URL before logging \u2014 at minimum strip `userinfo` (the `username:password@` component) and consider masking known sensitive query parameter names. Example: `safe_url = request.url.copy_with(username=None, password=None)` and document that callers should not put secrets in query strings, or downgrade to DEBUG and clearly document the leak risk in the logging documentation.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Multipart filename not sanitized for path components",
+      "description": "`FileField.__init__` uses `Path(str(getattr(value, 'name', 'upload'))).name` to derive a filename from a file object \u2014 this does perform basenaming. However, when callers pass an explicit filename via the tuple form (`files={'f': ('arbitrary/../path.txt', fileobj)}`), the filename is used verbatim in the Content-Disposition header after going through `_format_form_param`, which encodes quotes, backslashes, and control chars but NOT forward slashes or `..`. A malicious caller-supplied filename could embed path components that some servers may misinterpret. CWE-22 / CWE-93. Note: per RFC 7578 the filename is just metadata and servers should not use it as a path; this is primarily a defense-in-depth concern.",
+      "location": {
+        "file_path": "httpx/_multipart.py",
+        "line_start": 113,
+        "line_end": 124
+      },
+      "recommendation": "Document that callers are responsible for sanitizing user-supplied filenames before passing them to `files=`. Consider applying `Path(filename).name` to the explicit-tuple branch as well, mirroring the implicit-name branch, to strip path separators by default.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Multipart form-encoding strips control chars but not CR/LF in name field",
+      "description": "`_HTML5_FORM_ENCODING_REPLACEMENTS` in `_multipart.py` replaces control chars `chr(c)` for c in 0..0x1F **except 0x1B** (escape), and special-cases `\"` and `\\`. CR (0x0D) and LF (0x0A) ARE in the range and get replaced, which is good. However the explicit exclusion of 0x1B (escape) is unusual \u2014 a name containing ESC could yield a Content-Disposition header line containing a raw ESC byte, which some downstream parsers/loggers might mishandle (terminal escape injection in tools that print headers). CWE-93: Improper Neutralization of CRLF Sequences. The CRLF injection itself is mitigated; the residual concern is the ESC carve-out.",
+      "location": {
+        "file_path": "httpx/_multipart.py",
+        "line_start": 22,
+        "line_end": 25
+      },
+      "recommendation": "Remove the `if c != 0x1B` carve-out so all control characters in 0x00\u20130x1F are percent-encoded. There's no documented reason from HTML5 form encoding to allow raw ESC.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-010",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Header value validation does not reject CR/LF (potential header injection in custom values)",
+      "description": "`_normalize_header_value` in `_models.py` only checks the type (str or bytes) and encodes to bytes \u2014 it does not validate that the value is free of CR/LF/NUL. If user-controlled data flows into `headers={...}` without sanitization, a malicious value containing `\\r\\n` could inject additional headers. Most HTTP backends (httpcore/h11/h2) perform their own validation and will reject these, providing defense in depth, so the practical impact is limited. CWE-113: Improper Neutralization of CRLF Sequences in HTTP Headers. OWASP A03:2021.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 76,
+        "line_end": 84
+      },
+      "recommendation": "In `_normalize_header_value` (and `_normalize_header_key`), reject values containing `\\r`, `\\n`, or `\\x00` and raise a clear error. Example: `if any(b in value for b in (b'\\r', b'\\n', b'\\x00')): raise ValueError('Header value contains forbidden character')`.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-011",
+      "dimension": "security",
+      "severity": "info",
+      "title": "NetRCAuth does not enforce file permissions on netrc",
+      "description": "`NetRCAuth` delegates to Python's `netrc.netrc(file)`. Python's stdlib netrc module checks permissions only in some cases (and only on POSIX) for default files, and behavior changed across versions. There is no httpx-side check that the netrc file is owned by the current user with mode 0600. CWE-732: Incorrect Permission Assignment for Critical Resource. The risk is upstream/OS-level rather than introduced by httpx, so this is informational.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 138,
+        "line_end": 145
+      },
+      "recommendation": "Document expected netrc permissions (0600) in the `NetRCAuth` docstring and recommend users verify ownership/permissions on shared systems.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-012",
+      "dimension": "security",
+      "severity": "info",
+      "title": "CLI exposes Authorization header in verbose mode",
+      "description": "The CLI's `--verbose/-v` flag prints request headers, including `Authorization: Basic <base64>`, which is trivially reversible to plaintext credentials. The CLI help text already warns users about this explicitly: 'Note that using --verbose/-v will expose the Authorization header...'. This is a documented and acknowledged tradeoff, so it is informational rather than a defect. CWE-532.",
+      "location": {
+        "file_path": "httpx/_main.py",
+        "line_start": 53,
+        "line_end": 58
+      },
+      "recommendation": "No code change needed \u2014 warning is already documented. Consider an additional `--verbose-no-auth` mode that masks Authorization values when verbose output is enabled, for users who want to share traces.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Test files referenced in plan are not actually provided for analysis",
+      "description": "The PLAN listed several test files (tests/conftest.py, tests/client/test_client.py, tests/client/test_async_client.py, tests/client/test_auth.py, tests/client/test_redirects.py, tests/test_main.py, tests/test_exported_members.py) but only their filenames appear \u2014 actual test source was not supplied. Analysis of test coverage breadth, async test discipline and public API stability tests cannot be confirmed from the supplied source. Findings are limited to the implementation modules supplied.",
+      "location": {
+        "file_path": "tests/conftest.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run analysis with the actual test sources to evaluate test discipline (anyio_backend parametrization, pytest.mark.anyio usage, fixture scoping) and public-API export tests.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Large, highly-duplicated public API surface in httpx/_api.py",
+      "description": "The module-level helpers (get/options/head/post/put/patch/delete) repeat near-identical 15-line signatures and 15-line bodies that all delegate to request(). The duplication is extensive (~250 lines of mirrored code) and any signature change must be made in 8 places, which is a known source of drift (note `delete` already orders `verify` differently from the others \u2014 see line ~333 vs ~178). Maintenance cost and risk of inconsistency are elevated.",
+      "location": {
+        "file_path": "httpx/_api.py",
+        "line_start": 168,
+        "line_end": 405
+      },
+      "recommendation": "Generate the verb helpers programmatically or have each verb call a private dispatcher with a normalized kwargs dict. At minimum add a unit test asserting all verb signatures match request() except for the documented body-omitting verbs.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Massive parameter-list duplication between Client and AsyncClient verb methods",
+      "description": "Client and AsyncClient each redefine request/stream/send/get/options/head/post/put/patch/delete with ~15-parameter signatures that are almost byte-identical (only `await` differs). The `_client.py` file is ~1000 lines and a large fraction is mechanical copy. This amplifies the same drift risk seen in `_api.py` (e.g., `auth: AuthTypes | UseClientDefault | None` in some methods vs `AuthTypes | UseClientDefault` in others \u2014 see Client.options line ~796 vs Client.get line ~767).",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 700,
+        "line_end": 1000
+      },
+      "recommendation": "Extract the verb method signatures via a shared decorator/mixin or generate them from a single source-of-truth declaration. Add a test that asserts Client.X and AsyncClient.X share identical (non-async) annotations for each verb.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Inconsistent `auth` parameter type annotation across verb methods",
+      "description": "Within Client/AsyncClient, `request()` and `get()` annotate auth as `AuthTypes | UseClientDefault | None`, while `options/head/post/put/patch/delete` annotate it as `AuthTypes | UseClientDefault` (no `| None`). Behaviorally `None` is still accepted (it flows to _build_request_auth), but the annotations disagree, which is a real type-checking inconsistency under `strict = true` mypy.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 767,
+        "line_end": 920
+      },
+      "recommendation": "Standardize all verb signatures to `AuthTypes | UseClientDefault | None`. Add a test that introspects __annotations__ on Client/AsyncClient verb methods and asserts equality.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "BaseClient.__init__ has too many responsibilities and parameters",
+      "description": "BaseClient.__init__ takes 12 keyword arguments and Client.__init__/AsyncClient.__init__ each take 18. They also do non-trivial transport construction, proxy-map building, and mount sorting inline (~50 LoC each). High parameter count makes the call sites brittle and hampers testability of individual init steps.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 553,
+        "line_end": 640
+      },
+      "recommendation": "Extract `_build_mounts(...)` and `_resolve_proxy_map(...)` helper methods (already partially present) and consider a `ClientConfig` dataclass for the >10 ssl/http/limits/timeout knobs to reduce signature surface.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Timeout.__init__ has high cyclomatic complexity and asserts as control flow",
+      "description": "Timeout.__init__ branches on isinstance(Timeout)/tuple/UnsetType combinations using a chain of if/elif/elif/else with `assert` statements as input validation (lines ~88-95). Asserts are stripped by `python -O`, so the API contract that you cannot mix `Timeout(timeout=Timeout(...), connect=...)` would silently fail in optimized mode. Cyclomatic complexity is ~8 and behavior is hard to follow.",
+      "location": {
+        "file_path": "httpx/_config.py",
+        "line_start": 78,
+        "line_end": 124
+      },
+      "recommendation": "Replace `assert connect is UNSET` etc. with explicit `if ... raise TypeError(...)` so validation survives `-O`. Consider splitting into `Timeout.from_timeout()`, `Timeout.from_tuple()`, and `Timeout.from_components()` classmethods.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "DigestAuth._build_auth_header is long and uses cryptic single-letter variables",
+      "description": "_build_auth_header (~50 LoC) mixes RFC-2617/7616 logic with ad-hoc string formatting and uses identifiers like `A1`, `A2`, `HA1`, `HA2`, `nc_value` without explaining the spec mapping in code (only a TODO mentions auth-int). High cognitive load; unit-testing edge cases (sess algorithms, qop choices) is harder because there's no extracted helper.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 222,
+        "line_end": 268
+      },
+      "recommendation": "Extract `_compute_ha1`, `_compute_ha2`, `_compute_response` helpers and add docstring references (`# RFC 7616 \u00a73.4.x`). Increases testability and reduces method length below ~20 LoC.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-008",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Duplicate _build_auth_header implementation in BasicAuth and NetRCAuth",
+      "description": "BasicAuth._build_auth_header (lines ~141-144) and NetRCAuth._build_auth_header (lines ~169-172) are byte-identical. Small but pure duplication that should be a single helper or shared base class.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 130,
+        "line_end": 175
+      },
+      "recommendation": "Move `_build_basic_auth_header(username, password)` to module scope and call it from both classes. Saves ~6 LoC and one drift point.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "filterwarnings='error' is good but `-rxXs` is the only addopt \u2014 no coverage gating",
+      "description": "pytest config sets `filterwarnings = ['error', ...]` which is excellent (turns warnings into failures), and has good `markers` registration. However coverage config exists ([tool.coverage.run]) but is not wired into addopts (no `--cov` or `fail_under` threshold), so coverage regressions cannot fail CI from this file alone.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 96,
+        "line_end": 112
+      },
+      "recommendation": "Either add `--cov=httpx --cov-fail-under=N` to addopts (if pytest-cov is in dev deps) or document that coverage is enforced via a separate CI step. Also consider adding `--strict-markers` and `--strict-config`.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "ruff lint rule selection is narrow \u2014 missing common quality rules",
+      "description": "Ruff selects only E, F, I, B, PIE. Useful quality-oriented rule families like UP (pyupgrade), SIM (simplify), C4 (comprehensions), RUF, and PT (pytest-style) are not enabled. Project already uses `from __future__ import annotations` and `>=3.9` so several UP rules would catch real modernization opportunities.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 78,
+        "line_end": 80
+      },
+      "recommendation": "Expand select to at least `[\"E\",\"F\",\"I\",\"B\",\"PIE\",\"UP\",\"SIM\",\"C4\",\"RUF\",\"PT\"]` and triage findings. Each family typically surfaces low-risk improvements in a mature codebase.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-012",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Module-level mutation of __module__ on all public symbols is fragile",
+      "description": "httpx/__init__.py ends with a loop that does `setattr(__locals[__name], '__module__', 'httpx')`. This rewrites attributes on third-party-looking objects (e.g., `Headers`, `Response`) and uses a `# noqa` to silence lint. If `__all__` ever lists a name not present in locals (typo), this raises KeyError at import time. There's no test guarding against that beyond test_exported_members existing.",
+      "location": {
+        "file_path": "httpx/__init__.py",
+        "line_start": 86,
+        "line_end": 90
+      },
+      "recommendation": "Wrap in a try/except KeyError that raises a clear ImportError naming the missing symbol, or skip names where `__locals[__name]` is not a class/function. Add an explicit unit test asserting every entry in __all__ resolves and has __module__ == 'httpx'.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-013",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "main() CLI function is long and mixes I/O, formatting and HTTP logic",
+      "description": "_main.py's `main` function is ~50 LoC and mixes click parsing, default-method inference, transport wiring, streaming, error printing and exit codes. The module also has `# pragma: no cover` annotations spread across many branches (validate_json, format_certificate, http2 paths) indicating substantial untested code paths.",
+      "location": {
+        "file_path": "httpx/_main.py",
+        "line_start": 366,
+        "line_end": 425
+      },
+      "recommendation": "Split into `_resolve_method`, `_run_request`, `_render_or_download` helpers; reduce pragma-no-cover blocks by adding targeted tests (validate_json bad input, http2 trace, certificate formatting).",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-014",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Response class is a god object with ~40 methods/properties (~600 LoC)",
+      "description": "`Response` in _models.py owns body decoding, text/json access, status helpers, sync+async iteration, line decoding, encoding detection, cookies, links parsing, pickling, and stream lifecycle. It results in duplicated sync/async iteration paths (iter_bytes/aiter_bytes, iter_text/aiter_text, iter_lines/aiter_lines, iter_raw/aiter_raw, close/aclose) totaling ~150 LoC of near-identical logic.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 600,
+        "line_end": 1100
+      },
+      "recommendation": "Extract a `_ResponseBody` helper that handles decoding/chunking and is parameterized by sync/async iterators, so Response only delegates. Reduces duplication and makes targeted tests for decoding logic possible without constructing a full Response.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 12.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Documentation files referenced in plan are not actually included in source",
+      "description": "The plan lists README.md, docs/index.md, docs/quickstart.md, docs/api.md, docs/advanced/*, CHANGELOG.md, CONTRIBUTING.md, and mkdocs.yml as files to evaluate, but only the source code files (httpx/*.py, pyproject.toml) were actually provided. Findings below are based on the docstring/inline documentation in the provided source code, plus structural evidence about the documentation site (mkdocs.yml is referenced and `docs/` paths appear in pyproject.toml). I cannot verify the content of the .md files directly.",
+      "location": {
+        "file_path": "mkdocs.yml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "When auditing documentation, ensure the actual contents of README.md, CHANGELOG.md, and docs/*.md are included in the input. The presence of mkdocs.yml and a structured docs/ tree (advanced/, quickstart, api, troubleshooting, async) is itself a strong positive signal of mature documentation.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public `Client.__init__` parameter `cert` is undocumented",
+      "description": "The `Client` and `AsyncClient` constructors accept a `cert` parameter (CertTypes), but the docstring listing **Parameters** does not mention it. The same docstring lists `verify`, `http2`, `proxy`, `timeout`, `limits`, etc., but `cert` is silently omitted. Users reading the in-tree docstring (which is what IDE tooltips and `help(Client)` show) get an incomplete picture, especially given that the codebase elsewhere deprecates `cert=...` (see `_config.create_ssl_context`).",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 595,
+        "line_end": 640
+      },
+      "recommendation": "Either (a) add a `cert` entry to the Client/AsyncClient docstring noting the deprecation in favor of `verify=<ssl_context>`, or (b) remove the `cert` parameter from the public signature if it is intended to be hidden. Apply the same change in both `Client` and `AsyncClient`.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Client/AsyncClient docstrings omit `http1`, `mounts`, `follow_redirects`, and `event_hooks`",
+      "description": "The constructor signatures for `Client` and `AsyncClient` accept `http1`, `mounts`, `follow_redirects`, and `event_hooks` parameters, but the **Parameters** section of the class docstring lists only auth, params, headers, cookies, verify, http2, proxy, timeout, limits, max_redirects, base_url, transport, trust_env, and default_encoding. Several important and frequently used options are therefore undocumented at the docstring level.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 558,
+        "line_end": 600
+      },
+      "recommendation": "Add docstring entries for `http1` (default True; disable for HTTP/2-only clients), `mounts` (per-pattern transport routing), `follow_redirects` (client-level default), and `event_hooks` (request/response hook lists). Mirror the additions in `AsyncClient`.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Top-level API helpers expose no `cert`/`http2`/`mounts` while client-level docs imply parity",
+      "description": "Module-level helpers (`httpx.request`, `get`, `post`, etc.) intentionally accept a smaller surface than `Client` (no `http2`, `cert`, `limits`, `mounts`, `event_hooks`). This mismatch is not flagged in any docstring; helpers like `get` say only \"Parameters: See `httpx.request`\" while `request` itself does not call out which client features are unavailable. New users may assume parity and be confused when migrating to `Client`.",
+      "location": {
+        "file_path": "httpx/_api.py",
+        "line_start": 38,
+        "line_end": 105
+      },
+      "recommendation": "Add a short note in `httpx.request`'s docstring explaining that for HTTP/2, custom limits, mounts, event hooks, or connection reuse, users should construct an explicit `httpx.Client(...)`. Cross-link from the module-level helpers to the `Client` reference.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Docstring cross-reference links use site-relative paths that may not resolve in IDEs / PyPI README",
+      "description": "Many docstrings include reference-style links such as `[0]: /quickstart#streaming-responses` and `[0]: /advanced/clients/#merging-of-configuration`. These render correctly under MkDocs but appear as broken/raw links in `help()` output, IDE tooltips, and the rendered PyPI page (which is built from README.md + CHANGELOG.md per pyproject.toml's fancy-pypi-readme hook). Users relying on inline docs see `[0]:` markers without a working target.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 350,
+        "line_end": 360
+      },
+      "recommendation": "Either (a) use absolute https URLs (e.g. `https://www.python-httpx.org/quickstart/#streaming-responses`) so links work everywhere, or (b) document the convention in CONTRIBUTING.md and add a CI check. Same pattern recurs in `_api.py` `stream()`, `Client.request`, `Client.send`, `AsyncClient.request`, `AsyncClient.send`, `BaseClient.build_request`, `BaseClient.auth`.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`is_closed` property docstring is grammatically incorrect / misleading",
+      "description": "`BaseClient.is_closed` is documented as `\"Check if the client being closed\"` which is ungrammatical and ambiguous (closed vs. closing). The property returns True only when state is CLOSED, not while closing.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 217,
+        "line_end": 222
+      },
+      "recommendation": "Rewrite as: `\"\"\"Return True if the client has been closed (either via `.close()` or by exiting its context manager).\"\"\"`",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`Proxy` class is publicly exported but has no class-level docstring",
+      "description": "`Proxy` is exported in `httpx.__all__` and is the canonical way to configure proxy auth/headers/SSL, yet it has no class docstring describing accepted URL schemes (http/https/socks5/socks5h), the `auth`/`headers`/`ssl_context` parameters, or the behavior of embedding credentials in the URL (which are stripped into `auth`). Users discover this only by reading the source.",
+      "location": {
+        "file_path": "httpx/_config.py",
+        "line_start": 175,
+        "line_end": 200
+      },
+      "recommendation": "Add a class docstring to `Proxy` documenting parameters, supported schemes, credential extraction behavior, and a usage example (`httpx.Proxy(\"http://proxy:8080\", auth=(\"user\", \"pw\"))`).",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`MockTransport`, `WSGITransport`, `ASGITransport` lack consistent parameter documentation",
+      "description": "`ASGITransport` has a docstring with arguments listed; `WSGITransport` has a similar block; but `MockTransport` (publicly exported, widely used in test code) has no class docstring at all describing the handler signature, sync vs async dispatch behavior, or example usage. Given MockTransport is a primary recommendation for testing, this is a notable gap.",
+      "location": {
+        "file_path": "httpx/_transports/mock.py",
+        "line_start": 16,
+        "line_end": 22
+      },
+      "recommendation": "Add a class docstring to `MockTransport` showing both sync handler (`def handler(request) -> Response`) and async handler (`async def handler(request) -> Response`) usage, and note that the same instance can be used with both `Client` and `AsyncClient`.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "`Headers`, `Cookies`, `QueryParams`, `URL`, `Request`, `Response` classes lack class-level docstrings",
+      "description": "Several core public classes are exported in `httpx.__all__` but have minimal/no class docstrings: `Request` and `Response` (in `_models.py`) have no class docstring at all; `Cookies` has only `\"HTTP Cookies, as a mutable mapping.\"`. `Request.__init__` has no docstring describing its parameters (content vs data vs files vs json vs stream distinction is critical). This forces users to rely entirely on the external docs site.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 195,
+        "line_end": 260
+      },
+      "recommendation": "Add class-level docstrings to `Request` and `Response` listing constructor parameters and key properties (status_code, content, text, json(), stream, history, elapsed, etc.). Document the important `content` vs `stream` distinction already explained in the inline comment at lines ~250-265.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Deprecation warnings exist in code but no migration guidance is co-located",
+      "description": "The codebase issues `DeprecationWarning`s for `verify=<str>`, `cert=...`, and per-request `cookies=...`, but the warning messages do not link to a migration document, and no docstring on `Client`/`AsyncClient` calls these out. Users who hit these warnings have no in-source pointer to the rationale or recommended replacement other than the one-line warning text.",
+      "location": {
+        "file_path": "httpx/_config.py",
+        "line_start": 35,
+        "line_end": 60
+      },
+      "recommendation": "Append a URL to the project changelog/migration page in each deprecation warning (e.g., `https://www.python-httpx.org/...#migration`), and add a `## Deprecations` section to CHANGELOG.md tracking these. Also note them under `Client`'s docstring.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`DigestAuth` and `Auth` lack usage examples for custom auth schemes",
+      "description": "`Auth` has a thoughtful docstring on `auth_flow()` showing the generator protocol, which is excellent. However, `DigestAuth` has no class docstring describing supported algorithms (MD5, SHA, SHA-256, SHA-512, and -SESS variants visible only by reading `_ALGORITHM_TO_HASH_FUNCTION`), nor what `qop` modes are supported (`auth` yes, `auth-int` raises NotImplementedError). Users implementing or troubleshooting digest auth must read the source.",
+      "location": {
+        "file_path": "httpx/_auth.py",
+        "line_start": 154,
+        "line_end": 175
+      },
+      "recommendation": "Add a class docstring on `DigestAuth` listing supported algorithms, qop modes (and the `auth-int` NotImplementedError), and a usage example. Optionally, consider documenting that `auth-int` is unsupported in the public docs/advanced/authentication.md.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.75,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`Limits.keepalive_expiry=None` semantics not documented",
+      "description": "`Limits` documents `keepalive_expiry` as \"Time limit on idle keep-alive connections in seconds\" but does not mention that `None` means no expiry, nor that `max_connections=None` means unlimited. Users frequently misconfigure these.",
+      "location": {
+        "file_path": "httpx/_config.py",
+        "line_start": 133,
+        "line_end": 148
+      },
+      "recommendation": "Update the `Limits` docstring to specify: `max_connections=None` means no limit; `max_keepalive_connections=None` means all kept-alive connections are allowed; `keepalive_expiry=None` disables expiry. Default values (100, 20, 5.0) should be stated.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-013",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "BrotliDecoder docstring contains stale package reference (`brotlipy`)",
+      "description": "`BrotliDecoder` docstring says `Requires \\`pip install brotlipy\\`` and references the brotlipy package, but the actual extras in `pyproject.toml` are `brotli` (CPython) and `brotlicffi` (PyPy/other). `brotlipy` is the deprecated/old name. This is misleading for users diagnosing brotli decoding issues.",
+      "location": {
+        "file_path": "httpx/_decoders.py",
+        "line_start": 96,
+        "line_end": 105
+      },
+      "recommendation": "Update the docstring to: `Requires `pip install httpx[brotli]`, which installs `brotli` on CPython and `brotlicffi` elsewhere.` Remove the `brotlipy` reference.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-014",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "`ZStandardDecoder` import-error message is truncated/elided in docstring path",
+      "description": "The ZStandardDecoder ImportError message contains `\"Using 'ZStandardDecoder', ...\"` \u2014 literal ellipsis as part of the user-visible error string. Compare to the parallel BrotliDecoder error which is fully written out. This appears to be an oversight rather than intentional; users hitting this error see a non-actionable message.",
+      "location": {
+        "file_path": "httpx/_decoders.py",
+        "line_start": 165,
+        "line_end": 172
+      },
+      "recommendation": "Replace the elided message with full text, e.g.: `\"Using 'ZStandardDecoder', but the 'zstandard' package is not installed. Make sure to install httpx using `pip install httpx[zstd]`.\"`",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.1,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-015",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "WSGITransport docstring example references removed `app=` Client kwarg",
+      "description": "`WSGITransport`'s docstring shows `client = httpx.Client(app=app)` as the simplest usage, but `Client.__init__` does not accept an `app` parameter (verified in the provided _client.py \u2014 only `transport=` is accepted). This example will raise `TypeError: unexpected keyword argument 'app'`. The `app=` shortcut was removed in earlier httpx versions; the docstring is stale.",
+      "location": {
+        "file_path": "httpx/_transports/wsgi.py",
+        "line_start": 44,
+        "line_end": 55
+      },
+      "recommendation": "Replace the example with `transport = httpx.WSGITransport(app=app); client = httpx.Client(transport=transport)` and apply the same fix to `ASGITransport` (which has equivalent prose). Audit README.md/docs/advanced/transports.md for the same outdated pattern.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-016",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Missing module-level docstrings across `_client.py`, `_models.py`, `_api.py`, `_auth.py`, `_config.py`",
+      "description": "Most internal modules lack module docstrings. While not strictly required given the public surface is re-exported through `httpx/__init__.py`, contributors browsing the source via PyPI/GitHub directly get no orientation. Only `_decoders.py`, `_exceptions.py`, and `_transports/default.py` have module docstrings.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 1,
+        "line_end": 10
+      },
+      "recommendation": "Add a short module docstring to each file describing its role (e.g., `_client.py`: \"Synchronous and asynchronous Client implementations and shared BaseClient logic.\"). This aids contributors and matches the style of other documented modules.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Unpinned runtime dependencies (certifi, anyio, idna)",
+      "description": "Three of four runtime dependencies in pyproject.toml are entirely unpinned with no lower bounds: 'certifi', 'anyio', and 'idna'. This is acceptable for a library (which httpx is), but the lack of even minimum version constraints means downstream installs can resolve to very old, possibly vulnerable versions. For example, certifi versions before 2022.12.07 contained a removed-trust issue (TrustCor), and idna<3.7 is affected by CVE-2024-3651 (resource consumption via idna.encode). Without a lower bound, pip is free to install these old versions on systems with already-cached wheels.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 30,
+        "line_end": 35
+      },
+      "recommendation": "Add minimum-version floors to runtime dependencies, e.g. 'certifi>=2023.7.22', 'idna>=3.7', 'anyio>=3.7'. Keep them as ranges (no upper cap) to avoid resolver conflicts downstream, but ensure known-vulnerable versions cannot be selected.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "httpcore pinned to major version only \u2014 no lower bound",
+      "description": "'httpcore==1.*' allows any 1.x release including very early 1.0.0, which had several bugs and is missing security/stability fixes from later 1.x releases (e.g. httpcore 1.0.0\u20131.0.4 had connection-pool issues). For a library this avoids upper-bound conflicts, but a >= floor should still be set to exclude known-bad early 1.x versions.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 32,
+        "line_end": 32
+      },
+      "recommendation": "Tighten to 'httpcore>=1.0.5,<2' (or the latest known-good minimum at release time) to ensure consumers do not resolve to early, buggy 1.0.x versions while still allowing the rest of the 1.x line.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Optional CLI extra has loose upper bounds on rich",
+      "description": "The 'cli' optional extra pins click==8.* and pygments==2.* but allows 'rich>=10,<15' \u2014 a 5-major-version window. While this avoids breakage, it means CLI users may resolve to very old rich releases (10.x/11.x are years old and have had bugs). Click 8.* is also an open major-only pin and includes click 8.0.0 which had multiple issues fixed in 8.1.x.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 41,
+        "line_end": 45
+      },
+      "recommendation": "Consider tightening the CLI extras to 'click>=8.1,<9', 'pygments>=2.14,<3', 'rich>=13,<15' to ensure modern, maintained baselines while preserving forward compatibility within a major version.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "h2 optional extra spans two major versions (3 and 4)",
+      "description": "'h2>=3,<5' allows both h2 3.x and 4.x. h2 3.x is end-of-life and has not received fixes for issues addressed in 4.x (notably HTTP/2 stream handling improvements relevant to CVE-2023-44487 'Rapid Reset' mitigations on the server side; client-side risk is lower but ecosystem fixes are concentrated in 4.x).",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 47,
+        "line_end": 49
+      },
+      "recommendation": "Bump the floor to 'h2>=4,<5' for the http2 extra so users opting in get a maintained h2 release. If 3.x compatibility is genuinely required, document the reason; otherwise drop it.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Brotli/brotlicffi extras lack version floors",
+      "description": "The 'brotli' extra specifies 'brotli' and 'brotlicffi' with no version constraints. Old brotlicffi releases (<1.0.9) have had bug fixes for memory handling. Without a floor, pip can resolve to ancient releases on environments with stale caches.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 37,
+        "line_end": 40
+      },
+      "recommendation": "Add minimum versions, e.g. 'brotli>=1.0.9; platform_python_implementation == \"CPython\"' and 'brotlicffi>=1.0.9.2; platform_python_implementation != \"CPython\"'.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.25,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Supported Python range is appropriate but classifiers must stay in sync",
+      "description": "requires-python = '>=3.9' aligns with classifiers 3.9\u20133.13. Python 3.9 reaches end-of-life in October 2025; planning a deprecation/removal of 3.9 support after EOL is recommended. This is a maintainability/lifecycle observation, not a current vulnerability.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 8,
+        "line_end": 27
+      },
+      "recommendation": "Track Python EOL dates in the release plan; drop 3.9 support after October 2025 and update both 'requires-python' and the classifier list together to avoid drift.",
+      "agent_role": "dependency",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "ZStandardDecoder allocates a new BytesIO per chunk",
+      "description": "ZStandardDecoder.decode() creates a fresh io.BytesIO() per call and returns output.getvalue(), which involves an extra copy on every streaming chunk. For large responses streamed in many small chunks, this adds O(N) extra allocations and memory copies vs. simply returning self.decompressor.decompress(data) directly (the gzip/deflate paths do exactly that). The BytesIO is only needed when handling concatenated zstd frames via the unused_data loop.",
+      "location": {
+        "file_path": "httpx/_decoders.py",
+        "line_start": 138,
+        "line_end": 150
+      },
+      "recommendation": "Fast-path the common case: decoded = self.decompressor.decompress(data); if not (self.decompressor.eof and self.decompressor.unused_data): return decoded. Only fall back to the BytesIO concatenation when multi-frame data is detected. This avoids per-chunk BytesIO/getvalue() copies on the hot streaming path.",
+      "agent_role": "performance",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Response.read() / Request.read() build content via b\"\".join over stream",
+      "description": "Response.read() does b\"\".join(self.iter_bytes()) and Request.aread() does b\"\".join([part async for part in self.stream]). For large bodies the list-then-join pattern allocates each chunk plus a list, then a final allocation for the joined bytes \u2014 effectively 2x peak memory of the response body. iter_bytes() also routes through ByteChunker (which writes/getvalue on a BytesIO) even though chunk_size is None and no chunking is needed.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 941,
+        "line_end": 968
+      },
+      "recommendation": "When reading the full body, bypass ByteChunker (chunk_size is None) and append decoded chunks directly to a bytearray, or accumulate into a single BytesIO and return getvalue(). Avoids the chunker buffer copy for the very common 'read entire response' case. Same applies to aread().",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "iter_bytes() always routes through ByteChunker even when chunk_size is None",
+      "description": "In iter_bytes()/aiter_bytes(), even when chunk_size is None (the most common case), every decoded chunk is fed through ByteChunker.decode(), which writes to an io.BytesIO and returns lists. ByteChunker only no-ops on the chunk_size=None path ([content] if content else []), but still constructs a list per chunk and a BytesIO instance for flush(). For high-throughput streaming this adds measurable per-chunk overhead.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 970,
+        "line_end": 991
+      },
+      "recommendation": "Special-case `chunk_size is None`: yield decoded bytes directly from the decoder without instantiating ByteChunker. Only construct the chunker when the caller explicitly requested fixed-size chunking.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "ByteChunker.decode rebuilds list of slices on every flush of buffer",
+      "description": "ByteChunker.decode() does `value = self._buffer.getvalue()` (full copy of the buffer) and then list comprehension slicing into N chunks. For large buffers and small chunk_size, this is O(N) memory overhead per call and can produce many intermediate copies when streaming a multi-MB response with a small chunk_size.",
+      "location": {
+        "file_path": "httpx/_decoders.py",
+        "line_start": 235,
+        "line_end": 256
+      },
+      "recommendation": "Use memoryview over the underlying buffer (or read directly from the BytesIO) and yield slices lazily, keeping leftover bytes in place rather than copying via getvalue() + truncate + rewrite. Alternatively, switch to a bytearray-based buffer and slice with memoryview to avoid the getvalue() copy.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Module-level httpx.request()/get()/post() construct a new Client per call",
+      "description": "The top-level helpers (httpx.request, httpx.get, httpx.post, httpx.stream, \u2026) build a brand-new `Client(...)` for every call and tear it down via context manager. This creates a new SSL context, new httpcore.ConnectionPool, performs a fresh TCP+TLS handshake, and discards keep-alive connections immediately. For any workload that calls httpx.get() repeatedly, this is the dominant performance cost (often 100\u2013500 ms/request vs. <10 ms with a reused client). Documented as anti-pattern but the API still encourages it.",
+      "location": {
+        "file_path": "httpx/_api.py",
+        "line_start": 100,
+        "line_end": 121
+      },
+      "recommendation": "Either (a) emit a stronger DeprecationWarning / docstring guidance steering users to a shared Client, or (b) maintain an internal lazily-initialized module-level Client for the helpers (with appropriate cleanup). At minimum, the docs should recommend Client reuse for any non-trivial workload. Keep current behavior under an explicit `httpx.request(..., client=...)` parameter.",
+      "agent_role": "performance",
+      "confidence": 0.95,
+      "validated_by_critique": true,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "create_ssl_context() invoked per HTTPTransport init can be expensive when used repeatedly",
+      "description": "HTTPTransport/AsyncHTTPTransport always call create_ssl_context() in __init__, which loads certifi's CA bundle from disk and builds a new ssl.SSLContext. Combined with the per-call Client pattern in _api.py, every httpx.get() call does a CA-bundle parse (tens of ms). Even when the user reuses a Client, creating proxy transports re-parses the CA bundle for each mount.",
+      "location": {
+        "file_path": "httpx/_transports/default.py",
+        "line_start": 124,
+        "line_end": 132
+      },
+      "recommendation": "Cache the default ssl.SSLContext when verify=True and no env overrides are set (e.g. functools.lru_cache on certifi-based context creation). The certifi CA bundle is immutable for the process lifetime. This significantly speeds up repeated client/transport instantiation.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-006",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "MultipartStream loads entire file into memory via render_data() when computing length",
+      "description": "FileField.get_length() relies on peek_filelike_length(); if it returns None (e.g. a non-seekable or pipe-like stream), MultipartStream.get_content_length() returns None and falls back to chunked Transfer-Encoding \u2014 that path is correct. However, FileField.render_data() seeks to 0 each time it's called, so the file content can be iterated twice if both get_content_length()/get_length() and the stream are consumed (e.g. retries via auth flow). For large files this re-reads the whole file from disk, doubling I/O.",
+      "location": {
+        "file_path": "httpx/_multipart.py",
+        "line_start": 174,
+        "line_end": 188
+      },
+      "recommendation": "Cache or stream-buffer the rendered file data when the request will need to be replayed (auth retries, redirects). Alternatively, document that file-like inputs to multipart uploads must be seekable and warn when they are not. Consider lazy length computation that doesn't trigger an extra read.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "MultipartStream async iteration is not actually asynchronous",
+      "description": "MultipartStream.__aiter__ simply iterates the synchronous iter_chunks() inside an async generator. For multipart uploads with large files, every self.file.read(CHUNK_SIZE) is a blocking disk read executed on the event loop thread, which can stall the entire async runtime for the duration of large file reads.",
+      "location": {
+        "file_path": "httpx/_multipart.py",
+        "line_start": 268,
+        "line_end": 270
+      },
+      "recommendation": "For async uploads, run blocking file reads via anyio.to_thread.run_sync (or asyncio.to_thread) so disk I/O doesn't block the event loop. Alternatively, accept async file-like objects (with .aread) and use them when available. This is especially important for high-concurrency upload servers.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Headers.encoding probe is O(n_headers) on every access",
+      "description": "Headers.encoding lazily computes the encoding by iterating all headers and trying to decode each one with ascii then utf-8. While the result is cached in self._encoding, every header read/write path that calls .encoding (keys/items/values/__getitem__/__delitem__/__contains__) on a fresh Headers triggers this probe. For requests with many headers this adds ~O(headers\u00b2) decode operations during request building.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 159,
+        "line_end": 181
+      },
+      "recommendation": "Default to ascii (the protocol-correct value) and only do the fallback probe when an actual UnicodeDecodeError occurs. Or compute encoding once in __init__ when headers are non-empty. Avoid the iterative scan on the hot path of normalized header lookups.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-009",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Headers.__setitem__ and __delitem__ scan full list each call",
+      "description": "Headers stores entries as a flat list of (raw_key, lower_key, value) tuples. Each __setitem__, __delitem__, __contains__, get_list, and __getitem__ scans the entire list. For requests with N headers, building/merging headers becomes O(N\u00b2) (each set is O(N), and merging M headers is O(M\u00b7N)). Most production requests are small enough this doesn't bite, but client/proxy chains and big response headers will see it.",
+      "location": {
+        "file_path": "httpx/_models.py",
+        "line_start": 295,
+        "line_end": 333
+      },
+      "recommendation": "Maintain a parallel dict mapping lower_key -> list-of-indices to make set/get/contains O(1) amortized. Keep the list for ordering. This converts header merging from O(N\u00b2) to O(N).",
+      "agent_role": "performance",
+      "confidence": 0.72,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-010",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "BoundSyncStream/BoundAsyncStream wrap streams with a redundant generator level",
+      "description": "BoundSyncStream.__iter__ does `for chunk in self._stream: yield chunk` \u2014 an extra Python-level generator that adds per-chunk overhead with no functional purpose beyond delegating. Same for BoundAsyncStream. On large streamed responses this adds a Python frame per chunk.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 132,
+        "line_end": 146
+      },
+      "recommendation": "Replace the explicit generator with `return iter(self._stream)` (sync) / `return self._stream.__aiter__()` (async) when no per-chunk processing is needed. Only the close()/aclose() needs the elapsed bookkeeping, which already happens in close. Removes one layer of Python-level overhead per chunk.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-011",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "encode_json uses default json.dumps (pure-Python overhead)",
+      "description": "encode_json() calls stdlib json.dumps then encodes utf-8. For large JSON request bodies (>100 KB), this is a noticeable chunk of CPU time vs. orjson/ujson which are 5-10x faster and emit bytes directly. No hook is currently provided for users to plug in a faster encoder.",
+      "location": {
+        "file_path": "httpx/_content.py",
+        "line_start": 154,
+        "line_end": 161
+      },
+      "recommendation": "Allow a configurable JSON encoder on the Client (e.g. `json_encoder=` callable returning bytes) and use it in encode_json. Users with large JSON workloads can supply orjson.dumps. Document the option for performance-sensitive use.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-012",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "_send_handling_redirects re-allocates history list on each redirect",
+      "description": "Both Client._send_handling_redirects and AsyncClient._send_handling_redirects do `history = history + [response]` which creates a new list every redirect (O(n) per redirect, O(n\u00b2) total). It also calls `response.history = list(history)` on each iteration, copying again. For redirect chains this is minor but unnecessary.",
+      "location": {
+        "file_path": "httpx/_client.py",
+        "line_start": 1018,
+        "line_end": 1045
+      },
+      "recommendation": "Use `history.append(response)` (mutating in place) and assign `response.history = history.copy()` (or a tuple) only once at return. Reduces allocations for redirect-heavy flows.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    }
+  ],
+  "analysis_duration_seconds": 603.89,
+  "total_tokens_used": 615059,
+  "total_cost_usd": 6.7656,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [
+    "arch-000, qual-001, qual-002 all address the same core issue: sync/async duplication across _api.py and _client.py. A single sans-IO refactor or codegen approach would resolve all three.",
+    "sec-004 and qual-007 are duplicates across security and quality dimensions \u2014 only sec-004 was kept.",
+    "arch-002 (model layer coupled to encoding) and qual-014 (Response god-class) point to the same underlying _models.py architectural debt.",
+    "doc-015 (WSGITransport stale app= example) and arch-005 (deprecation drift) are the same defect viewed from documentation vs architecture lenses.",
+    "sec-000 (verify=False), sec-003 (weak digest hashes), and doc-009 (deprecation guidance) all relate to a missing security-posture/migration documentation strategy.",
+    "perf-001, perf-002, perf-003 form a chain \u2014 eliminating ByteChunker on the chunk_size=None path (perf-002) makes perf-001 and perf-003 mostly moot for the common 'read entire body' case."
+  ],
+  "hallucination_removed_count": 0,
+  "is_compromised": false,
+  "validation_status": "validated",
+  "receipt": {
+    "scan_id": "762b459185264bd08ba402ed1c327b24",
+    "repo_signature": "4bee3441098381ec2692f5747334deb7",
+    "score_card_hash": "f6a37204f5555c8b4fce78cff477d0fe81a6c884f137568f4f756a3dc1a1d825",
+    "timestamp": "2026-04-30T14:54:22.733517Z",
+    "spectra_version": "0.0.0",
+    "signature": "0af54a64cc4b4b0d95f5a2435e8aa0fa218d0332bad9b7e516b41cdb564e865f2a9d3032616a75626db178925a3701eff6de1a01001c15f83e1d699105137203",
+    "public_key_fingerprint": "c2cc74be1c94e0ab"
+  },
+  "classification": "confidential",
+  "waived_finding_count": 0,
+  "expired_waiver_count": 0
+}
