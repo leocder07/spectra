@@ -1,0 +1,50 @@
+' 02-component-c4-l2.puml — C4 Level 2 (Containers)
+' For: docs/architecture/02-component-architecture.md
+' Last revised: 2026-04-30
+'
+' Containers in the Spectra deployment. Today the entire product is a
+' single Python process plus the spectra-action wrapper. Q5+ adds the
+' optional control plane (greyed out).
+
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+title Container View — Spectra (v0.5.0 + Q2 in design)
+
+skinparam backgroundColor #FFFFFF
+AddElementTag("spectra", $bgColor="#7C3AED", $fontColor="#FFFFFF")
+AddElementTag("port", $bgColor="#F59E0B", $fontColor="#000000")
+AddElementTag("future", $bgColor="#9CA3AF", $fontColor="#FFFFFF", $borderColor="#6B7280")
+AddRelTag("future", $lineStyle="DashedLine()", $textColor="#9CA3AF")
+
+Person(developer, "Developer / CI Runner")
+
+System_Boundary(spectra, "Spectra") {
+  Container(cli, "spectra CLI", "Python 3.12 / Typer", "Composition root, all 4 layers in-process", $tags="spectra")
+  Container(action, "spectra-action", "Composite GitHub Action", "Wraps the CLI for GitHub Workflows", $tags="spectra")
+  ContainerDb(cache, "cache.db", "SQLite WAL", "Per-`$UID` HMAC-protected cache (ADR-012)")
+  ContainerDb(audit, "audit.jsonl", "JSON Lines", "Append-only audit log (ADR-018, Q2 designed)", $tags="future")
+  ContainerDb(state, "policy + waivers", ".spectra-policy.yml + .spectra-waivers.yml", "Declarative gating (ADR-020 + roadmap #17, Q2 designed)", $tags="future")
+  Container(cloud, "spectra-cloud control plane", "Future, Q7+", "Hosted Q&A, leaderboard, fleet admin", $tags="future")
+}
+
+System_Ext(anthropic, "Anthropic API", "Opus 4.7")
+System_Ext(github, "GitHub", "Source / Actions / SARIF")
+System_Ext(keyring, "OS Keyring")
+System_Ext(siem, "SIEM (OTLP)", $tags="future")
+
+Rel(developer, cli, "Invokes", "shell")
+Rel(developer, action, "Adds to workflow", "YAML")
+Rel(action, cli, "Spawns", "subprocess")
+
+Rel(cli, anthropic, "8 agent calls per run", "HTTPS / SSE")
+Rel(cli, github, "Clones, posts PR comment, uploads SARIF", "HTTPS")
+Rel(cli, cache, "Reads / writes per-row HMAC", "sqlite3")
+Rel(cli, keyring, "Reads HMAC key", "OS API")
+
+Rel(cli, audit, "emit(AuditEvent)", "JSON Lines append", $tags="future")
+Rel(cli, siem, "OTLP forwarding", "gRPC", $tags="future")
+Rel(cli, state, "Reads policy + waivers at startup", "YAML", $tags="future")
+
+@enduml

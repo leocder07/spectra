@@ -1,0 +1,47 @@
+' 01-system-context.puml — C4 Level 1 (System Context)
+' For: docs/architecture/01-system-context.md
+' Last revised: 2026-04-30
+'
+' Shows Spectra as the system under design surrounded by the people who
+' depend on it and the external systems it integrates with. Q2-designed
+' integrations (audit sinks, policy registry) are dashed.
+
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+title System Context — Spectra (post-v0.5.0)
+
+skinparam backgroundColor #FFFFFF
+AddElementTag("spectra", $bgColor="#7C3AED", $fontColor="#FFFFFF")
+AddElementTag("future", $bgColor="#9CA3AF", $fontColor="#FFFFFF", $borderColor="#6B7280")
+AddRelTag("future", $lineStyle="DashedLine()", $textColor="#9CA3AF")
+
+Person(developer, "Developer", "Runs spectra analyze on a local repo or HTTPS URL")
+Person(integrator, "Integrator", "Wires spectra-action into a GitHub workflow")
+Person(reviewer, "PR Reviewer", "Reads the PR comment, opens HTML report")
+Person(ciso, "CISO / Auditor", "Reads SARIF + audit log; verifies receipts")
+
+System(spectra, "Spectra", "8 AI agents grade a repo across 6 dimensions in <5 minutes", $tags="spectra")
+
+System_Ext(anthropic, "Anthropic API", "Opus 4.7 inference, adaptive thinking")
+System_Ext(github, "GitHub", "Source repos, GitHub Actions, Security tab (SARIF)")
+System_Ext(pypi, "PyPI", "Distribution channel — `spectra-ai` package")
+System_Ext(sigstore, "Sigstore", "Keyless signing of release wheels")
+System_Ext(keyring, "OS Keyring", "Per-user HMAC secret storage (ADR-012)")
+System_Ext(siem, "SIEM / OTLP collector", "Audit-event sink (ADR-018, Q2 designed)", $tags="future")
+
+Rel(developer, spectra, "Runs", "CLI")
+Rel(integrator, spectra, "Configures via action.yml", "YAML")
+Rel(reviewer, spectra, "Reads HTML / PR comment", "HTTP")
+Rel(ciso, spectra, "Reads SARIF + audit log", "JSON / OTLP")
+
+Rel(spectra, anthropic, "Inference calls", "HTTPS / streaming")
+Rel(spectra, github, "Clones repos / posts PR comments / uploads SARIF", "HTTPS")
+Rel(spectra, keyring, "Reads HMAC key per `$UID`", "OS API")
+Rel_R(pypi, developer, "pip install spectra-ai", "HTTPS")
+Rel_R(sigstore, developer, "Verify wheel signature", "OIDC + Rekor")
+
+Rel(spectra, siem, "Emits AuditEvent stream", "OTLP / JSON Lines", $tags="future")
+
+@enduml

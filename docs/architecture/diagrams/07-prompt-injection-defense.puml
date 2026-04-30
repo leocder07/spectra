@@ -1,0 +1,70 @@
+' 07-prompt-injection-defense.puml — defence in depth (ADR-011)
+' For: docs/architecture/07-security-architecture.md
+' Last revised: 2026-04-30
+'
+' Three concurrent defences:
+'  1. Per-call nonce-fenced data sections (specialist build_prompt).
+'  2. Pre-flight regex flag list (injection_scanner).
+'  3. CritiqueAgent <adversarial_input_check> (adaptive thinking).
+
+@startuml
+title Prompt-injection defence in depth (ADR-011)
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+}
+skinparam node {
+  BackgroundColor #22C55E
+  FontColor #000000
+}
+skinparam cloud {
+  BackgroundColor #E5E7EB
+  FontColor #000000
+}
+
+cloud "Repository\n(arbitrary attacker-controlled bytes\nin source files, comments, READMEs)" as repo
+
+component "Defence 1 — Per-call nonce fences\nspecialist_agent.build_prompt(nonce=token_urlsafe(16))" as d1 #7C3AED
+component "Defence 2 — Pre-flight regex\ninjection_scanner.scan_files_for_injection()\nIGNORE PRIOR INSTRUCTIONS, <system>,\n</analyzed_code>, role-play tags,\n<<<SPECTRA-DATA- forgeries" as d2 #7C3AED
+component "Defence 3 — CritiqueAgent\n<adversarial_input_check> + adaptive thinking\n(receives flagged_files as evidence)" as d3 #7C3AED
+
+repo -down-> d1
+repo -down-> d2
+
+node "BatchPrompt with\nnonce-fenced UNTRUSTED block\n+ system reinforcement" as prompt
+d1 -right-> prompt
+
+node "flagged_files: tuple[str, ...]" as flag
+d2 -right-> flag
+
+node "Specialist agents x6" as spec
+prompt -down-> spec
+
+node "Specialist findings + flagged_files" as merged
+spec -down-> merged
+flag -down-> merged
+
+merged -down-> d3
+
+node "Output:\n  validated_findings\n  rejected_findings\n  severity_adjustments\n  cross_cutting_insights\n  compromised_findings ← ADR-011 §2" as crit_out
+d3 -down-> crit_out
+
+node "AnalysisReport(is_compromised=True)\n+ Finding(rule_id=\"SPEC-PROMPT-INJECTION-DETECTED\")" as compromised
+crit_out -down-> compromised : if compromised_findings non-empty
+
+node "Adversarial harness\n(golden_files/adversarial/, 20 plants)\nCatch-rate gate ≥80%; v0.5.0: 100%" as harness #F59E0B
+harness ..> d1 : regression
+harness ..> d2 : regression
+harness ..> d3 : regression
+
+note bottom of d1
+  Nonce is unguessable per call — attacker
+  cannot pre-craft the closing fence inside
+  their own source. Excluded from the cache
+  prompt_version key so caching survives.
+end note
+
+@enduml

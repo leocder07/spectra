@@ -1,0 +1,112 @@
+' 04-pipeline-sequence.puml — 6-stage happy path with cache miss
+' For: docs/architecture/04-pipeline-flow.md
+' Last revised: 2026-04-30
+'
+' Stage 1 (INGEST), 1.5 (PREFLIGHT, v0.5.0), 2 (PLAN), 2½ (CACHE check),
+' 3 (ANALYZE — asyncio.gather of 6 specialists, decorator chain shown),
+' 4 (MERGE), 5 (CRITIQUE), 6 (REPORT). This is the happy path with a
+' Phase 2 cache miss; Phase 3 partition_by_cache is included.
+
+@startuml
+title Pipeline — happy path (cache miss)
+
+skinparam backgroundColor #FFFFFF
+skinparam sequence {
+  ParticipantBackgroundColor #7C3AED
+  ParticipantFontColor #FFFFFF
+  ParticipantBorderColor #4C1D95
+  ActorBackgroundColor #F59E0B
+  ActorFontColor #000000
+  LifeLineBorderColor #6B7280
+  ArrowColor #7C3AED
+  GroupBackgroundColor #EDE9FE
+  GroupBorderColor #7C3AED
+}
+
+actor "Developer" as dev
+participant "cli_controller\n(Layer 3)" as cli
+participant "main.py\n(composition root)" as main
+participant "GitAdapter" as git
+participant "PathspecFilter\n+ RegexSecretScanner" as pf
+participant "analyze_repository\n(facade)" as ar
+participant "MetaPrompter" as mp
+participant "SqliteCacheAdapter" as cache
+participant "Specialists x6\n(asyncio.gather)" as spec
+participant "Logging→Retry→\nAnthropicAdapter" as gw
+participant "Anthropic API" as api
+participant "CritiqueAgent\n(adaptive thinking)" as crit
+participant "ReportAdapter\n(Jinja2)" as rep
+
+dev -> cli: spectra analyze <source>
+cli -> main: _run_analysis()
+
+== Stage 1: INGEST ==
+main -> git: prepare_workspace(source, tmpdir)
+git --> main: workspace_dir
+main -> git: validate_repo_size + get_file_tree
+git --> main: file_tree
+
+== Stage 1.5: PREFLIGHT (v0.5.0) ==
+main -> pf: filter_files (.gitignore + .spectraignore)
+pf --> main: filtered file_tree
+main -> pf: scan(filtered) for secrets
+alt secrets detected and not --allow-secrets
+  pf --> main: SecretDetectedError(SPEC-011)
+  main -> dev: exit non-zero
+else clean or --allow-secrets
+  pf --> main: PreflightResult(filtered, findings)
+end
+
+== Stage 2: PLAN ==
+main -> ar: analyze_repository(PipelineContext)
+ar -> mp: run(file_tree)\n(file tree only, ≤5K tokens)
+mp -> gw: analyze(system, user, opus-4-7, medium)
+gw -> api: POST /messages (decorator chain)
+api --> gw: plan JSON
+gw --> mp: raw response
+mp --> ar: AgentOutput (token_allocation, focus_areas)
+
+== Stage 2.5: CACHE check (Phase 2) ==
+ar -> cache: get_full_report(RepoCacheKey)
+cache --> ar: None  // miss
+
+== Stage 3: ANALYZE (Phase 3 partition + parallel) ==
+ar -> ar: build BatchPrompts (per focus_area, with nonce)
+ar -> cache: partition_by_cache(batches)\n(per-dimension)
+cache --> ar: cached_findings + fresh_batches
+ar -> spec: run_specialists_batched(fresh_batches)\nasyncio.gather of (agent, batch)
+group asyncio.gather (parallel — 6 dimensions)
+  spec -> gw: analyze x6 (xhigh effort)
+  gw -> api: POST /messages (concurrent)
+  api --> gw: streamed JSON x6
+  gw --> spec: validated AgentOutput x6
+end
+spec --> ar: dict[role, AgentOutput | Exception]
+ar -> cache: put_batch_findings(BatchCacheKey, findings)\n(per fresh batch)
+
+== Stage 4: MERGE ==
+ar -> ar: dedupe by Finding.__hash__
+ar -> ar: validate file paths (drop hallucinations)
+
+== Stage 5: CRITIQUE ==
+ar -> crit: run(findings + flagged_files)
+crit -> gw: analyze_with_thinking(opus-4-7, high, task_budget=80K)
+gw -> api: POST /messages (adaptive thinking)
+api --> gw: validated_findings, rejected, severity_adjustments,\ncross_cutting_insights, compromised_findings
+gw --> crit: raw response
+crit --> ar: filtered findings + insights
+
+== Stage 6: REPORT ==
+ar -> cache: put_full_report(RepoCacheKey, report)
+ar --> main: AnalysisReport
+alt --format=json
+  main -> main: build_json_payload (with disclaimer)
+else --format=sarif
+  main -> main: _build_sarif (with notification)
+else default
+  main -> rep: render(report, path)
+end
+main --> cli: report
+cli --> dev: ScoreCard + grade
+
+@enduml

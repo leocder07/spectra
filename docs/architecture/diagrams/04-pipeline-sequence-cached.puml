@@ -1,0 +1,56 @@
+' 04-pipeline-sequence-cached.puml — Phase 2 short-circuit
+' For: docs/architecture/04-pipeline-flow.md, 06-cache-architecture.md
+' Last revised: 2026-04-30
+'
+' When the repo signature + every version key matches a previous run,
+' Stages 3-5 are skipped entirely. Phase 2 lookup wins as soon as the
+' MetaPrompter plan resolves the cache key inputs (already known at
+' stage entry — file_tree only).
+
+@startuml
+title Pipeline — Phase 2 cache hit short-circuit
+
+skinparam backgroundColor #FFFFFF
+skinparam sequence {
+  ParticipantBackgroundColor #7C3AED
+  ParticipantFontColor #FFFFFF
+  ActorBackgroundColor #F59E0B
+  ArrowColor #22C55E
+  LifeLineBorderColor #6B7280
+}
+
+actor "Developer" as dev
+participant "cli_controller" as cli
+participant "main.py" as main
+participant "GitAdapter" as git
+participant "PathspecFilter\n+ secrets" as pf
+participant "analyze_repository" as ar
+participant "SqliteCacheAdapter" as cache
+participant "RichProgressReporter" as rpt
+
+dev -> cli: spectra analyze <source>
+cli -> main: _run_analysis()
+main -> git: prepare_workspace + file_tree
+git --> main: file_tree
+main -> pf: filter + secret scan
+pf --> main: clean filtered tree
+
+main -> ar: analyze_repository(ctx)
+ar -> ar: _resolve_cache_key()\nbuild RepoCacheKey
+ar -> cache: get_full_report(key)
+cache -> cache: SELECT + verify HMAC (constant-time)
+cache --> ar: AnalysisReport (HIT)
+ar -> rpt: on_stage_start(CACHE,\n"served from cache (use --force to re-analyze)")
+
+note over ar
+  Stages 3-5 skipped entirely.
+  Cached report is returned as-is —
+  no specialists, no critique, zero new tokens.
+end note
+
+ar --> main: cached AnalysisReport
+main -> main: render (HTML / JSON / SARIF)
+main --> cli: report
+cli --> dev: same ScoreCard, ~0.5s wall-clock
+
+@enduml

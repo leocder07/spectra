@@ -1,0 +1,71 @@
+' 05-agent-decorator-chain.puml — LLMGateway decorator stack
+' For: docs/architecture/05-agent-architecture.md
+' Last revised: 2026-04-30
+'
+' The composition root wires LoggingDecorator → RetryDecorator →
+' AnthropicAdapter once; every agent receives the same fully-decorated
+' gateway via AgentFactory. AgentRunConfig (per-role model + effort) is
+' resolved once at startup and passed to each agent's constructor.
+
+@startuml
+title LLMGateway — decorator chain (composition root)
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+}
+skinparam interface {
+  BackgroundColor #F59E0B
+  FontColor #000000
+}
+skinparam node {
+  BackgroundColor #22C55E
+  FontColor #000000
+}
+skinparam cloud {
+  BackgroundColor #E5E7EB
+  FontColor #000000
+}
+
+interface LLMGateway #F59E0B
+
+component "LoggingDecorator\n(structured JSON logs,\ntiming, request id)" as log
+component "RetryDecorator\n(exp backoff 1s/2s/4s + jitter,\nmax 3 retries on SPEC-002/003)" as retry
+component "AnthropicAdapter\n(anthropic.AsyncAnthropic,\nhttpx pool of 10, streaming)" as adapter
+
+cloud "Anthropic API\n(Opus 4.7,\neffort, adaptive thinking,\ntask_budget)" as api
+
+LLMGateway <|.. log
+LLMGateway <|.. retry
+LLMGateway <|.. adapter
+
+log -down-> retry : wraps
+retry -down-> adapter : wraps
+adapter -right-> api : POST /v1/messages
+
+' Composition root
+node "main.py\n(composition root)" as main
+node "AgentRunConfig map\n(per role)\nresolve_agent_configs(CLI overrides)" as cfg
+node "AgentFactory\n(creates 8 agents,\nsame gateway instance)" as factory
+
+main --> log : LoggingDecorator(RetryDecorator(AnthropicAdapter(api_key)))
+main --> cfg : merge defaults + --model / --<role>-effort
+main --> factory : factory(gateway, configs)
+
+note right of cfg
+  Defaults from spectra/entities/models.py
+  _DEFAULT_AGENT_CONFIGS:
+    meta_prompter:  Opus 4.7, medium
+    specialists x6: Opus 4.7, xhigh
+    critique:       Opus 4.7, high, task_budget=80_000
+end note
+
+note bottom of adapter
+  API key validated at construction (rejects
+  empty / placeholder values). __del__ warns
+  on unclosed clients; close() drains pool.
+end note
+
+@enduml

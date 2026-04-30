@@ -1,0 +1,103 @@
+' 02-component-c4-l3.puml — C4 Level 3 (Components per layer)
+' For: docs/architecture/02-component-architecture.md
+' Last revised: 2026-04-30
+'
+' The 4 Clean-Architecture layers stacked, with key files named in each
+' box and arrows pointing inward only (the Dependency Rule). Q2-designed
+' components are dashed.
+
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component View — Spectra Clean Architecture (4 layers)
+
+skinparam backgroundColor #FFFFFF
+AddElementTag("entity",   $bgColor="#7C3AED", $fontColor="#FFFFFF")
+AddElementTag("usecase",  $bgColor="#A78BFA", $fontColor="#000000")
+AddElementTag("port",     $bgColor="#F59E0B", $fontColor="#000000")
+AddElementTag("adapter",  $bgColor="#22C55E", $fontColor="#000000")
+AddElementTag("infra",    $bgColor="#34D399", $fontColor="#000000")
+AddElementTag("future",   $bgColor="#9CA3AF", $fontColor="#FFFFFF", $borderColor="#6B7280")
+AddRelTag("future",       $lineStyle="DashedLine()", $textColor="#9CA3AF")
+
+Container_Boundary(infra, "Layer 4 — Infrastructure (src/spectra/infrastructure/)") {
+  Component(main,         "main.py",                 "Composition root", "Wires every adapter; threads the CacheSecret + AgentRunConfig map", $tags="infra")
+  Component(anthr,        "anthropic_adapter.py",    "LLMGateway impl",  "anthropic.AsyncAnthropic + httpx pool of 10", $tags="infra")
+  Component(retry,        "retry_decorator.py",      "Decorator",        "Exponential backoff 1s/2s/4s + jitter; max 3", $tags="infra")
+  Component(loggingdec,   "logging_decorator.py",    "Decorator",        "Structured JSON logs per call", $tags="infra")
+  Component(git,          "git_adapter.py",          "GitPort impl",     "GitPython + workspace validation + size cap", $tags="infra")
+  Component(report,       "report_adapter.py",       "ReportPort impl",  "Jinja2 template + disclaimer banner", $tags="infra")
+  Component(cache,        "cache_adapter.py",        "CachePort impl",   "SQLite WAL + per-row HMAC + per-`$UID` dir", $tags="infra")
+  Component(keyring,      "keyring_adapter.py",      "SecretBackend",    "OS keyring → CacheSecret(32 bytes)", $tags="infra")
+  Component(filter,       "pathspec_filter_adapter.py","WorkspaceFilterPort impl","`.gitignore` + `.spectraignore`", $tags="infra")
+  Component(secrets,      "regex_secret_scanner.py", "SecretScannerPort impl","Curated regex catalogue + `.env*` heuristic", $tags="infra")
+  Component(tiktoken,     "tiktoken_adapter.py",     "TokenPort impl",   "Token counting", $tags="infra")
+  Component(agents,       "agents/ (Factory + 8)",   "Factory + 8 agents","BaseAgent template; SpecialistAgent x6; MetaPrompter; CritiqueAgent", $tags="infra")
+  Component(audit,        "audit/jsonl + otlp",      "AuditPort impls",  "ADR-018 — Q2 in design", $tags="future")
+  Component(sqlcipher,    "sqlcipher_cache_adapter.py","Encrypted CachePort","Roadmap #13 — Q2 in design", $tags="future")
+}
+
+Container_Boundary(adapt, "Layer 3 — Adapters (src/spectra/adapters/)") {
+  Component(cli,         "cli_controller.py",       "Typer Adapter",     "`spectra analyze`, `spectra cache *`", $tags="adapter")
+  Component(progress,    "progress_reporter.py",    "ProgressObserver",  "Rich Console + cache lookup tally", $tags="adapter")
+  Component(presenter,   "analysis_presenter.py",   "Adapter",           "ScoreCard rendering", $tags="adapter")
+  Component(prcomment,   "pr_comment_renderer.py",  "Adapter",           "Markdown-safe PR comment", $tags="adapter")
+}
+
+Container_Boundary(uc, "Layer 2 — Use Cases (src/spectra/use_cases/)") {
+  Component(analyze,     "analyze_repository.py",   "Facade",            "PipelineContext + 6-stage pipeline", $tags="usecase")
+  Component(orch,        "orchestrate_agents.py",   "Use case",          "asyncio.gather of 6 specialists; failure state machine", $tags="usecase")
+  Component(preflight,   "preflight.py",            "Use case",          "WorkspaceFilter + SecretScanner composition (Stage 1.5)", $tags="usecase")
+  Component(injection,   "injection_scanner.py",    "Use case",          "Pure-fn regex pre-pass → flagged_files", $tags="usecase")
+  Component(budget,      "manage_token_budget.py",  "Use case",          "Per-stage token allocation", $tags="usecase")
+  Component(resolve,     "resolve_agent_configs.py","Use case helper",   "Merge CLI overrides into AgentRunConfig map", $tags="usecase")
+  Component(ports,       "interfaces.py",           "Ports (Protocols)", "LLMGateway · GitPort · CachePort · ProgressObserver · WorkspaceFilterPort · SecretScannerPort · TokenPort · ReportPort", $tags="port")
+}
+
+Container_Boundary(ent, "Layer 1 — Entities (src/spectra/entities/)") {
+  Component(models,      "models.py",               "Frozen Pydantic",   "Codebase · Finding · ScoreCard · AnalysisReport · BatchPrompt · CacheSecret · CacheStats · AgentRunConfig · …", $tags="entity")
+  Component(enums,       "enums.py",                "Literal aliases",   "Severity · Dimension · Grade · AgentRole · PipelineState · SchemaVersion", $tags="entity")
+  Component(errors,      "errors.py",               "Exceptions",        "SpectraError + SPEC-001…SPEC-011 registry", $tags="entity")
+  Component(disclaimer,  "disclaimer.py",           "Constant",          "Single source of truth for the indicative-analysis banner", $tags="entity")
+}
+
+' Dependency Rule — every arrow points inward (toward Layer 1)
+Rel(main, analyze, "delegates")
+Rel(main, agents, "constructs")
+Rel(cli, analyze, "invokes via injected analyzer")
+Rel(progress, ports, "implements ProgressObserver")
+Rel(presenter, models, "renders")
+Rel(prcomment, models, "renders")
+
+Rel(analyze, orch, "uses")
+Rel(analyze, preflight, "uses (Stage 1.5)")
+Rel(analyze, injection, "calls")
+Rel(analyze, budget, "uses")
+Rel(analyze, ports, "depends on")
+Rel(orch, ports, "depends on")
+Rel(preflight, ports, "depends on")
+Rel(resolve, models, "uses")
+
+Rel(anthr, ports, "implements LLMGateway")
+Rel(retry, anthr, "wraps")
+Rel(loggingdec, retry, "wraps")
+Rel(git, ports, "implements GitPort")
+Rel(report, ports, "implements ReportPort")
+Rel(cache, ports, "implements CachePort")
+Rel(filter, ports, "implements WorkspaceFilterPort")
+Rel(secrets, ports, "implements SecretScannerPort")
+Rel(tiktoken, ports, "implements TokenPort")
+Rel(keyring, models, "produces CacheSecret")
+Rel(agents, ports, "depends on LLMGateway")
+
+Rel(ports, models, "uses entity types")
+Rel(ports, enums, "uses literals")
+Rel(orch, models, "uses entity types")
+Rel(analyze, models, "uses entity types")
+Rel(analyze, errors, "raises")
+
+' Q2-designed (dashed)
+Rel(audit, ports, "will implement AuditPort", $tags="future")
+Rel(sqlcipher, ports, "will implement encrypted CachePort", $tags="future")
+
+@enduml
