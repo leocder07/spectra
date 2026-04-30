@@ -548,6 +548,17 @@ If either check fails, do not install — open an issue at https://github.com/le
 
 ---
 
+## Privacy & Data Processing
+
+Spectra runs on the Customer's machine; the only outbound data flow is to Anthropic's API for inference, governed by the Customer's own Anthropic agreement. We publish a template Data Processing Addendum, an authoritative sub-processor list, and a per-edge data flow diagram so procurement and legal teams have a starting position rather than a blank page.
+
+- [`docs/legal/DPA.md`](docs/legal/DPA.md) — GDPR Art. 28 — compatible Data Processing Addendum (template — requires legal review)
+- [`docs/legal/SUBPROCESSORS.md`](docs/legal/SUBPROCESSORS.md) — Sub-processor declaration (Anthropic only)
+- [`docs/legal/DATA_FLOW.md`](docs/legal/DATA_FLOW.md) — Per-edge data flow diagram, v0.5.0 baseline
+- [`SECURITY.md`](SECURITY.md) — Vulnerability reporting, supported versions, hardening already shipped
+
+---
+
 ## Contributing
 
 ```bash
