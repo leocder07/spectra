@@ -113,9 +113,7 @@ def _warn_once_on_redaction() -> None:
     global _REDACTION_WARNED  # noqa: PLW0603 — single-fire process-wide flag
     if _REDACTION_WARNED:
         return
-    _LOG.warning(
-        "ADR-023: dropped one or more sensitive span attributes; check call sites"
-    )
+    _LOG.warning("ADR-023: dropped one or more sensitive span attributes; check call sites")
     _REDACTION_WARNED = True
 
 

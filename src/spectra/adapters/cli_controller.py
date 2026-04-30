@@ -701,10 +701,7 @@ def analyze(
         None,
         "--team",
         envvar="SPECTRA_TEAM",
-        help=(
-            "Team tag stamped on every span for cost attribution (#33). "
-            "Defaults to $SPECTRA_TEAM, then 'default'."
-        ),
+        help=("Team tag stamped on every span for cost attribution (#33). Defaults to $SPECTRA_TEAM, then 'default'."),
     ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""

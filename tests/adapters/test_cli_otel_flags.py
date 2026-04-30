@@ -116,9 +116,7 @@ class TestOtelFlagParsing:
         monkeypatch.setenv("SPECTRA_TEAM", "ml-platform")
         factory = AsyncMock(return_value=_fake_report())
         set_analyzer_factory(factory)
-        result = runner.invoke(
-            app, ["analyze", "https://github.com/test/repo", "--team", "data-eng"]
-        )
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo", "--team", "data-eng"])
         assert result.exit_code == 0
         kwargs = factory.call_args.kwargs
         assert kwargs["team"] == "data-eng"
