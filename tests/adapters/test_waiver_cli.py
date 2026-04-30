@@ -171,6 +171,101 @@ class TestWaiveCommand:
         assert "ghost" in result.stdout or "register" in result.stdout.lower()
 
 
+class TestSignerSeam:
+    """Fix R3-Arch-3 — CLI uses an injected SignerPort, not ``cryptography`` direct.
+
+    A fake signer adapter must be enough to drive the registration flow,
+    proving the dependency-rule break has been closed.
+    """
+
+    def test_register_uses_injected_signer(
+        self,
+        keyring_backend: InMemoryKeyring,
+        workdir: Path,
+    ) -> None:
+        from spectra.adapters.waiver_cli import set_signer
+
+        # Pre-derived deterministic keypair the fake will return.
+        priv_hex = "11" * 32
+        pub_hex = "ab" * 32
+        derive_calls: list[str] = []
+        gen_calls: list[None] = []
+
+        class _FakeSigner:
+            def generate_keypair(self) -> tuple[str, str]:
+                gen_calls.append(None)
+                return priv_hex, pub_hex
+
+            def derive_public_key(self, private_hex: str) -> str:
+                derive_calls.append(private_hex)
+                return pub_hex
+
+            def sign(self, payload: bytes, private_hex: str) -> bytes:
+                return b"sig"
+
+            def verify(self, payload: bytes, signature: bytes, public_hex: str) -> bool:
+                return True
+
+        previous = set_signer(_FakeSigner())
+        try:
+            result = runner.invoke(
+                app,
+                ["approver", "register", "--name", "alice", "--email", "alice@x.com"],
+            )
+        finally:
+            set_signer(previous)
+        assert result.exit_code == 0, result.stdout
+        # Generate path was used — derive only fires on re-registration.
+        assert len(gen_calls) == 1
+        assert derive_calls == []
+        data = yaml.safe_load((workdir / ".spectra-approvers.yml").read_text())
+        assert data["approvers"][0]["public_key"] == pub_hex
+
+    def test_register_idempotent_path_uses_derive_public_key(
+        self,
+        keyring_backend: InMemoryKeyring,
+        workdir: Path,
+    ) -> None:
+        """When the keyring already holds a key, the CLI must call
+        ``derive_public_key`` on the injected signer instead of
+        re-importing ``cryptography`` inline.
+        """
+        from spectra.adapters.waiver_cli import set_signer
+
+        priv_hex = "22" * 32
+        pub_hex = "cd" * 32
+        derive_calls: list[str] = []
+
+        class _FakeSigner:
+            def generate_keypair(self) -> tuple[str, str]:
+                return priv_hex, pub_hex
+
+            def derive_public_key(self, private_hex: str) -> str:
+                derive_calls.append(private_hex)
+                return pub_hex
+
+            def sign(self, payload: bytes, private_hex: str) -> bytes:
+                return b"sig"
+
+            def verify(self, payload: bytes, signature: bytes, public_hex: str) -> bool:
+                return True
+
+        previous = set_signer(_FakeSigner())
+        try:
+            # First registration stores the key in the (fake) keyring.
+            keyring_backend.set_password("spectra-approvers", "alice", priv_hex)
+            # Second registration takes the idempotent re-derive path.
+            result = runner.invoke(
+                app,
+                ["approver", "register", "--name", "alice", "--email", "alice@x.com"],
+            )
+        finally:
+            set_signer(previous)
+        assert result.exit_code == 0, result.stdout
+        # The CLI must call the SignerPort, not import cryptography itself.
+        assert derive_calls == [priv_hex]
+
+
 # Smoke test: deterministic time so the test does not rely on system clock
 def test_waiver_default_expiry_is_180_days_in_future(
     keyring_backend: InMemoryKeyring,
