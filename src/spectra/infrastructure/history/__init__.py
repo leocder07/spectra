@@ -17,6 +17,11 @@ from spectra.infrastructure.history.migrations_runner import (
     list_migrations,
     read_migration_sql,
 )
+from spectra.infrastructure.history.postgres_report_store import (
+    PostgresReportStoreAdapter,
+    apply_postgres_migrations,
+    build_pool,
+)
 from spectra.infrastructure.history.sqlite_report_store import (
     SqliteReportStoreAdapter,
     default_history_path,
@@ -27,8 +32,11 @@ from spectra.infrastructure.history.sqlite_report_store import (
 
 __all__ = [
     "MIGRATIONS_DIR",
+    "PostgresReportStoreAdapter",
     "SqliteReportStoreAdapter",
+    "apply_postgres_migrations",
     "apply_sqlite_migrations",
+    "build_pool",
     "default_history_path",
     "list_migrations",
     "read_migration_sql",

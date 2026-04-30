@@ -54,6 +54,11 @@ dependencies = [
     "cryptography>=43,<45",
     # #17 + #18 + ADR-020: YAML config / policy / waivers / approvers
     "pyyaml>=6,<7",
+    # #25 + ADR-022: Postgres history-store driver + connection pool.
+    # Optional in practice — composition root only imports psycopg lazily
+    # when ``--history-backend postgres`` is requested. The default sqlite
+    # backend ships with the stdlib and runs without psycopg installed.
+    "psycopg[pool]>=3.1,<4.0",
 ]
 
 [project.optional-dependencies]
