@@ -1,8 +1,11 @@
 """Error taxonomy for fallible operations.
 
 Defines the ``SpectraError`` hierarchy and the canonical error registry
-(SPEC-001 through SPEC-009).  Each error carries retry metadata so the
+(SPEC-001 through SPEC-014).  Each error carries retry metadata so the
 ``RetryDecorator`` can decide whether to back-off or abort.
+
+The full table — and the "what to do when this fires" guidance — lives
+in ``CLAUDE.md`` under the *Error Codes* section. Keep both in sync.
 """
 
 from __future__ import annotations
