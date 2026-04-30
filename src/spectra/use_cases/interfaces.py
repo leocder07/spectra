@@ -11,6 +11,7 @@ Protocols defined here:
     ReportPort — Render AnalysisReport to HTML via Jinja2.
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
     CachePort — Per-file finding cache (Phase 1, additive).
+    RemoteCachePort — Distributed L2 cache (ADR-021, capability #21).
     WorkspaceFilterPort — ``.gitignore`` + ``.spectraignore`` honor (Capability #6).
     SecretScannerPort — Pre-flight regex secret scan (Capability #6).
 
@@ -18,9 +19,9 @@ Helpers:
     is_local_path — Pure classifier distinguishing local paths from URLs.
 
 ADR references in this module: ADR-001 (clean architecture / port pattern),
-ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port). See
-``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
-ADR index.
+ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port),
+ADR-021 (distributed cache port). See ``docs/architecture/adr/`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations
@@ -372,6 +373,50 @@ class CachePort(Protocol):
         Returns ``None`` when ``bind_run_context`` has not been called —
         callers short-circuit per-batch caching for that run.
         """
+        ...
+
+
+class RemoteCachePort(Protocol):
+    """Distributed L2 cache backend (ADR-021, capability #21).
+
+    A sibling of ``CachePort`` — same composite-key contract, different
+    operational profile. ``CachePort`` is sync-friendly, single-machine,
+    ~50µs per call. ``RemoteCachePort`` is async-mandatory, networked,
+    eventually consistent across writers, and carries its own failure
+    model (connection refused / timeout / auth → SPEC-010 + degrade to
+    no-cache for the remainder of the run; never fatal).
+
+    The two protocols share entities — every ``BatchCacheKey`` /
+    ``RepoCacheKey`` carries the six-component composite signature so a
+    stale row at L2 never matches a current-context lookup. Per-row
+    HMAC verification (ADR-012) is enforced at this tier as well; the
+    same per-user keyring secret derives both MACs but with a port-name
+    domain separator so the local and remote MACs cannot coincide for
+    the same payload bytes.
+
+    Implementations: ``RedisCacheAdapter`` (capability #21).
+    Composition: ``TieredCacheAdapter`` wraps a ``CachePort`` (L1) plus
+    a ``RemoteCachePort`` (L2) and itself implements both protocols.
+    """
+
+    async def get_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
+        """Return cached batch findings or ``None`` on miss."""
+        ...
+
+    async def put_findings(self, key: BatchCacheKey, findings: tuple[Finding, ...]) -> None:
+        """Persist findings for a batch under the composite ``key``."""
+        ...
+
+    async def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
+        """Return the cached full report or ``None`` on miss (Phase 2 short-circuit)."""
+        ...
+
+    async def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
+        """Persist the full ``AnalysisReport`` under ``key`` (write-back path)."""
+        ...
+
+    async def health(self) -> bool:
+        """Liveness probe — ``False`` triggers downgrade to L1-only for the run."""
         ...
 
 
