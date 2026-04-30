@@ -102,6 +102,11 @@ from spectra.use_cases.identity_resolver import resolve_actor
 from spectra.use_cases.interfaces import is_local_path
 from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
+from spectra.use_cases.source_file_selection import (
+    MAX_HEURISTIC_FILES,
+    MAX_HEURISTIC_TOKENS,
+    prioritize_source_files,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -632,41 +637,11 @@ def _derive_repo_name(source: str, workspace_dir: str) -> str:
 
 
 # ── Heuristic source file reader ─────────────────────────────
-
-_SOURCE_EXTENSIONS = frozenset(
-    {
-        ".py",
-        ".ts",
-        ".js",
-        ".tsx",
-        ".jsx",
-        ".go",
-        ".rs",
-        ".java",
-        ".rb",
-    }
-)
-_ENTRY_STEMS = frozenset(
-    {
-        "main",
-        "app",
-        "index",
-        "server",
-        "cli",
-        "__main__",
-    }
-)
-_CONFIG_NAMES = frozenset(
-    {
-        "pyproject.toml",
-        "package.json",
-        "Cargo.toml",
-        "go.mod",
-    }
-)
-_SOURCE_PREFIXES = ("src/", "lib/", "app/", "pkg/", "cmd/")
-_MAX_HEURISTIC_FILES = 20
-_MAX_HEURISTIC_TOKENS = 100_000
+#
+# The ranking heuristic itself lives in
+# ``spectra.use_cases.source_file_selection`` because it is domain logic
+# (which files carry the architecture / security / quality signal). The
+# composition root only orchestrates the I/O loop around it.
 
 
 async def _read_key_source_files(
@@ -674,13 +649,13 @@ async def _read_key_source_files(
     clone_dir: str,
     file_tree: list[str],
 ) -> dict[str, str]:
-    """Read up to 20 key source files by heuristic, capped at 100K tokens.
+    """Read up to ``MAX_HEURISTIC_FILES`` files by use-case ranking, token-capped.
 
     Per-file failures we expect to encounter on real repos are skipped
     with a DEBUG log so the operator has a diagnostic trail without the
     pipeline aborting:
         - ``OSError`` / ``PermissionError`` — unreadable file on disk
-        - ``UnicodeDecodeError`` — binary file slipped past ``_SOURCE_EXTENSIONS``
+        - ``UnicodeDecodeError`` — binary file slipped past the source-ext filter
         - ``ValueError`` — ``GitAdapter.read_file`` rejected the path
           (security check, size limit, traversal attempt)
         - ``TimeoutError`` — read exceeded the per-file deadline
@@ -689,38 +664,22 @@ async def _read_key_source_files(
     don't silently mask bugs in the heuristic itself.
     """
     counter = TiktokenAdapter()
-    ranked = _prioritize_source_files(file_tree)
+    ranked = prioritize_source_files(file_tree)
     result: dict[str, str] = {}
     total_tokens = 0
     log = logging.getLogger("spectra.heuristic")
-    for path in ranked[:_MAX_HEURISTIC_FILES]:
+    for path in ranked[:MAX_HEURISTIC_FILES]:
         try:
             content = await git_port.read_file(clone_dir, path)
             tokens = counter.count(content)
         except (OSError, UnicodeDecodeError, ValueError, TimeoutError) as exc:
             log.debug("Skipping %s during heuristic read: %s", path, exc)
             continue
-        if total_tokens + tokens > _MAX_HEURISTIC_TOKENS:
+        if total_tokens + tokens > MAX_HEURISTIC_TOKENS:
             break
         result[path] = content
         total_tokens += tokens
     return result
-
-
-def _prioritize_source_files(file_tree: list[str]) -> list[str]:
-    """Rank files: entry points > config > src/ source > other source."""
-    tiers: tuple[list[str], ...] = ([], [], [], [])
-    for path in file_tree:
-        p = Path(path)
-        if p.stem in _ENTRY_STEMS and p.suffix in _SOURCE_EXTENSIONS:
-            tiers[0].append(path)
-        elif p.name in _CONFIG_NAMES:
-            tiers[1].append(path)
-        elif any(path.startswith(d) for d in _SOURCE_PREFIXES) and p.suffix in _SOURCE_EXTENSIONS:
-            tiers[2].append(path)
-        elif p.suffix in _SOURCE_EXTENSIONS:
-            tiers[3].append(path)
-    return [f for tier in tiers for f in tier]
 
 
 _SARIF_SEVERITY: dict[str, str] = {
