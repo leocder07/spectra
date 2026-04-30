@@ -32,6 +32,7 @@ No inner layer imports from infrastructure.
 """
 
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
+from spectra.infrastructure.anthropic_batch_adapter import AnthropicBatchAdapter
 from spectra.infrastructure.git_adapter import GitAdapter, GitError
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.main import ReportError, cli
@@ -40,8 +41,9 @@ from spectra.infrastructure.retry_decorator import RetryDecorator, SpectraRetryE
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 
 __all__ = [
-    # LLM adapter
+    # LLM adapters
     "AnthropicAdapter",
+    "AnthropicBatchAdapter",
     # infrastructure adapters
     "GitAdapter",
     # errors

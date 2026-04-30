@@ -99,7 +99,7 @@ class AnthropicBatchAdapter:
         # The SDK's batch_create_params.Request is a TypedDict shape; our
         # dict literals match it structurally but mypy cannot prove it
         # without an explicit cast.
-        typed_payload = cast(list[batch_create_params.Request], payload)
+        typed_payload = cast("list[batch_create_params.Request]", payload)
         try:
             response = await self._client.messages.batches.create(requests=typed_payload)
         except anthropic.APIConnectionError as exc:
