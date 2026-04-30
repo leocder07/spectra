@@ -1316,9 +1316,13 @@ class TestFailOnSeverityGate:
     Severity ordering (worst first): critical > high > medium > low.
     """
 
-    def test_help_lists_fail_on(self):
-        result = runner.invoke(app, ["analyze", "--help"])
-        assert "--fail-on" in result.output
+    def test_analyze_command_registers_fail_on(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--fail-on" in flags
 
     def test_default_fail_on_is_none_so_no_gating(self):
         # Backwards compatibility: existing users invoking `spectra analyze`
