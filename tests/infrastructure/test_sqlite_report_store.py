@@ -223,9 +223,7 @@ class TestSqliteReportStoreHistory:
 class TestSqliteReportStorePreservesSummaryFields:
     """Round-trip through SQL preserves the entire ReportSummary contract."""
 
-    async def test_round_trip_preserves_severity_and_dimension_counts(
-        self, store: SqliteReportStoreAdapter
-    ) -> None:
+    async def test_round_trip_preserves_severity_and_dimension_counts(self, store: SqliteReportStoreAdapter) -> None:
         original = _summary()
         await store.store(original)
 

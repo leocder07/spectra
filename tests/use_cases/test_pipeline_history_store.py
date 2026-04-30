@@ -137,9 +137,7 @@ class TestPipelineHistoryStoreIntegration:
         ctx = ctx.__class__(
             **{
                 **ctx.__dict__,
-                "request": AnalysisRequest(
-                    repo_url="https://github.com/octocat/spoon-knife", quick=True
-                ),
+                "request": AnalysisRequest(repo_url="https://github.com/octocat/spoon-knife", quick=True),
             }
         )
 
@@ -157,9 +155,7 @@ class TestPipelineHistoryStoreIntegration:
         ctx = ctx.__class__(
             **{
                 **ctx.__dict__,
-                "request": AnalysisRequest(
-                    repo_url="https://github.com/octocat/spoon-knife", quick=True
-                ),
+                "request": AnalysisRequest(repo_url="https://github.com/octocat/spoon-knife", quick=True),
             }
         )
 
@@ -174,9 +170,7 @@ class TestPipelineHistoryStoreIntegration:
         ctx = ctx.__class__(
             **{
                 **ctx.__dict__,
-                "request": AnalysisRequest(
-                    repo_url="https://github.com/octocat/spoon-knife", quick=True
-                ),
+                "request": AnalysisRequest(repo_url="https://github.com/octocat/spoon-knife", quick=True),
             }
         )
 
