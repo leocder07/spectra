@@ -13,7 +13,7 @@
 <!-- TODO: 15-second hero GIF showing spectra analyze <repo> → grade pop -->
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-1%2C096_passed-22C55E?style=for-the-badge)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1%2C973_passed-22C55E?style=for-the-badge)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E?style=for-the-badge)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
 [![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.7-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
@@ -93,7 +93,7 @@ A weighted ScoreCard plus a self-contained HTML report. Here's what the terminal
               missing auth on /admin/* routes
 ```
 
-> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — B+ (86/100), 60 findings, $9.24
+> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — v0.6.0 self-scan: B+ (86/100), 34 findings (0 critical), 244s wall, $5.99 real Anthropic spend
 
 ---
 
@@ -236,7 +236,7 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 ## Architecture
 
-> **Full architecture reference:** [`docs/architecture/`](docs/architecture/) — 10 documents + 19 PlantUML diagrams covering the C4 model, domain entities, pipeline flow, agent orchestration, cache subsystem, security model, data flow, plugin extensibility, and the release pipeline. Status table tracks what's shipped (v0.5.0) vs what's designed-and-in-flight (Q2). Diagrams render via `plantuml -tsvg docs/architecture/diagrams/*.puml`.
+> **Full architecture reference:** [`docs/architecture/`](docs/architecture/) — 10 documents + 19 PlantUML diagrams covering the C4 model, domain entities, pipeline flow, agent orchestration, cache subsystem, security model, data flow, plugin extensibility, and the release pipeline. Status table tracks what shipped in v0.6.0 (the Q1 + Q2 capabilities) vs Q3+ designed work. Diagrams render via `plantuml -tsvg docs/architecture/diagrams/*.puml`.
 
 ### System context
 
@@ -359,7 +359,7 @@ graph TB
 
 | Metric | Value |
 |--------|-------|
-| Tests | 1,355 passed |
+| Tests | 1,973 passed (+345 since v0.5.0) |
 | Coverage | 97% |
 | Agents | 8 (6 parallel + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 |
@@ -443,10 +443,15 @@ The argument can be an HTTPS Git URL, a local path, or `.` for the current worki
 | `--format` | `html` | Output format: `html`, `json`, or `sarif` |
 | `--output` | `spectra-report.html` | Custom report path |
 | `--min-score` | none | Quality gate — exit 1 if overall score is below this number |
+| `--fail-on` | none | Severity gate — exit 1 when any finding is at or above `critical\|high\|medium\|low\|none` (v0.6.0) |
 | `--force` | off | Bypass cache, force a fresh analysis |
 | `--no-cache` | off | Disable cache reads and writes for this run |
 | `--no-gitignore` | off | Do not honor `.gitignore` (`.spectraignore` is still applied) |
 | `--allow-secrets` | off | Continue past pre-flight secret detection (logs WARN) |
+| `--max-cost-usd` | none | Per-run cost cap; abort with SPEC-014 when next call would cross (v0.6.0) |
+| `--max-cost-per-hour` | none | Rolling 1-hour cost cap, persisted to `cost_log` (v0.6.0) |
+| `--audit-sink` | `stdout` | Where audit events go: `stdout`, `file:<path>`, or `otlp:<url>` (v0.6.0) |
+| `--classification` | `confidential` | Report mode: `confidential` (watermarked, full) or `public` (redacted summary) (v0.6.0) |
 
 ### Pre-flight: secret scan + workspace filtering
 
@@ -508,13 +513,15 @@ JSON overrides win over per-flag overrides when both are present.
 
 ### `spectra cache`
 
-Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db` (WAL mode). Three subcommands manage it:
+Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/cache.db` (WAL mode, AES-256 via SQLCipher in v0.6.0). Five subcommands manage it:
 
 | Subcommand | What it does |
 |------------|--------------|
 | `spectra cache stats` | Show entry count, on-disk size, per-dimension hit rate (rolling last 100 lookups) |
 | `spectra cache clear` | Drop all cache entries (full reset) |
 | `spectra cache prune` | Physically delete stale rows that no current key matches — safe to run anytime |
+| `spectra cache doctor` | Verify per-row HMAC integrity, encryption status, keyring backend (v0.5.0+) |
+| `spectra cache shred [-y]` | Overwrite cache.db (and WAL/SHM siblings) with random bytes (3 passes) then delete; also drops the per-user keyring entry (v0.6.0) |
 
 Cache I/O failures are never fatal — the pipeline degrades to no-cache for the rest of the run (see SPEC-010).
 
@@ -537,10 +544,10 @@ Confirms the artifact was built by `leocder07/spectra`'s publish workflow on the
 brew install gh   # or: see https://cli.github.com/
 
 # Download the wheel from PyPI (or the release page)
-pip download --no-deps spectra-ai==0.4.0 -d /tmp/spectra-verify
+pip download --no-deps spectra-ai==0.6.0 -d /tmp/spectra-verify
 
 # Verify provenance
-gh attestation verify /tmp/spectra-verify/spectra_ai-0.4.0-py3-none-any.whl \
+gh attestation verify /tmp/spectra-verify/spectra_ai-0.6.0-py3-none-any.whl \
   --repo leocder07/spectra
 ```
 
@@ -555,7 +562,7 @@ Confirms the wheel was signed by the publish workflow's OIDC identity. Bundles a
 pip install "sigstore>=3.0,<4.0"
 
 # Download wheel + bundle
-VER=0.4.0
+VER=0.6.0
 gh release download "v${VER}" --repo leocder07/spectra \
   --pattern "spectra_ai-${VER}*.sigstore*"
 pip download --no-deps "spectra-ai==${VER}" -d .
@@ -568,7 +575,7 @@ python -m sigstore verify identity \
   "spectra_ai-${VER}-py3-none-any.whl"
 ```
 
-Expected output: `OK: spectra_ai-0.4.0-py3-none-any.whl`
+Expected output: `OK: spectra_ai-0.6.0-py3-none-any.whl`
 
 If either check fails, do not install — open an issue at https://github.com/leocder07/spectra/security/advisories/new.
 
@@ -580,7 +587,7 @@ Spectra runs on the Customer's machine; the only outbound data flow is to Anthro
 
 - [`docs/legal/DPA.md`](docs/legal/DPA.md) — GDPR Art. 28 — compatible Data Processing Addendum (template — requires legal review)
 - [`docs/legal/SUBPROCESSORS.md`](docs/legal/SUBPROCESSORS.md) — Sub-processor declaration (Anthropic only)
-- [`docs/legal/DATA_FLOW.md`](docs/legal/DATA_FLOW.md) — Per-edge data flow diagram, v0.5.0 baseline
+- [`docs/legal/DATA_FLOW.md`](docs/legal/DATA_FLOW.md) — Per-edge data flow diagram, v0.6.0 baseline (audit sink + receipt edges)
 - [`SECURITY.md`](SECURITY.md) — Vulnerability reporting, supported versions, hardening already shipped
 
 ---
