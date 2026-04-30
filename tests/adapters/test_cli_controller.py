@@ -1325,10 +1325,6 @@ class TestFailOnSeverityGate:
         assert "--fail-on" in flags
 
     def test_default_fail_on_is_none_so_no_gating(self):
-        # Backwards compatibility: existing users invoking `spectra analyze`
-        # without --fail-on must keep getting exit 0 even if a critical
-        # finding exists. The Action layer is what flips the default to
-        # critical for CI.
         report = _fake_report(findings=(_finding_at("critical"),))
         factory = AsyncMock(return_value=report)
         set_analyzer_factory(factory)
@@ -1359,7 +1355,6 @@ class TestFailOnSeverityGate:
         assert result.exit_code == 0
 
     def test_fail_on_high_with_only_high_findings_exits_1(self):
-        # high is at the threshold — gate fires.
         report = _fake_report(findings=(_finding_at("high"),))
         factory = AsyncMock(return_value=report)
         set_analyzer_factory(factory)
@@ -1400,7 +1395,6 @@ class TestFailOnSeverityGate:
         assert result.exit_code == 1
 
     def test_fail_on_none_with_critical_findings_exits_0(self):
-        # Explicit override — user wants reports without ever failing.
         report = _fake_report(findings=(_finding_at("critical"),))
         factory = AsyncMock(return_value=report)
         set_analyzer_factory(factory)
@@ -1419,7 +1413,6 @@ class TestFailOnSeverityGate:
         )
         assert result.exit_code == 1
         assert "fail-on" in result.output.lower() or "invalid" in result.output.lower()
-        # Helpful error must list valid choices.
         assert "critical" in result.output.lower()
         assert "none" in result.output.lower()
 
@@ -1447,5 +1440,119 @@ class TestFailOnSeverityGate:
             ["analyze", "https://github.com/test/repo", "--fail-on", "critical"],
         )
         assert result.exit_code == 1
-        # The user must see how many findings tripped the gate.
         assert "2" in result.output
+
+
+# ── Capability #56 — --classification flag ───────────────────
+
+
+class TestCLIClassificationFlag:
+    """The CLI exposes --classification {confidential,public}.
+
+    Default is ``confidential`` (regression: existing users keep current
+    behavior). The chosen mode reaches the analyzer factory and the
+    output filename is suffixed accordingly.
+    """
+
+    def test_analyze_command_registers_classification(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--classification" in flags
+
+    def test_default_classification_is_confidential(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        kwargs = factory.call_args[1]
+        assert kwargs["classification"] == "confidential"
+
+    def test_explicit_public_classification_is_threaded_through(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--classification",
+                "public",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args[1]
+        assert kwargs["classification"] == "public"
+
+    def test_invalid_classification_value_rejected(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--classification",
+                "secret",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "classification" in result.output.lower()
+
+    def test_output_path_suffixed_for_confidential(self, tmp_path):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        out = tmp_path / "spectra-report.html"
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--output",
+                str(out),
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args[1]
+        assert kwargs["output_path"].endswith("spectra-report-confidential.html")
+
+    def test_output_path_suffixed_for_public(self, tmp_path):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        out = tmp_path / "spectra-report.html"
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--output",
+                str(out),
+                "--classification",
+                "public",
+            ],
+        )
+        assert result.exit_code == 0
+        kwargs = factory.call_args[1]
+        assert kwargs["output_path"].endswith("spectra-report-public.html")
+
+    def test_summary_prints_suffixed_path(self, tmp_path):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        out = tmp_path / "spectra-report.html"
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "https://github.com/test/repo",
+                "--output",
+                str(out),
+                "--classification",
+                "public",
+            ],
+        )
+        assert result.exit_code == 0
+        # Rich line-wraps long paths on narrow terminals — flatten output.
+        flat_output = "".join(result.output.split())
+        assert "spectra-report-public.html" in flat_output

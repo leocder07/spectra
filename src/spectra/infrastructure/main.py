@@ -146,6 +146,7 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
     honor_gitignore: bool = True,
     allow_secrets: bool = False,
     audit_sink: str | None = None,
+    classification: str = "confidential",
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -277,6 +278,12 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
         )
         report = await analyze_repository(ctx)
         report = _attach_receipt(report, run_id)
+
+        # Capability #56 — stamp the chosen classification onto the
+        # frozen report so every render path (HTML / JSON / SARIF) reads
+        # the same single field.
+        if report.classification != classification:
+            report = report.model_copy(update={"classification": classification})
 
         # Stage 6: REPORT
         observer.on_stage_start("REPORT", "Rendering report")
@@ -786,6 +793,11 @@ def _sarif_run_properties(report: AnalysisReport) -> dict[str, object]:
     }
     return {
         "classification": report.classification,
+        # Q2 #20: trust stamp surfaced in SARIF properties bag so GitHub
+        # Code Scanning and other SAST consumers can tell whether the
+        # adversarial CritiqueAgent check ran without parsing per-finding
+        # metadata.
+        "validation_status": report.validation_status,
         "scoreCard": score_card,
     }
 
