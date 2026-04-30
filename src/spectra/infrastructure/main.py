@@ -237,9 +237,7 @@ def _assemble_context(
     # AGENT_MODELS dict that drifts whenever defaults change).
     agent_configs = resolve_agent_configs(agent_overrides or {})
     deps.observer.set_agent_configs(agent_configs)
-    meta_prompter, specialists, critique_agent = _build_agents(
-        deps.gateway, agent_configs, skip_critique=skip_critique
-    )
+    meta_prompter, specialists, critique_agent = _build_agents(deps.gateway, agent_configs, skip_critique=skip_critique)
     audit_port = _build_audit_port(audit_sink)
     actor = resolve_actor()
     active_waivers, expired_waivers = _load_waivers(workspace_dir)
