@@ -1762,3 +1762,127 @@ class TestErrorDocsLink:
         assert "SPEC-001" in result.output
         # The link text appears under the brand-voice ✗ block.
         assert "docs/error-codes.md#spec-001" in result.output
+
+
+# ── Fix Round 2 #3 — single exception handler for the analyze pipeline ──
+
+
+class TestPipelineExceptionHandler:
+    """Round-2 #3: ``analyze()`` previously inlined a try/except chain that
+    duplicated dead code in ``_invoke_analyzer``. After the refactor a
+    single ``_handle_pipeline_exceptions`` helper renders + raises
+    ``typer.Exit`` for every domain exception. Pin both the helper exists
+    and that every exception type still produces the documented exit
+    code + brand-voice line.
+    """
+
+    def test_helper_exists_and_callable(self):
+        from spectra.adapters import cli_controller
+
+        assert hasattr(cli_controller, "_handle_pipeline_exceptions"), (
+            "Round-2 #3 extraction expected a single _handle_pipeline_exceptions helper"
+        )
+        assert callable(cli_controller._handle_pipeline_exceptions)
+
+    def test_invoke_analyzer_dead_code_removed(self):
+        """``_invoke_analyzer`` was a never-called duplicate; verify it is gone
+        so the duplication can never silently re-emerge."""
+        from spectra.adapters import cli_controller
+
+        assert not hasattr(cli_controller, "_invoke_analyzer"), (
+            "Dead duplicate _invoke_analyzer must be removed (Round-2 #3)"
+        )
+
+    def test_keyboard_interrupt_still_exits_130(self):
+        from unittest.mock import AsyncMock
+
+        factory = AsyncMock(side_effect=KeyboardInterrupt)
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 130
+        assert "cancelled" in result.output.lower()
+
+    def test_secret_detected_renders_brand_voice(self):
+        from unittest.mock import AsyncMock
+
+        sf = SecretFinding(
+            file_path="src/leak.py",
+            line=12,
+            pattern_name="aws_access_key",
+            redacted_match="AKIA****",
+        )
+        factory = AsyncMock(side_effect=SecretDetectedError((sf,)))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-011" in result.output
+        assert "aws_access_key" in result.output
+
+    def test_policy_gate_error_renders_violations(self):
+        from unittest.mock import AsyncMock
+
+        from spectra.entities.errors import PolicyGateError
+        from spectra.entities.models import Violation
+
+        violations = (Violation(kind="min_score_overall", message="grade C+ < B"),)
+        factory = AsyncMock(side_effect=PolicyGateError(violations))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-013" in result.output
+        assert "min_score_overall" in result.output
+
+    def test_budget_exceeded_renders_breakdown(self):
+        from unittest.mock import AsyncMock
+
+        from spectra.entities.errors import BudgetExceededError
+
+        err = BudgetExceededError(
+            spent_usd=0.42,
+            budget_usd=0.10,
+            per_agent={"security": 0.20, "architecture": 0.22},
+        )
+        factory = AsyncMock(side_effect=err)
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-014" in result.output
+        assert "$0.42" in result.output
+
+    def test_git_error_renders_docs_link(self):
+        from unittest.mock import AsyncMock
+
+        factory = AsyncMock(side_effect=GitError(ERRORS["SPEC-001"]))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-001" in result.output
+        assert "docs/error-codes.md#spec-001" in result.output
+
+    def test_retry_error_renders_docs_link(self):
+        from unittest.mock import AsyncMock
+
+        factory = AsyncMock(side_effect=SpectraRetryError(ERRORS["SPEC-002"]))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-002" in result.output
+
+    def test_agent_error_renders_docs_link(self):
+        from unittest.mock import AsyncMock
+
+        factory = AsyncMock(side_effect=AgentError(ERRORS["SPEC-007"]))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-007" in result.output
+
+    def test_unexpected_exception_renders_unexpected(self):
+        from unittest.mock import AsyncMock
+
+        factory = AsyncMock(side_effect=RuntimeError("boom"))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "Unexpected error" in result.output
+        assert "boom" in result.output
