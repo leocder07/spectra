@@ -34,6 +34,9 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Install system deps (libsqlcipher for cache encryption)
+        run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
+
       - name: Install dependencies
         run: pip install -e ".[dev]"
 

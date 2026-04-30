@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **SQLCipher-at-rest cache encryption + `cache shred` (Roadmap #13, RICE-60).** The per-user cache file is now AES-256 encrypted via SQLCipher 4. The encryption key is derived from the same OS-keyring secret that anchors the per-row HMAC, with a different domain-separation step so the two keys cannot collide (HMAC stays HMAC; cipher key stays cipher key). `PRAGMA key='x"<hex>"'` is issued immediately after every connection open; an empty `SELECT count(*) FROM sqlite_master` canary surfaces wrong-key errors as SPEC-010 at open time. Backward-compat: any existing v0.5.0 plaintext cache is auto-migrated in place — rows are streamed into a fresh encrypted DB, MACs are re-computed under the current secret, the file is atomically swapped, and the plaintext is shredded post-swap. New `spectra cache shred [-y]` subcommand overwrites cache.db (and WAL/SHM siblings) with random bytes (3 passes) then deletes them; also drops the per-user keyring entry so the next run cold-mints fresh keys. New `Encryption` row in `spectra cache doctor` reports `SQLCipher enabled` or `fallback (plain SQLite)`.
+- **`KeyringSecretAdapter.shred()`** — drops the per-user HMAC entry from the OS keyring + clears the in-memory cache. Idempotent on missing entries; SPEC-010 on backend failure.
+
+### Changed
+- `pyproject.toml` adds `pysqlcipher3>=1.2,<2.0` to runtime dependencies.
+
+### Failure modes
+- When `pysqlcipher3` is unavailable on the platform (the wheel does not exist for some Windows configurations), the cache adapter degrades to plain SQLite and emits a single WARN per process. HMAC enforcement remains active. `cache doctor` surfaces this in the `Encryption` row.
+
 ### Documentation
 - **Architecture documentation refresh.** Added `docs/architecture/` — 10 numbered HLD/LLD documents (`01-system-context` through `10-deployment-and-release`) plus 19 PlantUML source diagrams + rendered SVGs covering C4 levels 1-3, the 6-stage pipeline (happy + cached + compromised paths), the PipelineState transitions, agent orchestration + decorator chain, cache class diagram + state machine + key composition, secret pre-flight + prompt-injection defence in depth, data flow + privacy boundary, Q6-designed plugin architecture, and the publish.yml pipeline. Documents cross-reference the strategy ADRs (011-020) and use status badges (Stable / Q2 designed / Q4 designed / Q6 designed) so promoting a Q2 capability to "shipped" is a single edit per element when v0.6.0 lands. Render with `plantuml -tsvg docs/architecture/diagrams/*.puml`.
 
