@@ -27,6 +27,7 @@ from rich.theme import Theme
 
 from spectra.adapters.brand import AMBER, CYAN, GREEN, RED, VIOLET
 from spectra.entities.enums import AgentRole
+from spectra.entities.models import AgentRunConfig
 
 # ── Theme ────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ SPECTRA_THEME = Theme(
     }
 )
 
-# ── Agent display names and models ──────────────────────────────────────
+# ── Agent display names ─────────────────────────────────────────────────
 
 AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
     "meta_prompter": "MetaPrompter",
@@ -50,17 +51,6 @@ AGENT_DISPLAY_NAMES: dict[AgentRole, str] = {
     "dependency": "DependencyAgent",
     "performance": "PerformanceAgent",
     "critique": "CritiqueAgent",
-}
-
-AGENT_MODELS: dict[AgentRole, str] = {
-    "meta_prompter": "claude-opus-4-7",
-    "architecture": "claude-opus-4-7",
-    "security": "claude-opus-4-7",
-    "quality": "claude-opus-4-7",
-    "documentation": "claude-opus-4-7",
-    "dependency": "claude-opus-4-7",
-    "performance": "claude-opus-4-7",
-    "critique": "claude-opus-4-7",
 }
 
 AGENT_DESCRIPTIONS: dict[AgentRole, str] = {
@@ -131,11 +121,21 @@ class RichProgressReporter:
     premium hacker/terminal aesthetic.
     """
 
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(
+        self,
+        console: Console | None = None,
+        agent_configs: dict[AgentRole, AgentRunConfig] | None = None,
+    ) -> None:
         """Initialize the reporter with an optional Rich Console.
 
         Args:
             console: Rich Console to write to (creates one if None).
+            agent_configs: Live per-role ``AgentRunConfig`` map resolved by
+                the composition root. Display reads model + effort directly
+                from this map so changing a default in ``AgentFactory`` /
+                ``_DEFAULT_AGENT_CONFIGS`` automatically reflects in the
+                terminal output — no source-code edit needed in two places.
+                When ``None``, model/effort lookups return empty strings.
         """
         self._console = console or Console(theme=SPECTRA_THEME)
         self._progress: Progress | None = None
@@ -146,6 +146,29 @@ class RichProgressReporter:
         self._agent_errors: dict[AgentRole, str] = {}
         self._finished_agents: set[AgentRole] = set()
         self._failed_agents: set[AgentRole] = set()
+        self._agent_configs: dict[AgentRole, AgentRunConfig] = dict(agent_configs or {})
+
+    # ── Live config accessors (replaces v0.4.0 static AGENT_MODELS dict) ──
+
+    def set_agent_configs(self, agent_configs: dict[AgentRole, AgentRunConfig]) -> None:
+        """Bind the live per-role config map (composition-root setter).
+
+        The composition root resolves ``AgentRunConfig`` from CLI overrides
+        + defaults via ``resolve_agent_configs``, then calls this setter so
+        the reporter renders the actual model/effort that ran — never a
+        hardcoded copy that can drift.
+        """
+        self._agent_configs = dict(agent_configs)
+
+    def model_for(self, role: AgentRole) -> str:
+        """Return the live model id for ``role`` (empty string if unbound)."""
+        cfg = self._agent_configs.get(role)
+        return cfg.model if cfg is not None else ""
+
+    def effort_for(self, role: AgentRole) -> str:
+        """Return the live effort level for ``role`` (empty string if unbound)."""
+        cfg = self._agent_configs.get(role)
+        return cfg.effort if cfg is not None else ""
 
     # ── Stage lifecycle ──────────────────────────────────────────────
 
@@ -289,6 +312,14 @@ class RichProgressReporter:
             return 0.0
         return time.monotonic() - start
 
+    @staticmethod
+    def _format_agent_info(desc: str, model: str, effort: str) -> str:
+        """Compose the ``info`` column from dimension blurb + live config."""
+        config_part = f"{model} · {effort}" if model and effort else (model or effort)
+        if desc and config_part:
+            return f"{desc} — {config_part}"
+        return desc or config_part
+
     def _all_agents_done(self) -> bool:
         """True when every tracked agent has finished or failed."""
         if not self._agent_tasks:
@@ -344,10 +375,13 @@ class RichProgressReporter:
                 pct_txt = Text(f"{pct:>3.0f}%", style=AMBER)
                 time_txt = Text(f"{dur:.1f}s", style="dim")
 
-            # Add model/description info column
+            # Info column: dimension blurb + live model/effort from the
+            # per-role AgentRunConfig (no static AGENT_MODELS dict).
             desc = AGENT_DESCRIPTIONS.get(role, "")
-
-            info_txt = Text(f"{desc}", style="dim") if desc else Text("")
+            model = self.model_for(role)
+            effort = self.effort_for(role)
+            info_str = self._format_agent_info(desc, model, effort)
+            info_txt = Text(info_str, style="dim") if info_str else Text("")
             table.add_row(tree_txt, bar_txt, pct_txt, time_txt, info_txt)
 
         title = Text(" ANALYZE ", style=f"bold {AMBER} on {VIOLET}")

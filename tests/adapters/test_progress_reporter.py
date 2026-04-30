@@ -11,6 +11,7 @@ from spectra.adapters.progress_reporter import (
     SPECTRA_THEME,
     RichProgressReporter,
 )
+from spectra.entities.models import AgentRunConfig
 
 
 def _make_reporter() -> tuple[RichProgressReporter, StringIO]:
@@ -154,3 +155,97 @@ class TestOnCacheLookup:
         assert "security" in output
         assert "7" in output
         assert "8" in output
+
+
+# ── Round-3 fix: AGENT_MODELS drift — live config wiring ──────
+
+
+class TestAgentConfigsLiveWiring:
+    """The reporter MUST read model + effort from a live ``AgentRunConfig``
+    map bound at composition time, not from a hardcoded dict that drifts
+    every time ``AgentFactory`` defaults change.
+    """
+
+    def test_model_for_returns_empty_when_no_configs_bound(self):
+        reporter, _ = _make_reporter()
+        assert reporter.model_for("security") == ""
+        assert reporter.effort_for("security") == ""
+
+    def test_model_for_reads_from_live_configs(self):
+        reporter, _ = _make_reporter()
+        reporter.set_agent_configs(
+            {"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
+        )
+        assert reporter.model_for("security") == "claude-opus-4-7"
+        assert reporter.effort_for("security") == "xhigh"
+
+    def test_changing_default_model_reflects_in_reporter(self):
+        """Drift regression: bumping a default in one place (the live config
+        map) must surface everywhere — no second source of truth.
+        """
+        reporter, _ = _make_reporter()
+        reporter.set_agent_configs(
+            {"architecture": AgentRunConfig(model="claude-sonnet-4-6", effort="high")}
+        )
+        assert reporter.model_for("architecture") == "claude-sonnet-4-6"
+        # And re-binding flips the displayed value with no source edit.
+        reporter.set_agent_configs(
+            {"architecture": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
+        )
+        assert reporter.model_for("architecture") == "claude-opus-4-7"
+        assert reporter.effort_for("architecture") == "xhigh"
+
+    def test_constructor_accepts_initial_configs(self):
+        buf = StringIO()
+        console = Console(file=buf, theme=SPECTRA_THEME, force_terminal=True, width=120)
+        reporter = RichProgressReporter(
+            console=console,
+            agent_configs={
+                "critique": AgentRunConfig(
+                    model="claude-opus-4-7",
+                    effort="high",
+                    task_budget_tokens=80_000,
+                )
+            },
+        )
+        assert reporter.model_for("critique") == "claude-opus-4-7"
+        assert reporter.effort_for("critique") == "high"
+
+    def test_render_panel_shows_live_model_in_info_column(self):
+        reporter, buf = _make_reporter()
+        reporter.set_agent_configs(
+            {"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
+        )
+        reporter.on_agent_start("security")
+        reporter.on_agent_success("security", 1.0)
+        output = buf.getvalue()
+        # Live model + effort surface in the panel — not a stale literal.
+        assert "claude-opus-4-7" in output
+        assert "xhigh" in output
+
+    def test_default_agent_configs_drives_factory_and_reporter_in_lockstep(self):
+        """End-to-end drift gate: the same ``_DEFAULT_AGENT_CONFIGS`` source
+        must drive both ``AgentFactory`` and the reporter — there is no
+        independent ``AGENT_MODELS`` constant left in the adapter.
+        """
+        from spectra.adapters import progress_reporter as pr
+
+        # The static AGENT_MODELS constant is gone — replaced by live wiring.
+        assert not hasattr(pr, "AGENT_MODELS")
+
+    def test_format_agent_info_combines_desc_and_config(self):
+        # Internal helper keeps the panel readable when both desc and
+        # config are present.
+        out = RichProgressReporter._format_agent_info("test desc", "claude-opus-4-7", "xhigh")
+        assert "test desc" in out
+        assert "claude-opus-4-7" in out
+        assert "xhigh" in out
+
+    def test_format_agent_info_handles_missing_pieces(self):
+        only_desc = RichProgressReporter._format_agent_info("only desc", "", "")
+        assert only_desc == "only desc"
+        only_cfg = RichProgressReporter._format_agent_info("", "claude-opus-4-7", "xhigh")
+        assert "claude-opus-4-7" in only_cfg
+        assert "xhigh" in only_cfg
+        empty = RichProgressReporter._format_agent_info("", "", "")
+        assert empty == ""
