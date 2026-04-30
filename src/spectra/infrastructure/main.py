@@ -742,9 +742,7 @@ def _build_audit_port(spec: str | None) -> object | None:
     try:
         return build_audit_adapter(sink)
     except (ValueError, OSError) as exc:
-        logging.getLogger("spectra.audit").warning(
-            "Audit disabled: failed to build sink %r: %s", sink, exc
-        )
+        logging.getLogger("spectra.audit").warning("Audit disabled: failed to build sink %r: %s", sink, exc)
         return None
 
 
@@ -755,9 +753,7 @@ def _attach_receipt(report: AnalysisReport, run_id: str) -> AnalysisReport:
         signer = ReceiptSigner(keystore=keystore)
         receipt = signer.sign(report, scan_id=run_id)
     except Exception as exc:
-        logging.getLogger("spectra.receipt").warning(
-            "Receipt signing skipped: %s", exc
-        )
+        logging.getLogger("spectra.receipt").warning("Receipt signing skipped: %s", exc)
         return report
     return report.model_copy(update={"receipt": receipt})
 
