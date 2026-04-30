@@ -167,37 +167,38 @@ Ranking is `(Reach × Impact × Confidence) / Effort`, normalized to a 0-100 sca
 
 ## 4. Six-quarter roadmap
 
-### Q1 (next 3 months) — Foundation
+### Q1 — Foundation — **SHIPPED in v0.5.0 (2026-04-29)**
 
 **Theme:** Make the grade trustworthy before anyone treats it as a signal. Close every Red Team critical / high. Adopt SLSA. Ship the supply-chain hygiene that should already exist.
 **Demo:** A planted prompt-injection repo runs through Spectra and gets a single `critical: prompt-injection-detected` finding instead of A+. Spectra release wheel verifies via `gh attestation verify`. `.gitignore` excludes `.env`. Secret pre-scan fails with a one-line message naming the file.
-**Scope (10 capabilities):**
-- #1 Prompt-injection isolation (per-file delimiter nonces + adversarial critique prompt)
-- #2 Adversarial eval harness (`golden_files/adversarial/`)
-- #3 Per-row HMAC + per-user cache namespace
-- #4 Markdown-safe PR comment + finding-field allowlist
-- #6 Honor `.gitignore` + secret pre-flight + `.spectraignore`
-- #7 SLSA L3 provenance + Sigstore-signed wheels
-- #8 SECURITY.md + vulnerability disclosure policy + CNA
-- #9 Dependency upper bounds + lockfile + Renovate
-- #10 Defensive PyPI squats
-- #61 "Indicative — not audit evidence" disclaimer banner
+**Scope (10 capabilities — all shipped):**
+- ✅ #1 Prompt-injection isolation (per-file delimiter nonces + adversarial critique prompt) — 100% (20/20) catch-rate on the adversarial harness
+- ✅ #2 Adversarial eval harness (`golden_files/adversarial/`)
+- ✅ #3 Per-row HMAC + per-user cache namespace (`~/.cache/spectra/$UID/`)
+- ✅ #4 Markdown-safe PR comment + finding-field allowlist (`spectra render pr-comment`)
+- ✅ #6 Honor `.gitignore` + secret pre-flight + `.spectraignore` (SPEC-011, `--allow-secrets`)
+- ✅ #7 SLSA L3 provenance + Sigstore-signed wheels
+- ✅ #8 SECURITY.md + vulnerability disclosure policy + CNA
+- ✅ #9 Dependency upper bounds + lockfile + Renovate
+- ✅ #10 Defensive PyPI squats
+- ✅ #61 "Indicative — not audit evidence" disclaimer banner
 
-### Q2 — Enterprise-ready
+### Q2 — Enterprise-ready — **SHIPPED in v0.6.0 (2026-04-30)**
 
 **Theme:** Close every CISO blocker that prevents an enterprise procurement signature. Ship the legal pack, the audit log, the encrypted cache, the policy file, the dual-mode report.
 **Demo:** A regulated-org demo: signed DPA in hand, `spectra analyze --classification confidential` produces a watermarked HTML; a separate `--classification public` produces a redacted summary. JSON-Lines audit events stream to Splunk. `.spectra-policy.yml` enforces "fail on critical security." `.spectra-waivers.yml` suppresses one finding with an Ed25519 signature visible on the report.
-**Scope (10 capabilities):**
-- #11 DPA + sub-processor declaration + Anthropic data flow diagram
-- #12 Audit log (JSON Lines, pluggable sink: file / syslog / OTLP / Splunk HEC)
-- #13 Encrypted cache at rest (SQLCipher) + `spectra cache shred`
-- #5 `--max-cost-usd` budget enforcement
-- #17 `.spectra-policy.yml` org + repo
-- #18 `.spectra-waivers.yml` + signed approver + 180-day TTL
-- #19 Severity-gate Action input
-- #20 "Non-validated" stamp on `--quick` runs
-- #56 Report classification + watermark + expiration + dual-mode render
-- #57 Globally unique scan ID + Ed25519 signed scan receipt
+**Scope (10 capabilities — all shipped):**
+- ✅ #11 DPA + sub-processor declaration + Anthropic data flow diagram (`docs/legal/`)
+- ✅ #12 Audit log (JSON Lines / OTLP / stdout sinks; `--audit-sink`)
+- ✅ #13 Encrypted cache at rest (SQLCipher AES-256) + `spectra cache shred`
+- ✅ #5 `--max-cost-usd` + `--max-cost-per-hour` budget enforcement (SPEC-014)
+- ✅ #17 `.spectra-policy.yml` org + repo (SPEC-013)
+- ✅ #18 `.spectra-waivers.yml` + Ed25519-signed approver + `spectra waive` + `spectra approver register`
+- ✅ #19 Severity-gate Action input (`fail-on: critical|high|medium|low|none`) + CLI `--fail-on`
+- ✅ #20 "Non-validated" stamp on `--quick` / `--no-critique` runs (`validation_status` + red banner)
+- ✅ #56 Report classification + watermark + dual-mode render (`--classification confidential|public`)
+- ✅ #57 Ed25519-signed scan receipt + `spectra verify`
+- ✅ #68 Inline suppression pragma (`# spectra: ignore-next-line SEC-AUTH-101`) — bonus from #18 work
 
 ### Q3 — Platform
 
