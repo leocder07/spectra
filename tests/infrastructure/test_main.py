@@ -1006,3 +1006,76 @@ class TestBuildSarif:
         serialized = json.dumps(sarif, indent=2)
         roundtripped = json.loads(serialized)
         assert roundtripped["version"] == "2.1.0"
+
+    # ── Capability #56 — SARIF classification redaction ──────
+
+    @staticmethod
+    def _sensitive_finding() -> Finding:
+        return Finding(
+            id="sec-001",
+            dimension="security",
+            severity="critical",
+            title="Hardcoded AWS key AKIAIOSFODNN7EXAMPLE",
+            description="-----BEGIN RSA PRIVATE KEY----- in src/secrets.py",
+            location=FileLocation(file_path="src/secrets.py", line_start=1),
+            recommendation="Rotate via IAM",
+            agent_role="security",
+            confidence=0.99,
+            estimated_hours=2.0,
+            code_snippet="AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+        )
+
+    def _classified_report(self, classification: str, *, with_finding: bool = True) -> AnalysisReport:
+        findings = (self._sensitive_finding(),) if with_finding else ()
+        base = self._make_report(findings=findings)
+        return base.model_copy(update={"classification": classification})
+
+    def test_sarif_confidential_emits_findings(self):
+        sarif = _build_sarif(self._classified_report("confidential"))
+        results = sarif["runs"][0]["results"]
+        assert len(results) == 1
+        assert "AKIAIOSFODNN7EXAMPLE" in results[0]["message"]["text"]
+
+    def test_sarif_public_emits_zero_results(self):
+        # Capability #56 §7 — public SARIF has no per-finding results.
+        sarif = _build_sarif(self._classified_report("public"))
+        assert sarif["runs"][0]["results"] == []
+
+    def test_sarif_public_carries_score_card_property(self):
+        # Capability #56 §7 — score summary surfaces under
+        # runs[0].properties.scoreCard.
+        sarif = _build_sarif(self._classified_report("public"))
+        run = sarif["runs"][0]
+        score_card = run["properties"]["scoreCard"]
+        assert score_card["overall_grade"]
+        assert "overall_score" in score_card
+        assert isinstance(score_card["dimensions"], list)
+        assert len(score_card["dimensions"]) == 1  # _make_report has one dim
+        assert score_card["total_findings"] == 1
+        # No per-finding details bleed into the property.
+        as_text = json.dumps(score_card)
+        assert "AKIAIOSFODNN7EXAMPLE" not in as_text
+        assert "BEGIN RSA" not in as_text
+
+    def test_sarif_public_carries_classification_property(self):
+        sarif = _build_sarif(self._classified_report("public"))
+        assert sarif["runs"][0]["properties"]["classification"] == "public"
+
+    def test_sarif_confidential_keeps_classification_property(self):
+        sarif = _build_sarif(self._classified_report("confidential"))
+        assert sarif["runs"][0]["properties"]["classification"] == "confidential"
+
+    def test_sarif_public_keeps_disclaimer_notification(self):
+        # Disclaimer rides along in both modes (capability #56 §6).
+        from spectra.entities.disclaimer import DISCLAIMER_TEXT
+
+        sarif = _build_sarif(self._classified_report("public"))
+        notes = sarif["runs"][0]["invocations"][0]["notifications"]
+        assert any(n["message"]["text"] == DISCLAIMER_TEXT for n in notes)
+
+    def test_sarif_public_no_sensitive_substring_leakage(self):
+        sarif = _build_sarif(self._classified_report("public"))
+        blob = json.dumps(sarif)
+        forbidden = ("AKIAIOSFODNN7EXAMPLE", "BEGIN RSA", "PRIVATE KEY", "src/secrets.py")
+        leaks = [s for s in forbidden if s in blob]
+        assert not leaks, f"Public SARIF leaked: {leaks}"

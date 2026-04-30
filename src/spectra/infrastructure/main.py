@@ -637,16 +637,40 @@ def build_json_payload(report: AnalysisReport) -> dict[str, object]:
     machine pipelines see it natively. It is always present and cannot
     be dismissed (UI dismissal is HTML-only).
 
+    Capability #56 — when ``report.classification == "public"``, every
+    individual finding and the cross-cutting insights are stripped from
+    the payload before serialization. The score card, dimension counts,
+    and scan metadata survive so consumers can still ingest aggregate
+    metrics. Confidential mode keeps everything.
+
     Args:
         report: Completed analysis report.
 
     Returns:
         Dict ready for ``json.dumps`` — disclaimer first, then report fields.
     """
+    body = report.model_dump(mode="json")
+    if report.classification == "public":
+        body = _redact_public_payload(body)
     return {
         "disclaimer": disclaimer_payload(),
-        **report.model_dump(mode="json"),
+        **body,
     }
+
+
+def _redact_public_payload(body: dict[str, object]) -> dict[str, object]:
+    """Drop individual findings + cross-cutting insights for public mode.
+
+    Capability #56 §4 — public reports keep only aggregate signal:
+    overall grade + per-dimension scores + counts + scan metadata. Every
+    individual finding (titles, descriptions, file paths, code snippets,
+    recommendations) is removed before serialization so a public report
+    cannot be reverse-engineered into a vulnerability intel feed.
+    """
+    redacted = dict(body)
+    redacted["findings"] = []
+    redacted["cross_cutting_insights"] = []
+    return redacted
 
 
 def _sarif_disclaimer_notification() -> dict[str, object]:
@@ -672,13 +696,49 @@ def _sarif_disclaimer_notification() -> dict[str, object]:
 def _build_sarif(report: AnalysisReport) -> dict:
     """Build SARIF v2.1.0 output for GitHub Security tab integration.
 
+    Capability #56 §7 — when ``report.classification == "public"`` the
+    ``runs[0].results`` array is emptied (no findings shared in public
+    mode) and the score summary surfaces under
+    ``runs[0].properties.scoreCard``. Confidential SARIF is unchanged.
+
     Args:
         report: Completed analysis report.
 
     Returns:
         SARIF-compliant dictionary ready for JSON serialization.
     """
-    results = [
+    is_public = report.classification == "public"
+    results = [] if is_public else _sarif_results(report)
+    run_properties = _sarif_run_properties(report)
+    return {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "Spectra",
+                        "version": _SPECTRA_VERSION,
+                        "informationUri": "https://github.com/leocder07/spectra",
+                        "rules": [],
+                    },
+                },
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "notifications": [_sarif_disclaimer_notification()],
+                    }
+                ],
+                "results": results,
+                "properties": run_properties,
+            }
+        ],
+    }
+
+
+def _sarif_results(report: AnalysisReport) -> list[dict[str, object]]:
+    """Map every finding to a SARIF result entry. Confidential mode only."""
+    return [
         {
             "ruleId": f"spectra/{f.dimension}/{f.id}",
             "level": _SARIF_SEVERITY.get(f.severity, "note"),
@@ -701,35 +761,32 @@ def _build_sarif(report: AnalysisReport) -> dict:
         for f in report.findings
     ]
 
-    return {
-        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
-        "version": "2.1.0",
-        "runs": [
+
+def _sarif_run_properties(report: AnalysisReport) -> dict[str, object]:
+    """Build the ``runs[0].properties`` block — classification + scoreCard.
+
+    The score summary surfaces under ``properties.scoreCard`` so public
+    reports still carry their grade for downstream ingestion (capability
+    #56 §7) without exposing per-finding details.
+    """
+    score_card = {
+        "overall_score": report.score_card.overall_score,
+        "overall_grade": report.score_card.overall_grade,
+        "total_findings": report.score_card.total_findings,
+        "dimensions": [
             {
-                "tool": {
-                    "driver": {
-                        "name": "Spectra",
-                        "version": _SPECTRA_VERSION,
-                        "informationUri": "https://github.com/leocder07/spectra",
-                        "rules": [],
-                    },
-                },
-                "invocations": [
-                    {
-                        "executionSuccessful": True,
-                        "notifications": [_sarif_disclaimer_notification()],
-                    }
-                ],
-                "results": results,
-                # Q2 #20: trust stamp surfaced in SARIF properties bag so
-                # GitHub Code Scanning and other SAST consumers can tell
-                # whether the adversarial CritiqueAgent check ran without
-                # parsing per-finding metadata.
-                "properties": {
-                    "validation_status": report.validation_status,
-                },
+                "dimension": d.dimension,
+                "score": d.score,
+                "grade": d.grade,
+                "weight": d.weight,
+                "findings_count": d.findings_count,
             }
+            for d in report.score_card.dimensions
         ],
+    }
+    return {
+        "classification": report.classification,
+        "scoreCard": score_card,
     }
 
 
