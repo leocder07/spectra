@@ -2454,6 +2454,35 @@
             .disclaimer-banner-dismiss { display: none; }
             .disclaimer-banner { position: static; }
         }
+
+        /* ─── Q2 #20: Non-validated Trust Stamp Banner ─── */
+        .non-validated-banner {
+            background: rgba(239, 68, 68, 0.12);
+            border-bottom: 1px solid #EF4444;
+            color: #fecaca;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .non-validated-banner-content {
+            max-width: 1100px;
+            flex: 1;
+        }
+
+        .non-validated-banner-content strong {
+            color: #EF4444;
+            font-weight: 700;
+        }
+
+        @media print {
+            .non-validated-banner { position: static; }
+        }
     </style>
 </head>
 <body>
@@ -2469,6 +2498,16 @@
                 data-action="dismiss-disclaimer"
                 aria-label="Dismiss disclaimer for this session">×</button>
     </div>
+
+    {% if report.validation_status != "validated" %}
+    <!-- Q2 #20: Non-validated trust stamp — CritiqueAgent did not run. -->
+    <div class="non-validated-banner" id="non-validated-banner" role="alert" aria-label="Non-validated analysis notice">
+        <div class="non-validated-banner-content">
+            <strong>Non-validated run — CritiqueAgent did not run.</strong>
+            Findings are unverified by the adversarial input check. Do not treat as evidence.
+        </div>
+    </div>
+    {% endif %}
 
     <div class="container">
         <!-- Header -->

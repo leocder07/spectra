@@ -717,6 +717,37 @@ class TestBuildSarif:
         region = sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]
         assert region["startLine"] == 1
 
+    # ── Q2 #20: validation_status property ───────────────────
+
+    def test_sarif_validation_status_validated_default(self):
+        sarif = _build_sarif(self._make_report())
+        assert sarif["runs"][0]["properties"]["validation_status"] == "validated"
+
+    def test_sarif_validation_status_quick_mode(self):
+        report = self._make_report().model_copy(
+            update={"validation_status": "non-validated:quick-mode"}
+        )
+        sarif = _build_sarif(report)
+        props = sarif["runs"][0]["properties"]
+        assert props["validation_status"] == "non-validated:quick-mode"
+
+    def test_sarif_validation_status_critique_skipped(self):
+        report = self._make_report().model_copy(
+            update={"validation_status": "non-validated:critique-skipped"}
+        )
+        sarif = _build_sarif(report)
+        props = sarif["runs"][0]["properties"]
+        assert props["validation_status"] == "non-validated:critique-skipped"
+
+    def test_sarif_validation_status_lives_under_run_properties(self):
+        """SARIF spec convention: tool-level metadata sits in
+        ``runs[0].properties`` (a free-form dict). Keeping it there means
+        Code Scanning consumers can read it without a custom rule."""
+        sarif = _build_sarif(self._make_report())
+        run = sarif["runs"][0]
+        assert "properties" in run
+        assert "validation_status" in run["properties"]
+
     def test_sarif_run_has_invocation_with_disclaimer_notification(self):
         """SARIF run carries the indicative-analysis disclaimer in
         ``invocations[0].notifications`` so SAST consumers see it natively

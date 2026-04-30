@@ -148,6 +148,69 @@ class TestAnalyzeRepository:
         report = await analyze_repository(ctx)
         assert report.is_degraded is False
 
+    # ── Q2 #20: validation_status trust stamp ───────────────────
+
+    @pytest.mark.asyncio
+    async def test_validation_status_validated_default(
+        self, analysis_request, codebase, meta_prompter, six_specialists, critique_agent
+    ):
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+        )
+        report = await analyze_repository(ctx)
+        assert report.validation_status == "validated"
+
+    @pytest.mark.asyncio
+    async def test_validation_status_quick_mode(
+        self, codebase, meta_prompter, six_specialists, critique_agent
+    ):
+        req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
+        ctx = PipelineContext(
+            request=req,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=critique_agent,
+        )
+        report = await analyze_repository(ctx)
+        assert report.validation_status == "non-validated:quick-mode"
+
+    @pytest.mark.asyncio
+    async def test_validation_status_critique_skipped_when_agent_none(
+        self, analysis_request, codebase, meta_prompter, six_specialists
+    ):
+        ctx = PipelineContext(
+            request=analysis_request,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=None,
+        )
+        report = await analyze_repository(ctx)
+        assert report.validation_status == "non-validated:critique-skipped"
+
+    @pytest.mark.asyncio
+    async def test_validation_status_quick_takes_precedence_over_skipped(
+        self, codebase, meta_prompter, six_specialists
+    ):
+        # When --quick is set the composition root passes critique_agent=None
+        # AND request.quick=True. quick-mode is the more user-facing label
+        # so it must win.
+        req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
+        ctx = PipelineContext(
+            request=req,
+            codebase=codebase,
+            meta_prompter=meta_prompter,
+            specialists=six_specialists,
+            critique_agent=None,
+        )
+        report = await analyze_repository(ctx)
+        assert report.validation_status == "non-validated:quick-mode"
+
     @pytest.mark.asyncio
     async def test_degraded_when_two_fail(self, analysis_request, codebase, meta_prompter, critique_agent, make_agent):
         specialists = [

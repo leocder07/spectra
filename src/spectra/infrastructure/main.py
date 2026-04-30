@@ -679,6 +679,13 @@ def _build_sarif(report: AnalysisReport) -> dict:
                     }
                 ],
                 "results": results,
+                # Q2 #20: trust stamp surfaced in SARIF properties bag so
+                # GitHub Code Scanning and other SAST consumers can tell
+                # whether the adversarial CritiqueAgent check ran without
+                # parsing per-finding metadata.
+                "properties": {
+                    "validation_status": report.validation_status,
+                },
             }
         ],
     }

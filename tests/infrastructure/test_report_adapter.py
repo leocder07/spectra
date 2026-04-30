@@ -323,6 +323,86 @@ class TestDisclaimerBanner:
         assert "localStorage" not in html or html.count("localStorage") == 0
 
 
+# ── Q2 #20: "Non-validated" Trust Stamp Banner ───────────────
+
+
+def _quick_report() -> AnalysisReport:
+    return _minimal_report().model_copy(
+        update={"validation_status": "non-validated:quick-mode"}
+    )
+
+
+def _critique_skipped_report() -> AnalysisReport:
+    return _minimal_report().model_copy(
+        update={"validation_status": "non-validated:critique-skipped"}
+    )
+
+
+class TestNonValidatedBanner:
+    """Q2 #20: a red-tinted banner above the ScoreCard warns when the
+    CritiqueAgent did not run. Validated runs render no banner.
+
+    The banner sits BELOW the indicative-analysis disclaimer (PR #38) and
+    ABOVE the Spectrum ScoreCard so a reviewer cannot miss it before
+    reading any score.
+    """
+
+    def test_no_banner_on_validated_run(self):
+        html = _render_to_string(_minimal_report())
+        # The banner element (with id) must not render — the CSS class
+        # may still appear in the inline stylesheet, which is fine.
+        assert 'id="non-validated-banner"' not in html
+
+    def test_banner_present_on_quick_mode_run(self):
+        html = _render_to_string(_quick_report())
+        assert 'id="non-validated-banner"' in html
+
+    def test_banner_present_on_critique_skipped_run(self):
+        html = _render_to_string(_critique_skipped_report())
+        assert 'id="non-validated-banner"' in html
+
+    def test_banner_text_explains_critique_did_not_run(self):
+        html = _render_to_string(_quick_report())
+        # Verbatim text from the spec — load-bearing, do not paraphrase.
+        assert "Non-validated run" in html
+        assert "CritiqueAgent did not run" in html
+        assert "unverified by the adversarial input check" in html
+        assert "Do not treat as evidence" in html
+
+    def test_banner_uses_signal_red_brand_color(self):
+        # Spectra brand "Signal Red" — must appear in the banner styles.
+        html = _render_to_string(_quick_report())
+        assert "#ef4444" in html.lower()
+
+    def test_banner_renders_below_disclaimer(self):
+        html = _render_to_string(_quick_report())
+        disclaimer_idx = html.find('id="disclaimer-banner"')
+        non_validated_idx = html.find('id="non-validated-banner"')
+        assert disclaimer_idx != -1
+        assert non_validated_idx != -1
+        assert disclaimer_idx < non_validated_idx, (
+            "disclaimer banner must come first; non-validated stamp goes below it"
+        )
+
+    def test_banner_renders_above_scorecard(self):
+        html = _render_to_string(_quick_report())
+        non_validated_idx = html.find('id="non-validated-banner"')
+        scorecard_idx = html.find('id="scores"')
+        assert non_validated_idx != -1
+        assert scorecard_idx != -1
+        assert non_validated_idx < scorecard_idx, "stamp must precede the ScoreCard"
+
+    def test_banner_uses_role_alert_for_screen_readers(self):
+        # The trust stamp is critical context — give it role=alert so
+        # assistive tech announces it instead of silently passing it by.
+        html = _render_to_string(_quick_report())
+        # Locate the actual banner element, not the CSS class definition.
+        non_validated_block_start = html.find('id="non-validated-banner"')
+        assert non_validated_block_start != -1
+        banner_block = html[non_validated_block_start : non_validated_block_start + 600]
+        assert 'role="alert"' in banner_block
+
+
 # ── Badge SVG generation ─────────────────────────────────────
 
 

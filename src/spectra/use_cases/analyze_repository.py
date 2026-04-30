@@ -34,6 +34,7 @@ from spectra.entities.models import (
     RepoCacheKey,
     ScoreCard,
     TokenBudget,
+    ValidationStatus,
     estimate_cost,
     score_to_grade,
 )
@@ -735,7 +736,25 @@ def _build_report(
         cross_cutting_insights=output.insights,
         hallucination_removed_count=meta.hallucinations,
         is_compromised=output.is_compromised,
+        validation_status=_resolve_validation_status(ctx),
     )
+
+
+def _resolve_validation_status(ctx: PipelineContext) -> ValidationStatus:
+    """Q2 #20: derive the trust stamp from the request and wired agents.
+
+    - ``--quick`` is the more user-facing label so it wins over a missing
+      critique agent (the composition root sets ``critique_agent=None``
+      whenever ``--quick`` is passed).
+    - Otherwise a missing critique agent means it was skipped for another
+      reason (config flag, future ``--no-critique``, etc).
+    - Default is ``validated``: full pipeline ran with critique enabled.
+    """
+    if ctx.request.quick:
+        return "non-validated:quick-mode"
+    if ctx.critique_agent is None:
+        return "non-validated:critique-skipped"
+    return "validated"
 
 
 def _report_metadata(

@@ -6,6 +6,8 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 # Import enums first so Pydantic can resolve forward refs in models.
 from spectra.entities.disclaimer import DISCLAIMER_TEXT, DISCLAIMER_URL
 from spectra.entities.enums import (  # noqa: F401
@@ -213,3 +215,75 @@ class TestJsonDisclaimer:
         payload = build_json_payload(_minimal_report())
         roundtrip = json.loads(json.dumps(payload))
         assert roundtrip["disclaimer"]["text"] == DISCLAIMER_TEXT
+
+
+class TestJsonValidationStatus:
+    """Q2 #20: JSON top-level ``validation_status`` is always present.
+
+    SAST consumers and machine pipelines must be able to read the trust
+    stamp programmatically — it is a data field, identical in shape across
+    HTML, JSON, and SARIF.
+    """
+
+    def test_validated_default_is_present(self):
+        payload = build_json_payload(_minimal_report())
+        assert payload["validation_status"] == "validated"
+
+    def test_quick_mode_propagates(self):
+        report = _minimal_report().model_copy(
+            update={"validation_status": "non-validated:quick-mode"}
+        )
+        payload = build_json_payload(report)
+        assert payload["validation_status"] == "non-validated:quick-mode"
+
+    def test_critique_skipped_propagates(self):
+        report = _minimal_report().model_copy(
+            update={"validation_status": "non-validated:critique-skipped"}
+        )
+        payload = build_json_payload(report)
+        assert payload["validation_status"] == "non-validated:critique-skipped"
+
+    def test_validation_status_at_top_level_not_nested(self):
+        # Top-level so SAST consumers don't have to walk into score_card.
+        payload = build_json_payload(_minimal_report())
+        assert "validation_status" in payload
+        assert "validation_status" not in payload.get("score_card", {})
+
+
+class TestValidationStatusFormatConsistency:
+    """Q2 #20: HTML, JSON, SARIF all surface the SAME validation_status string.
+
+    A run cannot disagree with itself across formats — that would let an
+    attacker downgrade trust in one consumer while showing "validated" to
+    another. Same source of truth (``AnalysisReport.validation_status``),
+    same string everywhere.
+    """
+
+    @pytest.fixture
+    def quick_report(self):
+        return _minimal_report().model_copy(
+            update={"validation_status": "non-validated:quick-mode"}
+        )
+
+    def test_json_and_sarif_agree_on_quick_mode(self, quick_report):
+        from spectra.infrastructure.main import _build_sarif
+
+        json_payload = build_json_payload(quick_report)
+        sarif = _build_sarif(quick_report)
+        assert (
+            json_payload["validation_status"]
+            == sarif["runs"][0]["properties"]["validation_status"]
+            == "non-validated:quick-mode"
+        )
+
+    def test_json_and_sarif_agree_on_validated(self):
+        from spectra.infrastructure.main import _build_sarif
+
+        report = _minimal_report()
+        json_payload = build_json_payload(report)
+        sarif = _build_sarif(report)
+        assert (
+            json_payload["validation_status"]
+            == sarif["runs"][0]["properties"]["validation_status"]
+            == "validated"
+        )
