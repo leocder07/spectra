@@ -56,8 +56,10 @@ from spectra.adapters.cli_controller import (
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.audit import new_event_id
 from spectra.entities.disclaimer import disclaimer_payload
+from spectra.entities.enums import AgentRole
 from spectra.entities.errors import ERRORS, AgentError, PolicyGateError, SpectraError
 from spectra.entities.models import (
+    AgentRunConfig,
     AnalysisReport,
     AnalysisRequest,
     CacheSecret,
@@ -132,11 +134,11 @@ class ReportError(Exception):
 
 def _build_agents(
     gateway: LLMGateway,
-    agent_overrides: dict[str, object] | None,
+    configs: dict[AgentRole, AgentRunConfig],
     *,
     skip_critique: bool,
 ) -> tuple[AnalysisAgent, list[AnalysisAgent], AnalysisAgent | None]:
-    """Resolve per-agent configs from CLI overrides and build all 8 agents.
+    """Build all 8 agents from a fully resolved per-role config map.
 
     The ``gateway`` argument is typed against the use-case ``LLMGateway``
     Protocol (Layer 2), preserving the dependency rule via the
@@ -144,11 +146,16 @@ def _build_agents(
     Likewise the returned agents satisfy ``AnalysisAgent`` (the Protocol
     used by the orchestrator) so the seam is type-checked end-to-end.
 
+    The ``configs`` map is the single source of truth for per-agent model +
+    effort: the same map is bound onto ``RichProgressReporter`` so the
+    terminal display reads the live config (no static ``AGENT_MODELS``
+    dict that drifts whenever defaults change — see
+    ``docs/architecture/INDEX.md#ADR-013``).
+
     Returns:
         ``(meta_prompter, specialists, critique_agent)``. ``critique_agent``
         is ``None`` when ``skip_critique`` is True.
     """
-    configs = resolve_agent_configs(agent_overrides or {})
     factory = AgentFactory(gateway=gateway, configs=configs)
     meta: AnalysisAgent = factory.create("meta_prompter")
     specialists: list[AnalysisAgent] = list(factory.create_specialists())
@@ -219,8 +226,13 @@ def _assemble_context(
         - Loads + verifies signed waivers from the workspace root.
         - Builds the cost tracker (in-memory or SQLite per max-cost flags).
     """
+    # Resolve per-role configs once and bind them onto the observer so
+    # the terminal display reads the live model + effort (no static
+    # AGENT_MODELS dict that drifts whenever defaults change).
+    agent_configs = resolve_agent_configs(agent_overrides or {})
+    deps.observer.set_agent_configs(agent_configs)
     meta_prompter, specialists, critique_agent = _build_agents(
-        deps.gateway, agent_overrides, skip_critique=skip_critique
+        deps.gateway, agent_configs, skip_critique=skip_critique
     )
     audit_port = _build_audit_port(audit_sink)
     actor = resolve_actor()
