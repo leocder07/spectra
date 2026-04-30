@@ -57,6 +57,25 @@ ruff format src/ tests/
 mypy src/
 ```
 
+## Regenerating the Lock File
+
+`requirements.lock` is the hash-pinned snapshot of the full transitive
+dependency tree (runtime + dev). Always regenerate it with `uv` and the
+`--generate-hashes` flag so each pin carries a SHA-256 (supply-chain
+integrity — `pip install --require-hashes` will refuse to install a
+wheel whose hash does not match).
+
+```bash
+uv pip compile pyproject.toml --extra dev --generate-hashes -o requirements.lock
+```
+
+When you bump a dependency in `pyproject.toml`, regenerate the lock in
+the same commit and verify it still carries hashes:
+
+```bash
+grep -c "sha256:" requirements.lock   # expect: in the thousands, never zero
+```
+
 ## Architecture Overview
 
 Spectra follows **Clean Architecture** with 4 strict layers:
