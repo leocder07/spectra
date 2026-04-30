@@ -1884,9 +1884,7 @@ def _watermark_payload(report: AnalysisReport) -> dict[str, str]:
             "actor_id_hash": "",
         }
     return {
-        "text": (
-            f"CONFIDENTIAL — Spectra report — {timestamp} — {_actor_id_hash()}"
-        ),
+        "text": (f"CONFIDENTIAL — Spectra report — {timestamp} — {_actor_id_hash()}"),
         "timestamp": timestamp,
         "actor_id_hash": _actor_id_hash(),
     }
@@ -1902,7 +1900,7 @@ def classification_filename(output_path: str, classification: str) -> str:
     suffix = _CLASSIFICATION_FILENAME_SUFFIX[classification]
     path = Path(output_path)
     stem = path.stem
-    if stem.endswith("-confidential") or stem.endswith("-public"):
+    if stem.endswith(("-confidential", "-public")):
         # Strip an existing classification suffix so re-runs are idempotent.
         stem = stem.rsplit("-", 1)[0]
     new_stem = f"{stem}-{suffix.split('-', 1)[1]}" if "-" in suffix else f"{stem}-{suffix}"
@@ -1925,9 +1923,9 @@ def _public_dimension_summaries(report: AnalysisReport) -> list[dict[str, object
         rows.append(
             {
                 "label": dim_label(dim),
-                "score": int(round(ds.score)),
+                "score": round(ds.score),
                 "grade": ds.grade,
-                "weight_pct": int(round(ds.weight * 100)),
+                "weight_pct": round(ds.weight * 100),
                 "findings_count": ds.findings_count,
                 "grade_class": _grade_class(ds.grade),
             }

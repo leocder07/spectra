@@ -102,6 +102,30 @@ def _validate_repo_source(source: str) -> str | None:
     return _validate_repo_url(source)
 
 
+_CLASSIFICATION_SUFFIX: dict[str, str] = {
+    "confidential": "confidential",
+    "public": "public",
+}
+
+
+def _classification_filename(output_path: str, classification: str) -> str:
+    """Suffix the output path with the classification mode (capability #56 §8).
+
+    ``spectra-report.html`` becomes ``spectra-report-confidential.html`` /
+    ``spectra-report-public.html`` so both modes can coexist on disk
+    without overwriting each other. Idempotent — re-suffixing a path that
+    already carries one of the two suffixes strips the old one first.
+    """
+    suffix = _CLASSIFICATION_SUFFIX.get(classification, classification)
+    path = Path(output_path)
+    stem = path.stem
+    for known in _CLASSIFICATION_SUFFIX.values():
+        if stem.endswith(f"-{known}"):
+            stem = stem[: -(len(known) + 1)]
+            break
+    return str(path.with_name(f"{stem}-{suffix}{path.suffix}"))
+
+
 def _derive_display_name(source: str) -> str:
     """Pick a friendly target name for the banner from a URL or local path."""
     if is_local_path(source):
@@ -121,6 +145,7 @@ _ALLOWED_MODELS: tuple[str, ...] = (
     "claude-haiku-4-5",
 )
 _ALLOWED_EFFORTS: tuple[str, ...] = ("low", "medium", "high", "xhigh", "max")
+_ALLOWED_CLASSIFICATIONS: tuple[str, ...] = ("confidential", "public")
 _PER_AGENT_ROLES: tuple[str, ...] = (
     "meta",
     "architecture",
@@ -243,6 +268,32 @@ def _print_banner() -> None:
     console.print(_SCAN_LINE)
 
 
+def _print_run_header(
+    repo_url: str,
+    output_path: str,
+    fmt: str,
+    classification: str,
+    *,
+    quick: bool,
+) -> None:
+    """Render the per-run banner: target, mode, classification, output."""
+    _print_banner()
+    repo_name = _derive_display_name(repo_url)
+    console.print(f"  [{AMBER}]target:[/] {repo_name}  [dim]({repo_url})[/]")
+    mode_label = "quick scan [dim](no critique)[/]" if quick else "full analysis [dim](8 agents)[/]"
+    console.print(f"  [{AMBER}]mode:[/]   {mode_label}")
+    if classification == "public":
+        cls_label = "public [dim](redacted summary)[/]"
+    else:
+        cls_label = "confidential [dim](full findings)[/]"
+    console.print(f"  [{AMBER}]class:[/]  {cls_label}")
+    console.print(f"  [{AMBER}]output:[/] {output_path}  [dim]({fmt})[/]")
+    console.print()
+    if not quick:
+        console.print(_PIPELINE_INFO)
+    console.print()
+
+
 def _validate_model(value: str | None) -> None:
     """Reject unknown model identifiers with a friendly allowed-list."""
     if value is None or value in _ALLOWED_MODELS:
@@ -276,13 +327,14 @@ def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in parsed.items()}
 
 
-def _validate_analyze_inputs(repo_url: str, fmt: str, fail_on: str) -> None:
+def _validate_analyze_inputs(repo_url: str, fmt: str, fail_on: str, classification: str) -> None:
     """Validate CLI inputs and exit with code 1 on any error.
 
     Raises:
         typer.Exit: If url is malformed, format is invalid, ``--fail-on``
-            is not one of the documented choices, or the analyzer factory
-            has not been injected by the composition root.
+            is not one of the documented choices, classification is unknown,
+            or the analyzer factory has not been injected by the
+            composition root.
     """
     source_error = _validate_repo_source(repo_url)
     if source_error:
@@ -296,6 +348,11 @@ def _validate_analyze_inputs(repo_url: str, fmt: str, fail_on: str) -> None:
     if fail_on not in _FAIL_ON_CHOICES:
         allowed = ", ".join(_FAIL_ON_CHOICES)
         console.print(f"[{RED}]✗[/] Invalid --fail-on: {fail_on!r}: use one of: {allowed}")
+        raise typer.Exit(code=1)
+
+    if classification not in _ALLOWED_CLASSIFICATIONS:
+        allowed = ", ".join(_ALLOWED_CLASSIFICATIONS)
+        console.print(f"[{RED}]✗[/] Invalid classification: use one of: {allowed}")
         raise typer.Exit(code=1)
 
     if _analyzer_factory is None:
@@ -518,6 +575,11 @@ def analyze(
     performance_effort: str | None = typer.Option(None, "--performance-effort", help="Override performance effort"),
     model_overrides: str | None = typer.Option(None, "--model-overrides", help="JSON: {role: model}"),
     effort_overrides: str | None = typer.Option(None, "--effort-overrides", help="JSON: {role: effort}"),
+    classification: str = typer.Option(
+        "confidential",
+        "--classification",
+        help="Report classification: confidential (default, full findings) or public (redacted summary)",
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -526,7 +588,7 @@ def analyze(
             format="%(name)s %(levelname)s %(message)s",
         )
 
-    _validate_analyze_inputs(repo_url, fmt, fail_on)
+    _validate_analyze_inputs(repo_url, fmt, fail_on, classification)
     overrides = _gather_and_validate_overrides(
         model_effort=(model, effort),
         per_role_models={
@@ -552,22 +614,17 @@ def analyze(
         json_overrides=(model_overrides, effort_overrides),
     )
 
-    _print_banner()
-    repo_name = _derive_display_name(repo_url)
-    console.print(f"  [{AMBER}]target:[/] {repo_name}  [dim]({repo_url})[/]")
-    mode_label = "quick scan [dim](no critique)[/]" if quick else "full analysis [dim](8 agents)[/]"
-    console.print(f"  [{AMBER}]mode:[/]   {mode_label}")
-    console.print(f"  [{AMBER}]output:[/] {output}  [dim]({fmt})[/]")
-    console.print()
-    if not quick:
-        console.print(_PIPELINE_INFO)
-    console.print()
+    # Capability #56 — suffix the output path so confidential and public
+    # artifacts can coexist on disk (and never overwrite each other).
+    suffixed_output = _classification_filename(str(output), classification)
+
+    _print_run_header(repo_url, suffixed_output, fmt, classification, quick=quick)
 
     try:
         report = asyncio.run(
             _analyzer_factory(
                 repo_url=repo_url,
-                output_path=str(output),
+                output_path=suffixed_output,
                 skip_critique=quick,
                 output_format=fmt,
                 verbose=verbose,
@@ -577,6 +634,7 @@ def analyze(
                 honor_gitignore=not no_gitignore,
                 allow_secrets=allow_secrets,
                 audit_sink=audit_sink,
+                classification=classification,
             )
         )
     except KeyboardInterrupt:
@@ -598,7 +656,7 @@ def analyze(
     if report is None:
         raise typer.Exit(code=1)
 
-    _print_summary(report, str(output), fmt)
+    _print_summary(report, suffixed_output, fmt)
 
     # Quality gate: exit 1 if score is below --min-score threshold
     if min_score > 0:

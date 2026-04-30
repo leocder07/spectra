@@ -1079,3 +1079,89 @@ class TestBuildSarif:
         forbidden = ("AKIAIOSFODNN7EXAMPLE", "BEGIN RSA", "PRIVATE KEY", "src/secrets.py")
         leaks = [s for s in forbidden if s in blob]
         assert not leaks, f"Public SARIF leaked: {leaks}"
+
+
+# ── Capability #56 — _run_analysis end-to-end stamping ───────
+
+
+class TestRunAnalysisClassificationStamping:
+    """``_run_analysis(classification=...)`` stamps the chosen mode onto
+    the produced AnalysisReport so all three render paths (HTML, JSON,
+    SARIF) read the same single field."""
+
+    @staticmethod
+    def _make_report() -> AnalysisReport:
+        finding = Finding(
+            id="sec-001",
+            dimension="security",
+            severity="critical",
+            title="Hardcoded AKIA key",
+            description="found AKIAIOSFODNN7EXAMPLE",
+            location=FileLocation(file_path="src/secrets.py", line_start=1),
+            recommendation="rotate",
+            agent_role="security",
+            confidence=0.99,
+        )
+        dim_score = DimensionScore(dimension="security", score=85.0, grade="B+", findings_count=1, weight=1.0)
+        score_card = ScoreCard(overall_score=85.0, overall_grade="B+", dimensions=(dim_score,), total_findings=1)
+        return AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=score_card,
+            findings=(finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=("security",),
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_analysis_public_writes_redacted_json(self):
+        """End-to-end: --classification public produces JSON with no
+        finding details — even when the underlying report carries them."""
+        report = self._make_report()
+        mock_git = AsyncMock()
+        mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
+        mock_git.validate_repo_size = AsyncMock()
+        mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
+        mock_adapter = MagicMock()
+        mock_adapter.close = AsyncMock()
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            output_path = f.name
+
+        try:
+            with (
+                patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-real-key-12345"}),
+                patch("spectra.infrastructure.main.GitAdapter", return_value=mock_git),
+                patch("spectra.infrastructure.main.ReportAdapter"),
+                patch("spectra.infrastructure.main.AnthropicAdapter", return_value=mock_adapter),
+                patch("spectra.infrastructure.main.RichProgressReporter"),
+                patch("spectra.infrastructure.main.RetryDecorator"),
+                patch("spectra.infrastructure.main.LoggingDecorator"),
+                patch("spectra.infrastructure.main.AgentFactory") as mock_factory_cls,
+                patch("spectra.infrastructure.main.analyze_repository", return_value=report),
+                patch("tempfile.mkdtemp", return_value=_TMP_SPECTRA_TEST),
+                patch("os.chmod"),
+                patch("shutil.rmtree"),
+            ):
+                mock_factory = mock_factory_cls.return_value
+                mock_factory.create = MagicMock()
+                mock_factory.create_specialists = MagicMock(return_value=[])
+
+                result = await _run_analysis(
+                    "https://github.com/test/repo",
+                    output_path,
+                    output_format="json",
+                    classification="public",
+                )
+
+                assert result.classification == "public"
+                content = Path(output_path).read_text()
+                data = json.loads(content)
+                assert data["classification"] == "public"
+                assert data["findings"] == []
+                # Sensitive fixture markers must not survive into bytes.
+                assert "AKIAIOSFODNN7EXAMPLE" not in content
+        finally:
+            os.unlink(output_path)
