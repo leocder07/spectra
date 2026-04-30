@@ -724,17 +724,13 @@ class TestBuildSarif:
         assert sarif["runs"][0]["properties"]["validation_status"] == "validated"
 
     def test_sarif_validation_status_quick_mode(self):
-        report = self._make_report().model_copy(
-            update={"validation_status": "non-validated:quick-mode"}
-        )
+        report = self._make_report().model_copy(update={"validation_status": "non-validated:quick-mode"})
         sarif = _build_sarif(report)
         props = sarif["runs"][0]["properties"]
         assert props["validation_status"] == "non-validated:quick-mode"
 
     def test_sarif_validation_status_critique_skipped(self):
-        report = self._make_report().model_copy(
-            update={"validation_status": "non-validated:critique-skipped"}
-        )
+        report = self._make_report().model_copy(update={"validation_status": "non-validated:critique-skipped"})
         sarif = _build_sarif(report)
         props = sarif["runs"][0]["properties"]
         assert props["validation_status"] == "non-validated:critique-skipped"

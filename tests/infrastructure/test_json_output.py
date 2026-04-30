@@ -230,16 +230,12 @@ class TestJsonValidationStatus:
         assert payload["validation_status"] == "validated"
 
     def test_quick_mode_propagates(self):
-        report = _minimal_report().model_copy(
-            update={"validation_status": "non-validated:quick-mode"}
-        )
+        report = _minimal_report().model_copy(update={"validation_status": "non-validated:quick-mode"})
         payload = build_json_payload(report)
         assert payload["validation_status"] == "non-validated:quick-mode"
 
     def test_critique_skipped_propagates(self):
-        report = _minimal_report().model_copy(
-            update={"validation_status": "non-validated:critique-skipped"}
-        )
+        report = _minimal_report().model_copy(update={"validation_status": "non-validated:critique-skipped"})
         payload = build_json_payload(report)
         assert payload["validation_status"] == "non-validated:critique-skipped"
 
@@ -261,9 +257,7 @@ class TestValidationStatusFormatConsistency:
 
     @pytest.fixture
     def quick_report(self):
-        return _minimal_report().model_copy(
-            update={"validation_status": "non-validated:quick-mode"}
-        )
+        return _minimal_report().model_copy(update={"validation_status": "non-validated:quick-mode"})
 
     def test_json_and_sarif_agree_on_quick_mode(self, quick_report):
         from spectra.infrastructure.main import _build_sarif
@@ -282,8 +276,4 @@ class TestValidationStatusFormatConsistency:
         report = _minimal_report()
         json_payload = build_json_payload(report)
         sarif = _build_sarif(report)
-        assert (
-            json_payload["validation_status"]
-            == sarif["runs"][0]["properties"]["validation_status"]
-            == "validated"
-        )
+        assert json_payload["validation_status"] == sarif["runs"][0]["properties"]["validation_status"] == "validated"

@@ -255,9 +255,7 @@ def _validate_analyze_inputs(repo_url: str, fmt: str, fail_on: str) -> None:
 
     if fail_on not in _FAIL_ON_CHOICES:
         allowed = ", ".join(_FAIL_ON_CHOICES)
-        console.print(
-            f"[{RED}]✗[/] Invalid --fail-on: {fail_on!r}: use one of: {allowed}"
-        )
+        console.print(f"[{RED}]✗[/] Invalid --fail-on: {fail_on!r}: use one of: {allowed}")
         raise typer.Exit(code=1)
 
     if _analyzer_factory is None:
@@ -276,11 +274,7 @@ def _count_findings_at_or_above(report: object, threshold: str) -> int:
         return 0
     cutoff = _FAIL_ON_SEVERITY_RANK[threshold]
     findings = getattr(report, "findings", ()) or ()
-    return sum(
-        1
-        for f in findings
-        if _FAIL_ON_SEVERITY_RANK.get(getattr(f, "severity", ""), 99) <= cutoff
-    )
+    return sum(1 for f in findings if _FAIL_ON_SEVERITY_RANK.get(getattr(f, "severity", ""), 99) <= cutoff)
 
 
 def _gather_and_validate_overrides(
@@ -576,8 +570,7 @@ def analyze(
     offending = _count_findings_at_or_above(report, fail_on)
     if offending > 0:
         console.print(
-            f"\n[{RED}]✗[/] --fail-on={fail_on}: {offending} finding(s) "
-            f"at or above the {fail_on} severity threshold"
+            f"\n[{RED}]✗[/] --fail-on={fail_on}: {offending} finding(s) at or above the {fail_on} severity threshold"
         )
         raise typer.Exit(code=1)
 
