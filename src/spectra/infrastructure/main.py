@@ -56,6 +56,8 @@ from spectra.adapters.cli_controller import (
     cli_entry,
     set_analyzer_factory,
     set_cache_provider,
+    set_history_migrator,
+    set_history_store_provider,
     set_shred_executor,
     set_verifier,
 )
@@ -1088,6 +1090,80 @@ def _attach_receipt(report: AnalysisReport, run_id: str) -> AnalysisReport:
     return report.model_copy(update={"receipt": receipt})
 
 
+# ── #25 + ADR-022: history-store provisioning ──────────────
+
+
+_HISTORY_BACKEND_ENV = "SPECTRA_HISTORY_BACKEND"
+_HISTORY_POSTGRES_URL_ENV = "SPECTRA_POSTGRES_URL"
+
+
+def _resolve_history_backend() -> str:
+    """Pick the history backend from env vars; defaults to ``sqlite``."""
+    explicit = os.environ.get(_HISTORY_BACKEND_ENV, "").strip().lower()
+    if explicit:
+        return explicit
+    # If the user set a Postgres URL, infer they want the postgres backend
+    # without needing the explicit toggle as well.
+    if os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip():
+        return "postgres"
+    return "sqlite"
+
+
+def _provision_history_store() -> object:
+    """Build the appropriate ``ReportStorePort`` for the wired backend.
+
+    Returns a sqlite store by default; a Postgres store when the
+    backend is set to ``postgres`` and ``SPECTRA_POSTGRES_URL`` is
+    populated. Raises ``RuntimeError`` when Postgres is requested but no
+    URL is provided — the CLI catches this and prints a brand-voice ✗.
+    """
+    from spectra.infrastructure.history import (
+        PostgresReportStoreAdapter,
+        SqliteReportStoreAdapter,
+        apply_sqlite_migrations,
+        build_pool,
+        default_history_path,
+    )
+
+    backend = _resolve_history_backend()
+    if backend == "postgres":
+        url = os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip()
+        if not url:
+            msg = "SPECTRA_POSTGRES_URL is required when --history-backend postgres"
+            raise RuntimeError(msg)
+        pool = build_pool(url)
+        return PostgresReportStoreAdapter(pool=pool)
+    # default: sqlite
+    db_path = default_history_path()
+    apply_sqlite_migrations(db_path)
+    return SqliteReportStoreAdapter(db_path=db_path)
+
+
+def _apply_history_migrations() -> tuple[str, ...]:
+    """Apply pending migrations to the wired history backend.
+
+    Returns the tuple of versions actually applied — empty when nothing
+    was pending. Catches the missing-URL error so the CLI prints a clean
+    SPEC-style message instead of a stack trace.
+    """
+    from spectra.infrastructure.history import (
+        apply_postgres_migrations,
+        apply_sqlite_migrations,
+        build_pool,
+        default_history_path,
+    )
+
+    backend = _resolve_history_backend()
+    if backend == "postgres":
+        url = os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip()
+        if not url:
+            msg = "SPECTRA_POSTGRES_URL is required when --history-backend postgres"
+            raise RuntimeError(msg)
+        pool = build_pool(url)
+        return apply_postgres_migrations(pool=pool)
+    return apply_sqlite_migrations(default_history_path())
+
+
 def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
@@ -1108,4 +1184,6 @@ def cli() -> None:
     set_shred_executor(_shred_cache_and_keys)
     set_verifier(verify_receipt, default_public_key_path=default_receipt_public_key_path())
     set_signer(Ed25519SignerAdapter())
+    set_history_store_provider(_provision_history_store)
+    set_history_migrator(_apply_history_migrations)
     cli_entry()
