@@ -587,8 +587,7 @@ class SqliteCacheAdapter:
         current per-user keyring secret.
         """
         rows = src.execute(
-            "SELECT name, sql FROM sqlite_master "
-            "WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
         ).fetchall()
         for name, ddl in rows:
             dst.execute(ddl)
@@ -619,11 +618,7 @@ class SqliteCacheAdapter:
         insert_sql = f"INSERT INTO {table} VALUES ({placeholders})"  # noqa: S608
         recompute = _MAC_RECOMPUTE_KEYS.get(table)
         for row in cursor.fetchall():
-            new_row = (
-                _rekey_row(row, col_names, recompute, rekey_secret)
-                if recompute is not None
-                else row
-            )
+            new_row = _rekey_row(row, col_names, recompute, rekey_secret) if recompute is not None else row
             dst.execute(insert_sql, new_row)
 
     def _tighten_dir_perms(self) -> None:

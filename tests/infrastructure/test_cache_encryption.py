@@ -30,8 +30,7 @@ from spectra.infrastructure.cache_adapter import (
 # ── pysqlcipher3 platform guard ────────────────────────────────
 
 _NO_SQLCIPHER_REASON = (
-    "pysqlcipher3 not installed on this platform — "
-    "encryption tests skip; HMAC + plain SQLite still tested."
+    "pysqlcipher3 not installed on this platform — encryption tests skip; HMAC + plain SQLite still tested."
 )
 requires_sqlcipher = pytest.mark.skipif(
     not is_sqlcipher_available(),
