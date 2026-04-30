@@ -334,6 +334,114 @@ class AnalysisReport(BaseModel, frozen=True):
         return sum(1 for f in self.findings if f.is_critical())
 
 
+class ReportSummary(BaseModel, frozen=True):
+    """Per-scan summary persisted in the history store (ADR-022 §1, #25).
+
+    Carries enough to power every trend / portfolio / drift query without
+    re-loading the full report. The privacy boundary from ADR-018 extends
+    here: NO findings, NO code excerpts, NO PII. We keep grade aggregates
+    and counts only — the full report stays in object storage.
+
+    Two summaries are equal when every persisted field matches. The entity
+    is frozen so multiple workers can share one instance safely.
+
+    Attributes:
+        scan_id: Stable per-run identifier (UUID-shaped string is fine;
+            we never validate the format here so callers can pick UUIDv4
+            or UUIDv7 without a schema bump).
+        repo_signature: 32-hex blake2b of the file tree at scan time.
+        repo_url: The HTTPS URL or local path the user passed.
+        repo_name: Friendly short name (last URL segment).
+        timestamp: UTC timestamp the scan completed.
+        overall_score: Top-level scorecard score (0-100).
+        overall_grade: Letter grade derived from ``overall_score``.
+        score_card: Full ScoreCard (grade + per-dimension breakdown).
+        total_findings: Sum of findings across every dimension.
+        finding_count_by_severity: ``{severity: count}`` aggregate.
+        finding_count_by_dimension: ``{dimension: count}`` aggregate.
+        model_versions: Composite of all model IDs at scan time.
+        prompt_versions: blake2b of every prompt that affected the run.
+        spectra_version: ``spectra.__version__`` at scan time.
+        is_degraded: True when the original run was flagged degraded.
+        validation_status: Trust stamp (validated / quick-mode / etc).
+        duration_seconds: Wall-clock pipeline duration.
+        cost_usd: Estimated USD cost.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    scan_id: str
+    repo_signature: str
+    repo_url: str
+    repo_name: str
+    timestamp: datetime
+    overall_score: float = Field(ge=0.0, le=100.0)
+    overall_grade: Grade
+    score_card: ScoreCard
+    total_findings: int = Field(ge=0)
+    finding_count_by_severity: dict[Severity, int] = Field(default_factory=dict)
+    finding_count_by_dimension: dict[Dimension, int] = Field(default_factory=dict)
+    model_versions: str
+    prompt_versions: str
+    spectra_version: str
+    is_degraded: bool = False
+    validation_status: ValidationStatus = "validated"
+    duration_seconds: float = Field(ge=0.0)
+    cost_usd: float = Field(ge=0.0)
+
+    @classmethod
+    def from_report(
+        cls,
+        *,
+        report: AnalysisReport,
+        scan_id: str,
+        repo_signature: str,
+        timestamp: datetime,
+        model_versions: str,
+        prompt_versions: str,
+        spectra_version: str,
+    ) -> ReportSummary:
+        """Build a summary from an ``AnalysisReport`` plus scan-time metadata.
+
+        Drops every Finding field, every code excerpt, and every cross-cutting
+        insight. Aggregates severity + dimension counts in a single pass.
+
+        Args:
+            report: Completed analysis report.
+            scan_id: Per-run identifier minted by the composition root.
+            repo_signature: blake2b of file tree (already computed by the cache).
+            timestamp: UTC scan completion time.
+            model_versions: Composite model id string for this run.
+            prompt_versions: Composite prompt digest for this run.
+            spectra_version: ``spectra.__version__`` at scan time.
+        """
+        sev_counts: dict[Severity, int] = {}
+        dim_counts: dict[Dimension, int] = {}
+        for finding in report.findings:
+            sev_counts[finding.severity] = sev_counts.get(finding.severity, 0) + 1
+            dim_counts[finding.dimension] = dim_counts.get(finding.dimension, 0) + 1
+        return cls(
+            scan_id=scan_id,
+            repo_signature=repo_signature,
+            repo_url=report.repo_url,
+            repo_name=report.repo_name,
+            timestamp=timestamp,
+            overall_score=report.score_card.overall_score,
+            overall_grade=report.score_card.overall_grade,
+            score_card=report.score_card,
+            total_findings=len(report.findings),
+            finding_count_by_severity=sev_counts,
+            finding_count_by_dimension=dim_counts,
+            model_versions=model_versions,
+            prompt_versions=prompt_versions,
+            spectra_version=spectra_version,
+            is_degraded=report.is_degraded,
+            validation_status=report.validation_status,
+            duration_seconds=report.analysis_duration_seconds,
+            cost_usd=report.total_cost_usd,
+        )
+
+
 class Codebase(BaseModel, frozen=True):
     """Representation of a cloned repository on disk.
 

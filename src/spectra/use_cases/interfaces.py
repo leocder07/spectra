@@ -39,6 +39,7 @@ from spectra.entities.models import (
     Finding,
     Policy,
     RepoCacheKey,
+    ReportSummary,
     SecretFinding,
     Violation,
     Waiver,
@@ -546,6 +547,55 @@ class SignerPort(Protocol):
 
     def verify(self, payload: bytes, signature: bytes, public_hex: str) -> bool:
         """Verify ``signature`` over ``payload``; return False on mismatch."""
+        ...
+
+
+class ReportStorePort(Protocol):
+    """Append-only history store for scan summaries (#25, ADR-022).
+
+    Powers ``spectra history latest|trend``, the portfolio dashboard,
+    Slack drift alerts, and the leaderboard endpoint. Implementations
+    persist ``ReportSummary`` rows keyed by ``repo_signature`` and ``ts``
+    so range queries are index-only scans.
+
+    The port is async because the production backend (Postgres) issues
+    network I/O. The SQLite single-user fallback wraps a synchronous
+    sqlite3 connection in ``asyncio.to_thread`` so the contract is the
+    same regardless of backend.
+
+    Failure mode: every method swallows transient I/O errors internally
+    and surfaces them as logged warnings. Callers wrap the integration
+    point in the same ``safe_*`` pattern used for the audit port — a
+    history-store outage MUST never abort the analysis pipeline.
+    """
+
+    async def store(self, report: ReportSummary) -> None:
+        """Persist one scan summary. Latest write wins on duplicate ``scan_id``.
+
+        Idempotent — replaying the same summary is a no-op.
+        """
+        ...
+
+    async def latest(self, repo_signature: str) -> ReportSummary | None:
+        """Return the most recent summary for ``repo_signature`` or ``None``.
+
+        ``None`` is the legitimate "first scan ever" answer; callers
+        should treat it as a non-error.
+        """
+        ...
+
+    async def history(
+        self,
+        repo_signature: str,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[ReportSummary, ...]:
+        """Return summaries for ``repo_signature`` whose ``timestamp`` is in ``[since, until]``.
+
+        Ordered most-recent-first. Half-open interval semantics —
+        ``since`` is inclusive, ``until`` is exclusive — mirror the
+        ``LAG()`` window query in the drift detector (ADR-022 §6).
+        """
         ...
 
 

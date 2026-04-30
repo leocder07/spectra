@@ -29,6 +29,7 @@ from spectra.use_cases.interfaces import (
     LLMGateway,
     ProgressObserver,
     ReportPort,
+    ReportStorePort,
     TokenPort,
     is_local_path,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "PipelineContext",
     "ProgressObserver",
     "ReportPort",
+    "ReportStorePort",
     "TokenPort",
     "allocate_specialist_budgets",
     "analyze_repository",
