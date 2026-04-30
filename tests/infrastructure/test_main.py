@@ -1281,3 +1281,30 @@ class TestReadKeySourceFilesExceptionHandling:
         assert any("oversize.py" in r.message for r in caplog.records)
 
 
+# ── Fix 3 — TiktokenAdapter cached encoder factory ──────────
+
+
+class TestEncoderFactoryCaching:
+    """The composition root creates a fresh ``TiktokenAdapter`` each time
+    ``_read_key_source_files`` is called, which forces tiktoken to reload
+    the encoding from the on-disk cache file every analysis. Cache the
+    encoder at module level via lru_cache and verify identity reuse."""
+
+    def test_factory_returns_same_encoder_on_repeated_calls(self):
+        from spectra.infrastructure.tiktoken_adapter import get_encoder
+
+        first = get_encoder()
+        second = get_encoder()
+        assert first is second, "encoder factory must return the cached instance"
+
+    def test_factory_keys_by_encoding_name(self):
+        from spectra.infrastructure.tiktoken_adapter import get_encoder
+
+        a = get_encoder("cl100k_base")
+        b = get_encoder("cl100k_base")
+        assert a is b
+        # Different encoding => different cached encoder (still cached for next call).
+        c = get_encoder("o200k_base")
+        d = get_encoder("o200k_base")
+        assert c is d
+        assert a is not c

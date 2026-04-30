@@ -7,7 +7,10 @@ Performance:
     - Hash-based cache: Token counts are stored in a ``dict[int, int]``
       keyed by ``hash(text)``. Repeat lookups are O(1) dict access,
       skipping the expensive ``tiktoken.encode()`` call entirely.
-    - The encoder itself is loaded once at construction time, not per-call.
+    - The encoder itself is shared across every adapter instance via
+      ``get_encoder`` (an ``lru_cache``-backed factory). Constructing
+      ``TiktokenAdapter`` is therefore a hash-table lookup — no disk I/O
+      after the first call per encoding name.
     - Cache hits are common: the file tree string is counted once but
       referenced by all 6 specialist agents, the MetaPrompter, and the
       budget checker — 8+ cache hits per analysis run.
@@ -15,7 +18,26 @@ Performance:
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import tiktoken
+
+
+@lru_cache(maxsize=8)
+def get_encoder(encoding_name: str = "cl100k_base") -> tiktoken.Encoding:
+    """Return a process-wide cached tiktoken encoder for ``encoding_name``.
+
+    ``tiktoken.get_encoding`` performs disk I/O (and a network fetch on
+    a cold cache) for every call, so re-instantiating ``TiktokenAdapter``
+    per analysis was reloading the encoder unnecessarily. Caching here
+    means the second and later calls are pure dict lookups.
+
+    The cache is keyed by encoding name; ``maxsize=8`` is generous —
+    Spectra only ever uses ``cl100k_base`` today, but leaving headroom
+    avoids surprise evictions if a future agent opts into a different
+    tokenizer.
+    """
+    return tiktoken.get_encoding(encoding_name)
 
 
 class TiktokenAdapter:
@@ -36,8 +58,9 @@ class TiktokenAdapter:
         Args:
             encoding_name: tiktoken encoding name (default ``cl100k_base``).
         """
-        # Encoder loaded once at construction — not per-call
-        self._encoder = tiktoken.get_encoding(encoding_name)
+        # Encoder reused across instances via the module-level lru_cache —
+        # avoids reloading the tiktoken encoding on every adapter creation.
+        self._encoder = get_encoder(encoding_name)
         # Hash-based cache: O(1) repeat lookups for identical text
         self._cache: dict[int, int] = {}
 
