@@ -1686,3 +1686,56 @@ class TestPipelineInfoBanner:
         assert "sonnet-4.5" not in _PIPELINE_INFO
         assert "opus-4.6" not in _PIPELINE_INFO
         assert "sonnet-4.6" not in _PIPELINE_INFO
+
+
+# ── Fix 5 — Per-agent override flag help text ─────────────────
+
+
+class TestPerAgentOverrideFlagHelpText:
+    """Each ``--<role>-model`` and ``--<role>-effort`` option must list
+    the allowed values in its Typer ``help=`` string so users discover
+    valid choices without consulting the README. We assert against the
+    Click ``Option.help`` attribute (not against rendered ``--help``
+    text — Q1/Q2 lesson — because Rich's table renderer truncates lines).
+    """
+
+    @staticmethod
+    def _help_for(param_name: str) -> str:
+        """Locate the Click param object for a given long option name.
+
+        Returns the ``help`` text registered against the Typer option so
+        we can assert what users will see when introspecting the CLI.
+        """
+        from typer.main import get_command  # local import — Typer internals
+
+        click_app = get_command(app)
+        analyze_cmd = click_app.commands["analyze"]
+        for param in analyze_cmd.params:
+            if param_name in param.opts:
+                return param.help or ""
+        msg = f"option {param_name!r} not registered on analyze"
+        raise AssertionError(msg)
+
+    def test_architecture_model_help_lists_allowed_models(self):
+        text = self._help_for("--architecture-model")
+        assert "claude-opus-4-7" in text
+        assert "claude-opus-4-6" in text
+        assert "claude-sonnet-4-6" in text
+        assert "claude-haiku-4-5" in text
+
+    def test_security_effort_help_lists_allowed_efforts(self):
+        text = self._help_for("--security-effort")
+        for effort in ("low", "medium", "high", "xhigh", "max"):
+            assert effort in text, f"effort {effort!r} missing from help: {text!r}"
+
+    def test_critique_model_help_lists_allowed_models(self):
+        text = self._help_for("--critique-model")
+        assert "claude-opus-4-7" in text
+        assert "claude-haiku-4-5" in text
+
+    def test_documentation_effort_help_notes_opus_tier_constraint(self):
+        # max effort is Opus-tier only — surface that to the user so they
+        # don't combine --documentation-model haiku with --documentation-effort max.
+        text = self._help_for("--documentation-effort")
+        # The constraint hint can take a few shapes; assert on the keyword.
+        assert "Opus" in text or "opus" in text
