@@ -764,7 +764,6 @@ def cli_entry() -> None:
     app()
 
 
-<<<<<<< HEAD
 # ── spectra verify ──────────────────────────────────────────
 
 
