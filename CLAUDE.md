@@ -192,6 +192,9 @@ spectra/
 
 ## Error Codes
 
+User-facing reference: [`docs/error-codes.md`](docs/error-codes.md) — one
+section per code with when it fires, what to do, and the retry policy.
+
 | Code | Category | Retryable | Description |
 |------|----------|-----------|-------------|
 | SPEC-001 | Infrastructure | Yes (2x) | Git clone failed |
@@ -207,6 +210,7 @@ spectra/
 | SPEC-011 | Security | No | Secret detected by pre-flight scan — bypass with `--allow-secrets` |
 | SPEC-012 | Config | No | `.spectra-policy.yml` / `.spectra-waivers.yml` malformed (#17, #18) |
 | SPEC-013 | Policy | No | Policy gate failed — fix violations or update `.spectra-policy.yml` (#17) |
+| SPEC-014 | Cost Budget | No | `--max-cost-usd` / `--max-cost-per-hour` cap exceeded — rerun with a higher cap or split scope |
 
 ---
 

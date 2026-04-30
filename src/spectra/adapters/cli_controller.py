@@ -186,6 +186,19 @@ def _effort_help(role: str) -> str:
     return f"Override {role} effort. Allowed: {allowed} (xhigh/max Opus-tier only)"
 
 
+_ERROR_DOCS_BASE = "https://github.com/leocder07/spectra/blob/main/docs/error-codes.md"
+
+
+def _docs_link(code: str) -> str:
+    """Return the user-facing docs URL anchor for a SPEC code.
+
+    Used in brand-voice ✗ messages so users can land on the section that
+    explains the failure with one click. Anchor format follows GitHub's
+    auto-slug rules (lowercase, hyphenated).
+    """
+    return f"{_ERROR_DOCS_BASE}#{code.lower()}"
+
+
 _DEFAULT_OUTPUT = Path("spectra-report.html")
 _OUTPUT_OPTION = typer.Option(
     _DEFAULT_OUTPUT,
@@ -714,6 +727,7 @@ def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception han
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
+        console.print(f"  [dim]docs: {_docs_link(err.code)}[/]")
         raise typer.Exit(code=1) from exc
     except Exception as exc:
         console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
@@ -809,6 +823,7 @@ def _invoke_analyzer(
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
+        console.print(f"  [dim]docs: {_docs_link(err.code)}[/]")
         raise typer.Exit(code=1) from exc
     except Exception as exc:
         console.print(f"[{RED}]✗[/] Unexpected error: {exc}")

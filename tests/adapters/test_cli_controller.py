@@ -1739,3 +1739,26 @@ class TestPerAgentOverrideFlagHelpText:
         text = self._help_for("--documentation-effort")
         # The constraint hint can take a few shapes; assert on the keyword.
         assert "Opus" in text or "opus" in text
+
+
+class TestErrorDocsLink:
+    """Fix 6 — every brand-voice ✗ message points at docs/error-codes.md."""
+
+    def test_docs_link_lowercases_spec_code(self):
+        from spectra.adapters.cli_controller import _docs_link
+
+        assert _docs_link("SPEC-001") == ("https://github.com/leocder07/spectra/blob/main/docs/error-codes.md#spec-001")
+
+    def test_docs_link_for_spec_014(self):
+        from spectra.adapters.cli_controller import _docs_link
+
+        assert _docs_link("SPEC-014").endswith("#spec-014")
+
+    def test_git_error_render_includes_docs_link(self):
+        factory = AsyncMock(side_effect=GitError(ERRORS["SPEC-001"]))
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 1
+        assert "SPEC-001" in result.output
+        # The link text appears under the brand-voice ✗ block.
+        assert "docs/error-codes.md#spec-001" in result.output
