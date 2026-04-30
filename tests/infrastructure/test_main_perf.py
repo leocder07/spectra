@@ -4,7 +4,7 @@ Pinned fixes (from the v0.6.0 self-scan):
 
 1. ``_read_key_source_files`` runs reads concurrently via the event loop.
 2. ``shutil.rmtree`` is offloaded to a worker thread on workspace cleanup.
-4. ``_prioritize_source_files`` is O(N + M) on file count by prefix count.
+4. ``prioritize_source_files`` is O(N + M) on file count by prefix count.
 
 Thresholds carry headroom so they pass on a noisy CI box while still
 catching a regression that re-serializes the work.
@@ -21,10 +21,10 @@ from unittest.mock import patch
 import pytest
 
 from spectra.infrastructure.main import (
-    _prioritize_source_files,
     _read_key_source_files,
     _run_analysis,
 )
+from spectra.use_cases.source_file_selection import prioritize_source_files
 
 
 class _FakeGitPort:
@@ -77,7 +77,7 @@ class TestReadKeySourceFilesConcurrency:
 
     @pytest.mark.asyncio
     async def test_token_budget_still_capped_when_parallel(self) -> None:
-        """Concurrent reads must still respect ``_MAX_HEURISTIC_TOKENS``."""
+        """Concurrent reads must still respect ``MAX_HEURISTIC_TOKENS``."""
         git = _FakeGitPort(latency_seconds=0.0)
         file_tree = [f"src/spectra/file_{i}.py" for i in range(20)]
         with patch("spectra.infrastructure.main.TiktokenAdapter") as mock_counter:
@@ -90,7 +90,7 @@ class TestReadKeySourceFilesConcurrency:
 
 
 class TestPrioritizeSourceFilesComplexity:
-    """Pin Fix 4 — ``_prioritize_source_files`` is linear in file count."""
+    """Pin Fix 4 — ``prioritize_source_files`` is linear in file count."""
 
     def test_one_thousand_files_under_50ms(self) -> None:
         """Ranking 1000 files must finish in < 50 ms wall-clock.
@@ -112,10 +112,10 @@ class TestPrioritizeSourceFilesComplexity:
         assert len(file_tree) == 1000
 
         # Warm-up to settle imports + the function-local Path() constructions.
-        _prioritize_source_files(file_tree[:10])
+        prioritize_source_files(file_tree[:10])
 
         start = time.perf_counter()
-        ranked = _prioritize_source_files(file_tree)
+        ranked = prioritize_source_files(file_tree)
         elapsed = time.perf_counter() - start
 
         assert elapsed < 0.050, f"ranking 1000 files took {elapsed * 1000:.1f}ms; expected < 50ms"
@@ -130,7 +130,7 @@ class TestPrioritizeSourceFilesComplexity:
             "pyproject.toml",  # config
             "src/spectra/main.py",  # entry stem in src/
         ]
-        ranked = _prioritize_source_files(file_tree)
+        ranked = prioritize_source_files(file_tree)
         # main.py (entry) first, then pyproject.toml (config), then
         # src/spectra/foo.py (src-prefixed), then tests/something.py.
         assert ranked[0].endswith("main.py")

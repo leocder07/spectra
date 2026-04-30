@@ -40,6 +40,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from functools import lru_cache
 from hashlib import blake2b
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -616,8 +617,15 @@ def _make_cache_key_factory() -> Callable[[str], RepoCacheKey]:
     return _factory
 
 
+@lru_cache(maxsize=1)
 def _composite_model_versions() -> str:
-    """Canonical sort of model IDs across all 8 agents."""
+    """Canonical sort of model IDs across all 8 agents.
+
+    Memoized: the model IDs and ``SPECIALIST_CONFIGS`` are import-time
+    constants, so the composition is deterministic for the lifetime of
+    the process. Avoids repeating the sort + set-dedup on every cache
+    bind / key-factory build.
+    """
     models = sorted({cfg[3] for cfg in SPECIALIST_CONFIGS.values()})
     # Add MetaPrompter and Critique model IDs (both Opus 4.7 today; sort dedups).
     models.append("claude-opus-4-7")  # MetaPrompter
@@ -625,8 +633,16 @@ def _composite_model_versions() -> str:
     return "|".join(sorted(set(models)))
 
 
+@lru_cache(maxsize=1)
 def _composite_prompt_versions() -> str:
-    """blake2b digest of every prompt that affects analysis output."""
+    """blake2b digest of every prompt that affects analysis output.
+
+    Memoized: the prompt strings are module-level constants. The digest
+    is identical for every call within a process; cache it so repeated
+    calls (composition root + ``_bind_cache_run_context`` + every
+    ``_make_cache_key_factory`` invocation in a long-running daemon) do
+    not re-hash the same bytes.
+    """
     digest = blake2b(digest_size=16)
     digest.update(_SHARED_GUIDANCE.encode("utf-8"))
     for role in sorted(SPECIALIST_CONFIGS):
