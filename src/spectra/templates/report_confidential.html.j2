@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'nonce-{{ csp_nonce }}'; style-src 'nonce-{{ csp_nonce }}' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
-    <title>Spectra — {{ report.repo_name }}</title>
+    <meta name="x-dlp-classification" content="confidential">
+    <meta name="x-spectra-classification" content="confidential">
+    <title>Spectra — {{ report.repo_name }} — CONFIDENTIAL</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2480,12 +2482,66 @@
             font-weight: 700;
         }
 
+        /* ─── Classification Banner (capability #56) ─── */
+        .classification-banner {
+            background: #7C3AED;
+            color: #ffffff;
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            line-height: 1.5;
+            padding: 0.7rem 1.25rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            letter-spacing: 0.02em;
+        }
+        .classification-banner strong {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        /* ─── CONFIDENTIAL Watermark (capability #56 §3) ─── */
+        .spectra-watermark {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .spectra-watermark__text {
+            transform: rotate(-30deg);
+            font-family: var(--font-mono);
+            font-size: 3.4rem;
+            font-weight: 800;
+            color: rgba(239, 68, 68, 0.10);
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            user-select: none;
+        }
         @media print {
             .non-validated-banner { position: static; }
+            .spectra-watermark__text {
+                color: rgba(239, 68, 68, 0.18);
+            }
+            .classification-banner { position: static; }
         }
     </style>
 </head>
 <body>
+    <!-- Classification Banner (capability #56) — distinct from disclaimer -->
+    <div class="classification-banner" role="note" aria-label="Report classification">
+        <strong>CONFIDENTIAL</strong> — internal use only. Do not share outside your organization.
+    </div>
+
+    <!-- Diagonal watermark overlay (capability #56 §3) -->
+    <div class="spectra-watermark" aria-hidden="true">
+        <div class="spectra-watermark__text">{{ watermark.text }}</div>
+    </div>
+
     <!-- Indicative-Analysis Disclaimer (capability #61) -->
     <div class="disclaimer-banner" id="disclaimer-banner" role="note" aria-label="Analysis disclaimer">
         <div class="disclaimer-banner-content">
