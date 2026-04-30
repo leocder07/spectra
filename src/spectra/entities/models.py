@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import bisect
 import secrets
-from datetime import datetime, timedelta, timezone  # noqa: TC003 — used by Pydantic at runtime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -816,7 +816,7 @@ _MIN_WAIVER_REASON_LEN: int = 10
 
 def _default_waiver_expiry() -> datetime:
     """Return ``utcnow + 180d`` for the default waiver TTL."""
-    return datetime.now(timezone.utc) + timedelta(days=_DEFAULT_WAIVER_TTL_DAYS)
+    return datetime.now(UTC) + timedelta(days=_DEFAULT_WAIVER_TTL_DAYS)
 
 
 class Waiver(BaseModel, frozen=True):

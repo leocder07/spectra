@@ -7,7 +7,7 @@ is reflected on the final ``AnalysisReport``.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -25,7 +25,7 @@ from spectra.use_cases.analyze_repository import PipelineContext, analyze_reposi
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _finding(
@@ -119,20 +119,14 @@ async def test_waiver_suppresses_matching_finding_in_pipeline(codebase, request_
 
 
 @pytest.mark.asyncio
-async def test_pragma_suppresses_matching_finding_in_pipeline(
-    codebase, request_obj
-) -> None:
+async def test_pragma_suppresses_matching_finding_in_pipeline(codebase, request_obj) -> None:
     finding = _finding(file_path="src/x.py", line=42, rule_id="SEC-AUTH-101")
     specialists = [_make_agent("security", findings=(finding,))]
     for role in ("architecture", "quality", "documentation", "dependency", "performance"):
         specialists.append(_make_agent(role))
 
     # Source content with pragma on line 41 → suppresses line 42
-    source = (
-        "\n" * 40
-        + "# spectra: ignore-next-line SEC-AUTH-101\n"
-        + "vulnerable_call()\n"
-    )
+    source = "\n" * 40 + "# spectra: ignore-next-line SEC-AUTH-101\n" + "vulnerable_call()\n"
 
     ctx = PipelineContext(
         request=request_obj,

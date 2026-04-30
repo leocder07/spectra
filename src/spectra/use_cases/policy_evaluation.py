@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 from spectra.entities.models import Violation
 
 if TYPE_CHECKING:
-    from spectra.entities.enums import Severity
     from spectra.entities.models import AnalysisReport, Finding, Policy
 
 
@@ -76,10 +75,7 @@ def _check_severity_gate(
             out.append(
                 Violation(
                     kind="severity_gate",
-                    message=(
-                        f"{f.severity} finding {f.id} exceeds gate "
-                        f"{policy.severity_gate!r}"
-                    ),
+                    message=(f"{f.severity} finding {f.id} exceeds gate {policy.severity_gate!r}"),
                     finding_id=f.id,
                 )
             )
@@ -94,18 +90,16 @@ def _check_forbidden_rule_ids(
     if not policy.forbidden_rule_ids:
         return []
     forbidden = set(policy.forbidden_rule_ids)
-    out: list[Violation] = []
-    for f in findings:
-        if f.rule_id and f.rule_id in forbidden:
-            out.append(
-                Violation(
-                    kind="forbidden_rule_id",
-                    message=f"forbidden rule {f.rule_id} present in finding {f.id}",
-                    finding_id=f.id,
-                    rule_id=f.rule_id,
-                )
-            )
-    return out
+    return [
+        Violation(
+            kind="forbidden_rule_id",
+            message=f"forbidden rule {f.rule_id} present in finding {f.id}",
+            finding_id=f.id,
+            rule_id=f.rule_id,
+        )
+        for f in findings
+        if f.rule_id and f.rule_id in forbidden
+    ]
 
 
 def _check_min_score(policy: Policy, report: AnalysisReport) -> list[Violation]:
@@ -132,17 +126,15 @@ def _check_required_dimensions(
     if not policy.required_dimensions:
         return []
     present = {d.dimension for d in report.score_card.dimensions}
-    out: list[Violation] = []
-    for required in policy.required_dimensions:
-        if required not in present:
-            out.append(
-                Violation(
-                    kind="required_dimension",
-                    message=f"required dimension {required!r} missing from report",
-                    dimension=required,
-                )
-            )
-    return out
+    return [
+        Violation(
+            kind="required_dimension",
+            message=f"required dimension {required!r} missing from report",
+            dimension=required,
+        )
+        for required in policy.required_dimensions
+        if required not in present
+    ]
 
 
 __all__ = ["evaluate_policy"]

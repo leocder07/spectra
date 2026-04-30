@@ -25,13 +25,16 @@ from spectra import __version__
 from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.adapters.pr_comment_renderer import render_pr_comment
+from spectra.adapters.waiver_cli import approver_app, waive_command
 from spectra.entities.errors import (
+    ERRORS,
     AgentError,
     GitError,
     SecretDetectedError,
+    SpectraError,
     SpectraRetryError,
 )
-from spectra.entities.models import AnalysisReport, CacheStats
+from spectra.entities.models import AnalysisReport, CacheStats, Violation
 from spectra.use_cases.interfaces import CachePort, is_local_path
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
@@ -643,6 +646,9 @@ def analyze(
     except SecretDetectedError as exc:
         _print_secret_detection(exc)
         raise typer.Exit(code=1) from exc
+    except PolicyGateError as exc:
+        _print_policy_violations(exc.violations)
+        raise typer.Exit(code=1) from exc
     except (GitError, SpectraRetryError, AgentError) as exc:
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
@@ -677,6 +683,35 @@ def analyze(
             f"\n[{RED}]✗[/] --fail-on={fail_on}: {offending} finding(s) at or above the {fail_on} severity threshold"
         )
         raise typer.Exit(code=1)
+
+
+class PolicyGateError(Exception):
+    """Raised when ``.spectra-policy.yml`` rejects the run (#17 — SPEC-013).
+
+    Carried out of the analyzer at the CLI seam so the controller can
+    render every violation in one brand-voice ✗ block before exiting 1.
+
+    Attributes:
+        error: ``SpectraError`` SPEC-013 — non-retryable.
+        violations: Tuple of Violation entries returned by
+            ``PolicyPort.evaluate``.
+    """
+
+    def __init__(self, violations: tuple[Violation, ...]) -> None:
+        self.error: SpectraError = ERRORS["SPEC-013"]
+        self.violations: tuple[Violation, ...] = violations
+        super().__init__(f"{self.error.code}: {self.error.message}")
+
+
+def _print_policy_violations(violations: tuple[Violation, ...]) -> None:
+    """Render the SPEC-013 brand-voice failure block listing every violation."""
+    spec_013 = ERRORS["SPEC-013"]
+    console.print(f"[{RED}]✗[/] {spec_013.code}: {len(violations)} policy violations")
+    for v in violations:
+        console.print(f"  [{RED}]•[/] [{AMBER}]{v.kind}[/] {v.message}")
+    console.print(
+        "  [dim]Fix the violations or update .spectra-policy.yml; see https://github.com/leocder07/spectra#policy[/]"
+    )
 
 
 def _print_secret_detection(exc: SecretDetectedError) -> None:
@@ -729,6 +764,7 @@ def cli_entry() -> None:
     app()
 
 
+<<<<<<< HEAD
 # ── spectra verify ──────────────────────────────────────────
 
 
@@ -830,6 +866,12 @@ def _compute_score_card_hash(score_card: object) -> str:
         separators=(",", ":"),
     )
     return hashlib.blake2b(serialised.encode("utf-8"), digest_size=32).hexdigest()
+
+
+# ── spectra waive + approver subcommands (#18) ───────────────
+
+app.command("waive", help="Sign and append a waiver suppressing one finding")(waive_command)
+app.add_typer(approver_app, name="approver")
 
 
 # ── spectra cache subcommands ─────────────────────────────────

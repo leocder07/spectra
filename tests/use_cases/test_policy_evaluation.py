@@ -21,14 +21,17 @@ from spectra.entities.models import (
 from spectra.use_cases.policy_evaluation import evaluate_policy
 
 
-def _scorecard(overall: float = 85.0, dims: tuple[str, ...] = (
-    "architecture",
-    "security",
-    "quality",
-    "documentation",
-    "maintainability",
-    "performance",
-)) -> ScoreCard:
+def _scorecard(
+    overall: float = 85.0,
+    dims: tuple[str, ...] = (
+        "architecture",
+        "security",
+        "quality",
+        "documentation",
+        "maintainability",
+        "performance",
+    ),
+) -> ScoreCard:
     dimensions = tuple(
         DimensionScore(
             dimension=d,
