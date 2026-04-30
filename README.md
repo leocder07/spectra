@@ -358,7 +358,7 @@ graph TB
 | Cost | $5-10 per analysis (Opus 4.7, full mode, real Anthropic spend) |
 | Speed | Under 5 minutes end-to-end |
 | Architecture | Clean Architecture, 4 layers |
-| Error codes | 11 typed (SPEC-001 to SPEC-011) |
+| Error codes | 14 typed (SPEC-001 to SPEC-014) — see [docs/error-codes.md](docs/error-codes.md) |
 
 ---
 
@@ -509,6 +509,10 @@ Spectra writes a SQLite cache to `${XDG_CACHE_HOME:-~/.cache}/spectra/cache.db` 
 | `spectra cache prune` | Physically delete stale rows that no current key matches — safe to run anytime |
 
 Cache I/O failures are never fatal — the pipeline degrades to no-cache for the rest of the run (see SPEC-010).
+
+### Error codes
+
+Every fallible operation in Spectra raises a typed `SpectraError` — `SPEC-001` through `SPEC-014`. The full reference (when each fires, what to do, retryable yes/no, max retries) lives in [`docs/error-codes.md`](docs/error-codes.md). The CLI surfaces the code in every brand-voice ✗ message so CI logs are searchable.
 
 ---
 
