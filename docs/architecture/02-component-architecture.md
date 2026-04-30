@@ -53,13 +53,13 @@ Source: [`diagrams/03-domain-port-protocols.puml`](./diagrams/03-domain-port-pro
 | `CachePort` | `interfaces.py` | `SqliteCacheAdapter` | Stable |
 | `WorkspaceFilterPort` | `interfaces.py` | `PathspecFilterAdapter` | Stable (v0.5.0) |
 | `SecretScannerPort` | `interfaces.py` | `RegexSecretScanner` | Stable (v0.5.0) |
-| `AuditPort` | `interfaces.py` | `JsonLinesAuditAdapter`, `OtlpAuditAdapter`, `StdoutAuditAdapter` | Stable (v0.6.0) — [ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md) |
-| `CostTrackerPort` | `interfaces.py` | `InMemoryCostTracker`, `SqliteCostTracker` | Stable (v0.6.0) — [ADR-013](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-013-task-budget-and-rate-coordination.md) |
+| `AuditPort` | `interfaces.py` | `JsonLinesAuditAdapter`, `OtlpAuditAdapter`, `StdoutAuditAdapter` | Stable (v0.6.0) — [ADR-018](./adr/ADR-018-audit-log-and-identity.md) |
+| `CostTrackerPort` | `interfaces.py` | `InMemoryCostTracker`, `SqliteCostTracker` | Stable (v0.6.0) — [ADR-013](./adr/ADR-013-task-budget-and-rate-coordination.md) |
 | `PolicyPort` | `interfaces.py` | `YamlPolicyAdapter` | Stable (v0.6.0) — roadmap #17 |
 | `WaiverPort` | `interfaces.py` | `YamlWaiverAdapter` (Ed25519-verified) | Stable (v0.6.0) — roadmap #18 |
 | `ReceiptSigner` | `interfaces.py` | `Ed25519ReceiptSigner` | Stable (v0.6.0) — roadmap #57 |
-| `MemoryPort` | (additive) | `LocalFileMemoryAdapter`, `DeveloperMemoryAdapter`, `ManagedAgentMemoryAdapter` | Q4 designed — [ADR-014](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-014-anthropic-memory-stores-for-team-org.md) |
-| `ManagedAgentGateway` | (sibling Protocol) | `AnthropicManagedAgentAdapter` | Q5 designed — [ADR-016](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-016-managed-agents-gateway.md) |
+| `MemoryPort` | (additive) | `LocalFileMemoryAdapter`, `DeveloperMemoryAdapter`, `ManagedAgentMemoryAdapter` | Q4 designed — [ADR-014](./adr/ADR-014-anthropic-memory-stores-for-team-org.md) |
+| `ManagedAgentGateway` | (sibling Protocol) | `AnthropicManagedAgentAdapter` | Q5 designed — [ADR-016](./adr/ADR-016-managed-agents-gateway.md) |
 
 ## Composition root
 

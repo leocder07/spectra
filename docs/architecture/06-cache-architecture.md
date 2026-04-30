@@ -24,7 +24,7 @@ Source: [`diagrams/06-cache-class-diagram.puml`](./diagrams/06-cache-class-diagr
 ${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/cache.db   (mode 0600)
 ```
 
-Parent directory `chmod 0700`. WAL/SHM siblings tightened to 0600. Per-`$UID` namespace eliminates a class of poisoning attack on shared dev hosts and CI runner images ([ADR-012](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-012-cache-hmac-per-user-namespace.md)). `migrate_legacy_cache()` removes any pre-ADR-012 unscoped `cache.db` on first run after upgrade — the next run cold-caches.
+Parent directory `chmod 0700`. WAL/SHM siblings tightened to 0600. Per-`$UID` namespace eliminates a class of poisoning attack on shared dev hosts and CI runner images ([ADR-012](./adr/ADR-012-cache-hmac-per-user-namespace.md)). `migrate_legacy_cache()` removes any pre-ADR-012 unscoped `cache.db` on first run after upgrade — the next run cold-caches.
 
 ## Three caches, one DB
 
@@ -142,7 +142,7 @@ Roadmap #13. The cache file is now AES-256 encrypted via SQLCipher 4. The encryp
 
 ## Q3-designed: distributed cache adapters
 
-[ADR-019](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-019-distributed-cache-adapters.md). `RedisCacheAdapter` + `S3CacheAdapter` + `TieredCacheAdapter` (SQLite L1, Redis/S3 L2). The HMAC contract extends to L2; single-flight pattern kills stampedes. Tiered mode is opt-in via config.
+[ADR-019](./adr/ADR-019-distributed-cache-adapters.md). `RedisCacheAdapter` + `S3CacheAdapter` + `TieredCacheAdapter` (SQLite L1, Redis/S3 L2). The HMAC contract extends to L2; single-flight pattern kills stampedes. Tiered mode is opt-in via config.
 
 ## Invariants and key decisions
 

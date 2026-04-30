@@ -7,6 +7,11 @@ Stages:
     4. MERGE — Deduplicate findings and validate file paths.
     5. CRITIQUE — CritiqueAgent validates findings (adaptive thinking).
     6. REPORT — Build ``AnalysisReport`` with computed ScoreCard.
+
+ADR references in this module: ADR-002 (parallel agent pipeline),
+ADR-008 (adaptive thinking), ADR-009 (batch granularity), ADR-011
+(prompt-injection isolation). See ``docs/architecture/adr/`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

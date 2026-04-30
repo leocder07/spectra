@@ -10,6 +10,10 @@ test that touches main:
   :class:`spectra.infrastructure.receipt_signer.ReceiptSigner`. The
   private key sits in the OS keyring under service ``spectra-receipt-key``;
   the public key lives at ``~/.config/spectra/receipt.pub``.
+
+ADR references: ADR-018 (audit log + identity), capability #57 (Ed25519
+signed scan receipt). See ``docs/architecture/adr/`` and
+``docs/glossary.md`` for the at-a-glance index.
 """
 
 from __future__ import annotations

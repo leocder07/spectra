@@ -8,6 +8,10 @@ rather than maintain NxM adapter combinations here.
 
 Retries: bounded exponential backoff (configurable, default 3 retries
 1s/2s/4s). Once exhausted, the adapter raises and ``safe_emit`` swallows.
+
+ADR references: ADR-018 (audit log + identity).
+See ``docs/architecture/adr/ADR-018-audit-log-and-identity.md`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

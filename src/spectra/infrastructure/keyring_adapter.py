@@ -10,6 +10,10 @@ Failure model:
     library) raises :class:`AgentError` carrying ``SPEC-010``. The
     composition root catches this once and degrades the entire run to
     no-cache mode — never fatal.
+
+ADR references: ADR-012 (cache HMAC + per-user namespace).
+See ``docs/architecture/adr/ADR-012-cache-hmac-per-user-namespace.md``
+and ``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

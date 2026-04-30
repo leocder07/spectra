@@ -3,6 +3,12 @@
 All models use ``frozen=True`` to guarantee immutability across the
 pipeline.  Constants define scoring thresholds shared by use-case and
 infrastructure layers.
+
+ADR references in this module: ADR-004 (frozen Pydantic models), ADR-011
+(prompt-injection isolation — ``BatchPrompt.nonce``, ``rule_id`` sentinel,
+``is_compromised``), ADR-013 (task budget — ``AgentRunConfig``). See
+``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
+ADR index.
 """
 
 from __future__ import annotations

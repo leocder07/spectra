@@ -16,6 +16,11 @@ Protocols defined here:
 
 Helpers:
     is_local_path — Pure classifier distinguishing local paths from URLs.
+
+ADR references in this module: ADR-001 (clean architecture / port pattern),
+ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port). See
+``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
+ADR index.
 """
 
 from __future__ import annotations

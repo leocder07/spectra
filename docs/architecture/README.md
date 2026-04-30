@@ -5,7 +5,7 @@
 
 This directory is the canonical, source-controlled architecture reference for Spectra. Every document is paired with a PlantUML source under [`diagrams/`](./diagrams/) and a rendered SVG. The text describes the contract; the diagrams are the picture; the code under [`src/spectra/`](../../src/spectra/) is the truth.
 
-The 10 [Architecture Decision Records](./adr/) under `docs/architecture/adr/` capture the original architectural calls. The 10 strategy ADRs (ADR-011 through ADR-020, in `spectra-wt-strategy`) capture the Q1 + Q2 capability designs — every one of them is now shipped in v0.6.0.
+All 20 [Architecture Decision Records](./adr/) live under `docs/architecture/adr/`. ADR-001 through ADR-010 capture the original architectural calls; ADR-011 through ADR-020 capture the Q1 + Q2 capability designs — every one of them is now shipped in v0.6.0. (Prior to v0.6.0 the Q1/Q2 ADRs lived under `docs/strategy/architecture/`; they were consolidated into `docs/architecture/adr/` so there is one canonical home for every ADR.)
 
 ---
 
@@ -88,7 +88,7 @@ The render command takes ~10 seconds for the full set on a 2024 MacBook. CI does
 ## Conventions
 
 - **Color palette** is consistent across diagrams: violet `#7C3AED` for Spectra components, amber `#F59E0B` for ports, green `#22C55E` for healthy paths and adapters, red `#EF4444` for security boundaries / failed paths, grey `#9CA3AF` for designed-but-not-shipped elements (Q3+).
-- **ADR cross-reference** uses absolute paths to the strategy worktree where the ADRs live: e.g. `../../spectra-wt-strategy/docs/strategy/architecture/ADR-011-prompt-injection-isolation.md`.
+- **ADR cross-reference** uses relative paths to the canonical ADR directory: e.g. `./adr/ADR-011-prompt-injection-isolation.md`. All 20 ADRs live in [`docs/architecture/adr/`](./adr/) — see also [`docs/glossary.md`](../glossary.md) for the at-a-glance index.
 - **Code references** use `path:line` form pointing at the v0.6.0 baseline (`src/spectra/...`).
 - **Q3+-designed elements** are stated as such inline. They are present in the diagrams (greyed/dashed) so the documents can be promoted to "shipped" with a single status flip per element when the corresponding release lands.
 

@@ -108,7 +108,7 @@ The resolver runs once at process start and emits an `auth.identity_resolved` ev
 
 ## Audit events (v0.6.0)
 
-`AuditEvent` ([ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md)):
+`AuditEvent` ([ADR-018](./adr/ADR-018-audit-log-and-identity.md)):
 
 ```
 event_id: UUIDv7
@@ -155,7 +155,7 @@ The DPA pack (Q2, roadmap #11) will name Anthropic explicitly and document the c
 1. Spectra never phones home.
 2. Anthropic does not retain prompts or completions for training (per Anthropic data policy on the Workbench API).
 3. The cache is per-`$UID` and tamper-detected. A second user on the same host cannot read or write your cache rows (Unix permissions + per-user HMAC).
-4. The audit log (Q2) records signatures, not content. The disciplined fields list is in [ADR-018 §4](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md).
+4. The audit log (Q2) records signatures, not content. The disciplined fields list is in [ADR-018 §4](./adr/ADR-018-audit-log-and-identity.md).
 5. Secret material is detected pre-prompt; matched secrets default to abort, never silently re-leak.
 
 ## Invariants and key decisions

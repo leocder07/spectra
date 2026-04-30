@@ -1,9 +1,9 @@
 # Strategy Architecture — INDEX
 
-**Author:** Chief Architect · 2026-04-29
-**Scope:** Architectural commitments for the Q1-Q4 capabilities synthesised by the Head of Product in [`product-roadmap.md`](../product-roadmap.md). Builds on the existing 10 ADRs at [`docs/architecture/adr/`](../../architecture/adr/).
+**Author:** Chief Architect · 2026-04-29 · **Last revised:** 2026-04-30 (ADRs consolidated under `docs/architecture/adr/`)
+**Scope:** Architectural commitments for the Q1-Q4 capabilities synthesised by the Head of Product in [`product-roadmap.md`](../product-roadmap.md). Builds on the original 10 ADRs at [`docs/architecture/adr/`](../../architecture/adr/) — ADRs 011-020 below now live in the same canonical directory.
 
-These ADRs are *proposed* — they translate the four persona reports (Red Team, CISO, CTO, Memory) into architectural calls. They are written to be reviewable individually and to compose into the steady-state architecture described in [`agentic-architecture.md`](agentic-architecture.md).
+These ADRs translate the four persona reports (Red Team, CISO, CTO, Memory) into architectural calls. They are written to be reviewable individually and to compose into the steady-state architecture described in [`agentic-architecture.md`](agentic-architecture.md). Every link below points to the consolidated `docs/architecture/adr/` location — see [`docs/glossary.md`](../../glossary.md) for the at-a-glance ADR index.
 
 ---
 
@@ -11,16 +11,16 @@ These ADRs are *proposed* — they translate the four persona reports (Red Team,
 
 | ADR | Title | Decision (one line) | Quarter | Effort | Primary persona |
 |-----|-------|---------------------|---------|--------|-----------------|
-| **011** | [Prompt-injection isolation](ADR-011-prompt-injection-isolation.md) | Per-file delimiter nonces + CritiqueAgent adversarial check + adversarial eval harness as the regression gate | Q1 | M | Red Team |
-| **012** | [Cache HMAC + per-user namespace](ADR-012-cache-hmac-per-user-namespace.md) | Per-user `$UID` cache directory + per-row HMAC against an OS-keyring secret + silent re-key migration | Q1 | S | Red Team + CISO |
-| **013** | [Task budget + fleet rate coordination](ADR-013-task-budget-and-rate-coordination.md) | `task_budget` on every agent role + per-run/per-window cost tracker + Redis-backed `RateCoordinatorPort` (in-process default, Redis for fleets) | Q1-Q3 | M | Red Team + CTO |
-| **014** | [Anthropic Memory Stores for team/org tier](ADR-014-anthropic-memory-stores-for-team-org.md) | One `MemoryPort` Protocol; three adapters (`LocalFileMemoryAdapter`, `DeveloperMemoryAdapter` against Memory Tool, `ManagedAgentMemoryAdapter` against Memory Stores); composite routes by scope | Q4 | L | Memory |
-| **015** | [`query_codebase` use case](ADR-015-query-codebase-use-case.md) | New Layer-2 use case + `spectra ask` / `spectra brief` CLI; prompt-cached preamble drives $0.05/cached-call; streaming Markdown answers with citations; per-Q&A audit event | Q4 | M | Memory |
-| **016** | [Managed Agents gateway adapter](ADR-016-managed-agents-gateway.md) | Sibling `ManagedAgentGateway` Protocol; `AnthropicManagedAgentAdapter` ships in Q5; A/B then cut-over in Q6; legacy `LLMGateway` stays for Bedrock/Vertex parity | Q5-Q6 | XL | CTO |
-| **017** | [Custom rules + plugin architecture](ADR-017-custom-rules-plugin-architecture.md) | `Specialist` Protocol + entry-point discovery (`spectra.specialists`) + Sigstore-signed plugins + YAML rule packs that overlay prompts/weights/thresholds + Skills for per-language knowledge | Q6 | M-L | CTO + Red Team |
-| **018** | [Audit log + identity](ADR-018-audit-log-and-identity.md) | `AuditPort` Protocol + JSON-Lines / OTLP / CloudWatch adapters; identity from env > git > OIDC > hostname; every state transition emits a structured event; payload privacy enforced at the adapter | Q2 | M | CISO |
-| **019** | [Distributed cache adapters](ADR-019-distributed-cache-adapters.md) | `RedisCacheAdapter` + `S3CacheAdapter` + `TieredCacheAdapter` (SQLite L1, Redis/S3 L2); Redis recommended for teams; single-flight to kill stampedes; HMAC contract extends to L2 | Q3 | M | CTO |
-| **020** | [`--config-file` YAML](ADR-020-config-file-yaml.md) | `.spectra.yml` with sections per port (`cache`, `audit`, `memory`, `cost`, `rate`, `plugins`, ...); precedence CLI > env > project > user > default; same Pydantic validator | Q2 | S-M | CTO + power users |
+| **011** | [Prompt-injection isolation](../../architecture/adr/ADR-011-prompt-injection-isolation.md) | Per-file delimiter nonces + CritiqueAgent adversarial check + adversarial eval harness as the regression gate | Q1 | M | Red Team |
+| **012** | [Cache HMAC + per-user namespace](../../architecture/adr/ADR-012-cache-hmac-per-user-namespace.md) | Per-user `$UID` cache directory + per-row HMAC against an OS-keyring secret + silent re-key migration | Q1 | S | Red Team + CISO |
+| **013** | [Task budget + fleet rate coordination](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md) | `task_budget` on every agent role + per-run/per-window cost tracker + Redis-backed `RateCoordinatorPort` (in-process default, Redis for fleets) | Q1-Q3 | M | Red Team + CTO |
+| **014** | [Anthropic Memory Stores for team/org tier](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md) | One `MemoryPort` Protocol; three adapters (`LocalFileMemoryAdapter`, `DeveloperMemoryAdapter` against Memory Tool, `ManagedAgentMemoryAdapter` against Memory Stores); composite routes by scope | Q4 | L | Memory |
+| **015** | [`query_codebase` use case](../../architecture/adr/ADR-015-query-codebase-use-case.md) | New Layer-2 use case + `spectra ask` / `spectra brief` CLI; prompt-cached preamble drives $0.05/cached-call; streaming Markdown answers with citations; per-Q&A audit event | Q4 | M | Memory |
+| **016** | [Managed Agents gateway adapter](../../architecture/adr/ADR-016-managed-agents-gateway.md) | Sibling `ManagedAgentGateway` Protocol; `AnthropicManagedAgentAdapter` ships in Q5; A/B then cut-over in Q6; legacy `LLMGateway` stays for Bedrock/Vertex parity | Q5-Q6 | XL | CTO |
+| **017** | [Custom rules + plugin architecture](../../architecture/adr/ADR-017-custom-rules-plugin-architecture.md) | `Specialist` Protocol + entry-point discovery (`spectra.specialists`) + Sigstore-signed plugins + YAML rule packs that overlay prompts/weights/thresholds + Skills for per-language knowledge | Q6 | M-L | CTO + Red Team |
+| **018** | [Audit log + identity](../../architecture/adr/ADR-018-audit-log-and-identity.md) | `AuditPort` Protocol + JSON-Lines / OTLP / CloudWatch adapters; identity from env > git > OIDC > hostname; every state transition emits a structured event; payload privacy enforced at the adapter | Q2 | M | CISO |
+| **019** | [Distributed cache adapters](../../architecture/adr/ADR-019-distributed-cache-adapters.md) | `RedisCacheAdapter` + `S3CacheAdapter` + `TieredCacheAdapter` (SQLite L1, Redis/S3 L2); Redis recommended for teams; single-flight to kill stampedes; HMAC contract extends to L2 | Q3 | M | CTO |
+| **020** | [`--config-file` YAML](../../architecture/adr/ADR-020-config-file-yaml.md) | `.spectra.yml` with sections per port (`cache`, `audit`, `memory`, `cost`, `rate`, `plugins`, ...); precedence CLI > env > project > user > default; same Pydantic validator | Q2 | S-M | CTO + power users |
 
 ---
 
@@ -130,14 +130,14 @@ Every new capability touches an existing port or adds a sibling. None breaks an 
 
 These five mirror [product-roadmap.md §7](../product-roadmap.md) but framed as architecture asks:
 
-1. **Should `spectra serve` (HTTP/MCP server mode) ship in Q5 alongside ADR-016?** [ADR-015](ADR-015-query-codebase-use-case.md) deferred this; [agentic-architecture.md §5.2](agentic-architecture.md) keeps it out of steady-state. Greenlight unlocks Slack-bot / hosted-Q&A; rejection keeps the CLI-only commitment.
-2. **Per-org Memory Store as a paid SKU from day one, or freemium for ≤3 repos?** ADR-014 assumed paid; product Conflict 5 backs that. Confirm before [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md) ships.
+1. **Should `spectra serve` (HTTP/MCP server mode) ship in Q5 alongside ADR-016?** [ADR-015](../../architecture/adr/ADR-015-query-codebase-use-case.md) deferred this; [agentic-architecture.md §5.2](agentic-architecture.md) keeps it out of steady-state. Greenlight unlocks Slack-bot / hosted-Q&A; rejection keeps the CLI-only commitment.
+2. **Per-org Memory Store as a paid SKU from day one, or freemium for ≤3 repos?** ADR-014 assumed paid; product Conflict 5 backs that. Confirm before [ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md) ships.
 3. **A 7th ScoreCard dimension — when?** ADR-017 keeps the dimension count fixed at 6. A Web3-shop buyer asking for "DeFi" as a top-level dimension forces an entity-layer change. Decide threshold ($X ARR or N customer asks) for unblocking.
 4. **Plugin trust model — Sigstore + Spectra trust root, or community-signed?** ADR-017 commits to Sigstore + Spectra-rooted; if the founder wants community-signed for ecosystem velocity, the trust model changes.
 5. **Bedrock / Vertex priority.** ADR-016 + ADR-014 commit to fallback paths. Whether to prioritise Bedrock-equivalent of Memory Stores when AWS ships one is a customer-driven call.
 
 ---
 
-*All paths in this index are absolute under `/Users/leocder/Documents/spectra/spectra/spectra-wt-strategy/docs/strategy/architecture/`. Existing ADRs at `/Users/leocder/Documents/spectra/spectra/spectra-wt-strategy/docs/architecture/adr/` are referenced relative.*
+*All ADR links above point to the canonical [`docs/architecture/adr/`](../../architecture/adr/) directory (consolidated 2026-04-30). The glossary at [`docs/glossary.md`](../../glossary.md) is the at-a-glance index.*
 
-*Last updated: 2026-04-29.*
+*Last updated: 2026-04-30.*

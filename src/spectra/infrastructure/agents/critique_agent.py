@@ -31,6 +31,12 @@ Prompt caching (Anthropic, Apr 2026):
     Spectra runs the same critique prompt across all analyses, repeated
     calls benefit from Anthropic's automatic prompt caching (up to 90%
     cost reduction on cached system prompt tokens).
+
+ADR references in this module: ADR-003 (extended thinking, critique only;
+superseded), ADR-008 (adaptive thinking supersedes extended), ADR-011
+(prompt-injection isolation — adversarial check), ADR-013 (task budget).
+See ``docs/architecture/adr/`` and ``docs/glossary.md`` for the
+at-a-glance ADR index.
 """
 
 from __future__ import annotations

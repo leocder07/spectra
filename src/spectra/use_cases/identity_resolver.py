@@ -9,6 +9,10 @@ Precedence — first non-empty source wins:
 
 The use case never imports ``subprocess`` directly to read git config —
 the helper is a private module function patched in tests.
+
+ADR references: ADR-018 (audit log + identity).
+See ``docs/architecture/adr/ADR-018-audit-log-and-identity.md`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

@@ -51,7 +51,7 @@ class Finding(BaseModel, frozen=True):
 
 **Equality semantics — load-bearing.** `__hash__` and `__eq__` collapse two findings to one when their `(file_path, line_start, dimension)` triple matches. This is what lets the orchestrator deduplicate the union of cached + fresh findings in O(n) via `dict.fromkeys(...)` (analyze_repository.py:909-926). Adding fields to `Finding` does NOT break dedupe; changing the equality triple does.
 
-**`rule_id` sentinel.** Empty by default; set to the literal `"SPEC-PROMPT-INJECTION-DETECTED"` by the CritiqueAgent when it appends a `compromised_findings` entry ([ADR-011 §2](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-011-prompt-injection-isolation.md)). The orchestrator uses this exact string to mark the run compromised. Adding new sentinels without coordinating with the orchestrator silently breaks the contract.
+**`rule_id` sentinel.** Empty by default; set to the literal `"SPEC-PROMPT-INJECTION-DETECTED"` by the CritiqueAgent when it appends a `compromised_findings` entry ([ADR-011 §2](./adr/ADR-011-prompt-injection-isolation.md)). The orchestrator uses this exact string to mark the run compromised. Adding new sentinels without coordinating with the orchestrator silently breaks the contract.
 
 ### `SecretFinding` ([`models.py:116`](../../src/spectra/entities/models.py))
 
@@ -92,7 +92,7 @@ These exist to keep the cache subsystem purely additive — see [06 — Cache Ar
 | `RepoCacheKey` | `models.py:496` | Phase 2 composite key |
 | `CacheSecret` | `models.py:389` | 32-byte HMAC key wrapper, `min_length=32 max_length=32` enforced at construction |
 
-**`BatchPrompt.nonce` invariants** ([ADR-011 §1](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-011-prompt-injection-isolation.md)):
+**`BatchPrompt.nonce` invariants** ([ADR-011 §1](./adr/ADR-011-prompt-injection-isolation.md)):
 
 - Generated per call by `secrets.token_urlsafe(16)`. Default factory ensures the boundary is never optional.
 - **Excluded from the `prompt_version` cache key.** The nonce changes every call; including it would invalidate the cache on every run. The architectural commitment is: nonce fences DATA, not INSTRUCTION; instruction is what the cache key tracks.
@@ -117,7 +117,7 @@ The `_validate_opus_tier_effort` model validator rejects `xhigh` / `max` on non-
 | `architecture` / `security` / `quality` / `documentation` / `dependency` / `performance` | claude-opus-4-7 | xhigh | — |
 | `critique` | claude-opus-4-7 | high | 80_000 |
 
-CLI overrides ([`use_cases/resolve_agent_configs.py`](../../src/spectra/use_cases/resolve_agent_configs.py)) merge into this map at startup. v0.6.0 generalises `task_budget_tokens` to every agent ([ADR-013](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-013-task-budget-and-rate-coordination.md)) and adds the `CostTrackerPort` budget gate (SPEC-014).
+CLI overrides ([`use_cases/resolve_agent_configs.py`](../../src/spectra/use_cases/resolve_agent_configs.py)) merge into this map at startup. v0.6.0 generalises `task_budget_tokens` to every agent ([ADR-013](./adr/ADR-013-task-budget-and-rate-coordination.md)) and adds the `CostTrackerPort` budget gate (SPEC-014).
 
 ## Errors
 
@@ -148,9 +148,9 @@ The following entities are documented in ADRs but not yet in `models.py`. Their 
 | `Receipt` | roadmap #57 | UUIDv7 scan id + Ed25519 signature over `repo_signature` + `score_card` |
 | `Waiver` | roadmap #17 | Per-rule, per-file suppression; Ed25519-signed by an authorised key |
 | `Policy` | roadmap #17 | Tuple of `PolicyRule` + severity gate + max-cost cap |
-| `AuditEvent` + `Identity` + `AuditTarget` | [ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md) | Append-only structured event with bounded primitive payload |
-| `MemoryEntry` | [ADR-014](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-014-anthropic-memory-stores-for-team-org.md) | Scoped memory key/value (developer / team / org) |
-| `CodebaseQuestion` + `CodebaseAnswer` | [ADR-015](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-015-query-codebase-use-case.md) | Inputs/outputs of `spectra ask` |
+| `AuditEvent` + `Identity` + `AuditTarget` | [ADR-018](./adr/ADR-018-audit-log-and-identity.md) | Append-only structured event with bounded primitive payload |
+| `MemoryEntry` | [ADR-014](./adr/ADR-014-anthropic-memory-stores-for-team-org.md) | Scoped memory key/value (developer / team / org) |
+| `CodebaseQuestion` + `CodebaseAnswer` | [ADR-015](./adr/ADR-015-query-codebase-use-case.md) | Inputs/outputs of `spectra ask` |
 
 ## Bounded contexts
 

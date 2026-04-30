@@ -3,6 +3,10 @@
 The CLI defines commands and options but does NOT wire dependencies.
 The composition root (infrastructure/main.py) sets the analyzer
 callable via `set_analyzer_factory()` before the CLI runs.
+
+ADR references in this module: ADR-012 (cache HMAC + ``spectra cache
+doctor``). See ``docs/architecture/adr/`` and ``docs/glossary.md`` for
+the at-a-glance ADR index.
 """
 
 from __future__ import annotations

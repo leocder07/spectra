@@ -3,6 +3,10 @@
 The pipeline's contract with audit (ADR-018) is that audit emission must
 NEVER abort a scan. :func:`safe_emit` enforces that contract at the call
 site so adapters do not have to catch every conceivable error themselves.
+
+ADR references in this module: ADR-018 (audit log + identity).
+See ``docs/architecture/adr/ADR-018-audit-log-and-identity.md`` and the
+glossary at ``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

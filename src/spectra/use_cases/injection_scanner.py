@@ -12,6 +12,10 @@ runs synchronously inside ``analyze_repository`` and never gates
 pipeline progress.
 
 Layer 2 (use_cases) — pure function, no infrastructure imports.
+
+ADR references: ADR-011 (prompt-injection isolation).
+See ``docs/architecture/adr/ADR-011-prompt-injection-isolation.md`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations

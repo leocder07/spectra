@@ -3,6 +3,11 @@
 Defines the core enum-like types used throughout all layers. Using
 ``Literal`` instead of ``enum.Enum`` keeps models JSON-serializable
 without custom encoders and enables exhaustive type checking.
+
+ADR references in this module: ADR-011 (prompt-injection isolation —
+``ValidationStatus`` carries the compromised-run signal). See
+``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
+ADR index.
 """
 
 from typing import Literal
