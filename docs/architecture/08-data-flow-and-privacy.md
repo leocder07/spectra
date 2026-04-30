@@ -1,10 +1,10 @@
 # 08 — Data Flow & Privacy
 
-**Status:** Stable + Q2 designed · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 
-Document, for each class of data Spectra handles, where it originates, where it travels, where it persists, and for how long. This document is the engineering reference for the Q2-designed DPA + sub-processor declaration (roadmap #11).
+Document, for each class of data Spectra handles, where it originates, where it travels, where it persists, and for how long. This document is the engineering reference for the v0.6.0 DPA + sub-processor declaration (roadmap #11, shipped).
 
 ## Audience
 
@@ -27,7 +27,7 @@ Source: [`diagrams/08-data-flow.puml`](./diagrams/08-data-flow.puml)
 | Cache material | Per-row HMAC keys, MAC bytes |
 | Telemetry | Cache hit log, agent timings, token counts |
 | Identity | `actor` resolved from env / OIDC / git / hostname |
-| Audit events | Q2 designed — `AuditEvent` payload |
+| Audit events | `AuditEvent` payload (v0.6.0 — `AuditPort` with stdout/file/OTLP sinks) |
 | Cost data | Per-call token counts × pricing |
 
 ## Source code
@@ -95,7 +95,7 @@ The HMAC secret is read once per process, cached in `SqliteCacheAdapter._secret`
 
 No outbound telemetry today. Spectra does not phone home.
 
-## Identity (Q2 designed)
+## Identity (v0.6.0)
 
 | Source | Confidence | Used for |
 |--------|------------|----------|
@@ -106,7 +106,7 @@ No outbound telemetry today. Spectra does not phone home.
 
 The resolver runs once at process start and emits an `auth.identity_resolved` event. The identity is in-memory only; never written to a Spectra-owned config file.
 
-## Audit events (Q2 designed)
+## Audit events (v0.6.0)
 
 `AuditEvent` ([ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md)):
 

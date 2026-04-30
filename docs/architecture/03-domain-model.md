@@ -1,6 +1,6 @@
 # 03 — Domain Model
 
-**Status:** Stable + Q2 designed · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 
@@ -67,9 +67,9 @@ Aggregate root for the pipeline result. Carries the deduplicated findings, the s
 
 - `is_degraded`: ≥2 specialists failed (SPEC-007).
 - `degraded_dimensions`: tuple of dimensions whose specialist failed.
-- `is_compromised`: CritiqueAgent flagged a prompt-injection attempt (ADR-011 §2). The renderer surfaces a banner; the Q2-designed public-mode renderer refuses to publish a grade.
+- `is_compromised`: CritiqueAgent flagged a prompt-injection attempt (ADR-011 §2). The renderer surfaces a banner; the public-mode renderer (v0.6.0) refuses to publish a grade.
 
-**Q2-designed additions** (in flight, will land in v0.6.0 — annotated grey in the class diagram):
+**v0.6.0 additions** (shipped — formerly annotated grey in the class diagram):
 
 - `classification: Literal["confidential", "public"]` — drives the dual-mode renderer (default `confidential`; `public` redacts file paths and finding text).
 - `receipt: Receipt | None` — Ed25519-signed scan receipt for third-party verification (roadmap #57).
@@ -117,7 +117,7 @@ The `_validate_opus_tier_effort` model validator rejects `xhigh` / `max` on non-
 | `architecture` / `security` / `quality` / `documentation` / `dependency` / `performance` | claude-opus-4-7 | xhigh | — |
 | `critique` | claude-opus-4-7 | high | 80_000 |
 
-CLI overrides ([`use_cases/resolve_agent_configs.py`](../../src/spectra/use_cases/resolve_agent_configs.py)) merge into this map at startup. The Q2-designed work generalises `task_budget_tokens` to every agent ([ADR-013](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-013-task-budget-and-rate-coordination.md)).
+CLI overrides ([`use_cases/resolve_agent_configs.py`](../../src/spectra/use_cases/resolve_agent_configs.py)) merge into this map at startup. v0.6.0 generalises `task_budget_tokens` to every agent ([ADR-013](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-013-task-budget-and-rate-coordination.md)) and adds the `CostTrackerPort` budget gate (SPEC-014).
 
 ## Errors
 
