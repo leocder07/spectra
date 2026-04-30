@@ -38,6 +38,9 @@ from spectra.entities.models import (
     AnalysisReport,
     Approver,
     BatchCacheKey,
+    BatchHandle,
+    BatchRequestItem,
+    BatchResult,
     CacheStats,
     Finding,
     Policy,
@@ -150,6 +153,52 @@ class LLMGateway(Protocol):
 
         Returns:
             Raw LLM text response (thinking blocks excluded).
+        """
+        ...
+
+
+class BatchSubmitterPort(Protocol):
+    """Port for asynchronous LLM batch submission (ADR-024 part B).
+
+    Implemented by ``AnthropicBatchAdapter`` against the ``messages.batches``
+    endpoint. Adapters that do not support batching (Bedrock, Vertex)
+    raise ``NotImplementedError`` from ``submit`` so the orchestrator can
+    fall back to sync execution with a WARN banner.
+
+    The port intentionally returns at the request boundary — no streaming,
+    no callbacks. Callers ``submit`` then ``poll`` on a cadence of their
+    choice; the contract is that ``poll`` returns a ``BatchResult`` whose
+    ``items`` are ordered by the original ``requests`` argument as long
+    as ``processing_status == "ended"``.
+    """
+
+    async def submit(
+        self,
+        requests: tuple[BatchRequestItem, ...],
+    ) -> BatchHandle:
+        """Submit ``requests`` as a single batch job.
+
+        Args:
+            requests: 1 to 10K items. Adapters MAY enforce the upper
+                bound; the contract is that the entire tuple is sent
+                in one Anthropic Batch API call.
+
+        Returns:
+            Server-side ``BatchHandle`` for polling.
+
+        Raises:
+            NotImplementedError: Adapter does not support batching.
+            SpectraRetryError: Connection or rate-limit failures.
+        """
+        ...
+
+    async def poll(self, handle: BatchHandle) -> BatchResult:
+        """Fetch the current state of ``handle``.
+
+        Returns immediately whether the batch is still ``in_progress``,
+        ``canceling``, or ``ended``. Callers loop on
+        ``BatchResult.is_complete()``; results are populated only on the
+        terminal state.
         """
         ...
 
