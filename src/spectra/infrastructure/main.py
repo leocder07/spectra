@@ -47,6 +47,7 @@ from spectra.adapters.cli_controller import (
     cli_entry,
     set_analyzer_factory,
     set_cache_provider,
+    set_shred_executor,
 )
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.disclaimer import disclaimer_payload
@@ -70,6 +71,7 @@ from spectra.infrastructure.cache_adapter import (
     SqliteCacheAdapter,
     default_cache_path,
     migrate_legacy_cache,
+    shred_cache_file,
 )
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
@@ -350,6 +352,27 @@ def _provision_cache_only() -> SqliteCacheAdapter:
     """
     secret = _resolve_cache_secret()
     return SqliteCacheAdapter(db_path=default_cache_path(), secret=secret)
+
+
+def _shred_cache_and_keys() -> Path:
+    """Roadmap #13 — overwrite cache.db + drop keyring entries.
+
+    Returns the cache path that was shredded. Composes two destructive
+    primitives (file shred + keyring entry deletion) so the CLI keeps
+    a single ``shred_executor`` setter and never touches infrastructure.
+    """
+    db_path = default_cache_path()
+    shred_cache_file(db_path, passes=3)
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is not None:
+        try:
+            KeyringSecretAdapter(uid=str(geteuid())).shred()
+        except AgentError as exc:
+            logging.getLogger("spectra").warning(
+                "Cache keyring shred failed (%s); cache.db already removed",
+                exc.error.code,
+            )
+    return db_path
 
 
 def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
@@ -701,4 +724,5 @@ def cli() -> None:
     """
     set_analyzer_factory(_run_analysis)
     set_cache_provider(_provision_cache_only)
+    set_shred_executor(_shred_cache_and_keys)
     cli_entry()
