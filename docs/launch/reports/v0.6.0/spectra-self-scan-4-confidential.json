@@ -1,0 +1,532 @@
+{
+  "disclaimer": {
+    "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
+    "url": "https://github.com/leocder07/spectra#disclaimer"
+  },
+  "repo_url": "/Users/leocder/Documents/spectra/spectra",
+  "repo_name": "spectra",
+  "score_card": {
+    "overall_score": 93.7,
+    "overall_grade": "A",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 91.3,
+        "grade": "A",
+        "findings_count": 4,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 94.4,
+        "grade": "A",
+        "findings_count": 5,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 94.2,
+        "grade": "A",
+        "findings_count": 5,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 92.1,
+        "grade": "A",
+        "findings_count": 5,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 92.7,
+        "grade": "A",
+        "findings_count": 3,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 99.3,
+        "grade": "A+",
+        "findings_count": 1,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 23
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Composition root carries excessive responsibility (god module)",
+      "description": "src/spectra/infrastructure/main.py is ~700 lines and owns: DI wiring, workspace allocation, ingest, preflight orchestration, source-file reading, token capping, policy enforcement, cache provisioning, cost tracker construction, audit wiring, receipt signing, JSON/SARIF rendering, classification redaction, secret logging, and CLI seam injection. While Clean Architecture intentionally concentrates wiring at the composition root, render-layer concerns (build_json_payload, _build_sarif, _redact_public_payload, _sarif_results) and pipeline stage logic (_ingest_workspace, _read_key_source_files, _apply_token_cap) are domain/adapter responsibilities that should not live alongside DI. This makes the file a change magnet and tightens coupling to nearly every other module.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 1,
+        "line_end": 700
+      },
+      "recommendation": "Extract three modules: (1) spectra/infrastructure/report_serializers.py for build_json_payload/_build_sarif/_redact_public_payload; (2) spectra/use_cases/ingest_workspace.py for _ingest_workspace + _read_key_source_files + _apply_token_cap (these are pipeline phases, not wiring); (3) spectra/infrastructure/cache_wiring.py for _provision_cache/_resolve_cache_secret/_make_cache_key_factory. main.py should shrink to <250 lines containing only DI and the _run_analysis orchestrator.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Adapter layer imports infrastructure (dependency rule violation)",
+      "description": "src/spectra/adapters/waiver_cli.py performs a deferred import of spectra.infrastructure.yaml_waiver_adapter inside waive_command (line ~regex 'from spectra.infrastructure.yaml_waiver_adapter import YamlWaiverAdapter'), and _get_signer() lazy-imports spectra.infrastructure.ed25519_signer. The module docstring explicitly acknowledges this ('Deferred import \u2014 break the adapters\u2194infrastructure circular at module load'). Per the stated Clean Architecture rule (adapters/ imports only entities/ and use_cases/), this is a Layer 3 \u2192 Layer 4 dependency, even when deferred. The lazy import only hides the cycle; it does not fix the dependency direction.",
+      "location": {
+        "file_path": "src/spectra/adapters/waiver_cli.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Move sign_waiver from YamlWaiverAdapter into a use-case-layer port (e.g., WaiverSignerPort in use_cases/interfaces.py) and have the composition root inject the concrete YamlWaiverAdapter at startup via a setter analogous to set_signer/set_keyring_backend. This removes the adapter\u2192infrastructure import entirely and makes the seam consistent with the rest of the CLI controller's DI pattern.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": true,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Adapter imports infrastructure module path inside cli_controller",
+      "description": "src/spectra/adapters/cli_controller.py's cli() function (lines ~end of analyze section) imports from spectra.infrastructure.audit_wiring, spectra.infrastructure.ed25519_signer, and spectra.infrastructure.receipt_signer directly. Although these are inside a function body (deferred), they cross the layer boundary in the wrong direction. The CLI adapter should receive these via setters from main.py only \u2014 it should never name infrastructure modules itself.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Remove the deferred infrastructure imports from cli(). The composition root (main.py) already injects _verifier, _shred_executor, _cache_provider, and _analyzer_factory; extend the same pattern by passing the Ed25519 signer adapter and verifier explicitly from main.cli() instead of having cli_controller.cli() reach into infrastructure. Move the signer/verifier wiring entirely into main.cli().",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "_run_analysis function signature has 14 parameters",
+      "description": "_run_analysis in main.py accepts 14 parameters (repo_url, output_path, skip_critique, output_format, verbose, force, no_cache, agent_overrides, honor_gitignore, allow_secrets, audit_sink, classification, max_cost_usd, max_cost_per_hour). This signals that the CLI is plumbing every flag through one funnel without an intermediate Request value object. Adding a new flag requires touching three places: CLI command, factory signature, and _run_analysis.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Introduce an AnalysisInvocation frozen Pydantic model in entities/models.py that bundles all 14 fields, validated at the CLI boundary. _run_analysis then accepts a single invocation: AnalysisInvocation parameter. This shrinks the seam, allows adding fields without breaking call sites, and makes the analyzer_factory protocol stable.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Path traversal validation susceptible to TOCTOU between symlink check and existence check",
+      "description": "In `_validate_local_path`, the symlink check uses `expanded.is_symlink()` and then `expanded.exists()`/`is_dir()` are called separately. This is a TOCTOU pattern (CWE-367) \u2014 between the symlink rejection and subsequent operations, the path could be replaced with a symlink. Additionally, only the root is checked for symlinks; intermediate path components could still be symlinks pointing outside intended areas. The `..` check uses `Path(raw).parts` which catches literal `..` segments but does not resolve the path first, so path normalization tricks (e.g. encoded variants) may bypass it. Mitigation: the validation runs at CLI boundary only and the GitAdapter is expected to perform its own validation.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 92,
+        "line_end": 110
+      },
+      "recommendation": "Resolve the path with `Path(raw).expanduser().resolve(strict=True)` and compare against an allowed root, or use `os.path.realpath` and verify no component is a symlink. Combine the symlink/exists/is_dir checks via a single stat call to reduce TOCTOU window.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Receipt signing failures silently degrade \u2014 verification status not surfaced",
+      "description": "`_attach_receipt` swallows a wide tuple of exceptions (OSError, ImportError, ValueError, TypeError, InvalidSignature, KeyringError) at DEBUG level only, returning the report without a receipt. Operators relying on receipts for tamper-evidence integrity (capability #57 / ADR-018) may not notice that receipts are missing across many runs. CWE-778: Insufficient Logging. The downgrade is intentional (ADR-018 \u00a74: best-effort) but DEBUG-level logging will be invisible at default log levels.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 522,
+        "line_end": 553
+      },
+      "recommendation": "Log receipt-signing failures at WARNING level (not DEBUG) so operators see the degradation in default logs. Optionally surface a `receipt_status` field on the report so consumers can detect missing-receipt runs without parsing logs.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Cache HMAC secret resolution falls back silently on Windows (no geteuid)",
+      "description": "`_resolve_cache_secret` returns `None` when `os.geteuid` is unavailable (Windows), which disables the per-user HMAC binding on the cache (ADR-012). The cache adapter then operates without MAC verification. Although the comment notes 'per-user file isolation degraded; secret unavailable,' this means the integrity protection silently degrades on Windows installs without a clear operator warning at runtime. CWE-757: Selection of Less-Secure Algorithm During Negotiation.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 391,
+        "line_end": 404
+      },
+      "recommendation": "On Windows, derive a per-user identifier from `os.getlogin()` or the SID and use that as the keyring `uid`, so HMAC enforcement is preserved. If degradation must remain, log at WARNING level (not silently) and surface the degraded state in `cache doctor`.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-007",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Default zero-pad repo_signature in waive command weakens binding",
+      "description": "`waive_command` accepts `--repo-signature` defaulting to `\"0\" * 32` (32 zero hex chars). A waiver signed with a zero-padded signature is portable across repos but loses the repo-binding property \u2014 an attacker who steals a signed waiver could replay it against any repository. The comment says 'pin if known; default zero-pad for portability,' indicating intent, but the security trade-off is significant for a signing primitive. CWE-294: Authentication Bypass by Capture-replay.",
+      "location": {
+        "file_path": "src/spectra/adapters/waiver_cli.py",
+        "line_start": 220,
+        "line_end": 224
+      },
+      "recommendation": "Default the repo_signature to the actual computed signature for the current workspace (resolve from `.git`/file tree) rather than zero-pad. If portable waivers are a use case, require an explicit `--portable` flag and warn the operator that the waiver will not be repo-bound.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Receipt verification CLI accepts public-key path without integrity check",
+      "description": "`spectra verify` reads the public key via `_load_pub_pem` from either `--key` or the default path `~/.config/spectra/receipt.pub`. The file is read without any integrity check \u2014 an attacker who replaces the public-key file (e.g. via a writable home directory or supply-chain attack) can substitute their own key and have receipts they generated themselves verify as valid. CWE-345: Insufficient Verification of Data Authenticity. Ed25519 signatures are only as trustworthy as the public-key distribution channel.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 569,
+        "line_end": 580
+      },
+      "recommendation": "Document the public-key trust model clearly: receipts can only be trusted when the verifier obtains the public key out-of-band (e.g. from a signed git tag, a TUF metadata file, or an organization-distributed PEM with checksum). Consider supporting a `--key-fingerprint` argument that the operator must specify to bind the verification to a known fingerprint.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Composition root function exceeds clean-architecture readability budget",
+      "description": "_run_analysis in src/spectra/infrastructure/main.py spans roughly lines 313-411 (~100 lines) and orchestrates 8+ helper calls inside a try/finally with multiple parameter pass-throughs. While the body is well-decomposed and each helper is small, the parameter-marshalling alone makes the function a single point of churn \u2014 every new pipeline argument touches the signature, the docstring, _assemble_context, and the helper call sites in lockstep.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 313,
+        "line_end": 411
+      },
+      "recommendation": "Introduce a frozen RunOptions dataclass that bundles repo_url/output_path/skip_critique/format/cost-caps/etc. so _run_analysis takes (options) and forwards options.* to _assemble_context. Cuts the parameter list in half and isolates new flags to a single location.",
+      "agent_role": "quality",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "CLI analyze() command has very high parameter count and complexity",
+      "description": "analyze() in src/spectra/adapters/cli_controller.py declares ~30 typer.Option parameters covering 8 per-role model + 8 per-role effort flags, JSON overrides, cost caps, classification, audit, secrets, etc. The function then calls _validate_analyze_inputs, _gather_and_validate_overrides, _classification_filename, _print_run_header, asyncio.run wrapper, _handle_pipeline_exceptions, _print_summary, plus min-score and fail-on gates. PLR0913 is globally suppressed in pyproject.toml, hiding the ergonomic cost.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Group per-role model/effort flags behind a single --agent-config <role>=<model>:<effort> repeated option (or rely solely on --model-overrides JSON), keeping the global --model/--effort defaults. Reduces parameter surface by ~16 and makes future role additions table-driven.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Per-file-ignores broadly disable assertion/typing/print/perf lints in tests",
+      "description": "pyproject.toml line 102 disables S101, ANN, PLR2004, PT011, T20, TC003, PERF401 across every tests/**/*.py file. While S101 (assert usage) is reasonable in tests, blanket disabling ANN (annotations) and PT011 (broad pytest.raises) lets test code drift in quality. Combined with [[tool.mypy.overrides]] disabling disallow_untyped_defs for tests, the test layer has materially weaker static checking than src/.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 102,
+        "line_end": 102
+      },
+      "recommendation": "Keep S101 + ANN ignores but re-enable PT011 (require pytest.raises(SomeError, match=...) for clarity) and PERF401 in test fixtures. Document why the others are off in a comment so future contributors understand the trade-off.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Broad except Exception in waive_command masks Pydantic vs other validation errors",
+      "description": "waive_command in waiver_cli.py catches ValueError specifically, then a fallback `except Exception as exc:` that always reports 'reason needs >=10 chars'. If a Pydantic validator other than reason fires (or a non-validation runtime error), the user sees a misleading message.",
+      "location": {
+        "file_path": "src/spectra/adapters/waiver_cli.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Catch pydantic.ValidationError explicitly and render its first error's loc + msg; let unrelated exceptions propagate. Add a test for a non-reason validation failure (e.g. malformed repo_signature) to lock in the behavior.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "build_verdict accepts object and uses getattr \u2014 duck-typing erodes type safety",
+      "description": "src/spectra/adapters/brand.py:build_verdict and src/spectra/adapters/analysis_presenter.py:_build_summary_text both type their report parameter as `object` and use getattr(...) with defaults to read score_card, findings, total_findings, etc. Given the strict mypy config (disallow_any_generics, strict=True), this is a deliberate type-safety escape hatch that bypasses checks for fields the rest of the codebase models with frozen Pydantic types.",
+      "location": {
+        "file_path": "src/spectra/adapters/brand.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Type these parameters as `AnalysisReport` (or a Protocol with the score_card/findings/repo_name attributes) and remove the getattr defaults. Use a real test double in tests instead of duck-typed objects.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public CLI command help text lacks usage examples",
+      "description": "`analyze`, `verify`, `cache shred`, `cache prune`, and `render pr-comment` Typer commands have one-line help strings but no usage examples in the docstring. Users running `spectra analyze --help` see only flag descriptions, not example invocations like `spectra analyze https://github.com/org/repo --quick --fail-on high`. The README/getting-started.md likely covers this, but inline help is the most-used reference surface.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 393,
+        "line_end": 525
+      },
+      "recommendation": "Expand each `@app.command()` docstring with an `Examples:` section (Typer renders the full docstring in `--help`). Show a basic invocation, a CI-friendly invocation with `--fail-on` + `--no-cache`, and a cost-capped invocation. Same for `verify`, `cache *`, and `render pr-comment`.",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "docs/error-codes.md anchor format coupled to GitHub auto-slug rules",
+      "description": "`_docs_link()` constructs URLs as `{_ERROR_DOCS_BASE}#{code.lower()}` for SPEC-001..SPEC-014. This relies on `docs/error-codes.md` having heading anchors that exactly match GitHub's auto-slug rules (lowercase, hyphens). If the doc uses a different heading style (e.g. `## SPEC-001: Git clone failed`), the slug becomes `#spec-001-git-clone-failed`, not `#spec-001`, and every CLI error message will produce a 404. No verification mechanism exists.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 217,
+        "line_end": 225
+      },
+      "recommendation": "Add a test that loads `docs/error-codes.md`, extracts heading slugs, and asserts a slug matching exactly `spec-NNN` exists for every code in `ERRORS`. Alternatively use HTML anchors (`<a id=\"spec-001\">`) in error-codes.md and document the contract in CONTRIBUTING.md.",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Hardcoded model lists duplicated across CLI, entities, and docstrings",
+      "description": "The allowed model identifiers (`claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`) are defined in three places: `_ALLOWED_MODELS` in cli_controller.py, the `ModelId` Literal in entities/models.py, and inline in `_composite_model_versions()` in main.py. The cli_controller comment even acknowledges 'we duplicate the friendly allowed-list here only to fail fast'. Documentation must be kept in sync manually across all three; there is no documented contract for adding a new model.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 165,
+        "line_end": 174
+      },
+      "recommendation": "Document the model-addition procedure in CONTRIBUTING.md as a checklist: (1) add to `ModelId` Literal in entities, (2) add to `_ALLOWED_MODELS` in cli_controller, (3) add to `_MODEL_COST` in entities/models.py for cost estimation, (4) update README pricing section. Better: derive `_ALLOWED_MODELS` from `typing.get_args(ModelId)` to eliminate one copy.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Capability numbers (#6, #13, #17, #18, #56, #57) referenced without an index",
+      "description": "Code comments throughout `main.py`, `cli_controller.py`, and `models.py` reference 'Capability #56', '#57', '#17', '#18', '#13', '#6', 'Q2 #19', 'Q2 #20', 'Roadmap #13', 'Fix R3-Arch-3', etc. None of the visible documentation files (README, CLAUDE.md, glossary, getting-started) are confirmed to contain a capability index. A reader cannot resolve `#56` \u2192 'classification-aware report redaction' without grepping source. This is bus-factor risk.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 466,
+        "line_end": 466
+      },
+      "recommendation": "Add a `docs/capabilities.md` (or a section in `docs/glossary.md`) mapping every `#N` capability and `Q2 #N` reference to a one-line description and the ADR(s) that govern it. Same for `Fix R3-Arch-N` codes. Cross-link from CLAUDE.md so contributors landing in source comments can resolve the numbers.",
+      "agent_role": "documentation",
+      "confidence": 0.92,
+      "validated_by_critique": true,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Disclaimer URL points at README anchor that may not exist",
+      "description": "`DISCLAIMER_URL = \"https://github.com/leocder07/spectra#disclaimer\"` is hardcoded in `entities/disclaimer.py` and surfaces in every JSON, HTML, and SARIF report. If `README.md` does not contain a heading that auto-slugs to `#disclaimer`, every consumer following the link gets a 404. Also: the URL is hardcoded to a specific GitHub fork (`leocder07/spectra`) which couples user-facing reports to one maintainer's account.",
+      "location": {
+        "file_path": "src/spectra/entities/disclaimer.py",
+        "line_start": 23,
+        "line_end": 23
+      },
+      "recommendation": "Add a test that fetches `README.md` and asserts a `## Disclaimer` (or equivalent) heading exists. Consider making `DISCLAIMER_URL` configurable via env var or pyproject so forks can rebrand without patching source. Document the contract in CONTRIBUTING.md.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Dependency on unmaintained pysqlcipher3 package",
+      "description": "pyproject.toml pins pysqlcipher3>=1.2,<2.0. The pysqlcipher3 package on PyPI has been unmaintained for years (last meaningful release in 2020) and does not provide modern Python wheels. The maintainer has explicitly recommended migrating to actively-maintained alternatives like sqlcipher3-binary or sqlcipher3-wheels. Bundling an unmaintained crypto-adjacent dependency in a security-oriented tool is a notable supply-chain risk, and the comment in pyproject.toml acknowledges Windows wheel scarcity which stems from this lack of maintenance.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Switch to sqlcipher3-binary (active fork with prebuilt wheels) or sqlcipher3-wheels. The adapter already degrades to plain SQLite on import failure, so the migration is low-risk: replace the package, retest the SqliteCacheAdapter fallback path on Windows + Linux + macOS, and update ADR-012.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Lockfile referenced in PLAN is missing from provided artifacts",
+      "description": "The PLAN identifies requirements.lock as a focus file, but no lockfile contents were supplied for review. Without a committed lockfile (or pip-compile/uv-lock output) reproducible builds and SBOM generation cannot be verified. The pyproject.toml uses range pins (>=X,<Y) on every dependency, so transitive resolution is non-deterministic across CI runs unless a lockfile is enforced.",
+      "location": {
+        "file_path": "requirements.lock",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Confirm requirements.lock is generated from pyproject.toml via pip-compile (pip-tools) or uv lock, committed to the repo, and consumed by both ci.yml and publish.yml via `pip install -r requirements.lock`. Add a CI step that fails if the lockfile drifts from pyproject.toml. Generate an SBOM (CycloneDX) from the lockfile during release.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "GitHub Actions workflows and action.yml not provided for review",
+      "description": "The PLAN flags .github/workflows/ci.yml, .github/workflows/publish.yml, and action.yml as supply-chain surfaces (publish workflow + GitHub Action distribution), but none of these files were included in the source code. CI/CD supply-chain hygiene (action SHA pinning vs tag refs, OIDC trusted publishing to PyPI, permissions: contents: read minimization, dependency review) cannot be assessed without the workflow contents.",
+      "location": {
+        "file_path": ".github/workflows/publish.yml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Verify that publish.yml uses PyPI Trusted Publishing (OIDC) rather than long-lived API tokens, pins every third-party action to a 40-char commit SHA (not a moving tag), declares minimal `permissions:` per job, and runs `pip install --require-hashes -r requirements.lock`. Verify action.yml does not download untrusted scripts at runtime.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Unbounded asyncio.gather for source file reads can spike thread pool",
+      "description": "_gather_source_reads dispatches up to MAX_HEURISTIC_FILES concurrent read_file calls via asyncio.gather, each likely offloaded to the default thread pool executor. With MAX_HEURISTIC_FILES=20 this is fine, but if the cap is raised the default thread pool (min(32, os.cpu_count()+4)) becomes a bottleneck and may starve other async I/O sharing the loop.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add an asyncio.Semaphore (e.g. limit 8-16) around the read_file calls so concurrency is bounded by an explicit policy independent of MAX_HEURISTIC_FILES. This also keeps the default thread pool free for git/cache I/O.",
+      "agent_role": "performance",
+      "confidence": 0.72,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    }
+  ],
+  "analysis_duration_seconds": 552.99,
+  "total_tokens_used": 596122,
+  "total_cost_usd": 6.5573,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [
+    "arch-005 and qual-001 describe the same root cause (parameter sprawl through the composition root); a single AnalysisInvocation/RunOptions value object resolves both.",
+    "arch-001 and arch-002 are the same structural defect (adapters\u2192infrastructure deferred imports) in two files; fix as one refactor by moving signer/verifier injection fully into main.cli() via setters.",
+    "qual-007, qual-010, and doc-011 all touch the bare-except / lazy-import patterns in waiver_cli/cli_controller. Resolving arch-001/arch-002 (proper DI) eliminates the lazy imports and the misleading exception handlers in one pass.",
+    "sec-002 (DEBUG-only receipt failure logging), sec-006 (silent Windows HMAC degradation), and sec-009 (unverified public-key trust) form a 'silent security degradation' theme \u2014 operators cannot observe when integrity guarantees weaken. A unified 'security_status' field on reports plus WARNING-level logging would address all three.",
+    "doc-006 (model list duplicated in 3 places) and doc-007 (capability numbers without an index) both indicate the project is outgrowing ad-hoc cross-referencing; a single 'contracts' page (models, capabilities, ADR map, error codes) would consolidate doc-005, doc-006, doc-007.",
+    "dep-000 (unmaintained pysqlcipher3) compounds with sec-006 (Windows HMAC degradation) \u2014 both weaken the cache integrity story on Windows specifically; migrating to sqlcipher3-binary may also enable consistent cross-platform HMAC behavior."
+  ],
+  "hallucination_removed_count": 0,
+  "is_compromised": false,
+  "validation_status": "validated",
+  "receipt": {
+    "scan_id": "9c9a617d037b4c569f6159526f7ffeb6",
+    "repo_signature": "9e766dc831788ff079172064f5c099f1",
+    "score_card_hash": "8e7ac6423f235c17aed9b7acfabf802cdc04eae0eb151bb866bc120dee134473",
+    "timestamp": "2026-04-30T14:27:48.784602Z",
+    "spectra_version": "0.0.0",
+    "signature": "e73ac928fba521854d0daba3012c095f165475917057360ae8ba4096e0b919ce37d7139864084779e781f0843d1ade453aa0beb34bd32b51263d99c08dbd4b0c",
+    "public_key_fingerprint": "c2cc74be1c94e0ab"
+  },
+  "classification": "confidential",
+  "waived_finding_count": 0,
+  "expired_waiver_count": 0
+}

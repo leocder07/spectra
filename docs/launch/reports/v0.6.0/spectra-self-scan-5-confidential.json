@@ -1,0 +1,1140 @@
+{
+  "disclaimer": {
+    "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
+    "url": "https://github.com/leocder07/spectra#disclaimer"
+  },
+  "repo_url": "/Users/leocder/Documents/spectra/spectra",
+  "repo_name": "spectra",
+  "score_card": {
+    "overall_score": 92.1,
+    "overall_grade": "A",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 94.2,
+        "grade": "A",
+        "findings_count": 8,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 97.0,
+        "grade": "A+",
+        "findings_count": 6,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 83.2,
+        "grade": "B+",
+        "findings_count": 11,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 89.3,
+        "grade": "A-",
+        "findings_count": 12,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 90.0,
+        "grade": "A",
+        "findings_count": 9,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 97.0,
+        "grade": "A+",
+        "findings_count": 9,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 55
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Adapter layer imports infrastructure module, breaking dependency rule",
+      "description": "src/spectra/adapters/waiver_cli.py contains a deferred import of spectra.infrastructure.ed25519_signer (line ~123) and spectra.infrastructure.yaml_waiver_adapter (in waive_command, line ~226). Per the layer's own docstring (adapters/__init__.py: 'This layer imports from entities/ and use_cases/ only. It never imports from infrastructure/'), this is a Clean Architecture dependency-rule violation. The 'deferred import to break a cycle' comment confirms the architectural smell. While the SignerPort protocol provides a proper seam (and is now used as the primary path), the lazy fallback that instantiates Ed25519SignerAdapter directly inside _get_signer() means an adapter still knows the concrete infrastructure class name. The composition root already wires the signer via set_signer() in cli(), so the lazy fallback is redundant.",
+      "location": {
+        "file_path": "src/spectra/adapters/waiver_cli.py",
+        "line_start": 120,
+        "line_end": 130
+      },
+      "recommendation": "Remove the deferred-import fallback inside _get_signer() and _get_backend(): if the composition root has not injected a SignerPort/KeyringBackend, raise a clear initialization error (matching the pattern used by _analyzer_factory/_cache_provider in cli_controller.py). Same for the YamlWaiverAdapter import in waive_command \u2014 inject a WaiverSignerPort via a setter from main.py instead of importing infrastructure inline.",
+      "agent_role": "architecture",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Composition root imports infrastructure prompt internals to compute cache versions",
+      "description": "infrastructure/main.py imports _SYSTEM_PROMPT (a private name) from critique_agent and _SHARED_GUIDANCE + SPECIALIST_CONFIGS from specialist_prompts to compute prompt_versions in _composite_prompt_versions(). While main.py is the composition root and may import infrastructure freely, reaching into private (underscore-prefixed) symbols of sibling infrastructure modules creates fragile coupling. The docstring justifies this as 'preserves the dependency rule \u2014 the use case never imports specialist_prompts', which is correct, but a public 'prompt_version()' API on each agent module would be cleaner.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 84,
+        "line_end": 89
+      },
+      "recommendation": "Expose a public prompt_version() -> str function on each agent module (critique_agent.prompt_version(), specialist_prompts.prompt_version()) that returns the blake2b digest of its prompts. Then _composite_prompt_versions() composes those public versions instead of hashing private constants. This removes the underscore-prefix imports and makes prompt-version provenance a documented contract.",
+      "agent_role": "architecture",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Module-level mutable global state in CLI controller (5 setters)",
+      "description": "cli_controller.py uses five module-level globals (_analyzer_factory, _cache_provider, _shred_executor, _verifier, _default_public_key_path) mutated via setter functions with global statements and PLW0603 noqa suppressions. While this is a recognized 'inversion of control via setter' pattern that keeps the CLI free of infrastructure imports, five globals means five hidden initialization preconditions. Each command must defensively check 'if X is None: raise typer.Exit'. Test isolation requires resetting all five between tests. waiver_cli.py adds two more (_backend, _signer) for a total of seven.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 215,
+        "line_end": 261
+      },
+      "recommendation": "Consolidate into a single dataclass or container (e.g. CliDependencies) injected via one set_dependencies() call from main.cli(). Commands access ctx.obj.dependencies via Typer's Context. This collapses 7 globals into 1, makes test fixture setup a single line, and surfaces the full DI contract in one place.",
+      "agent_role": "architecture",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Composition root function exceeds reasonable size with 17 parameters",
+      "description": "_run_analysis (line ~301) takes 14 keyword/positional parameters and orchestrates DI wiring, workspace allocation, ingest, context assembly, pipeline execution, policy enforcement, rendering, and cleanup. While the function has been decomposed into helpers (_wire_dependencies, _assemble_context, _ingest_workspace, _render_report) \u2014 which is good \u2014 the parameter list maps 1:1 to CLI flags, creating tight coupling between CLI option set and composition-root signature. Adding a new flag requires touching cli_controller.analyze(), main._run_analysis(), and any test fixtures.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 301,
+        "line_end": 320
+      },
+      "recommendation": "Introduce an AnalysisOptions frozen dataclass/Pydantic model in entities/ that packages every flag (skip_critique, output_format, force, no_cache, agent_overrides, honor_gitignore, allow_secrets, audit_sink, classification, max_cost_usd, max_cost_per_hour). The CLI builds one, _run_analysis takes (repo_url, output_path, options). Adding a flag becomes a single-file change to entities.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Strong Clean Architecture layering with explicit dependency rule",
+      "description": "Positive finding: The codebase demonstrates mature Clean Architecture discipline. Each layer's __init__.py documents its dependency rule (entities import nothing internal; adapters import entities + use_cases only; infrastructure is the only DI-wiring layer). Pydantic models are uniformly frozen=True. Ports are Protocol-based (LLMGateway, CachePort, AuditPort, SignerPort), enabling structural-subtyping seams. The decorator chain (LoggingDecorator \u2192 RetryDecorator \u2192 AnthropicAdapter) is wired in one place and every level satisfies the same Protocol. ADR references are inline in module docstrings. _DepBundle frozen dataclass cleanly bundles DI handles. This level of architectural rigor is uncommon and should not be over-flagged.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 1,
+        "line_end": 50
+      },
+      "recommendation": "Maintain current rigor. Consider adding an automated import-linter (e.g. import-linter or grimp) configuration to CI that fails the build if any adapter file imports from spectra.infrastructure.* \u2014 codifies the dependency rule the docstrings already promise.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "_assemble_context performs 6 distinct side-effecting resolutions",
+      "description": "_assemble_context (line ~196) builds agents, resolves audit port, resolves actor identity, loads waivers, builds cost tracker, and assembles the PipelineContext \u2014 all in one helper with 14 parameters. Despite the docstring claim that it 'concentrates reads-and-resolves so _run_analysis only orchestrates phases', this helper itself is now doing the orchestration that _run_analysis was supposed to be reading as 'a single line per concern'. The six distinct concerns (agents, audit, identity, waivers, cost, ctx) are good candidates for further factoring.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 196,
+        "line_end": 256
+      },
+      "recommendation": "Extract a PipelinePrerequisites dataclass that each of the 5 _build_* helpers populates independently, then _assemble_context becomes pure construction of PipelineContext from prerequisites + inputs. Improves testability \u2014 each prerequisite can be unit-tested without instantiating the full ctx.",
+      "agent_role": "architecture",
+      "confidence": 0.72,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "PolicyGateError lives in entities but couples to use-case-level Violation",
+      "description": "PolicyGateError is defined in entities/errors.py and references the Violation entity from entities/models.py. This is correct layering \u2014 both types live in entities, so the error is consumable from infrastructure (where it's raised in _enforce_policy) and adapters (where it's caught in _handle_pipeline_exceptions). The docstring even calls out the architectural reasoning ('Lives in entities so both infrastructure and the CLI adapter can reference the same class without violating the Dependency Rule'). This is a model example of how to handle cross-cutting domain errors.",
+      "location": {
+        "file_path": "src/spectra/entities/errors.py",
+        "line_start": 145,
+        "line_end": 165
+      },
+      "recommendation": "No action needed. Document this pattern in an ADR (or extend ADR-001) so future cross-layer error types follow the same template.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-008",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Audit-event privacy boundary is enforced at the entity layer",
+      "description": "Positive finding: AuditEvent in entities/audit.py enforces FORBIDDEN_PAYLOAD_KEYS via a Pydantic field_validator, rejecting forbidden keys at construction time. This pushes the privacy boundary into Layer 1, the deepest possible enforcement point \u2014 no adapter or infrastructure module can accidentally leak content because the entity itself refuses construction. The pattern (closed-enum AuditEventType, frozen models, validator-enforced bounds) is textbook entity-layer design.",
+      "location": {
+        "file_path": "src/spectra/entities/audit.py",
+        "line_start": 124,
+        "line_end": 138
+      },
+      "recommendation": "No action needed. This is exemplary defensive entity design.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Workspace tempdir cleanup uses ignore_errors=True, masking shred failures",
+      "description": "The workspace cleanup uses `shutil.rmtree(workspace_dir, ignore_errors=True)` which silently ignores errors during cleanup. If cleanup fails (e.g., due to permission issues, file locks, or symlinks), sensitive cloned repository content could persist on disk in a 0o700 tempdir. While the dir is private, leftover repo content with credentials/secrets could survive process termination. CWE-459: Incomplete Cleanup.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 330,
+        "line_end": 335
+      },
+      "recommendation": "Replace ignore_errors=True with an onerror callback that logs failures, or use ignore_errors=False inside a try/except that logs a WARN. Consider explicitly fsync'ing or shredding sensitive files before rmtree on workspace cleanup.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Broad exception handler swallows shred errors in cache_shred CLI",
+      "description": "The `cache_shred` command uses a bare `except Exception as exc` that catches all exceptions including programming errors. While the intent is to surface shred failure to the user, this could mask underlying issues (permission denied, partial shred completion). For a destructive security primitive, partial failure modes should be explicit. CWE-396: Declaration of Catch for Generic Exception.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Narrow the except to (OSError, AgentError, ImportError) and let programmer errors propagate. After a partial shred failure, explicitly state in the message whether the cache file may still exist on disk.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Per-batch nonce relies on secrets.token_urlsafe(16) \u2014 adequate but undocumented entropy floor",
+      "description": "ADR-011 prompt-injection isolation uses `secrets.token_urlsafe(16)` (128 bits of entropy) for the BatchPrompt nonce that fences analyzed content. This is cryptographically appropriate, but the entropy choice is implicit. If an attacker could observe many nonces (e.g., via cached prompts or logs), 128 bits remains safely unguessable; this is a documentation note rather than a defect.",
+      "location": {
+        "file_path": "src/spectra/entities/models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a comment documenting that 16 bytes (128 bits) is the security floor for nonce unguessability per ADR-011, and that the nonce must never be logged or persisted in audit payloads. The FORBIDDEN_PAYLOAD_KEYS list in audit.py should arguably include 'nonce'.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "low",
+      "title": "FORBIDDEN_PAYLOAD_KEYS list does not include 'nonce', 'signature', 'mac', or 'hmac'",
+      "description": "The audit privacy boundary forbids leaking 'code', 'content', 'secret', 'key', 'token', 'body', 'raw', 'snippet', 'source' into SIEM payloads. However, sensitive cryptographic material like the prompt-injection nonce (ADR-011), HMAC values (ADR-012 cache MAC), and Ed25519 signatures could leak if a future emitter naively includes them. CWE-532: Insertion of Sensitive Information into Log File.",
+      "location": {
+        "file_path": "src/spectra/entities/audit.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extend FORBIDDEN_PAYLOAD_KEYS to include: 'nonce', 'signature', 'mac', 'hmac', 'private_key', 'seed', 'password', 'auth', 'bearer'. Document the additions in ADR-018 \u00a74 to keep the list reviewed.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "low",
+      "title": "PR comment renderer drop-list omits #issue-ref pattern, accepting residual auto-link risk",
+      "description": "The renderer's `_SUMMARY_DROP_PATTERNS` intentionally excludes `_ISSUE_REF_PATTERN` (per the documented note). This means a poisoned finding description can include `#1337` which GitHub will auto-link to issue 1337 in the host repo. While the comment renders the description verbatim with HTML escape, the GitHub linkifier runs after escape on raw text, creating a misleading cross-reference. Documented as accepted risk but worth flagging for review.",
+      "location": {
+        "file_path": "src/spectra/adapters/pr_comment_renderer.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Apply the same ZWSP-insertion treatment to summaries that titles get (`#\u200b1337`) so the human reader still sees the digit but GitHub does not auto-link. Or drop the entire summary on `#\\d+` match and rely on the title for context.",
+      "agent_role": "security",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-010",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Adversarial prompt-injection golden files included in repo data",
+      "description": "The repository includes adversarial golden files (e.g., `golden_files/adversarial/01-docstring-score-directive/src/main.py`, `golden_files/adversarial/03-comment-ignore-prior/src/index.js`, `golden_files/adversarial/17-package-json-script/package.json`) that contain prompt-injection payloads. These are clearly test fixtures for ADR-011 prompt-injection isolation testing \u2014 they correctly demonstrate the threat model. No vulnerability; a positive observation that the codebase tests its own injection defenses.",
+      "location": {
+        "file_path": "golden_files/adversarial/03-comment-ignore-prior/src/index.js",
+        "line_start": 1,
+        "line_end": 1
+      },
+      "recommendation": "No action needed. Ensure these fixture paths are excluded from any production wheel/sdist (verify `tool.setuptools.package-data` does not ship `golden_files/`). Confirm that release artifacts do not include adversarial samples.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Plan-targeted test files not provided for review",
+      "description": "The analysis plan explicitly targeted tests/conftest.py, tests/integration/test_adversarial_catch_rate.py, tests/integration/test_pipeline.py, tests/use_cases/, tests/infrastructure/, src/spectra/use_cases/orchestrate_agents.py, and src/spectra/infrastructure/agents/base_agent.py \u2014 but none of these files appear in the provided source. Quality assessment of test coverage, test isolation, fixture design, orchestration complexity, and agent factory complexity cannot be performed against the actual implementation. Findings below are scoped to what was provided.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run analysis with the targeted files included so test isolation, fixture quality, orchestration cyclomatic complexity, and adversarial coverage can be assessed directly.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "_run_analysis has too many parameters and orchestrates many concerns",
+      "description": "_run_analysis takes 14 parameters (8 explicit + 6 keyword-only) and orchestrates DI wiring, workspace allocation, ingest, ctx assembly, run+stamp, policy enforcement, render, and cleanup. While helpers have been extracted (good), the function still violates PLR0913 (which is globally suppressed in pyproject.toml). Long parameter lists are hard to test and call sites are fragile to argument-order changes.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 287,
+        "line_end": 366
+      },
+      "recommendation": "Introduce an ``AnalysisOptions`` frozen dataclass/Pydantic model bundling the CLI flags (skip_critique, output_format, verbose, force, no_cache, honor_gitignore, allow_secrets, audit_sink, classification, max_cost_usd, max_cost_per_hour, agent_overrides). Then _run_analysis takes (repo_url, output_path, options). Removes the PLR0913 ignore justification.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "analyze() Typer command is a 200+ line god-function with 35+ parameters",
+      "description": "The ``analyze`` command in cli_controller.py declares ~35 typer.Option parameters (model, effort, meta_model, meta_effort, critique_model, critique_effort, architecture_model/effort, security_model/effort, quality_model/effort, documentation_model/effort, dependency_model/effort, performance_model/effort, model_overrides, effort_overrides, classification, max_cost_usd, max_cost_per_hour, etc.). The function body then orchestrates validation, override gathering, banner printing, async invocation, exception funneling, summary printing, score gate, and severity gate. This is a textbook god-function \u2014 testability and readability are degraded.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 437,
+        "line_end": 642
+      },
+      "recommendation": "Generate per-role flag pairs from a loop or use a single ``--agent-config role:model:effort`` flag pattern. Push the body into ``run_analyze(opts: AnalyzeOptions)`` so the Typer surface is a thin parsing/dispatch layer. Target <=20 typer.Options on the command and <=40 lines of body.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": true,
+      "estimated_hours": 8.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Globally suppressing PLR0913 (too-many-arguments) hides real complexity",
+      "description": "pyproject.toml ignores PLR0913 globally with the rationale 'agent constructors need multiple params'. This blanket suppression masks legitimate complexity smells across the codebase \u2014 _assemble_context (15+ params), analyze() (35+ params), _run_analysis (14 params), _gather_and_validate_overrides (4 grouped params), and _build_overrides_dict (4 params) all benefit from the lint signal.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 89,
+        "line_end": 89
+      },
+      "recommendation": "Remove the global PLR0913 ignore. Apply per-file ignores only to specific agent-constructor modules, or use ``# noqa: PLR0913`` annotations with justification at each call site. This restores the complexity signal everywhere else.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "_assemble_context takes 15 keyword-only parameters",
+      "description": "_assemble_context bundles 'every input the use-case pipeline needs into a single ctx' but does so by accepting 15 keyword-only parameters. The function is essentially a builder for PipelineContext \u2014 but with this many parameters, signature drift between caller and callee is invisible at type-check time when defaults exist.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 156,
+        "line_end": 217
+      },
+      "recommendation": "Group related parameters into typed sub-bundles: ``CacheInputs(cache, force, no_cache)``, ``CostInputs(max_cost_usd, max_cost_per_hour)``, ``GovernanceInputs(audit_sink, classification, workspace_dir)``. Reduces signature surface to 6-7 parameters.",
+      "agent_role": "quality",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Module-level mutable globals injected via setters defeat type safety",
+      "description": "cli_controller.py uses 5 module-level globals (_analyzer_factory, _cache_provider, _shred_executor, _verifier, _default_public_key_path) injected via setter functions with ``global`` declarations. Tests cannot run analyze() concurrently because state leaks between them. Each setter requires PLW0603 ``noqa`` overrides. The pattern is a workaround for not having a CLI context object.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 261,
+        "line_end": 318
+      },
+      "recommendation": "Introduce a ``CliContext`` dataclass bound to ``typer.Context.obj`` via ``@app.callback()``. The composition root constructs it once and Typer threads it through commands. Eliminates 5 globals, 5 setters, and all PLW0603 suppressions; makes CLI commands trivially testable.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-006",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "waiver_cli.py uses module-level mutable globals with the same pattern",
+      "description": "waiver_cli.py replicates the cli_controller pattern with two more globals (_backend, _signer) and two more setters using ``global`` + PLW0603 noqa. Same testability problems compounded across two modules.",
+      "location": {
+        "file_path": "src/spectra/adapters/waiver_cli.py",
+        "line_start": 67,
+        "line_end": 113
+      },
+      "recommendation": "Either unify under the proposed ``CliContext`` or pass dependencies explicitly into ``waive_command`` and ``approver_register`` via Typer parameter injection. Remove the in-module global state.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-007",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Broad ``except Exception`` in cache_shred error path",
+      "description": "cache_shred catches the bare ``Exception`` class, which masks programmer errors (AttributeError, TypeError) the same way it masks legitimate I/O failures. The rest of the codebase carefully narrows exception types (e.g. ``_RECEIPT_DEGRADE_EXCEPTIONS``, the documented narrow tuple in ``_attach_receipt``) \u2014 this site is inconsistent.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Narrow to the realistic failure set: ``(OSError, PermissionError, AgentError)``. Anything else should propagate and crash with a stack trace so genuine bugs are not silently turned into a brand-voice error line.",
+      "agent_role": "quality",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-009",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "build_json_payload precedes _redact_public_payload definition \u2014 readability",
+      "description": "build_json_payload is the public API but ``_redact_public_payload`` (the helper it delegates to) is defined immediately after. The forward reference works at runtime because Python resolves names at call time, but mixed public/private ordering hurts skimmability. Other modules in this codebase (e.g. pr_comment_renderer.py) carefully order helpers above the public API.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Reorder so all private helpers (_redact_public_payload, _sarif_disclaimer_notification, _sarif_results, _sarif_run_properties) appear before their public callers (build_json_payload, _build_sarif). Matches the convention used by pr_comment_renderer.py.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-010",
+      "dimension": "quality",
+      "severity": "low",
+      "title": "Coverage exclude list omits CLI controller despite heavy branching",
+      "description": "[tool.coverage.run].omit excludes specialist_prompts.py (reasonable \u2014 it's mostly string literals) but does not address cli_controller.py (~600 lines, 30+ helpers, 5+ commands). Without knowing test coverage, the 85% fail_under floor may be carried by easy modules while the high-branch CLI lags. Several helpers (_classification_filename, _normalize_role_keys, _eager_validate_overrides, _print_budget_exceeded, _print_secret_detection) have non-trivial logic that benefits from explicit unit tests.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 144,
+        "line_end": 150
+      },
+      "recommendation": "Add per-module coverage targets for cli_controller.py (>=90%) and report whether the existing test suite hits the unit-tested helpers. Consider extracting CLI helpers to a pure module (``cli_helpers.py``) so they are easy to unit-test without booting Typer.",
+      "agent_role": "quality",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-013",
+      "dimension": "quality",
+      "severity": "info",
+      "title": "Strong positive: comprehensive ruff lint set with security + pytest rules",
+      "description": "The ruff config selects a broad rule set (E, F, I, N, UP, ANN, S, B, A, C4, RET, SIM, PT, PLW, PLR, PERF, RUF, T20, DTZ, PIE, RSE, TCH, TID) including security (bandit), pytest-style, and performance lints. Combined with strict mypy (disallow_untyped_defs, no_implicit_optional, warn_unreachable) and a 30s pytest timeout + ``filterwarnings = error``, the static analysis posture is strong.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 60,
+        "line_end": 100
+      },
+      "recommendation": "No action needed. Consider also adding ``D`` (pydocstyle) since the codebase already has thorough docstrings \u2014 the lint would lock that in.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-001",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "ADR-020 referenced in code but not listed in module ADR indices",
+      "description": "pyproject.toml lists 'pyyaml' with comment '#17 + #18 + ADR-020: YAML config / policy / waivers / approvers' and waiver_cli mentions waiver flows, yet the main module's ADR reference list (ADR-001, ADR-012, ADR-013, ADR-018) and other module headers do not include ADR-020. Inconsistent ADR cross-referencing makes it harder for readers to trace the policy/waiver design decision.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 38,
+        "line_end": 45
+      },
+      "recommendation": "Add ADR-020 to the module docstring's ADR references list in main.py (and any other module that touches policy/waiver wiring), or document why ADR-020 is intentionally only cited at the dependency-declaration level.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Public function build_json_payload lacks module-level export documentation",
+      "description": "build_json_payload is used as a public utility (called from _render_report and exposed as the JSON output composer) but is not listed in any __all__, has no explicit 'public API' marker in the module docstring, and is not cross-referenced from docs/api/API.md visibility cannot be verified. Its disclaimer-first contract and capability #56 redaction behavior are documented in the docstring, which is good.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 587,
+        "line_end": 610
+      },
+      "recommendation": "Either add build_json_payload to a module-level __all__ if it is a stable public API, or rename it with a leading underscore if it is internal. Cross-reference the function from docs/api/API.md so consumers of the JSON schema can find it.",
+      "agent_role": "documentation",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Version drift between __init__.py and pyproject.toml is risk-prone",
+      "description": "Both src/spectra/__init__.py (__version__ = \"0.6.0\") and pyproject.toml (version = \"0.6.0\") hardcode the version separately. They currently match, but there is no documented release process or single source of truth. The composition root reads __version__ for cache key composition and SARIF output, so a desync would silently invalidate caches and emit incorrect tool metadata.",
+      "location": {
+        "file_path": "src/spectra/__init__.py",
+        "line_start": 14,
+        "line_end": 14
+      },
+      "recommendation": "Document the release process in CONTRIBUTING.md (or RELEASING.md) including which file is canonical, or use setuptools dynamic version (e.g. tool.setuptools.dynamic.version.attr = 'spectra.__version__') so pyproject.toml derives from __init__.py automatically.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Error code SPEC-PROMPT-INJECTION-DETECTED is a sentinel, not a SPEC-NNN",
+      "description": "models.py mentions a 'SPEC-PROMPT-INJECTION-DETECTED' rule_id sentinel set by CritiqueAgent (ADR-011 \u00a72), but the canonical ERRORS registry in errors.py only defines SPEC-001 through SPEC-014. The sentinel is a Finding.rule_id rather than a SpectraError code, which is correct, but the naming collision could confuse users grepping the error-codes documentation. Without seeing docs/error-codes.md, it's unclear whether this distinction is documented.",
+      "location": {
+        "file_path": "src/spectra/entities/models.py",
+        "line_start": 219,
+        "line_end": 224
+      },
+      "recommendation": "In docs/error-codes.md, add a 'Sentinel rule IDs' section that explains SPEC-PROMPT-INJECTION-DETECTED is a Finding.rule_id (not an error code) and links to ADR-011. Consider renaming to PROMPT-INJECTION-DETECTED (drop SPEC- prefix) to avoid confusion with the SPEC-NNN error code namespace.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Docs link template does not validate that anchors exist",
+      "description": "_docs_link in cli_controller.py builds URLs of the form '<docs base>#<spec-code-lower>' assuming that every SPEC-NNN code has a matching anchor in docs/error-codes.md. If a new SPEC code is added to errors.py without updating the docs file, users following the link will land on the page header. There is no test or CI check that asserts every SpectraError.code has a corresponding section in docs/error-codes.md.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 165,
+        "line_end": 173
+      },
+      "recommendation": "Add a documentation-coverage test (or a CONTRIBUTING.md checklist item) that asserts every key in spectra.entities.errors.ERRORS has a matching '## SPEC-NNN' header in docs/error-codes.md. The test can simply parse the markdown for headers and diff against ERRORS.keys().",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "CLI option flag listing in code does not cross-reference user-facing docs",
+      "description": "The analyze command in cli_controller.py exposes ~30 flags (--quick, --force, --no-cache, --classification, --max-cost-usd, per-agent --<role>-model, --model-overrides, --audit-sink, --fail-on, --min-score, etc.). Each has a Typer help= string but there is no consolidated reference. Without seeing docs/guides/getting-started.md and docs/api/API.md it's not possible to confirm comprehensive flag documentation, but flag count and complexity warrants a dedicated CLI reference page.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 405,
+        "line_end": 555
+      },
+      "recommendation": "Ensure docs/api/API.md (or a dedicated docs/cli-reference.md) enumerates every analyze flag with: name, default, allowed values, and a one-line example. Generate it from the Typer app with a small script (typer-cli or similar) so it stays in sync.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": true,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "scripts/squat-stub/pyproject.toml lacks user-facing context",
+      "description": "The squat-stub pyproject.toml has only an inline build-system comment explaining 'a single source tree publishes every defensive squat name in one loop'. There is no README in scripts/squat-stub/ explaining the threat model (typosquatting on PyPI), what names are being squatted, the publication procedure, or the SQUAT_NAME env-var contract referenced by setup.py.",
+      "location": {
+        "file_path": "scripts/squat-stub/pyproject.toml",
+        "line_start": 1,
+        "line_end": 8
+      },
+      "recommendation": "Add scripts/squat-stub/README.md explaining: (1) the typosquat-defense rationale, (2) the list of names being defended, (3) how to run the publication loop, (4) the SQUAT_NAME env var contract and where setup.py reads it, (5) the rotation/maintenance schedule.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Inline comments reference '#56', '#57', '#18', 'Roadmap #13' without traceable source",
+      "description": "The codebase has dense capability/roadmap references \u2014 e.g. 'Capability #56 \u00a74', 'Roadmap #13', '#18', '#57', 'Q2 #19', 'Q2 #20' \u2014 scattered across docstrings (build_json_payload, _redact_public_payload, _sarif_run_properties, attach_receipt, AnalysisReport.classification, etc.). Without a documented index mapping these numbers to roadmap items / specs / issue tickets, a new contributor cannot resolve them. CLAUDE.md may contain this index but the docstrings do not link to it.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 597,
+        "line_end": 605
+      },
+      "recommendation": "Either (a) add a 'Capability index' section to CLAUDE.md or docs/glossary.md mapping every numbered capability/roadmap reference to its source spec, and link to it from one of the more frequently-edited docstrings; or (b) replace bare numbers with anchored links like 'CAP-056 (public-mode redaction)' that resolve in the docs.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": true,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "AGENT_DESCRIPTIONS dict undocumented as part of public Adapter API",
+      "description": "In progress_reporter.py, AGENT_DISPLAY_NAMES is exported via adapters/__init__.py but AGENT_DESCRIPTIONS (used to build the info column) is not. Both are module-level constants that contributors will likely want to extend when adding new agent roles. The asymmetry is undocumented.",
+      "location": {
+        "file_path": "src/spectra/adapters/progress_reporter.py",
+        "line_start": 51,
+        "line_end": 61
+      },
+      "recommendation": "Either export AGENT_DESCRIPTIONS alongside AGENT_DISPLAY_NAMES in adapters/__init__.py.__all__, or add a comment in progress_reporter.py explaining why one is public and the other is intentionally module-private.",
+      "agent_role": "documentation",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "info",
+      "title": "Module docstrings are strong; consistent ADR-reference convention is a notable strength",
+      "description": "Most inner-layer modules (entities/audit.py, entities/disclaimer.py, entities/enums.py, entities/errors.py, entities/models.py, adapters/*.py, infrastructure/main.py) have well-structured docstrings explaining purpose, dependency-rule role, and ADR linkage. Public functions consistently use Args/Returns/Raises sections. This is a positive signal that should be preserved.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 1,
+        "line_end": 47
+      },
+      "recommendation": "No action required. Document this convention explicitly in CONTRIBUTING.md (e.g. 'every module docstring must list applicable ADRs and link to docs/architecture/adr/') so the standard is preserved as the team grows.",
+      "agent_role": "documentation",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Adversarial fixture files are present in source tree without README clarifying their role",
+      "description": "golden_files/adversarial/01-docstring-score-directive/src/main.py, 03-comment-ignore-prior/src/index.js, and 17-package-json-script/package.json all contain prompt-injection content disguised as legitimate code. Without a README in golden_files/adversarial/ explaining (a) these are test fixtures, (b) they MUST NOT be analyzed by Spectra during normal scans, and (c) how the test harness consumes them, a new maintainer might mistakenly delete them or worse, treat the embedded directives as real policy.",
+      "location": {
+        "file_path": "golden_files/adversarial/01-docstring-score-directive/src/main.py",
+        "line_start": 1,
+        "line_end": 8
+      },
+      "recommendation": "Add golden_files/adversarial/README.md explaining: (1) these are intentional injection fixtures used by the prompt-injection regression suite, (2) the index of cases (01..N) and what each tests, (3) which test file consumes them, (4) the contract that ANY agent must reject scoring directives in source code.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-012",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Receipt verification CLI lacks documented end-to-end example",
+      "description": "The verify command in cli_controller.py (lines 700-750ish) has a clear docstring, but there is no documented end-to-end flow showing: (1) where the public key file is generated, (2) the default path ~/.config/spectra/receipt.pub, (3) how to share the public key for offline verification, (4) what exit codes mean. _load_pub_pem silently returns None on missing key \u2014 verify still proceeds, which may surprise users.",
+      "location": {
+        "file_path": "src/spectra/adapters/cli_controller.py",
+        "line_start": 700,
+        "line_end": 770
+      },
+      "recommendation": "Add a section to docs/guides/getting-started.md (or a dedicated docs/receipts.md) walking through: spectra analyze produces JSON with embedded receipt \u2192 spectra verify report.json \u2192 exit codes 0 (verified), 1 (sig mismatch / hash mismatch / no receipt). Document the public-key default path and the implications when _load_pub_pem returns None.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "PLAN files (workflows, action.yml, lockfile, renovate config) not provided for review",
+      "description": "The dependency-focused PLAN explicitly listed pyproject.toml, requirements.lock, renovate.json, .github/workflows/ci.yml, .github/workflows/publish.yml, and action.yml. Only pyproject.toml was actually included in the source bundle. The lockfile, Renovate config, GitHub Actions workflows, and Action manifest cannot be assessed (pin freshness, action SHA pinning, OIDC/PyPI trusted publishing, squat protections via the scripts/squat-stub directory). Findings below are limited to what pyproject.toml and the inline composition-root code reveal.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the dependency analysis with the full set of PLAN files attached so lockfile freshness, GitHub Action SHA pinning, and PyPI trusted-publishing config can be validated.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "pysqlcipher3 is unmaintained \u2014 last release 2019, archived on PyPI",
+      "description": "pyproject.toml lists pysqlcipher3>=1.2,<2.0 as a runtime dependency (ADR-013 SQLCipher at-rest encryption). pysqlcipher3 has not had a release since 2019 (v1.2.0, May 2019), the upstream GitHub repo is effectively abandoned, and it does not ship Windows wheels \u2014 forcing source builds against libsqlcipher. The package is widely flagged as unmaintained in supply-chain advisories, and several derivative forks (sqlcipher3, sqlcipher3-binary, sqlcipher3-wheels) have emerged precisely because of this. Even though the adapter is documented to degrade gracefully, shipping an abandoned C-extension dependency in a security-product runtime is a meaningful supply-chain risk.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 49,
+        "line_end": 53
+      },
+      "recommendation": "Migrate to a maintained fork such as sqlcipher3-binary (Coleifer's maintained fork with prebuilt wheels) or pysqlcipher3-wheels. Alternatively, make SQLCipher truly optional via an extra (e.g. \"[sqlcipher]\") so the default install does not pull an unmaintained C-extension.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": true,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-002",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "No lockfile committed alongside pyproject.toml for reproducible installs",
+      "description": "pyproject.toml declares only loose version ranges (e.g. anthropic>=0.40,<1.0, cryptography>=43,<45). The PLAN references requirements.lock but it was not provided for review, and pyproject.toml itself contains no [tool.uv]/[tool.pdm.lock]/[tool.poetry.lock]-style pin reference. For a security-analysis tool that signs receipts and runs in regulated SDLCs, two contributors running `pip install spectra-ai` on the same day can resolve to different transitive trees (e.g. httpx, anyio, pydantic-core minor bumps), undermining receipt reproducibility (#57) and the stated Q1 #9 goal of preventing silent transitive bumps.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 22,
+        "line_end": 56
+      },
+      "recommendation": "Commit and CI-verify a hash-pinned lockfile (uv.lock, requirements.lock with --require-hashes, or pip-compile output). Add a CI job that fails when pyproject.toml dependency edits are not accompanied by a matching lockfile update. Include the lockfile in the published wheel's audit trail.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "cryptography upper bound at <45 will block routine security patch uptake",
+      "description": "pyproject.toml pins cryptography>=43,<45. cryptography is one of the most actively maintained security packages in the ecosystem and routinely ships CVE fixes in major bumps (v44, v45). The inline comment acknowledges the bound is gated on a 'verified rebuild + full receipt regression sweep,' but a strict <45 ceiling means that when (not if) a CVE is fixed only in v45+, this project cannot consume the patch without a release. For a security-analysis tool that signs receipts using cryptography's Ed25519 primitives, this delay-by-design is a meaningful posture risk.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 54,
+        "line_end": 56
+      },
+      "recommendation": "Either widen the bound to <46 with a planned rebuild cadence, or add a CI job that auto-opens a PR when a new cryptography major lands (Renovate already supports this). Document the SLA between a cryptography release and Spectra adopting it.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "keyring runtime dependency creates platform-conditional install failures",
+      "description": "keyring>=24,<26 is a hard runtime dependency, but the code in src/spectra/adapters/waiver_cli.py (_get_backend) and src/spectra/infrastructure/main.py (_receipt_degrade_exception_types) treats it as optional via try/except ImportError. If it is genuinely optional (degrades to no-secret/None), it should be moved behind an extra (e.g. spectra-ai[keyring]) so headless CI containers don't pull keyring's transitive D-Bus/secretstorage chain. If it is required, the ImportError fallbacks are dead code. The current state is inconsistent.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 41,
+        "line_end": 42
+      },
+      "recommendation": "Decide: either make keyring a required dep and remove the ImportError fallbacks in waiver_cli.py and main.py, or move it to an optional extra and gate the keyring-using code paths on the extra being installed.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-005",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Project version 0.6.0 declared but spectra/__init__.py also declares 0.6.0 \u2014 single-source not enforced",
+      "description": "pyproject.toml hardcodes version=\"0.6.0\" and src/spectra/__init__.py hardcodes __version__ = \"0.6.0\". They happen to match today, but there is no dynamic-version mechanism (e.g. setuptools-scm, hatch-vcs, or [tool.setuptools.dynamic]) enforcing this. This is a maintenance hazard: a release that bumps one and forgets the other ships a wheel where receipt.spectra_version (used in cache keys and audit events per ADR-018) silently disagrees with the wheel metadata, undermining cache invalidation and audit correlation.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 7,
+        "line_end": 7
+      },
+      "recommendation": "Switch to dynamic versioning. Either add `[project]\\ndynamic = [\"version\"]` with `[tool.setuptools.dynamic]\\nversion = {attr = \"spectra.__version__\"}`, or adopt setuptools-scm and let the git tag drive both. Add a CI assertion that wheel metadata version == spectra.__version__.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "info",
+      "title": "Development Status :: 3 - Alpha contradicts security-grade dependency posture",
+      "description": "The classifier declares Alpha while the codebase ships Ed25519 receipts, audit logs (ADR-018), per-user keyring HMAC, SQLCipher encryption-at-rest, and SARIF integration with GitHub Code Scanning \u2014 i.e. features that downstream regulated-SDLC consumers will treat as production. The mismatch may cause supply-chain consumers to under-pin spectra-ai (treating it as throwaway alpha) when its own README positions it as auditor-adjacent.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 14,
+        "line_end": 15
+      },
+      "recommendation": "Either move the classifier to '4 - Beta' / '5 - Production/Stable' to match the security claims in code, or explicitly document the alpha caveat in the README so downstream consumers don't pin against unstable APIs.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "scripts/squat-stub uses dynamic name from env var \u2014 supply-chain audit hole",
+      "description": "scripts/squat-stub/pyproject.toml is a build-system shim where 'actual package metadata is supplied dynamically by setup.py via the SQUAT_NAME environment variable.' This is a defensive squat-publishing mechanism, but the manifest as shown contains no defensive package list, no setup.py snippet for review, and no CI gating that verifies SQUAT_NAME is drawn from a reviewed allowlist. A compromised CI env or a typo in a deploy script could publish under an unintended name, and the lack of a checked-in allowlist means there is no audit trail of which squat names exist.",
+      "location": {
+        "file_path": "scripts/squat-stub/pyproject.toml",
+        "line_start": 1,
+        "line_end": 6
+      },
+      "recommendation": "Commit a checked-in YAML/TOML allowlist of squat names (e.g. squat-names.yml) that the publish loop iterates from. Have the publish workflow assert SQUAT_NAME \u2208 allowlist before invoking `python -m build`. Show the corresponding setup.py here so reviewers can audit the dynamic metadata path.",
+      "agent_role": "dependency",
+      "confidence": 0.7,
+      "validated_by_critique": true,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-008",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "setuptools>=75 lower bound is generous but no upper bound \u2014 build-time dependency drift",
+      "description": "[build-system] requires = [\"setuptools>=75\", \"wheel\"] has no upper bound on either build-time dep. While build-system requires are isolated from runtime, a future setuptools major (e.g. 80+) that drops legacy compatibility or changes default metadata behavior could silently break wheel builds in CI without the lockfile catching it (build-system requires are not lockfile-tracked in most workflows).",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 1,
+        "line_end": 3
+      },
+      "recommendation": "Pin an upper bound on setuptools (e.g. setuptools>=75,<80) consistent with the project's other dependency-bound philosophy. Track build-system bumps in Renovate alongside runtime deps.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Target performance files were not provided in the source listing",
+      "description": "The PLAN identified the focus files (orchestrate_agents.py, manage_token_budget.py, anthropic_adapter.py, tiktoken_adapter.py, retry_decorator.py, cache_adapter.py, plus two perf test files) but the SOURCE CODE block contains only the composition root (main.py), CLI controller, adapters, and entity layer. Without the actual implementation of the parallel agent pipeline, retry decorator, cache adapter, and tiktoken adapter, the most impactful performance findings (parallelism semantics, retry backoff math, cache hit-path I/O, tokenizer reuse) cannot be confirmed from code evidence. This finding is informational so the assessment is not based on speculation.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Re-run the analysis with the actual contents of orchestrate_agents.py, manage_token_budget.py, anthropic_adapter.py, tiktoken_adapter.py, retry_decorator.py, and cache_adapter.py so concrete bottlenecks (e.g. semaphore sizing, retry jitter, prepared-statement reuse, tokenizer caching) can be verified.",
+      "agent_role": "performance",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "TiktokenAdapter instantiated per heuristic read pass",
+      "description": "_read_key_source_files() constructs a fresh TiktokenAdapter() on every invocation. The tiktoken library's encoder construction is non-trivial (loads a BPE merge table, often >1MB) and is typically cached process-wide. Re-instantiating it per call adds startup latency to the INGEST stage and discards any internal caches. While only called once per pipeline run today, this pattern blocks reuse if the orchestrator ever invokes multiple reads or if the function is called from a long-running daemon.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 437,
+        "line_end": 440
+      },
+      "recommendation": "Make TiktokenAdapter a module-level singleton or wrap its construction in @lru_cache(maxsize=1). Inject the counter into _read_key_source_files() instead of constructing it inline so test/perf code can share one encoder instance.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Token cap walks all gathered reads even after exceeding budget",
+      "description": "_apply_token_cap() iterates every (path, content) pair and calls counter.count(content) even after the cap is reached. The break only happens after the count, so for the file that pushes total over MAX_HEURISTIC_TOKENS, tokenization runs needlessly. More importantly, the cap does not short-circuit the asyncio.gather above \u2014 every ranked file is fully read into memory before the cap is applied, so a 20-file MAX_HEURISTIC_FILES list always reads all 20 even if the first 3 already saturate the budget.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 466,
+        "line_end": 480
+      },
+      "recommendation": "Either (a) read files in priority chunks of ~5 and break as soon as the cap is hit to avoid unnecessary I/O, or (b) accept the eager-read but at minimum estimate tokens via len(content)//4 as a fast pre-check before invoking the BPE counter. For (a), a streaming generator over ranked paths with a running total avoids both wasted reads and wasted tokenization.",
+      "agent_role": "performance",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "asyncio.gather over read_file launches all reads with no concurrency cap",
+      "description": "_gather_source_reads() uses asyncio.gather(*coros) for up to MAX_HEURISTIC_FILES reads with no semaphore. GitAdapter.read_file is documented to dispatch to a worker thread, which means MAX_HEURISTIC_FILES threads can be active simultaneously. On the default asyncio thread-pool (min(32, os.cpu_count()+4)), this is fine for ~20 files but provides no backpressure if MAX_HEURISTIC_FILES is ever raised, and it competes with other to_thread work (e.g. the rmtree at cleanup).",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 458,
+        "line_end": 463
+      },
+      "recommendation": "Wrap the gather in an asyncio.Semaphore(8) (or similar) so disk I/O concurrency is bounded regardless of MAX_HEURISTIC_FILES. This also protects the default thread-pool from saturation when other to_thread calls (rmtree, audit sink writes) run concurrently.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Composite version helpers re-hash module strings on import-time fallback",
+      "description": "_composite_prompt_versions() and _composite_model_versions() are correctly memoized with @lru_cache(maxsize=1), and the rationale is documented. Within a single process this is optimal. The minor concern is that bind_cache_run_context, _make_cache_key_factory, and possibly the cache adapter all call these helpers \u2014 without the @lru_cache they would each blake2b-hash the prompt corpus (which can be tens of KB). Current implementation is fine; flagging as positive acknowledgement.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 535,
+        "line_end": 561
+      },
+      "recommendation": "Keep the @lru_cache(maxsize=1) memoization. If the prompt corpus grows large (>100KB) or this is ever invoked in a hot loop, consider precomputing at module import time via a module-level constant.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "PR comment renderer compiles regex patterns at module import \u2014 good, but summary scan runs N patterns per finding",
+      "description": "_sanitize_summary() iterates 8 compiled regex patterns (_SUMMARY_DROP_PATTERNS) and runs .search() on every finding's description. For reports with many findings (e.g. 500+ across a large repo), this is 4000+ regex scans on potentially long descriptions. Patterns are precompiled (good), but they could be combined into a single alternation to halve the scan count, or short-circuited by a fast 'has any URL-like char' precheck (e.g. 'http' in cleaned or '[' in cleaned).",
+      "location": {
+        "file_path": "src/spectra/adapters/pr_comment_renderer.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a fast-path: if no character in {'h','[','@','#','<','!'} appears in cleaned, skip the regex loop entirely. For most benign descriptions this avoids 8 regex scans. Alternatively, combine drop patterns into a single re.compile alternation.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-006",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "RichProgressReporter._render_agent_panel triggers full table re-render after every agent",
+      "description": "_all_agents_done() is checked on every agent_success / agent_failure call, and when true triggers _render_agent_panel which builds a Rich Table iterating all roles. This is O(n\u00b2) over agent count (n=8), which is negligible. Flagging as info because the pattern would matter at 100+ agents \u2014 it is currently fine.",
+      "location": {
+        "file_path": "src/spectra/adapters/progress_reporter.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "No change required at n=8. If the agent count grows, switch to incremental panel updates instead of full re-render.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "shutil.rmtree offloaded to thread \u2014 good async hygiene",
+      "description": "The composition root correctly offloads shutil.rmtree to asyncio.to_thread in the finally block, avoiding a >100ms event-loop block on large repos. This is a strong pattern and is explicitly documented. No change required.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 351,
+        "line_end": 356
+      },
+      "recommendation": "Keep this pattern. Apply the same offload to any other potentially blocking filesystem walk (e.g. cache shred, which is currently done synchronously via _shred_executor \u2014 see if cache_shred path could block the CLI on very large cache files).",
+      "agent_role": "performance",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "info",
+      "title": "Decorator chain wraps every LLM call with logging+retry overhead per agent call",
+      "description": "_wire_dependencies builds AnthropicAdapter \u2192 RetryDecorator \u2192 LoggingDecorator. Each LLM call traverses the full chain, which is the correct design (per ADR-001) and the overhead is dominated by network latency. Flagging as info because without the actual decorator code, it is impossible to confirm whether retry backoff uses jitter (recommended to avoid thundering-herd on rate-limit) or whether the logging decorator allocates per call. The plan called these out as concerns; cannot verify from the provided code.",
+      "location": {
+        "file_path": "src/spectra/infrastructure/main.py",
+        "line_start": 187,
+        "line_end": 197
+      },
+      "recommendation": "When the RetryDecorator code is available, verify: (1) exponential backoff includes random jitter (e.g. base * 2**attempt + random.uniform(0, 1)) to avoid synchronized retries across 6 parallel specialists hitting a rate limit; (2) retry only on retryable SpectraError codes (SPEC-002, SPEC-003); (3) total worst-case wait (1+2+4=7s) is acceptable vs the 120s SPEC-006 agent timeout.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    }
+  ],
+  "analysis_duration_seconds": 567.0,
+  "total_tokens_used": 601942,
+  "total_cost_usd": 6.6214,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [
+    "arch-000, arch-002, qual-005, qual-006 all converge on a single root cause: the adapter layer's DI-via-module-globals pattern. A single CliContext/CliDependencies refactor would close all four findings simultaneously.",
+    "arch-004 and qual-001 are duplicate findings from architecture and quality lenses on _run_analysis's 14-param signature. Treat as one work item; introducing AnalysisOptions resolves both.",
+    "doc-003 and dep-005 both flag the version-drift hazard between __init__.py and pyproject.toml. Adopting setuptools dynamic versioning resolves both at once and also addresses the receipt/cache-key correlation risk noted in doc-003.",
+    "sec-003 and sec-002 form a unit: extending FORBIDDEN_PAYLOAD_KEYS to include nonce/signature/mac/hmac (sec-003) is also the documentation fix sec-002 calls for. One PR closes both.",
+    "qual-003 (global PLR0913 ignore) is the lint-suppression that allowed arch-004/qual-001/qual-002/qual-004 to grow undetected. Removing the global ignore is the upstream control that prevents recurrence.",
+    "doc-011 and sec-010 both touch the adversarial fixtures. Add the README (doc-011) AND verify packaging excludes (sec-010) in the same change \u2014 they share a directory and a threat-model rationale."
+  ],
+  "hallucination_removed_count": 1,
+  "is_compromised": false,
+  "validation_status": "validated",
+  "receipt": {
+    "scan_id": "c7a1a2dc90164a75a7eb2058449ba6d2",
+    "repo_signature": "9e766dc831788ff079172064f5c099f1",
+    "score_card_hash": "ce5b306d4d842564f7a17902b81e4203f1e8a3e65ce33d0fbc4b9abe4c8aa1e8",
+    "timestamp": "2026-04-30T14:37:52.997172Z",
+    "spectra_version": "0.0.0",
+    "signature": "82555785f90cafb2db72cff37d556e97f38ce3b1be124e91d07f27326ccadff0b9397bc9c266722797411a964b112d4e9636967791c422da1a05d770f89ba108",
+    "public_key_fingerprint": "c2cc74be1c94e0ab"
+  },
+  "classification": "confidential",
+  "waived_finding_count": 0,
+  "expired_waiver_count": 0
+}
