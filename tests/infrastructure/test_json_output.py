@@ -277,3 +277,117 @@ class TestValidationStatusFormatConsistency:
         json_payload = build_json_payload(report)
         sarif = _build_sarif(report)
         assert json_payload["validation_status"] == sarif["runs"][0]["properties"]["validation_status"] == "validated"
+
+
+# ── Capability #56 — JSON classification parity ──────────────
+
+
+def _classified(classification: str) -> AnalysisReport:
+    """Return _minimal_report with a chosen classification."""
+    return _minimal_report().model_copy(update={"classification": classification})
+
+
+def _sensitive_finding() -> Finding:
+    """Sensitive finding fixture for redaction grep tests."""
+    return Finding(
+        id="SEC-001",
+        dimension="security",
+        severity="critical",
+        title="AWS access key AKIAIOSFODNN7EXAMPLE in source",
+        description="-----BEGIN RSA PRIVATE KEY----- block in src/secrets.py",
+        location=FileLocation(file_path="src/secrets.py", line_start=12),
+        recommendation="Rotate keys and remove file from git history.",
+        agent_role="security",
+        confidence=0.99,
+        estimated_hours=3.0,
+        code_snippet="AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+    )
+
+
+def _sensitive_report(classification: str) -> AnalysisReport:
+    """A report with one sensitive finding, classified."""
+    return _minimal_report().model_copy(
+        update={
+            "classification": classification,
+            "findings": (_sensitive_finding(),),
+        }
+    )
+
+
+class TestJsonClassificationConfidential:
+    """Confidential JSON preserves the full report (no redaction)."""
+
+    def test_classification_field_present(self):
+        payload = build_json_payload(_classified("confidential"))
+        assert payload["classification"] == "confidential"
+
+    def test_findings_preserved_in_full(self):
+        payload = build_json_payload(_sensitive_report("confidential"))
+        assert len(payload["findings"]) == 1
+        f = payload["findings"][0]
+        assert "AKIAIOSFODNN7EXAMPLE" in f["title"]
+        assert "BEGIN RSA PRIVATE KEY" in f["description"]
+        assert f["location"]["file_path"] == "src/secrets.py"
+        assert "AKIAIOSFODNN7EXAMPLE" in f["code_snippet"]
+
+    def test_disclaimer_still_attached(self):
+        payload = build_json_payload(_classified("confidential"))
+        assert payload["disclaimer"]["text"] == DISCLAIMER_TEXT
+        assert payload["disclaimer"]["url"] == DISCLAIMER_URL
+
+
+class TestJsonClassificationPublic:
+    """Public JSON drops every individual finding and all PII-bearing fields."""
+
+    def test_classification_field_present(self):
+        payload = build_json_payload(_classified("public"))
+        assert payload["classification"] == "public"
+
+    def test_findings_array_is_empty(self):
+        payload = build_json_payload(_sensitive_report("public"))
+        assert payload["findings"] == []
+
+    def test_findings_count_preserved_at_top_level(self):
+        # The numeric findings count survives even though individual
+        # findings are dropped — capability #56 §4 keep-list.
+        payload = build_json_payload(_sensitive_report("public"))
+        assert payload["score_card"]["total_findings"] == 1
+        # Per-dimension findings_count survives too.
+        for dim in payload["score_card"]["dimensions"]:
+            assert "findings_count" in dim
+
+    def test_cross_cutting_insights_dropped(self):
+        report = _classified("public").model_copy(
+            update={"cross_cutting_insights": ("internal: re-architect auth flow",)}
+        )
+        payload = build_json_payload(report)
+        assert payload.get("cross_cutting_insights") in (None, [])
+
+    def test_no_sensitive_substrings_anywhere(self):
+        # Grep test — render JSON to bytes and confirm none of the
+        # planted markers leaked through.
+        forbidden = ("AKIAIOSFODNN7EXAMPLE", "BEGIN RSA", "PRIVATE KEY", "src/secrets.py")
+        payload = build_json_payload(_sensitive_report("public"))
+        blob = json.dumps(payload)
+        leaks = [s for s in forbidden if s in blob]
+        assert not leaks, f"Public JSON leaked: {leaks}"
+
+    def test_disclaimer_still_attached_in_public(self):
+        # PR #38 disclaimer rides along regardless of classification.
+        payload = build_json_payload(_classified("public"))
+        assert payload["disclaimer"]["text"] == DISCLAIMER_TEXT
+
+    def test_score_card_preserved(self):
+        # Overall + per-dimension scores survive in public JSON.
+        payload = build_json_payload(_classified("public"))
+        sc = payload["score_card"]
+        assert sc["overall_grade"]
+        assert sc["overall_score"]
+        assert len(sc["dimensions"]) == 6
+
+    def test_repo_name_and_scan_metadata_preserved(self):
+        # Capability #56 §4 keep-list: repo name, scan timestamp, version.
+        payload = build_json_payload(_classified("public"))
+        assert payload["repo_name"] == "repo"
+        assert payload["repo_url"]  # URL is metadata, kept
+        assert payload["analysis_duration_seconds"] == 5.0
