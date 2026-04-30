@@ -1,6 +1,8 @@
 # Launch materials
 
-Drafts for the v0.3.0 launch. Nothing in this directory is auto-published; the maintainer manually posts (or doesn't) after final review.
+Drafts pegged to the v0.3.0 cycle (the cache + GitHub Action launch); the four content files (`hn-post.md`, `twitter-thread.md`, `blog-post-skeleton.md`, `awesome-list-submissions.md`) are kept here as templates and have not been refreshed for the v0.4.0 / v0.5.0 / v0.6.0 release waves. Nothing in this directory is auto-published; the maintainer manually posts (or doesn't) after refreshing voice + numbers for the actual release being announced.
+
+The `leaderboard.md` IS kept current — it is the live link from the README, so check that one first.
 
 ## What's here
 

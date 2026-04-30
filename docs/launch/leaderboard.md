@@ -1,30 +1,34 @@
 # Spectra Leaderboard — Real OSS Scans (Full Mode)
 
-Live scans of well-known open-source projects, run with `spectra-ai==0.3.3` on Claude Opus 4.7. **Full pipeline** (all 8 agents including the CritiqueAgent stage that filters false positives via adaptive thinking + task budget). All findings link to the actual file:line on GitHub. No cherry-picking — each scan is one shot, including the self-scan.
+Live scans of well-known open-source projects, run with `spectra-ai==0.6.0` on Claude Opus 4.7. **Full pipeline** (all 8 agents including the CritiqueAgent stage that filters false positives via adaptive thinking + task budget). All findings link to the actual file:line on GitHub. No cherry-picking — each scan is one shot, including the self-scan.
 
 > **Note on the self-scan:** Spectra grading itself is biased by definition — the same prompts that wrote the findings also defined what counts as good. Treat the self-grade as a sanity check ("does our own architecture clear our own bar?") rather than as a benchmark vs the others.
 
 ## 📄 Open the styled reports in your browser
 
-- [`spectra (this repo)`](reports/spectra-self.html) — **B+** (85.1)
+- `spectra (this repo) — v0.6.0` — **B+** (86.0) (HTML to be re-published; see PR notes for the maintainer)
+- [`spectra (this repo) — v0.3.3 (historical)`](reports/spectra-self.html) — **B+** (85.1)
 - [`anthropic-sdk-python`](reports/anthropic-sdk-python.html) — **B+** (85.6)
 - [`gstack`](reports/gstack.html) — **C** (72.7)
 - [`gbrain`](reports/gbrain.html) — **C+** (73.0)
 - [`gbrain-evals`](reports/gbrain-evals.html) — **C+** (76.1)
 - [`alphaclaw`](reports/alphaclaw.html) — **C+** (74.6)
 
-## Summary
+## Summary (v0.6.0 self-scan + v0.3.3 OSS panel)
 
 | # | Repo | Stars | Grade | Score | Findings | Critical | High | Wall | Cost | HTML | JSON |
 |---:|---|---:|:---:|---:|---:|---:|---:|---:|---:|:---:|:---:|
-| 1 | [`spectra (this repo)`](https://github.com/leocder07/spectra) | (self) | **B+** | 85.1 | 38 | 0 | 0 | 257s | $5.09 | [📄](reports/spectra-self.html) | [📦](../leaderboard-data/spectra-self.json) |
+| 0 | [`spectra (this repo) — v0.6.0 self-scan`](https://github.com/leocder07/spectra) | (self) | **B+** | 86.0 | 34 | 0 | 0 | 244s | $5.99 | _to-be-published_ | _to-be-published_ |
+| 1 | [`spectra (this repo) — v0.3.3 (historical)`](https://github.com/leocder07/spectra) | (self) | **B+** | 85.1 | 38 | 0 | 0 | 257s | $5.09 | [📄](reports/spectra-self.html) | [📦](../leaderboard-data/spectra-self.json) |
 | 2 | [`anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+** | 85.6 | 50 | 0 | 0 | 248s | $7.41 | [📄](reports/anthropic-sdk-python.html) | [📦](../leaderboard-data/anthropic-sdk-python.json) |
 | 3 | [`gstack`](https://github.com/garrytan/gstack) | 86k | **C** | 72.7 | 49 | 1 | 7 | 190s | $9.16 | [📄](reports/gstack.html) | [📦](../leaderboard-data/gstack.json) |
 | 4 | [`gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+** | 73.0 | 61 | 0 | 7 | 264s | $5.25 | [📄](reports/gbrain.html) | [📦](../leaderboard-data/gbrain.json) |
 | 5 | [`gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+** | 76.1 | 55 | 1 | 6 | 276s | $6.32 | [📄](reports/gbrain-evals.html) | [📦](../leaderboard-data/gbrain-evals.json) |
 | 6 | [`alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+** | 74.6 | 50 | 0 | 7 | 234s | $5.30 | [📄](reports/alphaclaw.html) | [📦](../leaderboard-data/alphaclaw.json) |
 
-**Totals: 303 findings · $38.53 real Anthropic spend across all 6 scans.**
+**Totals: 337 findings · $44.52 real Anthropic spend across the 7 scans.**
+
+> The v0.6.0 self-scan is the new authoritative grade for `spectra` itself. The v0.3.3 row is preserved for trend comparison only — the OSS panel below has not been re-run on v0.6.0 yet (the v0.3.3 numbers reflect the same code under analysis, the harness is unchanged).
 
 ---
 
@@ -455,4 +459,5 @@ Live scans of well-known open-source projects, run with `spectra-ai==0.3.3` on C
 - Per-dimension weights: Architecture 25%, Security 25%, Quality 20%, Documentation 10%, Maintainability 10%, Performance 10%.
 - Cost = sum of input + output tokens × Opus 4.7 pricing ($5/M input, $25/M output) at the typical 70/30 split.
 - Self-scan: a Spectra binary scanning the same Spectra source. Useful as a sanity check; not a benchmark.
-- Scans done 2026-04-29 by Vivek Kumar.
+- Original OSS panel scans done 2026-04-29 by Vivek Kumar on v0.3.3.
+- v0.6.0 self-scan done 2026-04-30 by Vivek Kumar with `--classification confidential`. Authoritative numbers: B+ (86/100), 34 findings, 0 critical, 244s wall, $5.99 real Anthropic spend. The HTML/JSON artifacts in `docs/launch/reports/v0.6.0/` are still untracked pending a re-run that matches these headline numbers (see audit PR).
