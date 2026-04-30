@@ -58,7 +58,10 @@ dependencies = [
 # inherited transitively by the dev install, so we do not list it twice.
 dev = [
     "pytest>=8,<10",
-    "pytest-asyncio>=0.24,<2.0",
+    # pytest-asyncio is still on 0.x; <1.0 keeps us inside the current
+    # major series so a future v1.0 (which can break us) needs an explicit
+    # PR rather than a transitive lockfile bump.
+    "pytest-asyncio>=0.24,<1.0",
     "pytest-cov>=5,<8",
     "pytest-timeout>=2.2,<3.0",
     "ruff>=0.8,<1.0",
