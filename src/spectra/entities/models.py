@@ -237,6 +237,85 @@ class CacheUsage(BaseModel, frozen=True):
     read_tokens: int = Field(default=0, ge=0)
 
 
+# ── Batch API (ADR-024 part B) ────────────────────────────────
+
+
+class BatchRequestItem(BaseModel, frozen=True):
+    """One submission in an Anthropic Batch API job (ADR-024 part B).
+
+    A ``custom_id`` is the caller's stable handle for the request — the
+    Batch API echoes it back in every result so callers can reassemble
+    responses in the original submission order. Requests are otherwise
+    identical to the sync ``analyze`` call shape: a system prompt plus
+    a single user prompt, executed against ``model`` with the same
+    ``max_tokens`` and ``effort`` knobs the LLMGateway already exposes.
+    """
+
+    custom_id: str = Field(min_length=1)
+    system_prompt: str
+    user_prompt: str
+    model: str
+    max_tokens: int = Field(gt=0)
+    effort: str | None = None
+    cache_breakpoint_index: int | None = None
+
+
+class BatchHandle(BaseModel, frozen=True):
+    """Server-side identifier for a submitted Batch API job.
+
+    Returned by ``BatchSubmitterPort.submit`` and round-tripped to
+    ``poll`` until the batch reports ``ended``. ``submitted_at`` is
+    captured client-side so callers can compute their own deadline; the
+    Anthropic 24h SLA starts at server-side creation time, which differs
+    by network latency only.
+    """
+
+    batch_id: str = Field(min_length=1)
+    submitted_at: datetime
+    request_count: int = Field(ge=0)
+
+
+class BatchResultItem(BaseModel, frozen=True):
+    """A single result in a completed batch.
+
+    ``text`` is the concatenated text from all ``type="text"`` content
+    blocks, identical to what the sync ``analyze`` returns. ``cache_usage``
+    captures the same prompt-cache token counters the streaming adapter
+    surfaces, so the orchestrator can attribute Batch + cache savings on
+    a per-request basis. ``error`` is non-empty when Anthropic processed
+    the slot as an error — the rest of the batch still succeeds.
+    """
+
+    custom_id: str
+    text: str = ""
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    cache_usage: CacheUsage = CacheUsage()
+    error: str = ""
+
+    def succeeded(self) -> bool:
+        """Return True when the slot completed without error."""
+        return not self.error
+
+
+class BatchResult(BaseModel, frozen=True):
+    """Outcome of polling a completed batch.
+
+    ``items`` is ordered by the original submission order (callers do
+    not need to re-sort). ``processing_status`` mirrors the Anthropic
+    enum and is the source of truth for "are we done yet?" — only
+    ``ended`` is terminal; everything else means "poll again".
+    """
+
+    handle: BatchHandle
+    processing_status: Literal["in_progress", "canceling", "ended"]
+    items: tuple[BatchResultItem, ...] = ()
+
+    def is_complete(self) -> bool:
+        """Return True when the batch has reached its terminal state."""
+        return self.processing_status == "ended"
+
+
 class AgentOutput(BaseModel, frozen=True):
     """Validated output from a single agent run.
 
