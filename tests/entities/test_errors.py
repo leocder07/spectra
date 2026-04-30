@@ -367,3 +367,40 @@ class TestErrorCatchability:
         err = ERRORS[code]
         with pytest.raises(AttributeError):
             err.code = "CHANGED"
+
+
+# ── Fix 4 — PolicyGateError lives in entities ───────────────────
+
+
+class TestPolicyGateErrorLocation:
+    """``PolicyGateError`` is raised by infrastructure (``_enforce_policy``)
+    and caught by the CLI adapter — both layers need to reference it. The
+    only way both can without violating the Dependency Rule is for the
+    exception to live in ``entities.errors``. This pins that placement so
+    a future refactor cannot quietly push it back into the adapter layer.
+    """
+
+    def test_policy_gate_error_imported_from_entities(self) -> None:
+        # Direct import from entities must work — this is the canonical home.
+        from spectra.entities.errors import PolicyGateError
+
+        assert issubclass(PolicyGateError, Exception)
+
+    def test_policy_gate_error_carries_spec_013(self) -> None:
+        from spectra.entities.errors import PolicyGateError
+        from spectra.entities.models import Violation
+
+        violations = (Violation(kind="severity_gate", message="critical exceeds gate"),)
+        err = PolicyGateError(violations)
+        assert err.error.code == "SPEC-013"
+        assert err.violations == violations
+
+    def test_cli_controller_re_exports_policy_gate_error(self) -> None:
+        """Backward-compat: existing imports from
+        ``spectra.adapters.cli_controller`` keep working so the rename is
+        not a public-API break."""
+        from spectra.adapters.cli_controller import PolicyGateError as CliPGE
+        from spectra.entities.errors import PolicyGateError as EntitiesPGE
+
+        # Re-export must point to the same class — not a duplicate definition.
+        assert CliPGE is EntitiesPGE

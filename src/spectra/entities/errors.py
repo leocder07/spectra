@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from spectra.entities.models import SecretFinding
+    from spectra.entities.models import SecretFinding, Violation
 
 
 @dataclass(frozen=True)
@@ -150,6 +150,26 @@ class SecretDetectedError(Exception):
     def __init__(self, findings: tuple[SecretFinding, ...]) -> None:
         self.error = ERRORS["SPEC-011"]
         self.findings = findings
+        super().__init__(f"{self.error.code}: {self.error.message}")
+
+
+class PolicyGateError(Exception):
+    """Raised when ``.spectra-policy.yml`` rejects the run (SPEC-013).
+
+    Lives in ``entities`` so both infrastructure (the composition root,
+    where ``_enforce_policy`` raises it) and the CLI adapter (where it
+    is caught and rendered) can reference the same class without
+    violating the Dependency Rule.
+
+    Attributes:
+        error: ``SpectraError`` SPEC-013 — non-retryable.
+        violations: Tuple of ``Violation`` entries returned by
+            ``PolicyPort.evaluate``.
+    """
+
+    def __init__(self, violations: tuple[Violation, ...]) -> None:
+        self.error: SpectraError = ERRORS["SPEC-013"]
+        self.violations: tuple[Violation, ...] = violations
         super().__init__(f"{self.error.code}: {self.error.message}")
 
 

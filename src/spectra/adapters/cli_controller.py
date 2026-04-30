@@ -31,8 +31,8 @@ from spectra.entities.errors import (
     AgentError,
     BudgetExceededError,
     GitError,
+    PolicyGateError,
     SecretDetectedError,
-    SpectraError,
     SpectraRetryError,
 )
 from spectra.entities.models import AnalysisReport, CacheStats, Violation
@@ -701,24 +701,6 @@ def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception han
             f"\n[{RED}]✗[/] --fail-on={fail_on}: {offending} finding(s) at or above the {fail_on} severity threshold"
         )
         raise typer.Exit(code=1)
-
-
-class PolicyGateError(Exception):
-    """Raised when ``.spectra-policy.yml`` rejects the run (#17 — SPEC-013).
-
-    Carried out of the analyzer at the CLI seam so the controller can
-    render every violation in one brand-voice ✗ block before exiting 1.
-
-    Attributes:
-        error: ``SpectraError`` SPEC-013 — non-retryable.
-        violations: Tuple of Violation entries returned by
-            ``PolicyPort.evaluate``.
-    """
-
-    def __init__(self, violations: tuple[Violation, ...]) -> None:
-        self.error: SpectraError = ERRORS["SPEC-013"]
-        self.violations: tuple[Violation, ...] = violations
-        super().__init__(f"{self.error.code}: {self.error.message}")
 
 
 def _print_policy_violations(violations: tuple[Violation, ...]) -> None:
