@@ -41,17 +41,21 @@ You do NOT touch:
 
 ## Deliverables
 
-### Adapters (Layer 3)
-- `cli_controller.py` — Typer app with `spectra analyze <repo>` command
-  - `--output` flag for report path (default: `spectra-report.html`)
-  - `--quick` flag to skip CritiqueAgent
-  - `--format` flag for output format (html, json)
-  - `--verbose` flag for debug output
+### Adapters (Layer 3) — v0.6.0 baseline
+- `cli_controller.py` — Typer app with subcommands:
+  - `spectra analyze <repo>` (with `--quick`, `--format html|json|sarif`, `--output`, `--min-score`, `--fail-on`, `--force`, `--no-cache`, `--no-gitignore`, `--allow-secrets`, `--max-cost-usd`, `--max-cost-per-hour`, `--audit-sink`, `--classification`, per-agent `--<role>-model` / `--<role>-effort`)
+  - `spectra cache stats|clear|prune|doctor|shred`
+  - `spectra verify <report.json>` (Ed25519 receipt verification, v0.6.0)
+  - `spectra waive <id> --reason "..."` (v0.6.0)
+  - `spectra approver register --name "..." [--key-file <path>]` (v0.6.0)
+  - `spectra render pr-comment <report.json>` (v0.5.0)
 - `progress_reporter.py` — Rich Progress bars implementing ProgressObserver
   - Show all agents running in parallel with individual progress
   - Show stage transitions with ▸ prefix
   - Show completion with ✓ prefix
   - Show errors with ✗ prefix
+  - `on_cache_lookup(dim, hits, total)` per-dimension hit tally (v0.3.0)
+- `pr_comment_renderer.py` — Markdown-safe PR comment with finding-field allowlist (v0.5.0, roadmap #4)
 - `analysis_presenter.py` — Rich Console ScoreCard display
   - Box-drawing ScoreCard table
   - Color-coded grades (green=A/B, amber=C, red=D/F)
@@ -59,19 +63,22 @@ You do NOT touch:
 
 ### Templates
 - `report.html.j2` — Single-file HTML report
-  - Self-contained (inline CSS, no external deps except Excalidraw)
-  - ScoreCard with color-coded grades
-  - Findings grouped by dimension
-  - Each finding: title, severity badge, file path, line number, description, recommendation
-  - Summary statistics
-  - Responsive layout
+  - Self-contained (inline CSS, no external deps)
+  - Strict CSP (`script-src 'self' 'nonce-...'`) with event-delegation handlers (no inline `onclick`)
+  - ScoreCard with color-coded grades + radar chart
+  - Findings grouped by dimension; interactive expand/collapse + keyboard nav
+  - Indicative-analysis disclaimer banner (v0.5.0, roadmap #61)
+  - `--classification confidential` watermark + DLP meta tag (v0.6.0)
+  - `validation_status` red banner above ScoreCard for `--quick` runs (v0.6.0)
+  - Ed25519-signed receipt + `spectra verify` command in footer (v0.6.0)
+  - Summary statistics, ROI, compliance mapping, file hotspot heatmap
 
 ### README.md
 - One-line description (brand voice)
-- Quick start: `pip install spectra-cli && spectra analyze <repo>`
+- Quick start: `pip install spectra-ai && spectra analyze <repo>`
 - Screenshot of ScoreCard terminal output
-- How it works (6-stage pipeline)
-- Architecture for judges
+- How it works (6-stage pipeline incl. PREFLIGHT)
+- Architecture summary linking to `docs/architecture/`
 
 ## Brand Voice Rules
 

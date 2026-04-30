@@ -46,7 +46,7 @@ You do NOT touch:
 
 ### entities/errors.py
 - SpectraError frozen dataclass with code, message, retryable, max_retries
-- ERRORS dict mapping SPEC-001 through SPEC-009
+- ERRORS dict mapping SPEC-001 through SPEC-014 (incl. v0.5.0 SPEC-011 secret-detected and v0.6.0 SPEC-012 config-invalid, SPEC-013 policy-violation, SPEC-014 budget-exceeded)
 - Result generic type for fallible operations
 
 ### entities/models.py
@@ -64,10 +64,12 @@ You do NOT touch:
 ### use_cases/interfaces.py
 - LLMGateway Protocol
 - GitPort Protocol
-- FilePort Protocol
 - TokenPort Protocol
 - ReportPort Protocol
 - ProgressObserver Protocol
+- CachePort Protocol (v0.3.0)
+- WorkspaceFilterPort + SecretScannerPort Protocols (v0.5.0)
+- AuditPort + CostTrackerPort + PolicyPort + WaiverPort + ReceiptSigner Protocols (v0.6.0)
 
 ## Quality Standards
 
