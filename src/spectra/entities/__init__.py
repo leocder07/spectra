@@ -18,6 +18,16 @@ All public symbols are re-exported here via ``__all__`` for convenient access
 from outer layers (e.g. ``from spectra.entities import Finding, ScoreCard``).
 """
 
+from spectra.entities.audit import (
+    FORBIDDEN_PAYLOAD_KEYS,
+    AuditEvent,
+    AuditEventType,
+    AuditTarget,
+    Identity,
+    IdentityConfidence,
+    IdentitySource,
+    new_event_id,
+)
 from spectra.entities.disclaimer import (
     DISCLAIMER_TEXT,
     DISCLAIMER_URL,
@@ -76,6 +86,7 @@ __all__ = [
     "DISCLAIMER_URL",
     "ERRORS",
     "EXCELLENT_SCORE",
+    "FORBIDDEN_PAYLOAD_KEYS",
     "MIN_CONFIDENCE",
     "PASSING_SCORE",
     "AgentContext",
@@ -85,6 +96,9 @@ __all__ = [
     "AgentRunConfig",
     "AnalysisReport",
     "AnalysisRequest",
+    "AuditEvent",
+    "AuditEventType",
+    "AuditTarget",
     "BatchCacheKey",
     "BatchPrompt",
     "CacheEntry",
@@ -98,6 +112,9 @@ __all__ = [
     "Finding",
     "GitError",
     "Grade",
+    "Identity",
+    "IdentityConfidence",
+    "IdentitySource",
     "ModelId",
     "PipelineState",
     "RepoCacheKey",
@@ -112,6 +129,7 @@ __all__ = [
     "ValidationStatus",
     "disclaimer_payload",
     "estimate_cost",
+    "new_event_id",
     "score_to_grade",
     "strip_code_fence",
 ]
