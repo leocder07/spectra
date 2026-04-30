@@ -50,6 +50,7 @@ from spectra.entities.errors import (
     SpectraRetryError,
     strip_code_fence,
 )
+from spectra.entities.receipt import ScanReceipt
 from spectra.entities.models import (
     DEFAULT_DIMENSION_SCORE,
     EXCELLENT_SCORE,
@@ -118,6 +119,7 @@ __all__ = [
     "ModelId",
     "PipelineState",
     "RepoCacheKey",
+    "ScanReceipt",
     "SchemaVersion",
     "ScoreCard",
     "SecretDetectedError",
