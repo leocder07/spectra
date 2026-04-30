@@ -1308,3 +1308,65 @@ class TestEncoderFactoryCaching:
         d = get_encoder("o200k_base")
         assert c is d
         assert a is not c
+
+
+# ── Fix Round 2 #2 — Composition seam types pinned to Protocols ──
+
+
+class TestCompositionRootTypeAnnotations:
+    """Regression: the composition root must not weaken use-case ports
+    to bare ``object``. The dependency rule is preserved by ``from __future__
+    import annotations`` + ``TYPE_CHECKING`` imports, so the runtime cycle
+    risk that motivated ``object`` is moot — and ``object`` defeats mypy
+    and IDE navigation across the seam.
+    """
+
+    def _annotations_of(self, obj: object) -> dict[str, str]:
+        import inspect
+
+        return {
+            name: str(param.annotation)
+            for name, param in inspect.signature(obj).parameters.items()  # type: ignore[arg-type]
+        }
+
+    def test_build_agents_gateway_typed_as_llm_gateway(self):
+        from spectra.infrastructure.main import _build_agents
+
+        ann = self._annotations_of(_build_agents)
+        # Either bare `LLMGateway` or `LLMGateway` referenced by qualified name.
+        assert "LLMGateway" in ann["gateway"], ann
+
+    def test_build_agents_returns_typed_tuple(self):
+        import inspect
+
+        from spectra.infrastructure.main import _build_agents
+
+        sig = inspect.signature(_build_agents)
+        ret = str(sig.return_annotation)
+        # `tuple[object, list[object], object | None]` is the regression we
+        # are eliminating — assert it does not survive.
+        assert "object" not in ret, ret
+        # The return must reference `AnalysisAgent` (the use-case-layer Protocol).
+        assert "AnalysisAgent" in ret, ret
+
+    def test_build_audit_port_returns_audit_port_optional(self):
+        import inspect
+
+        from spectra.infrastructure.main import _build_audit_port
+
+        ret = str(inspect.signature(_build_audit_port).return_annotation)
+        assert "AuditPort" in ret, ret
+        assert "object" not in ret, ret
+
+    def test_build_agents_typed_with_typing_protocols(self):
+        """Pin the eliminated # type: ignore comment too — once gateway is
+        typed as ``LLMGateway``, ``AgentFactory(gateway=gateway)`` no longer
+        needs the ``arg-type`` suppression at the construction site.
+        """
+        import inspect
+
+        from spectra.infrastructure import main
+
+        source = inspect.getsource(main._build_agents)
+        # Composition seam should not need the suppression once typed properly.
+        assert "type: ignore[arg-type]" not in source, source
