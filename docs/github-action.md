@@ -124,9 +124,16 @@ the previous result.
 
 ## Cost
 
-A typical analysis uses around 80–150K Anthropic tokens (Opus 4.7 +
-Sonnet 4.5). Budget roughly $1–$3 per PR. Use `quick-mode: "true"` to
-roughly halve token usage on draft PRs.
+A typical analysis uses 400K-700K Anthropic tokens — all 8 agents are now
+on Opus 4.7 (no Sonnet routing as of v0.4.0). Budget roughly $5-10 per PR
+on a medium repo (the v0.6.0 self-scan came in at $5.99 / 244s wall on
+458K tokens). Use `quick-mode: "true"` to skip the CritiqueAgent stage
+and save ~25-40s per run, or set `fail-on: high` (or stricter) to gate
+the build on severity rather than absolute score. For a hard dollar cap,
+invoke `spectra analyze --max-cost-usd <FLOAT>` directly in a custom
+step instead of using this composite Action — the action surface is
+intentionally minimal and does not yet expose `--max-cost-usd` as an
+input (open an issue if you need it).
 
 ## Troubleshooting
 
