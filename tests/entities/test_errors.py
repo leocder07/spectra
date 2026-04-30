@@ -51,8 +51,8 @@ class TestSpectraError:
 
 
 class TestErrorsDict:
-    def test_all_thirteen_codes_present(self):
-        expected_codes = {f"SPEC-{i:03d}" for i in range(1, 14)}
+    def test_all_fourteen_codes_present(self):
+        expected_codes = {f"SPEC-{i:03d}" for i in range(1, 15)}
         assert set(ERRORS.keys()) == expected_codes
 
     def test_code_matches_key(self):
@@ -75,6 +75,7 @@ class TestErrorsDict:
             "SPEC-011",
             "SPEC-012",
             "SPEC-013",
+            "SPEC-014",
         }
 
     @pytest.mark.parametrize(
@@ -90,8 +91,46 @@ class TestErrorsDict:
         assert ERRORS[code].max_retries == expected_retries
 
     def test_non_retryable_have_zero_retries(self):
-        for code in ("SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"):
+        for code in ("SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009", "SPEC-012"):
             assert ERRORS[code].max_retries == 0
+
+    def test_spec_012_present_and_non_retryable(self):
+        spec012 = ERRORS["SPEC-012"]
+        assert spec012.code == "SPEC-012"
+        assert spec012.retryable is False
+        assert "budget" in spec012.message.lower()
+
+
+# ── BudgetExceededError (SPEC-012) ──────────────────────────────
+
+
+class TestBudgetExceededError:
+    def test_carries_spent_and_budget(self):
+        from spectra.entities.errors import BudgetExceededError
+
+        err = BudgetExceededError(spent_usd=0.50, budget_usd=0.40, per_agent={"architecture": 0.50})
+        assert err.spent_usd == 0.50
+        assert err.budget_usd == 0.40
+        assert err.per_agent == {"architecture": 0.50}
+
+    def test_uses_spec_012(self):
+        from spectra.entities.errors import BudgetExceededError
+
+        err = BudgetExceededError(spent_usd=1.0, budget_usd=0.5, per_agent={})
+        assert err.error.code == "SPEC-012"
+        assert err.error.retryable is False
+
+    def test_message_contains_code(self):
+        from spectra.entities.errors import BudgetExceededError
+
+        err = BudgetExceededError(spent_usd=1.0, budget_usd=0.5, per_agent={})
+        assert "SPEC-012" in str(err)
+
+    def test_is_exception(self):
+        from spectra.entities.errors import BudgetExceededError
+
+        err = BudgetExceededError(spent_usd=0.0, budget_usd=0.0, per_agent={})
+        assert isinstance(err, Exception)
 
     def test_all_have_messages(self):
         for error in ERRORS.values():
@@ -287,7 +326,20 @@ class TestErrorCatchability:
 
     @pytest.mark.parametrize(
         "code",
-        ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"],
+        [
+            "SPEC-001",
+            "SPEC-002",
+            "SPEC-003",
+            "SPEC-004",
+            "SPEC-005",
+            "SPEC-006",
+            "SPEC-007",
+            "SPEC-008",
+            "SPEC-009",
+            "SPEC-010",
+            "SPEC-011",
+            "SPEC-012",
+        ],
     )
     def test_all_error_codes_have_message(self, code):
         err = ERRORS[code]
@@ -296,7 +348,20 @@ class TestErrorCatchability:
 
     @pytest.mark.parametrize(
         "code",
-        ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-004", "SPEC-005", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009"],
+        [
+            "SPEC-001",
+            "SPEC-002",
+            "SPEC-003",
+            "SPEC-004",
+            "SPEC-005",
+            "SPEC-006",
+            "SPEC-007",
+            "SPEC-008",
+            "SPEC-009",
+            "SPEC-010",
+            "SPEC-011",
+            "SPEC-012",
+        ],
     )
     def test_all_errors_are_frozen(self, code):
         err = ERRORS[code]
