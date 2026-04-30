@@ -370,11 +370,16 @@ class TestEstimateScore:
         score = _estimate_score(findings)
         assert score == 45.0  # 100 - 55 (cap)
 
-    def test_blended_with_llm_score(self):
+    def test_llm_score_is_ignored(self):
+        # PR #60: penalty-only formula. llm_score is accepted for back-compat
+        # but does not affect the result.
         findings = [_finding("security", "high")]
-        # penalty = 8*0.8=6.4, penalty_score = 93.6, llm = 80
-        # blended = 0.4*80 + 0.6*93.6 = 32 + 56.16 = 88.2
-        assert _estimate_score(findings, llm_score=80.0) == 88.2
+        # penalty = 8*0.8 = 6.4, penalty_score = 93.6
+        # Same answer whether llm_score is None, 80, 0, or 100.
+        assert _estimate_score(findings) == 93.6
+        assert _estimate_score(findings, llm_score=80.0) == 93.6
+        assert _estimate_score(findings, llm_score=0.0) == 93.6
+        assert _estimate_score(findings, llm_score=100.0) == 93.6
 
     def test_cap_at_100(self):
         assert _estimate_score([]) == 70.0
@@ -1229,17 +1234,19 @@ class TestEstimateScoreEdgeCases:
         # No findings = default 70, but with llm_score
         assert _estimate_score([], llm_score=90.0) == 70.0  # no findings returns default
 
-    def test_llm_score_high_penalty_low(self):
+    def test_llm_score_high_does_not_inflate_penalty(self):
+        # PR #60: penalty-only. Even llm_score=100 cannot raise the score
+        # above what the findings deserve. penalty = 1*0.8 = 0.8 → 99.2.
         findings = [_finding("security", "low", line=1)]
-        # penalty = 1*0.8=0.8, penalty_score = 99.2, llm = 100
-        # blended = 0.4*100 + 0.6*99.2 = 40 + 59.52 = 99.5
-        assert _estimate_score(findings, llm_score=100.0) == 99.5
+        assert _estimate_score(findings, llm_score=100.0) == 99.2
 
-    def test_llm_score_boundary_zero(self):
+    def test_llm_score_low_does_not_drop_penalty(self):
+        # PR #60: penalty-only. Even llm_score=0 cannot drag the score down
+        # below what the findings deserve. penalty = 8*0.8 = 6.4 → 93.6.
+        # This is the case that motivated the change — the LLM holistic
+        # was dragging real grades down by 18+ points (security 96 → 78).
         findings = [_finding("security", "high", line=1)]
-        # penalty = 8*0.8=6.4, penalty_score = 93.6, llm = 0
-        # blended = 0.4*0 + 0.6*93.6 = 56.16 → 56.2
-        assert _estimate_score(findings, llm_score=0.0) == 56.2
+        assert _estimate_score(findings, llm_score=0.0) == 93.6
 
 
 # ── _compute_scorecard edge cases ──────────────────────────────
@@ -1318,12 +1325,12 @@ class TestEstimateScoreParametrized:
     def test_all_zero_llm_with_zero_findings(self):
         assert _estimate_score([]) == 70.0
 
-    def test_blended_formula_exact(self):
+    def test_penalty_only_formula_exact(self):
+        # PR #60: penalty-only deterministic formula. llm_score is ignored.
         findings = [_finding("security", "medium", line=1)]
+        # penalty = 3.0 * 0.8 confidence = 2.4, score = 97.6
         result = _estimate_score(findings, llm_score=50.0)
-        # penalty = 3.0 * 0.8 confidence = 2.4, penalty_score = 97.6
-        # blended = 0.4 * 50.0 + 0.6 * 97.6 = 20.0 + 58.56 = 78.6
-        assert result == 78.6
+        assert result == 97.6
 
 
 # ── _has_insufficient_data ─────────────────────────────────────
@@ -1388,8 +1395,16 @@ class TestHasInsufficientData:
 
 
 class TestEstimateScoreInsufficientData:
-    def test_caps_llm_score_at_50_when_insufficient(self):
-        """LLM score of 90 should be capped at 50 when data is insufficient."""
+    """PR #60 retired the 'cap LLM at 50 on insufficient data' branch.
+
+    The penalty-only formula already gives the right answer in this case:
+    a single info-severity finding contributes zero penalty, so the score
+    stays at 100. There is no LLM holistic to cap. The behaviour we
+    wanted (don't let the LLM brag about a directory it couldn't
+    actually read) falls out for free.
+    """
+
+    def test_insufficient_data_returns_penalty_only(self):
         f = Finding(
             id="F-sec-1",
             dimension="security",
@@ -1401,57 +1416,43 @@ class TestEstimateScoreInsufficientData:
             agent_role="security",
             confidence=0.5,
         )
-        # penalty = 0.0 * 0.5 = 0.0, penalty_score = 100.0
-        # capped_llm = min(90, 50) = 50
-        # blended = 0.4 * 50 + 0.6 * 100 = 20 + 60 = 80.0
-        result = _estimate_score([f], llm_score=90.0)
-        assert result == 80.0
-
-    def test_caps_llm_score_at_50_not_above(self):
-        """LLM score below 50 is kept as-is when data is insufficient."""
-        f = Finding(
-            id="F-sec-1",
-            dimension="security",
-            severity="info",
-            title="Insufficient code content",
-            description="Not enough content available",
-            location=FileLocation(file_path="src/main.py", line_start=1),
-            recommendation="Provide more code",
-            agent_role="security",
-            confidence=0.5,
-        )
-        # penalty = 0.0, penalty_score = 100.0
-        # capped_llm = min(30, 50) = 30
-        # blended = 0.4 * 30 + 0.6 * 100 = 12 + 60 = 72.0
-        result = _estimate_score([f], llm_score=30.0)
-        assert result == 72.0
+        # info contributes 0 penalty. Result is 100 regardless of llm_score.
+        assert _estimate_score([f], llm_score=90.0) == 100.0
+        assert _estimate_score([f], llm_score=30.0) == 100.0
+        assert _estimate_score([f], llm_score=None) == 100.0
 
     def test_no_cap_when_data_sufficient(self):
-        """Normal findings do not cap LLM score."""
+        # PR #60: same answer with or without llm_score.
         findings = [_finding("security", "high", line=1)]
-        # penalty = 8*0.8=6.4, penalty_score = 93.6
-        # blended = 0.4*90 + 0.6*93.6 = 36 + 56.16 = 92.2
-        result = _estimate_score(findings, llm_score=90.0)
-        assert result == 92.2
+        # penalty = 8*0.8 = 6.4 → 93.6
+        assert _estimate_score(findings, llm_score=90.0) == 93.6
+        assert _estimate_score(findings) == 93.6
 
-    def test_insufficient_with_no_llm_score_defaults_to_50(self):
-        """When no LLM score provided and data is insufficient, default to 50."""
-        f = Finding(
-            id="F-sec-1",
-            dimension="security",
-            severity="info",
-            title="Insufficient code content",
-            description="Not enough code",
-            location=FileLocation(file_path="src/main.py", line_start=1),
-            recommendation="Provide more code",
-            agent_role="security",
-            confidence=0.5,
-        )
-        # penalty = 0.0, penalty_score = 100.0
-        # capped_llm = min(50, 50) = 50 (llm_score defaults to 50.0)
-        # blended = 0.4 * 50 + 0.6 * 100 = 20 + 60 = 80.0
-        result = _estimate_score([f], llm_score=None)
-        assert result == 80.0
+
+class TestEstimateScoreDeterminism:
+    """PR #60 contract: same finding set → same score, every time.
+
+    Pinned because the LLM holistic blend was the variance amplifier in
+    the v0.6.0 self-scan (security swung 99→77 across 3 identical-code
+    runs). With the LLM blend gone, scores depend only on the finding
+    set itself.
+    """
+
+    def test_same_findings_same_score_regardless_of_llm_input(self):
+        findings = [
+            _finding("security", "high", line=1),
+            _finding("security", "medium", line=2),
+            _finding("security", "low", line=3),
+        ]
+        # Penalty = (8+3+1) * 0.8 = 9.6 → 90.4
+        baseline = _estimate_score(findings)
+        assert baseline == 90.4
+
+        # Same finding set, every plausible llm_score input → same answer
+        for llm in (None, 0.0, 25.0, 50.0, 77.0, 92.0, 100.0):
+            assert _estimate_score(findings, llm_score=llm) == baseline, (
+                f"Determinism violated: llm_score={llm} produced different score"
+            )
 
 
 # ── Parametrized _validate_repo_url ──────────────────────────
