@@ -667,16 +667,31 @@ async def _read_key_source_files(
     clone_dir: str,
     file_tree: list[str],
 ) -> dict[str, str]:
-    """Read up to 20 key source files by heuristic, capped at 100K tokens."""
+    """Read up to 20 key source files by heuristic, capped at 100K tokens.
+
+    Per-file failures we expect to encounter on real repos are skipped
+    with a DEBUG log so the operator has a diagnostic trail without the
+    pipeline aborting:
+        - ``OSError`` / ``PermissionError`` — unreadable file on disk
+        - ``UnicodeDecodeError`` — binary file slipped past ``_SOURCE_EXTENSIONS``
+        - ``ValueError`` — ``GitAdapter.read_file`` rejected the path
+          (security check, size limit, traversal attempt)
+        - ``TimeoutError`` — read exceeded the per-file deadline
+
+    Anything else (programmer error, broken invariant) propagates so we
+    don't silently mask bugs in the heuristic itself.
+    """
     counter = TiktokenAdapter()
     ranked = _prioritize_source_files(file_tree)
     result: dict[str, str] = {}
     total_tokens = 0
+    log = logging.getLogger("spectra.heuristic")
     for path in ranked[:_MAX_HEURISTIC_FILES]:
         try:
             content = await git_port.read_file(clone_dir, path)
             tokens = counter.count(content)
-        except Exception:  # noqa: S112
+        except (OSError, UnicodeDecodeError, ValueError, TimeoutError) as exc:
+            log.debug("Skipping %s during heuristic read: %s", path, exc)
             continue
         if total_tokens + tokens > _MAX_HEURISTIC_TOKENS:
             break

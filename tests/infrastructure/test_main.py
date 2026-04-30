@@ -142,6 +142,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py", "README.md"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         # Mock report renderer
         mock_reporter = MagicMock()
@@ -224,6 +225,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_adapter = MagicMock()
         mock_adapter.close = AsyncMock()
@@ -296,6 +298,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(side_effect=RuntimeError("Template error"))
@@ -362,6 +365,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
@@ -428,6 +432,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
@@ -501,6 +506,7 @@ class TestRunAnalysis:
         mock_git.prepare_workspace = AsyncMock(return_value=str(local_repo))
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(return_value="/tmp/out.html")  # noqa: S108
@@ -887,6 +893,7 @@ class TestBuildSarif:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_git.read_file = AsyncMock(return_value="")
 
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
@@ -959,6 +966,7 @@ class TestBuildSarif:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["f.py"])
+        mock_git.read_file = AsyncMock(return_value="")
         mock_reporter = MagicMock()
         mock_reporter.render = MagicMock(return_value=_TMP_OUT_HTML)
         mock_adapter = MagicMock()
@@ -1124,6 +1132,7 @@ class TestRunAnalysisClassificationStamping:
         mock_git.prepare_workspace = AsyncMock(return_value=_TMP_SPECTRA_TEST)
         mock_git.validate_repo_size = AsyncMock()
         mock_git.get_file_tree = AsyncMock(return_value=["src/main.py"])
+        mock_git.read_file = AsyncMock(return_value="")
         mock_adapter = MagicMock()
         mock_adapter.close = AsyncMock()
 
@@ -1165,3 +1174,110 @@ class TestRunAnalysisClassificationStamping:
                 assert "AKIAIOSFODNN7EXAMPLE" not in content
         finally:
             os.unlink(output_path)
+
+
+# ── Fix 2 — Heuristic file reader: typed exception handling ──
+
+
+class TestReadKeySourceFilesExceptionHandling:
+    """``_read_key_source_files`` must skip individual files on expected
+    I/O / decode errors, log them at DEBUG, and let unexpected exceptions
+    propagate. The previous bare ``except Exception`` swallowed every
+    failure (incl. programmer errors) and produced no diagnostic trail.
+    """
+
+    @pytest.mark.asyncio
+    async def test_unicode_decode_error_is_logged_and_skipped(self, caplog):
+        from spectra.infrastructure.main import _read_key_source_files
+
+        async def _read(_clone, path):
+            if path.endswith("binary.py"):
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
+            return "x = 1\n"
+
+        git = MagicMock()
+        git.read_file = _read
+
+        with caplog.at_level("DEBUG", logger="spectra"):
+            result = await _read_key_source_files(
+                git,
+                _TMP_SPECTRA_TEST,
+                ["src/main.py", "src/binary.py"],
+            )
+
+        # Good file is kept, binary file is skipped.
+        assert "src/main.py" in result
+        assert "src/binary.py" not in result
+        # The skip is logged with file path + reason — never silent.
+        skip_records = [r for r in caplog.records if "binary.py" in r.message]
+        assert skip_records, "UnicodeDecodeError skip was not logged"
+
+    @pytest.mark.asyncio
+    async def test_oserror_is_logged_and_skipped(self, caplog):
+        from spectra.infrastructure.main import _read_key_source_files
+
+        async def _read(_clone, path):
+            if path.endswith("denied.py"):
+                raise PermissionError("no read access")
+            return "x = 1\n"
+
+        git = MagicMock()
+        git.read_file = _read
+
+        with caplog.at_level("DEBUG", logger="spectra"):
+            result = await _read_key_source_files(
+                git,
+                _TMP_SPECTRA_TEST,
+                ["src/main.py", "src/denied.py"],
+            )
+
+        assert "src/main.py" in result
+        assert "src/denied.py" not in result
+        skip_records = [r for r in caplog.records if "denied.py" in r.message]
+        assert skip_records, "OSError skip was not logged"
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_propagates(self):
+        """Programmer errors (not I/O, not decode) must surface — silent
+        swallowing of arbitrary exceptions hides bugs in the heuristic.
+        """
+        from spectra.infrastructure.main import _read_key_source_files
+
+        async def _read(_clone, _path):
+            raise RuntimeError("invariant broken")
+
+        git = MagicMock()
+        git.read_file = _read
+
+        with pytest.raises(RuntimeError, match="invariant broken"):
+            await _read_key_source_files(
+                git,
+                _TMP_SPECTRA_TEST,
+                ["src/main.py"],
+            )
+
+    @pytest.mark.asyncio
+    async def test_value_error_from_read_file_is_logged_and_skipped(self, caplog):
+        """``GitAdapter.read_file`` raises ValueError on size / traversal /
+        symlink violations. Treat these as expected per-file skips."""
+        from spectra.infrastructure.main import _read_key_source_files
+
+        async def _read(_clone, path):
+            if path.endswith("oversize.py"):
+                raise ValueError("File exceeds 1048576 byte limit")
+            return "x = 1\n"
+
+        git = MagicMock()
+        git.read_file = _read
+
+        with caplog.at_level("DEBUG", logger="spectra"):
+            result = await _read_key_source_files(
+                git,
+                _TMP_SPECTRA_TEST,
+                ["src/main.py", "src/oversize.py"],
+            )
+
+        assert "src/oversize.py" not in result
+        assert any("oversize.py" in r.message for r in caplog.records)
+
+
