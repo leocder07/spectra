@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import yaml
@@ -206,7 +206,7 @@ class YamlWaiverAdapter:
         except ValueError as exc:
             msg = "private_hex must be 64-char hex"
             raise ValueError(msg) from exc
-        if len(priv_bytes) != 32:  # noqa: PLR2004 — Ed25519 seed length is fixed
+        if len(priv_bytes) != 32:
             msg = "private key must be 32 bytes (64 hex chars)"
             raise ValueError(msg)
         priv = Ed25519PrivateKey.from_private_bytes(priv_bytes)
@@ -239,7 +239,7 @@ class YamlWaiverAdapter:
         waivers: tuple[Waiver, ...],
     ) -> tuple[tuple[Waiver, ...], tuple[Waiver, ...]]:
         """Partition into (active, expired) using current UTC time."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         active: list[Waiver] = []
         expired: list[Waiver] = []
         for w in waivers:

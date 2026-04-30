@@ -8,7 +8,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from spectra.entities.models import (
     FileLocation,
@@ -25,7 +25,7 @@ from spectra.use_cases.waiver_filter import (
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _finding(
@@ -88,15 +88,9 @@ class TestFilterFindings:
 
 class TestInlinePragmas:
     def test_parses_ignore_next_line(self) -> None:
-        source = (
-            "def foo():\n"
-            "    # spectra: ignore-next-line SEC-AUTH-101\n"
-            "    return user_input\n"
-        )
+        source = "def foo():\n    # spectra: ignore-next-line SEC-AUTH-101\n    return user_input\n"
         pragmas = parse_inline_pragmas("src/x.py", source)
-        assert pragmas == (
-            InlinePragma(file_path="src/x.py", line=3, rule_id="SEC-AUTH-101"),
-        )
+        assert pragmas == (InlinePragma(file_path="src/x.py", line=3, rule_id="SEC-AUTH-101"),)
 
     def test_no_pragma_returns_empty(self) -> None:
         source = "def foo():\n    return 1\n"

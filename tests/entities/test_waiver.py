@@ -6,7 +6,7 @@ Covers the schema validations on Waiver + Approver, the
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -19,7 +19,7 @@ from spectra.entities.models import (
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class TestWaiverConstruction:
@@ -60,7 +60,7 @@ class TestWaiverConstruction:
         assert abs(delta - timedelta(days=180)) < timedelta(seconds=5)
 
     def test_is_expired(self) -> None:
-        past = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        past = datetime(2024, 1, 1, tzinfo=UTC)
         w = Waiver(
             repo_signature="a" * 32,
             finding_signature="b" * 16,

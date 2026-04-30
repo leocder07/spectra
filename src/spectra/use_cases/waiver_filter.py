@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from spectra.entities.models import Waiver, compute_finding_signature
@@ -25,9 +25,7 @@ if TYPE_CHECKING:
     from spectra.entities.models import Finding
 
 
-_INLINE_PRAGMA_RE = re.compile(
-    r"#\s*spectra:\s*ignore-next-line\s+([A-Za-z0-9_\-]+)"
-)
+_INLINE_PRAGMA_RE = re.compile(r"#\s*spectra:\s*ignore-next-line\s+([A-Za-z0-9_\-]+)")
 
 
 @dataclass(frozen=True)
@@ -66,10 +64,7 @@ def filter_findings_by_waivers(
         return findings
     suppressed = {w.finding_signature for w in waivers}
     return tuple(
-        f
-        for f in findings
-        if compute_finding_signature(f.location.file_path, f.rule_id, f.severity)
-        not in suppressed
+        f for f in findings if compute_finding_signature(f.location.file_path, f.rule_id, f.severity) not in suppressed
     )
 
 
@@ -96,9 +91,7 @@ def parse_inline_pragmas(file_path: str, source: str) -> tuple[InlinePragma, ...
         target_line = idx + 1
         if target_line > len(lines):
             continue  # pragma at EOF
-        out.append(
-            InlinePragma(file_path=file_path, line=target_line, rule_id=match.group(1))
-        )
+        out.append(InlinePragma(file_path=file_path, line=target_line, rule_id=match.group(1)))
     return tuple(out)
 
 
@@ -124,14 +117,12 @@ def pragmas_to_ephemeral_waivers(
     if not pragmas:
         return ()
     out: list[Waiver] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for pragma in pragmas:
         for f in findings:
             if not _pragma_matches_finding(pragma, f):
                 continue
-            sig = compute_finding_signature(
-                f.location.file_path, f.rule_id, f.severity
-            )
+            sig = compute_finding_signature(f.location.file_path, f.rule_id, f.severity)
             out.append(
                 Waiver(
                     repo_signature="0" * 32,

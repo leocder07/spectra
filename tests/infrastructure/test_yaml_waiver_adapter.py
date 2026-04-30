@@ -10,7 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -24,7 +24,7 @@ from spectra.infrastructure.yaml_waiver_adapter import (
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _build_signed_waiver(
@@ -73,10 +73,7 @@ def _write_waivers_yaml(path: Path, waivers: list[Waiver]) -> None:
 def _write_approvers_yaml(path: Path, approvers: list[Approver]) -> None:
     data = {
         "version": 1,
-        "approvers": [
-            {"name": a.name, "email": a.email, "public_key": a.public_key}
-            for a in approvers
-        ],
+        "approvers": [{"name": a.name, "email": a.email, "public_key": a.public_key} for a in approvers],
     }
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
 
@@ -142,9 +139,7 @@ class TestSignatureRejection:
         active, _ = adapter.load(wpath, apath)
         assert active == ()
 
-    def test_signature_from_unknown_approver_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_signature_from_unknown_approver_rejected(self, tmp_path: Path) -> None:
         signed_alice, _ = _build_signed_waiver(name="alice")
         # Approvers file lists bob — alice is unknown
         _, bob = _build_signed_waiver(name="bob")

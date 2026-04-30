@@ -121,7 +121,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN", "PLR2004", "PT011", "T20"]  # Allow assert, skip annotations, magic values, broad raises, print in tests
+"tests/**/*.py" = ["S101", "ANN", "PLR2004", "PT011", "T20", "TC003", "PERF401"]  # Allow assert, skip annotations, magic values, broad raises, print, type-check imports, list-comp perf
 "src/spectra/infrastructure/agents/specialist_prompts.py" = ["E501"]  # Long prompt strings
 "src/spectra/infrastructure/agents/critique_agent.py" = ["E501"]  # Long prompt strings
 "src/spectra/infrastructure/agents/meta_prompter.py" = ["E501"]  # Long prompt strings
@@ -143,7 +143,7 @@ disallow_untyped_defs = false
 disallow_any_generics = false
 
 [[tool.mypy.overrides]]
-module = ["git.*", "tiktoken.*"]
+module = ["git.*", "tiktoken.*", "yaml.*", "yaml"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

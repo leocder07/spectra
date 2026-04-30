@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING
 
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.adapters.cli_controller import (
+    PolicyGateError,
     cli_entry,
     set_analyzer_factory,
     set_cache_provider,
@@ -60,6 +61,7 @@ from spectra.entities.models import (
     CacheSecret,
     Codebase,
     RepoCacheKey,
+    Waiver,
 )
 from spectra.infrastructure.agents.agent_factory import AgentFactory
 from spectra.infrastructure.agents.critique_agent import _SYSTEM_PROMPT as _CRITIQUE_PROMPT
@@ -90,6 +92,8 @@ from spectra.infrastructure.regex_secret_scanner import RegexSecretScanner
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
+from spectra.infrastructure.yaml_policy_adapter import YamlPolicyAdapter
+from spectra.infrastructure.yaml_waiver_adapter import YamlWaiverAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.identity_resolver import resolve_actor
 from spectra.use_cases.interfaces import is_local_path
@@ -259,6 +263,9 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
         audit_port = _build_audit_port(audit_sink)
         actor = resolve_actor()
         run_id = new_event_id()
+
+        # Load .spectra-waivers.yml + .spectra-approvers.yml from the workspace root
+        active_waivers, expired_waivers = _load_waivers(workspace_dir)
         ctx = PipelineContext(
             request=request,
             codebase=codebase,
@@ -275,6 +282,8 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
             actor=actor,
             spectra_version=_SPECTRA_VERSION,
             run_id=run_id,
+            waivers=active_waivers,
+            expired_waivers=expired_waivers,
         )
         report = await analyze_repository(ctx)
         report = _attach_receipt(report, run_id)
@@ -284,6 +293,12 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
         # the same single field.
         if report.classification != classification:
             report = report.model_copy(update={"classification": classification})
+
+        # ── Policy gate (Capability #17, SPEC-013) ──
+        # Loads .spectra-policy.yml from the workspace root (no-op when absent)
+        # and runs every check against the final report. Violations terminate
+        # the run with PolicyGateError caught at the CLI seam.
+        _enforce_policy(workspace_dir, report)
 
         # Stage 6: REPORT
         observer.on_stage_start("REPORT", "Rendering report")
@@ -310,6 +325,41 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
             shutil.rmtree(workspace_dir, ignore_errors=True)
         await adapter.close()
         _close_cache_quietly(cache)
+
+
+# ── Policy + waiver loading (Capabilities #17 + #18) ─────────
+
+
+_POLICY_FILENAME = ".spectra-policy.yml"
+_WAIVERS_FILENAME = ".spectra-waivers.yml"
+_APPROVERS_FILENAME = ".spectra-approvers.yml"
+
+
+def _load_waivers(workspace_dir: str) -> tuple[tuple[Waiver, ...], tuple[Waiver, ...]]:
+    """Load + verify ``.spectra-waivers.yml`` from the workspace root.
+
+    Returns ``((), ())`` for repos without a waivers file. Verification
+    failures are logged + dropped by ``YamlWaiverAdapter``; never fatal.
+    """
+    waivers_path = Path(workspace_dir) / _WAIVERS_FILENAME
+    approvers_path = Path(workspace_dir) / _APPROVERS_FILENAME
+    return YamlWaiverAdapter().load(waivers_path, approvers_path)
+
+
+def _enforce_policy(workspace_dir: str, report: AnalysisReport) -> None:
+    """Run the SPEC-013 policy gate against ``report``.
+
+    Loads ``.spectra-policy.yml`` (EmptyPolicy when absent) and raises
+    ``PolicyGateError`` if any check returns a violation. The gate runs
+    even with ``--quick``: governance is not a function of how many agents
+    we ran.
+    """
+    policy_path = Path(workspace_dir) / _POLICY_FILENAME
+    adapter = YamlPolicyAdapter()
+    policy = adapter.load(policy_path)
+    violations = adapter.evaluate(policy, report)
+    if violations:
+        raise PolicyGateError(violations)
 
 
 # ── Cache adapter construction ───────────────────────────────

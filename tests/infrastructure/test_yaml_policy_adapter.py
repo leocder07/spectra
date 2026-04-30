@@ -48,25 +48,19 @@ class TestLoad:
         assert "security" in policy.required_dimensions
         assert policy.dimension_overrides["security"] == 0.5
 
-    def test_empty_yaml_file_returns_empty_policy(
-        self, adapter, tmp_path: Path
-    ) -> None:
+    def test_empty_yaml_file_returns_empty_policy(self, adapter, tmp_path: Path) -> None:
         path = tmp_path / ".spectra-policy.yml"
         path.write_text("", encoding="utf-8")
         loaded = adapter.load(path)
         assert loaded == EmptyPolicy()
 
-    def test_yaml_with_only_comments_returns_empty_policy(
-        self, adapter, tmp_path: Path
-    ) -> None:
+    def test_yaml_with_only_comments_returns_empty_policy(self, adapter, tmp_path: Path) -> None:
         path = tmp_path / ".spectra-policy.yml"
         path.write_text("# nothing here\n# just comments\n", encoding="utf-8")
         loaded = adapter.load(path)
         assert loaded == EmptyPolicy()
 
-    def test_malformed_yaml_raises_spec_012(
-        self, adapter, tmp_path: Path
-    ) -> None:
+    def test_malformed_yaml_raises_spec_012(self, adapter, tmp_path: Path) -> None:
         path = tmp_path / ".spectra-policy.yml"
         # Unclosed bracket — invalid YAML
         path.write_text("severity_gate: [critical\n", encoding="utf-8")
@@ -74,18 +68,14 @@ class TestLoad:
             adapter.load(path)
         assert exc.value.error.code == "SPEC-012"
 
-    def test_invalid_schema_raises_spec_012(
-        self, adapter, tmp_path: Path
-    ) -> None:
+    def test_invalid_schema_raises_spec_012(self, adapter, tmp_path: Path) -> None:
         path = tmp_path / ".spectra-policy.yml"
         path.write_text("severity_gate: catastrophic\n", encoding="utf-8")
         with pytest.raises(AgentError) as exc:
             adapter.load(path)
         assert exc.value.error.code == "SPEC-012"
 
-    def test_evaluate_delegates_to_pure_function(
-        self, adapter, tmp_path: Path
-    ) -> None:
+    def test_evaluate_delegates_to_pure_function(self, adapter, tmp_path: Path) -> None:
         # Smoke test: verify evaluate() exists + uses the pure use case.
         from spectra.entities.models import (
             AnalysisReport,
