@@ -3,14 +3,15 @@
 ' Last revised: 2026-04-30
 '
 ' Containers in the Spectra deployment. Today the entire product is a
-' single Python process plus the spectra-action wrapper. Q5+ adds the
+' single Python process plus the spectra-action wrapper. v0.6.0 promoted
+' audit.jsonl + policy/waivers to solid (shipped). Q7+ adds the
 ' optional control plane (greyed out).
 
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
 LAYOUT_WITH_LEGEND()
-title Container View — Spectra (v0.5.0 + Q2 in design)
+title Container View — Spectra (v0.6.0 baseline)
 
 skinparam backgroundColor #FFFFFF
 AddElementTag("spectra", $bgColor="#7C3AED", $fontColor="#FFFFFF")
@@ -23,16 +24,16 @@ Person(developer, "Developer / CI Runner")
 System_Boundary(spectra, "Spectra") {
   Container(cli, "spectra CLI", "Python 3.12 / Typer", "Composition root, all 4 layers in-process", $tags="spectra")
   Container(action, "spectra-action", "Composite GitHub Action", "Wraps the CLI for GitHub Workflows", $tags="spectra")
-  ContainerDb(cache, "cache.db", "SQLite WAL", "Per-`$UID` HMAC-protected cache (ADR-012)")
-  ContainerDb(audit, "audit.jsonl", "JSON Lines", "Append-only audit log (ADR-018, Q2 designed)", $tags="future")
-  ContainerDb(state, "policy + waivers", ".spectra-policy.yml + .spectra-waivers.yml", "Declarative gating (ADR-020 + roadmap #17, Q2 designed)", $tags="future")
+  ContainerDb(cache, "cache.db", "SQLite WAL + SQLCipher", "Per-`$UID` HMAC + AES-256 encrypted cache (ADR-012, v0.6.0)", $tags="spectra")
+  ContainerDb(audit, "audit.jsonl", "JSON Lines", "Append-only audit log with daily rotation (ADR-018, v0.6.0)", $tags="spectra")
+  ContainerDb(state, "policy + waivers", ".spectra-policy.yml + .spectra-waivers.yml", "Declarative gating, Ed25519-signed waivers (ADR-020 + roadmap #17 + #18, v0.6.0)", $tags="spectra")
   Container(cloud, "spectra-cloud control plane", "Future, Q7+", "Hosted Q&A, leaderboard, fleet admin", $tags="future")
 }
 
 System_Ext(anthropic, "Anthropic API", "Opus 4.7")
 System_Ext(github, "GitHub", "Source / Actions / SARIF")
 System_Ext(keyring, "OS Keyring")
-System_Ext(siem, "SIEM (OTLP)", $tags="future")
+System_Ext(siem, "SIEM (OTLP)", "v0.6.0 — `--audit-sink otlp:<url>`")
 
 Rel(developer, cli, "Invokes", "shell")
 Rel(developer, action, "Adds to workflow", "YAML")
@@ -40,11 +41,11 @@ Rel(action, cli, "Spawns", "subprocess")
 
 Rel(cli, anthropic, "8 agent calls per run", "HTTPS / SSE")
 Rel(cli, github, "Clones, posts PR comment, uploads SARIF", "HTTPS")
-Rel(cli, cache, "Reads / writes per-row HMAC", "sqlite3")
-Rel(cli, keyring, "Reads HMAC key", "OS API")
+Rel(cli, cache, "Reads / writes per-row HMAC + SQLCipher", "sqlite3 + pysqlcipher3")
+Rel(cli, keyring, "Reads HMAC + receipt + cipher keys", "OS API")
 
-Rel(cli, audit, "emit(AuditEvent)", "JSON Lines append", $tags="future")
-Rel(cli, siem, "OTLP forwarding", "gRPC", $tags="future")
-Rel(cli, state, "Reads policy + waivers at startup", "YAML", $tags="future")
+Rel(cli, audit, "emit(AuditEvent) via safe_emit", "JSON Lines append")
+Rel(cli, siem, "OTLP forwarding (--audit-sink otlp:<url>)", "HTTP")
+Rel(cli, state, "Reads policy + waivers at startup", "YAML")
 
 @enduml

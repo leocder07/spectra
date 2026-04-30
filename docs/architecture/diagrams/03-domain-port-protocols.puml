@@ -79,24 +79,29 @@ interface SecretScannerPort <<Protocol>> {
   + scan(repo_dir, file_paths): tuple[SecretFinding, ...]
 }
 
-' ── Q2 designed (ADR-018, ADR-020) ───────────────────────────
-interface AuditPort <<Protocol, Q2 designed>> #9CA3AF {
+' ── Shipped in v0.6.0 (ADR-013, ADR-018, ADR-020, roadmap #18 + #57) ──
+interface AuditPort <<Protocol, Stable v0.6.0>> {
   + emit(event: AuditEvent): None
   + flush(): None
 }
 
-interface CostTrackerPort <<Protocol, Q2 designed>> #9CA3AF {
+interface CostTrackerPort <<Protocol, Stable v0.6.0>> {
   + record(usd: float, agent_role): None
   + remaining_run_budget(): float
   + remaining_window_budget(window): float
 }
 
-interface PolicyPort <<Protocol, Q2 designed>> #9CA3AF {
+interface PolicyPort <<Protocol, Stable v0.6.0>> {
   + load(repo_dir): Policy
-  + verify_waiver(w: Waiver): bool
+  + evaluate(report): tuple[PolicyViolation, ...]
 }
 
-interface ReceiptSigner <<Protocol, Q2 designed>> #9CA3AF {
+interface WaiverPort <<Protocol, Stable v0.6.0>> {
+  + load(repo_dir): tuple[Waiver, ...]
+  + verify(w: Waiver): bool
+}
+
+interface ReceiptSigner <<Protocol, Stable v0.6.0>> {
   + sign(report: AnalysisReport): Receipt
   + verify(report, receipt): bool
 }

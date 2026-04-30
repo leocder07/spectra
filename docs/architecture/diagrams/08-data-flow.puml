@@ -26,16 +26,16 @@ actor "Developer" as dev
 
 cloud "Customer machine\n(or CI runner)" as host {
   database "Workspace\n(/tmp/spectra-XXXX or local repo path)" as ws
-  database "cache.db\n${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/\nWAL, mode 0600, per-row HMAC" as cache
-  database "OS Keyring\nservice=spectra-cache-hmac\naccount=$UID" as kr
-  database "audit.jsonl\n${XDG_STATE_HOME:-~/.local/state}/spectra/\n(Q2 designed)" as audit #9CA3AF
-  database "Report files\n.html / .json / .sarif" as out
+  database "cache.db\n${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/\nWAL, mode 0600, per-row HMAC + SQLCipher AES-256 (v0.6.0)" as cache
+  database "OS Keyring\nservices: spectra-cache-hmac + spectra-receipt-key\naccount=$UID" as kr
+  database "audit.jsonl\n${XDG_STATE_HOME:-~/.local/state}/spectra/\n(v0.6.0 — `--audit-sink file:<path>`)" as audit
+  database "Report files\n.html / .json / .sarif (-confidential|-public suffix)" as out
   component "spectra CLI" as cli
 }
 
 cloud "Anthropic API\nmodels/messages, streaming" as api
 cloud "GitHub\n(clone target, PR comment, SARIF upload)" as gh
-cloud "SIEM via OTLP\n(Q2 designed — ADR-018)" as siem #9CA3AF
+cloud "SIEM via OTLP\n(v0.6.0 — ADR-018, `--audit-sink otlp:<url>`)" as siem
 
 dev -down-> cli : invoke (no PII)
 gh -right-> ws : git clone over TLS\n(retention: tempdir cleanup on exit\nor user-owned for local paths)
@@ -53,8 +53,8 @@ cache -up-> cli : MAC-verified hits\n(retention: until `spectra cache prune` or 
 cli -down-> out : render HTML / JSON / SARIF\n(retention: file-system; user-owned)
 out -right-> gh : optional — SARIF upload via Action
 
-cli -down-> audit : emit AuditEvent (Q2 designed)\n(retention: 365d default rotation)
-audit -right-> siem : OTLP forwarding (Q2 designed)\n(retention: customer SIEM policy)
+cli -down-> audit : emit AuditEvent via safe_emit (v0.6.0)\n(retention: daily file rotation, operator-managed)
+audit -right-> siem : OTLP forwarding via `--audit-sink otlp:<url>` (v0.6.0)\n(retention: customer SIEM policy)
 
 note bottom of api #FEF3C7
   Anthropic Workbench API does not persist

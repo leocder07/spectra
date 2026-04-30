@@ -3,8 +3,9 @@
 ' Last revised: 2026-04-30
 '
 ' The 4 Clean-Architecture layers stacked, with key files named in each
-' box and arrows pointing inward only (the Dependency Rule). Q2-designed
-' components are dashed.
+' box and arrows pointing inward only (the Dependency Rule). v0.6.0
+' baseline — audit + SQLCipher + policy + cost-tracker + receipt
+' adapters all promoted to solid (shipped).
 
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
@@ -33,8 +34,11 @@ Container_Boundary(infra, "Layer 4 — Infrastructure (src/spectra/infrastructur
   Component(secrets,      "regex_secret_scanner.py", "SecretScannerPort impl","Curated regex catalogue + `.env*` heuristic", $tags="infra")
   Component(tiktoken,     "tiktoken_adapter.py",     "TokenPort impl",   "Token counting", $tags="infra")
   Component(agents,       "agents/ (Factory + 8)",   "Factory + 8 agents","BaseAgent template; SpecialistAgent x6; MetaPrompter; CritiqueAgent", $tags="infra")
-  Component(audit,        "audit/jsonl + otlp",      "AuditPort impls",  "ADR-018 — Q2 in design", $tags="future")
-  Component(sqlcipher,    "sqlcipher_cache_adapter.py","Encrypted CachePort","Roadmap #13 — Q2 in design", $tags="future")
+  Component(audit,        "audit/jsonl + otlp + stdout","AuditPort impls",  "ADR-018 — JsonLines + OTLP + Stdout sinks (v0.6.0)", $tags="infra")
+  Component(sqlcipher,    "cache_adapter.py (SQLCipher)","CachePort impl",   "Roadmap #13 — AES-256-encrypted cache.db (v0.6.0)", $tags="infra")
+  Component(cost,         "cost_tracker_adapter.py", "CostTrackerPort impls","InMemoryCostTracker + SqliteCostTracker (v0.6.0)", $tags="infra")
+  Component(policy,       "yaml_policy_adapter.py + yaml_waiver_adapter.py", "PolicyPort + WaiverPort impls", "ADR-020 — `.spectra-policy.yml` + Ed25519-signed waivers (v0.6.0)", $tags="infra")
+  Component(receipt,      "ed25519_receipt_signer.py", "ReceiptSigner impl", "Roadmap #57 — keyring keypair + `spectra verify` (v0.6.0)", $tags="infra")
 }
 
 Container_Boundary(adapt, "Layer 3 — Adapters (src/spectra/adapters/)") {
@@ -57,7 +61,7 @@ Container_Boundary(uc, "Layer 2 — Use Cases (src/spectra/use_cases/)") {
 Container_Boundary(ent, "Layer 1 — Entities (src/spectra/entities/)") {
   Component(models,      "models.py",               "Frozen Pydantic",   "Codebase · Finding · ScoreCard · AnalysisReport · BatchPrompt · CacheSecret · CacheStats · AgentRunConfig · …", $tags="entity")
   Component(enums,       "enums.py",                "Literal aliases",   "Severity · Dimension · Grade · AgentRole · PipelineState · SchemaVersion", $tags="entity")
-  Component(errors,      "errors.py",               "Exceptions",        "SpectraError + SPEC-001…SPEC-011 registry", $tags="entity")
+  Component(errors,      "errors.py",               "Exceptions",        "SpectraError + SPEC-001…SPEC-014 registry", $tags="entity")
   Component(disclaimer,  "disclaimer.py",           "Constant",          "Single source of truth for the indicative-analysis banner", $tags="entity")
 }
 
@@ -96,8 +100,11 @@ Rel(orch, models, "uses entity types")
 Rel(analyze, models, "uses entity types")
 Rel(analyze, errors, "raises")
 
-' Q2-designed (dashed)
-Rel(audit, ports, "will implement AuditPort", $tags="future")
-Rel(sqlcipher, ports, "will implement encrypted CachePort", $tags="future")
+' v0.6.0 — promoted from Q2-designed to shipped
+Rel(audit, ports, "implements AuditPort")
+Rel(sqlcipher, ports, "implements encrypted CachePort")
+Rel(cost, ports, "implements CostTrackerPort")
+Rel(policy, ports, "implements PolicyPort + WaiverPort")
+Rel(receipt, ports, "implements ReceiptSigner")
 
 @enduml

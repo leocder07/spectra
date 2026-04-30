@@ -3,14 +3,14 @@
 ' Last revised: 2026-04-30
 '
 ' Shows Spectra as the system under design surrounded by the people who
-' depend on it and the external systems it integrates with. Q2-designed
-' integrations (audit sinks, policy registry) are dashed.
+' depend on it and the external systems it integrates with. v0.6.0 baseline:
+' SIEM / OTLP audit-sink integration is now shipped (formerly Q2 dashed).
 
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
 
 LAYOUT_WITH_LEGEND()
-title System Context — Spectra (post-v0.5.0)
+title System Context — Spectra (v0.6.0 baseline)
 
 skinparam backgroundColor #FFFFFF
 AddElementTag("spectra", $bgColor="#7C3AED", $fontColor="#FFFFFF")
@@ -29,7 +29,7 @@ System_Ext(github, "GitHub", "Source repos, GitHub Actions, Security tab (SARIF)
 System_Ext(pypi, "PyPI", "Distribution channel — `spectra-ai` package")
 System_Ext(sigstore, "Sigstore", "Keyless signing of release wheels")
 System_Ext(keyring, "OS Keyring", "Per-user HMAC secret storage (ADR-012)")
-System_Ext(siem, "SIEM / OTLP collector", "Audit-event sink (ADR-018, Q2 designed)", $tags="future")
+System_Ext(siem, "SIEM / OTLP collector", "Audit-event sink (ADR-018, v0.6.0 — `--audit-sink otlp:<url>`)")
 
 Rel(developer, spectra, "Runs", "CLI")
 Rel(integrator, spectra, "Configures via action.yml", "YAML")
@@ -42,6 +42,6 @@ Rel(spectra, keyring, "Reads HMAC key per `$UID`", "OS API")
 Rel_R(pypi, developer, "pip install spectra-ai", "HTTPS")
 Rel_R(sigstore, developer, "Verify wheel signature", "OIDC + Rekor")
 
-Rel(spectra, siem, "Emits AuditEvent stream", "OTLP / JSON Lines", $tags="future")
+Rel(spectra, siem, "Emits AuditEvent stream", "OTLP / JSON Lines")
 
 @enduml

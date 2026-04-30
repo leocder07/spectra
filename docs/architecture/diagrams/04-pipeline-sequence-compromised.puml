@@ -4,7 +4,7 @@
 '
 ' The CritiqueAgent emits compromised_findings; orchestrator builds a
 ' SPEC-PROMPT-INJECTION-DETECTED Finding with rule_id sentinel; report
-' renders with a banner; public-mode emission refuses (Q2 designed).
+' renders with a banner; public-mode emission refuses (v0.6.0 — shipped).
 
 @startuml
 title Pipeline — prompt-injection detected (ADR-011)
@@ -63,14 +63,14 @@ orch -> orch: build Finding(rule_id="SPEC-PROMPT-INJECTION-DETECTED",\nseverity=
 orch -> orch: AnalysisReport.is_compromised = True
 note over orch
   PipelineState transitions: critiquing → compromised (terminal).
-  Q2 designed: AuditPort.emit("scan.compromised").
+  v0.6.0: AuditPort.emit("scan.compromised") via safe_emit.
 end note
 
-== Stage 6: REPORT — refuses public-mode ==
+== Stage 6: REPORT — refuses public-mode (v0.6.0) ==
 ar -> rep: render(report)
-alt classification = confidential (default) — Q2
+alt classification = confidential (default)
   rep -> rep: HTML banner + watermark; SARIF + JSON include disclaimer
-else classification = public — Q2
+else classification = public
   rep -> rep: REFUSE — no grade emitted; banner only
 end
 rep --> cli: report (compromised)
