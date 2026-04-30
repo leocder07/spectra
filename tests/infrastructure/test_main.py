@@ -1370,3 +1370,125 @@ class TestCompositionRootTypeAnnotations:
         source = inspect.getsource(main._build_agents)
         # Composition seam should not need the suppression once typed properly.
         assert "type: ignore[arg-type]" not in source, source
+
+
+# ── Fix Round 2 #4 — _attach_receipt narrows swallowed exceptions ──
+
+
+class TestAttachReceiptExceptionScope:
+    """Round-2 #4: ``_attach_receipt`` previously caught bare ``Exception``,
+    masking AttributeError-class programmer bugs as "signing failure". Narrow
+    the catch to keystore / file / signing failures and let unexpected
+    types propagate.
+    """
+
+    def _stub_report(self):
+        """Build a minimal AnalysisReport with a populated score card."""
+        dim = DimensionScore(
+            dimension="security",
+            score=80.0,
+            grade="B",
+            findings_count=0,
+            weight=0.25,
+        )
+        sc = ScoreCard(
+            overall_score=80.0,
+            overall_grade="B",
+            dimensions=(dim,),
+            total_findings=0,
+        )
+        return AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sc,
+            findings=(),
+            agents_used=("security",),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=0,
+            total_cost_usd=0.0,
+        )
+
+    def test_keyring_unavailable_returns_unsigned_report(self, caplog):
+        """OSError from keyring backend → DEBUG log + unsigned return.
+        The receipt field stays ``None`` so downstream code sees the silent
+        degrade we already promised in the docstring."""
+        from unittest.mock import patch
+
+        from spectra.infrastructure.main import _attach_receipt
+
+        report = self._stub_report()
+        with patch(
+            "spectra.infrastructure.main.KeyringReceiptKeyStore",
+            side_effect=OSError("dbus not available"),
+        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+            out = _attach_receipt(report, run_id="run-1")
+        assert out.receipt is None
+        # The swallowed exception class + the run_id show up in the log
+        # so an operator can correlate the missing receipt with the run.
+        joined = "\n".join(r.getMessage() for r in caplog.records)
+        assert "run-1" in joined
+        assert "OSError" in joined
+
+    def test_keyring_error_returns_unsigned_report(self, caplog):
+        """``keyring.errors.KeyringError`` (e.g. NoKeyringError) → silent degrade."""
+        from unittest.mock import patch
+
+        import keyring.errors
+
+        from spectra.infrastructure.main import _attach_receipt
+
+        report = self._stub_report()
+        with patch(
+            "spectra.infrastructure.main.KeyringReceiptKeyStore",
+            side_effect=keyring.errors.NoKeyringError("no backend"),
+        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+            out = _attach_receipt(report, run_id="run-2")
+        assert out.receipt is None
+        joined = "\n".join(r.getMessage() for r in caplog.records)
+        assert "run-2" in joined
+
+    def test_value_error_returns_unsigned_report(self, caplog):
+        """ValueError from cryptography (e.g. bad key bytes) → silent degrade."""
+        from unittest.mock import patch
+
+        from spectra.infrastructure.main import _attach_receipt
+
+        report = self._stub_report()
+        with patch(
+            "spectra.infrastructure.main.KeyringReceiptKeyStore",
+            side_effect=ValueError("invalid PEM"),
+        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+            out = _attach_receipt(report, run_id="run-3")
+        assert out.receipt is None
+
+    def test_unexpected_exception_propagates(self):
+        """RuntimeError (programmer bug) MUST propagate — not silently masked.
+        This is the regression we are pinning: the previous bare ``except
+        Exception`` would have hidden the bug under a WARN line."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from spectra.infrastructure.main import _attach_receipt
+
+        report = self._stub_report()
+        with patch(
+            "spectra.infrastructure.main.KeyringReceiptKeyStore",
+            side_effect=RuntimeError("unexpected"),
+        ), pytest.raises(RuntimeError, match="unexpected"):
+            _attach_receipt(report, run_id="run-4")
+
+    def test_attribute_error_propagates(self):
+        """AttributeError (typo on report.score_card etc.) MUST propagate."""
+        from unittest.mock import patch
+
+        import pytest
+
+        from spectra.infrastructure.main import _attach_receipt
+
+        report = self._stub_report()
+        with patch(
+            "spectra.infrastructure.main.KeyringReceiptKeyStore",
+            side_effect=AttributeError("'NoneType' object has no attribute 'x'"),
+        ), pytest.raises(AttributeError):
+            _attach_receipt(report, run_id="run-5")
