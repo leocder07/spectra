@@ -33,6 +33,7 @@ Security:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -740,6 +741,13 @@ async def _read_key_source_files(
 ) -> dict[str, str]:
     """Read up to ``MAX_HEURISTIC_FILES`` files by use-case ranking, token-capped.
 
+    Reads run concurrently via ``asyncio.gather`` — the underlying
+    ``GitPort.read_file`` already dispatches to a worker thread, so the
+    speedup is the wall-clock overlap of the 20 thread calls (was a
+    sequential ``await`` loop before v0.6.1). Priority order is preserved
+    by zipping the ranked path list back over the gathered contents
+    before we walk the per-token cap.
+
     Per-file failures we expect to encounter on real repos are skipped
     with a DEBUG log so the operator has a diagnostic trail without the
     pipeline aborting:
@@ -753,17 +761,37 @@ async def _read_key_source_files(
     don't silently mask bugs in the heuristic itself.
     """
     counter = TiktokenAdapter()
-    ranked = prioritize_source_files(file_tree)
+    ranked = prioritize_source_files(file_tree)[:MAX_HEURISTIC_FILES]
+    contents = await _gather_source_reads(git_port, clone_dir, ranked)
+    return _apply_token_cap(ranked, contents, counter)
+
+
+async def _gather_source_reads(
+    git_port: GitAdapter,
+    clone_dir: str,
+    paths: list[str],
+) -> list[str | BaseException]:
+    """Run every read concurrently; per-file errors are returned, not raised."""
+    coros = [git_port.read_file(clone_dir, p) for p in paths]
+    return await asyncio.gather(*coros, return_exceptions=True)
+
+
+def _apply_token_cap(
+    paths: list[str],
+    contents: list[str | BaseException],
+    counter: TiktokenAdapter,
+) -> dict[str, str]:
+    """Walk reads in priority order, dropping failures and stopping at the cap."""
     result: dict[str, str] = {}
     total_tokens = 0
     log = logging.getLogger("spectra.heuristic")
-    for path in ranked[:MAX_HEURISTIC_FILES]:
-        try:
-            content = await git_port.read_file(clone_dir, path)
-            tokens = counter.count(content)
-        except (OSError, UnicodeDecodeError, ValueError, TimeoutError) as exc:
-            log.debug("Skipping %s during heuristic read: %s", path, exc)
-            continue
+    for path, content in zip(paths, contents, strict=True):
+        if isinstance(content, BaseException):
+            if isinstance(content, (OSError, UnicodeDecodeError, ValueError, TimeoutError)):
+                log.debug("Skipping %s during heuristic read: %s", path, content)
+                continue
+            raise content
+        tokens = counter.count(content)
         if total_tokens + tokens > MAX_HEURISTIC_TOKENS:
             break
         result[path] = content
