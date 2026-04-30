@@ -680,6 +680,15 @@ def analyze(
         "--max-cost-per-hour",
         help="Rolling 1-hour cost cap (USD). Persists across runs via cache.db.",
     ),
+    cache_remote: str | None = typer.Option(
+        None,
+        "--cache-remote",
+        help=(
+            "Distributed L2 cache URL (capability #21, ADR-021). Example: "
+            "redis://localhost:6379/0. Defaults to $SPECTRA_CACHE_REDIS, "
+            "then local-only when neither is set."
+        ),
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -739,6 +748,7 @@ def analyze(
                 classification=classification,
                 max_cost_usd=max_cost_usd,
                 max_cost_per_hour=max_cost_per_hour,
+                cache_remote=cache_remote,
             )
         )
     except BaseException as exc:
