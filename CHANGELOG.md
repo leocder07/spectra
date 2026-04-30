@@ -7,49 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed (dependency bounds — round 3 maintainability sweep)
-- `anthropic` upper bound tightened from `<2.0` to `<1.0`. The SDK is
-  still on the 0.x series and ships fast minors; pinning inside the
-  current pre-1.0 stream forces an explicit Renovate PR + maintainer
-  review the day v1.0 lands. Note: the audit finding asked for `<0.50`,
-  but the working lockfile resolves to `0.84.0` — pinning `<0.50`
-  would have been a multi-major *downgrade* of the SDK rather than a
-  tightening, so we held the bound at `<1.0`.
-- `cryptography` upper bound tightened from `<46` to `<45`. v45 is
-  gated on a verified rebuild + full Ed25519 receipt regression sweep
-  before we widen.
-- `pytest-asyncio` upper bound tightened from `<2.0` to `<1.0`. The
-  package is still on 0.x, so the new bound matches reality.
-- `pyyaml` removed from the `[dev]` extras — it is already a runtime
-  dep and was duplicated.
+## [0.7.0] - 2026-04-30
+
+The "make the grade trustworthy" release. v0.6.0 shipped enterprise-readiness; the post-v0.6.0 self-scan exposed grade volatility that masked real fix work (B+ 85 vs A 92 on identical code). v0.7.0 fixes the formula, hardens the codebase against the LLM-as-judge "real signal" findings, ships the OSS leaderboard with the new deterministic scoring, and lays out the Q3 plan + 4 new ADRs.
 
 ### Changed (BREAKING for grade values)
-- **Scoring is now penalty-only and deterministic.** The `_estimate_score()`
-  function previously blended `0.4 * llm_holistic + 0.6 * penalty`. The
-  LLM holistic was responsible for ~95% of the variance observed in the
-  v0.6.0 self-scan series (security swung 99→93→77 across three
-  identical-code runs because the LLM's mood swung; the penalty score
-  was a flat 96-99 across the same runs). The new formula uses the
-  deterministic severity-weighted, confidence-scaled penalty only. The
-  agent's `dimension_score` field is still emitted and captured for
-  telemetry but no longer influences the user-facing grade. **Same
-  finding set produces the same score, every time.** Existing reports
-  will read ~3-7 points higher under the new formula because the LLM
-  blend was historically dragging scores down. See
-  [`docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`](docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md)
-  for the full root-cause investigation, LLM-as-judge dedup analysis
-  (1.73x ratio), and the data behind the change.
+- **Scoring is now penalty-only and deterministic** (PR #60). The `_estimate_score()` function previously blended `0.4 * llm_holistic + 0.6 * penalty`. The LLM holistic was responsible for ~95% of the variance observed in the v0.6.0 self-scan series (security swung 99→93→77 across three identical-code runs because the LLM's mood swung; the penalty score was a flat 96-99 across the same runs). The new formula uses the deterministic severity-weighted, confidence-scaled penalty only. The agent's `dimension_score` field is still emitted and captured for telemetry but no longer influences the user-facing grade. **Same finding set produces the same score, every time.** Existing reports will read ~3-7 points higher under the new formula because the LLM blend was historically dragging scores down. **Empirical validation**: 3 OLD-formula vs 3 NEW-formula scans confirmed the prediction — overall spread shrank 8 pts → 2 pts (79% reduction); security dimension shrank 22 pts → 3 pts (88% reduction). See [`docs/launch/reports/v0.6.0/VALIDATION.md`](docs/launch/reports/v0.6.0/VALIDATION.md).
+
+### Added (round-3 self-scan fixes — 17 stable real-signal findings)
+- **PR #55: 6 medium-severity quality fixes.** `_PIPELINE_INFO` banner refreshed to v0.6.0 model lineup (was showing stale Sonnet 4.5/Opus 4.6 strings); typed exceptions in heuristic file reader (was bare `except`); `TiktokenAdapter` lru_cache (was instantiated per call); `PolicyGateError` moved to `entities/errors.py` (was in adapter layer); per-agent flag help text now lists allowed values; new `docs/error-codes.md` cross-referenced from CLI ✗ messages. +20 tests.
+- **PR #58: 3 architecture-quality fixes.** Single `_handle_pipeline_exceptions()` helper (was duplicate try/except blocks in `analyze()` and never-called `_invoke_analyzer()`); Protocol-typed composition seams (`object` → `LLMGateway` / `AnalysisAgent` / `AuditPort`); typed exception catch in `_attach_receipt` (was swallowing `AttributeError`/`RuntimeError` programmer bugs). +14 tests.
+- **PR #62: PR comment renderer hardening — 5 real attack vectors.** Inline markdown links `[text](url)`, reference-style links, bare URLs (GitHub auto-linkify), `@mention`/`#issue`/SHA auto-link triggers, and BiDi + zero-width Unicode now neutered. +15 regression tests pinning each.
+- **PR #61: 5 maintainability dep hygiene fixes.** `SECURITY.md` documents `pysqlcipher3` supply-chain risk (last release 2019); `cryptography` bound `<46` → `<45`; `pytest-asyncio` bound `<2.0` → `<1.0`; `anthropic` bound `<2.0` → `<1.0` (the audit asked for `<0.50` but lockfile resolves 0.84 — would've been a downgrade); `pyyaml` removed from `[dev]` extras (duplicated runtime dep); `requirements.lock` regenerated with `--generate-hashes` (1,155 SHA-256 hashes pinned).
+- **PR #65: docs glossary + AGENT_MODELS drift fix.** New `docs/glossary.md` indexes capability numbers `#1-#70`, SPEC-001..014, ADR-001..024 with ship status. `progress_reporter.AGENT_MODELS` static dict replaced with live binding to the resolved `AgentRunConfig` map (no more drift when defaults change). 10 ADRs (011-020) consolidated under `docs/architecture/adr/`. +8 tests.
+- **PR #63: 3 architecture decomposition fixes.** `_run_analysis()` decomposed into `_DepBundle` + 5 named helpers (drops the v0.6.0 `# noqa: PLR0915` line); source-file selection moved from composition root to new `use_cases/source_file_selection.py` use case; new `SignerPort` + `Ed25519SignerAdapter` so `waiver_cli` no longer imports `cryptography` directly. +27 tests.
+- **PR #64: 3 perf fixes (1 validated as not-a-hotspot).** Heuristic source-file loop parallelized via `asyncio.gather`; `shutil.rmtree` cleanup wrapped in `asyncio.to_thread` (was blocking event loop on big repos at end of run); cache key version composition memoized via `lru_cache` (was redoing the work per cache lookup); `_prioritize_source_files` measured at 2-4 ms on the 1000×50 stress case so left untouched with a regression guard. +8 tests.
+
+### Added (Q3 plan + 4 ADRs)
+- **PR #66: Q3 plan (4,402 words) + ADR-021 through ADR-024.** `docs/strategy/q3-plan.md` covers all 9 Q3 capabilities: distributed cache (S3/Redis), fleet rate limiter, Anthropic Batch API + prompt caching, Postgres history store, repo registry + scheduler, drift detection + Slack alerts, OpenTelemetry tracing, cost attribution, Slack/Teams digest. New ADRs design the four biggest architectural decisions: distributed cache port + adapter trio, Postgres history store + drift detection, OTel tracing + per-agent spans + cost attribution, Anthropic Batch API + prompt caching. 4-week implementation plan with two-engineer parallel tracks recommended; v0.7.0/v0.8.0 split offered as a one-engineer cadence option. 5 founder questions surfaced.
+
+### Added (OSS leaderboard with new formula)
+- **PR #68: v0.7.0 OSS leaderboard.** Five popular Python repos scanned with the new deterministic scoring: FastAPI A (92), Spectra-self A (92), HTTPX B+ (85), Aider B- (79), Simon Willison's LLM B- (77). Spectra ties FastAPI under the new formula — strong validation that round-1-3 fix work compounded into measurable code-quality signal. Total cost $30.68 across 5 scans. See [`docs/launch/reports/v0.7.0/LEADERBOARD.md`](docs/launch/reports/v0.7.0/LEADERBOARD.md).
 
 ### Documentation
-- **`docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`** — root-cause
-  investigation of grade volatility in the three-scan series.
-  Includes the LLM-as-judge clustering analysis showing 133 raw
-  findings dedup to 77 distinct issues (1.73x), of which 17 recur in
-  all three scans (the real signal) and 39 are pure stochastic
-  paraphrasings.
-- Analysis scripts checked into
-  `docs/launch/reports/v0.6.0/scripts/` so the findings can be
-  reproduced (`compare3.py`, `score_analysis.py`, `llm_judge.py`).
+- **`docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`** — root-cause investigation of grade volatility. LLM-as-judge clustering across 133 raw findings → 77 distinct issues (1.73x dedup ratio); 17 recur in all 3 scans (real signal); 39 are pure stochastic paraphrasings.
+- **`docs/launch/reports/v0.6.0/VALIDATION.md`** — six-scan empirical validation of the scoring fix (3 OLD vs 3 NEW formula).
+- **`docs/launch/reports/v0.7.0/LEADERBOARD.md`** — OSS leaderboard.
+- **PR #67: CLAUDE.md slimmed 3.5K → 2.5K tokens (-27%)** — duplicated content (full project tree, full pyproject deps, full brand voice block, plugin skill list) moved to canonical homes. Saves ~1K tokens of always-loaded context per agent turn. Forbidden-words list + agent contract + dependency rule kept.
+- Analysis scripts checked into `docs/launch/reports/v0.6.0/scripts/` (`compare3.py`, `score_analysis.py`, `llm_judge.py`, `validate6.py`, `leaderboard.py`).
+
+### Tests
+- 2069 passing (was 1973 at v0.6.0). +96 net.
+
+### Cost
+- ~$66 total Anthropic spend across 6 self-scans + 5 OSS leaderboard scans + multiple round-3 verification runs. v0.7.0 development total tracked in audit log.
 
 ## [0.6.0] - 2026-04-30
 
