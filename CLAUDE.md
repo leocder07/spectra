@@ -138,7 +138,7 @@ spectra/
 │       ├── entities/                  # Layer 1 — ZERO spectra imports
 │       │   ├── __init__.py            # __all__ barrel export
 │       │   ├── enums.py              # Literal type aliases
-│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-011)
+│       │   ├── errors.py             # SpectraError hierarchy (SPEC-001 to SPEC-013)
 │       │   └── models.py             # Pydantic frozen models (incl. CacheEntry,
 │       │                              # CacheStats, BatchPrompt, BatchCacheKey, RepoCacheKey)
 │       ├── use_cases/                 # Layer 2 — entities/ only
@@ -205,6 +205,8 @@ spectra/
 | SPEC-009 | Report | No | Template render failed |
 | SPEC-010 | Cache | No (degrade) | Cache I/O failed — pipeline runs without cache for the rest of the run |
 | SPEC-011 | Security | No | Secret detected by pre-flight scan — bypass with `--allow-secrets` |
+| SPEC-012 | Config | No | `.spectra-policy.yml` / `.spectra-waivers.yml` malformed (#17, #18) |
+| SPEC-013 | Policy | No | Policy gate failed — fix violations or update `.spectra-policy.yml` (#17) |
 
 ---
 
