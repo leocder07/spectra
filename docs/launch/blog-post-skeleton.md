@@ -75,7 +75,7 @@ The cache also has a non-fatal failure mode (SPEC-010): SQLite I/O errors degrad
 
 Three things, in increasing order of "I would not have predicted this":
 
-1. **Adaptive thinking on every agent makes findings worse, not better.** First version had extended thinking on all 7 agents. Findings got more detailed per-agent but the false-positive rate went *up* — each specialist had enough rope to talk itself into edge cases that didn't exist. Moving thinking to the critic-only stage was the single biggest quality jump in the project.
+1. **Adaptive thinking on every agent makes findings worse, not better.** First version had extended thinking on all 8 agents. Findings got more detailed per-agent but the false-positive rate went *up* — each specialist had enough rope to talk itself into edge cases that didn't exist. Moving thinking to the critic-only stage was the single biggest quality jump in the project.
 2. **`task_budget` is the right knob for runaway thinking on Opus 4.7.** Without it the critic occasionally burned 200K tokens on a 40-finding report. With `task_budget=80K` it makes a forced choice — "you have this much, spend it well" — and the outputs are tighter. [PLACEHOLDER: cost-per-run before/after numbers.]
 3. **Cache invalidation is a key-design problem, not a runtime problem.** Once the composite key was right, there was no "cache logic" to write or test. This is obvious in retrospect and was non-obvious at the time.
 

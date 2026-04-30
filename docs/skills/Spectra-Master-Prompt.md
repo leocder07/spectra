@@ -186,7 +186,7 @@ Each specialist receives: custom prompt + full codebase (~800K tokens)
 ```
 Deduplicate findings by (location, category) hash
 Cross-reference findings across 6 agents (e.g., security finding + dependency finding on same pkg)
-Compute aggregate ScoreCard (8 dimensions, weighted average)
+Compute aggregate ScoreCard (6 dimensions, weighted average)
 Generate executive summary
 → Output: Analysis { mergedFindings, scores, diagrams, summary }
 ```

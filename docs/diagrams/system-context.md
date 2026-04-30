@@ -15,7 +15,7 @@ flowchart LR
     Dev["<b>Developer</b><br/>[Person]<br/>Runs spectra analyze<br/>from a terminal"]:::person
     PR["<b>GitHub PR</b><br/>[External CI]<br/>pull_request event<br/>invokes the Action"]:::person
 
-    Spectra(["<b>Spectra CLI</b><br/>[Software System]<br/>8 AI agents · 6 dimensions<br/>Clean Architecture · Python 3.12+<br/>5-stage pipeline + cache"]):::system
+    Spectra(["<b>Spectra CLI</b><br/>[Software System]<br/>8 AI agents · 6 dimensions<br/>Clean Architecture · Python 3.12+<br/>6-stage pipeline + cache"]):::system
 
     Anthropic["<b>Anthropic API</b><br/>[External SaaS]<br/>Claude Opus 4.7<br/>all 8 agents"]:::external
     GitHub["<b>GitHub.com</b><br/>[External Service]<br/>Git clone source<br/>HTTPS only"]:::external
