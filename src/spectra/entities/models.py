@@ -21,6 +21,7 @@ from spectra.entities.enums import (
     SchemaVersion,
     Severity,
 )
+from spectra.entities.receipt import ScanReceipt
 
 # ── Named Constants ────────────────────────────────────────────
 PASSING_SCORE: float = 60.0
@@ -294,6 +295,11 @@ class AnalysisReport(BaseModel, frozen=True):
     The report renderer surfaces a banner; public-mode reports refuse to
     publish a grade for compromised runs."""
     validation_status: ValidationStatus = "validated"
+
+    receipt: ScanReceipt | None = None
+    """Roadmap #57: tamper-evident Ed25519 signature over the score card.
+    Embedded in JSON output and surfaced as a verification command in HTML.
+    ``None`` when the receipt signer was unavailable (degrade, never fail)."""
 
     def critical_finding_count(self) -> int:
         """Return the number of findings with critical severity."""
