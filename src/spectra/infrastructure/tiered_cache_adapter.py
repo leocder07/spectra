@@ -129,6 +129,19 @@ class TieredCacheAdapter:
 
     # ── Sync (CachePort) surface — every method delegates to L1 ──
 
+    # The async ``get_findings`` (RemoteCachePort) and the sync ``get_findings``
+    # (legacy CachePort, Phase 1 per-file API) collide on a single class; Python
+    # picks the last definition. We resolve by giving the sync Phase-1 surface
+    # a different vehicle: callers that need the per-file path reach for
+    # ``self.local`` (the L1 adapter exposed below). The orchestrator only
+    # consumes the Phase 3 batch + Phase 2 full-report APIs, neither of which
+    # collide.
+
+    @property
+    def local(self) -> CachePort:
+        """The L1 adapter, exposed for callers that need the legacy Phase-1 API."""
+        return self._local
+
     def get_batch_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
         """Sync L1 lookup — used by the orchestrator's partition_by_cache."""
         return self._local.get_batch_findings(key)
