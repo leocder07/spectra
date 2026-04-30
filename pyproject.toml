@@ -45,8 +45,10 @@ dependencies = [
     # underlying ``libsqlcipher`` is unavailable on the platform (Windows
     # wheels are scarce). Cache + HMAC remain functional under fallback.
     "pysqlcipher3>=1.2,<2.0",
-    # #57 + ADR-018: Ed25519 signed scan receipts
-    "cryptography>=41,<46",
+    # #57 + ADR-018 + #18: Ed25519 signed scan receipts + waiver signature verification
+    "cryptography>=43,<46",
+    # #17 + #18 + ADR-020: YAML config / policy / waivers / approvers
+    "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]

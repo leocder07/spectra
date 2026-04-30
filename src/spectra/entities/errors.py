@@ -54,6 +54,16 @@ ERRORS: dict[str, SpectraError] = {
     "SPEC-009": SpectraError("SPEC-009", "Report render failed", retryable=False),
     "SPEC-010": SpectraError("SPEC-010", "Cache I/O failed", retryable=False),
     "SPEC-011": SpectraError("SPEC-011", "Secret detected in workspace", retryable=False),
+    "SPEC-012": SpectraError(
+        "SPEC-012",
+        "Policy or waiver file invalid",
+        retryable=False,
+    ),
+    "SPEC-013": SpectraError(
+        "SPEC-013",
+        "Policy gate failed",
+        retryable=False,
+    ),
 }
 
 
