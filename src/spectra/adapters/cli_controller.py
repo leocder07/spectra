@@ -499,7 +499,7 @@ def main(
 
 
 @app.command()
-def analyze(
+def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception handlers
     repo_url: str = typer.Argument(
         ...,
         help="Git repository URL to analyze",
