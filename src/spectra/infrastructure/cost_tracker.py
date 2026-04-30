@@ -141,9 +141,7 @@ class SqliteCostTracker:
     def last_hour_total(self) -> float:
         """Return USD in the rolling 1-hour window across every run."""
         row = self._conn.execute(
-            "SELECT COALESCE(SUM(cost_usd), 0.0) "
-            "FROM cost_log "
-            "WHERE timestamp > strftime('%s','now')-3600",
+            "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_log WHERE timestamp > strftime('%s','now')-3600",
         ).fetchone()
         return float(row[0]) if row else 0.0
 
