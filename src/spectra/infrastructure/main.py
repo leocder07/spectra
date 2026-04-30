@@ -38,6 +38,7 @@ import logging
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass
 from hashlib import blake2b
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -153,7 +154,186 @@ def _build_agents(
     return (meta, specialists, critique)
 
 
-async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
+@dataclass(frozen=True)
+class _DepBundle:
+    """Frozen DI bundle: gateway + observer + adapter handle for cleanup.
+
+    The composition root assembles this once via ``_wire_dependencies``
+    so the orchestrator never re-builds the decorator chain mid-run.
+    ``adapter`` is held separately from ``gateway`` because the outermost
+    cleanup needs the raw client to call ``close()`` on the connection
+    pool — ``LoggingDecorator`` does not expose it.
+    """
+
+    observer: RichProgressReporter
+    adapter: AnthropicAdapter
+    gateway: LLMGateway
+
+
+def _wire_dependencies(api_key: str) -> _DepBundle:
+    """Build the LLM decorator chain and bundle it with the observer.
+
+    Decorator chain (innermost → outermost):
+        AnthropicAdapter (raw API)
+        → RetryDecorator     (exponential backoff 1s/2s/4s, max 3)
+        → LoggingDecorator   (call logging + timing)
+
+    Each layer satisfies the ``LLMGateway`` protocol via structural
+    subtyping, so the orchestrator only ever sees the outermost ``gateway``.
+    The raw ``adapter`` is exposed on the bundle so the caller can release
+    its httpx connection pool in the ``finally`` block.
+    """
+    observer = RichProgressReporter()
+    adapter = AnthropicAdapter(api_key=api_key)
+    retry = RetryDecorator(adapter, max_retries=3, backoff_base=1.0)
+    gateway = LoggingDecorator(retry, observer=observer)
+    return _DepBundle(observer=observer, adapter=adapter, gateway=gateway)
+
+
+def _assemble_context(
+    *,
+    deps: _DepBundle,
+    request: AnalysisRequest,
+    codebase: Codebase,
+    git: GitAdapter,
+    cache: SqliteCacheAdapter | None,
+    source_files: dict[str, str],
+    agent_overrides: dict[str, object] | None,
+    skip_critique: bool,
+    force: bool,
+    audit_sink: str | None,
+    workspace_dir: str,
+    max_cost_per_hour: float | None,
+    max_cost_usd: float | None,
+    run_id: str,
+) -> PipelineContext:
+    """Bundle every input the use-case pipeline needs into a single ctx.
+
+    Reads-and-resolves are concentrated here so ``_run_analysis`` only
+    orchestrates the ordered sequence of phases. Side effects:
+        - Creates the 8 agents via ``AgentFactory``.
+        - Resolves the audit port (degraded ``None`` on sink failure).
+        - Resolves the actor identity (git ⊕ env).
+        - Loads + verifies signed waivers from the workspace root.
+        - Builds the cost tracker (in-memory or SQLite per max-cost flags).
+    """
+    meta_prompter, specialists, critique_agent = _build_agents(
+        deps.gateway, agent_overrides, skip_critique=skip_critique
+    )
+    audit_port = _build_audit_port(audit_sink)
+    actor = resolve_actor()
+    active_waivers, expired_waivers = _load_waivers(workspace_dir)
+    cost_tracker = _build_cost_tracker(max_cost_per_hour)
+    return PipelineContext(
+        request=request,
+        codebase=codebase,
+        meta_prompter=meta_prompter,
+        specialists=specialists,
+        critique_agent=critique_agent,
+        git_port=git,
+        observer=deps.observer,
+        source_files=source_files,
+        cache_port=cache,
+        cache_key_factory=_make_cache_key_factory() if cache else None,
+        force_cache_bypass=force,
+        audit_port=audit_port,
+        actor=actor,
+        spectra_version=_SPECTRA_VERSION,
+        run_id=run_id,
+        waivers=active_waivers,
+        expired_waivers=expired_waivers,
+        cost_tracker=cost_tracker,
+        max_cost_usd=max_cost_usd,
+    )
+
+
+async def _run_and_stamp(
+    ctx: PipelineContext,
+    classification: str,
+    run_id: str,
+) -> AnalysisReport:
+    """Run the use-case pipeline, attach the receipt, and stamp classification.
+
+    All three are post-pipeline transformations the use case must NOT
+    own — receipts are signed in infrastructure, classification is a
+    composition-root flag. Returns the final report ready for the policy
+    gate and report-render stage.
+    """
+    report = await analyze_repository(ctx)
+    report = _attach_receipt(report, run_id)
+    # Capability #56 — stamp the chosen classification onto the frozen
+    # report so every render path (HTML / JSON / SARIF) reads one field.
+    if report.classification != classification:
+        report = report.model_copy(update={"classification": classification})
+    return report
+
+
+async def _ingest_workspace(
+    git: GitAdapter,
+    observer: RichProgressReporter,
+    repo_url: str,
+    workspace_dir: str,
+    *,
+    owns_workspace: bool,
+    honor_gitignore: bool,
+    allow_secrets: bool,
+) -> tuple[str, list[str], dict[str, str]]:
+    """Stage 1 (INGEST) + Stage 1.5 (PREFLIGHT) + heuristic source-file read.
+
+    Returns ``(workspace_dir, file_tree, source_files)`` ready for the
+    use-case pipeline. ``workspace_dir`` may be rewritten by
+    ``GitPort.prepare_workspace`` (local-path resolution).
+    """
+    ingest_msg = "Indexing local repository" if not owns_workspace else "Cloning repository"
+    observer.on_stage_start("INGEST", ingest_msg)
+    workspace_dir = await git.prepare_workspace(repo_url, workspace_dir)
+    await git.validate_repo_size(workspace_dir)
+    file_tree = await git.get_file_tree(workspace_dir)
+    observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
+
+    # Stage 1.5: PREFLIGHT — honor .gitignore + .spectraignore, then secret scan.
+    # Filtered tree is the canonical input to every downstream stage so
+    # an excluded path can never leak into a prompt or the cache key.
+    file_tree = _run_preflight_stage(
+        workspace_dir,
+        file_tree,
+        observer,
+        honor_gitignore=honor_gitignore,
+        allow_secrets=allow_secrets,
+    )
+    source_files = await _read_key_source_files(git, workspace_dir, file_tree)
+    return workspace_dir, file_tree, source_files
+
+
+def _render_report(
+    report: AnalysisReport,
+    output_path: str,
+    output_format: str,
+    report_renderer: ReportAdapter,
+    observer: RichProgressReporter,
+) -> None:
+    """Stage 6 (REPORT) — write to disk in the requested format.
+
+    Re-raises any failure as ``ReportError`` (SPEC-009) with the original
+    exception chained, so the CLI seam can surface a brand-voice message.
+    """
+    observer.on_stage_start("REPORT", "Rendering report")
+    try:
+        if output_format == "json":
+            data = json.dumps(build_json_payload(report), indent=2)
+            Path(output_path).write_text(data, encoding="utf-8")
+        elif output_format == "sarif":
+            sarif = _build_sarif(report)
+            Path(output_path).write_text(json.dumps(sarif, indent=2), encoding="utf-8")
+        else:
+            report_renderer.render(report, output_path)
+    except Exception as exc:
+        logging.getLogger("spectra").error("Report render failed: %s", exc)
+        raise ReportError(ERRORS["SPEC-009"]) from exc
+    observer.on_stage_complete("REPORT", "Report generated")
+
+
+async def _run_analysis(
     repo_url: str,
     output_path: str,
     skip_critique: bool = False,
@@ -172,24 +352,25 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
-    This is the composition root's async entry point. It wires the
-    decorator chain (Logging → Retry → Anthropic), creates agents
-    via the factory, and delegates to ``analyze_repository``.
+    Composition-root orchestrator. Decomposed into helpers so the
+    function body stays small and every concern (DI wiring, ctx
+    assembly, run+stamp, render) reads as a single line.
 
     Args:
-        repo_url: Git HTTPS URL to analyze.
+        repo_url: Git HTTPS URL or local path to analyze.
         output_path: File path for the rendered report.
         skip_critique: Skip CritiqueAgent when True.
-        output_format: ``"html"`` or ``"json"``.
-        verbose: Enable debug logging when True.
+        output_format: ``"html"``, ``"json"``, or ``"sarif"``.
+        verbose: Enable debug logging when True (CLI-set, no body usage).
         force: Bypass cache reads and force a fresh run (still writes the cache).
         no_cache: Disable cache reads and writes entirely (CI-safe).
         agent_overrides: Per-agent model/effort overrides from the CLI.
         honor_gitignore: Honor ``.gitignore`` during pre-flight (default True).
-            Set False for the ``--no-gitignore`` escape hatch — ``.spectraignore``
-            is still applied.
-        allow_secrets: Bypass SPEC-011 abort on secret detection (default False).
-            When True, findings are logged as a warning and the pipeline proceeds.
+        allow_secrets: Bypass SPEC-011 on secret detection (default False).
+        audit_sink: Audit sink spec (``stdout``, ``file:<path>``, ``otlp:<url>``).
+        classification: Report classification to stamp (``confidential``/``public``).
+        max_cost_usd: Per-run USD cap.
+        max_cost_per_hour: Rolling-hour USD cap (forces SqliteCostTracker).
 
     Returns:
         Completed analysis report.
@@ -199,152 +380,60 @@ async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
         ReportError: If report rendering fails (SPEC-009).
         SecretDetectedError: SPEC-011 when secrets are detected and
             ``allow_secrets`` is False.
+        PolicyGateError: SPEC-013 when the policy gate rejects the report.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         msg = "ANTHROPIC_API_KEY environment variable is required"
         raise RuntimeError(msg)
 
-    # ── DI Wiring: Decorator Chain ────────────────────────────────
-    # The chain wraps each layer around the next (innermost → outermost):
-    #   AnthropicAdapter (raw API)  ← innermost, actual HTTP calls
-    #   → RetryDecorator            ← adds exponential backoff (1s/2s/4s)
-    #   → LoggingDecorator          ← adds call logging + timing (outermost)
-    # All three satisfy the LLMGateway protocol via structural subtyping.
-    observer = RichProgressReporter()
-    adapter = AnthropicAdapter(api_key=api_key)
-    retry = RetryDecorator(adapter, max_retries=3, backoff_base=1.0)
-    gateway = LoggingDecorator(retry, observer=observer)
-
-    # ── DI Wiring: Infrastructure Adapters ─────────────────────────
-    # GitAdapter implements GitPort (clone, file tree, read_file)
-    # ReportAdapter implements ReportPort (Jinja2 HTML rendering)
-    # SqliteCacheAdapter implements CachePort (additive in Phase 1 —
-    # not yet consumed by analyze_repository; wired so cache state is
-    # initialized once per process and closed cleanly on shutdown).
+    deps = _wire_dependencies(api_key)
     git = GitAdapter()
     report_renderer = ReportAdapter()
     cache = _provision_cache(no_cache=no_cache)
-
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
-        # Stage 1: INGEST — clone or use the local workspace
-        ingest_msg = "Indexing local repository" if not owns_workspace else "Cloning repository"
-        observer.on_stage_start("INGEST", ingest_msg)
-        workspace_dir = await git.prepare_workspace(repo_url, workspace_dir)
-        await git.validate_repo_size(workspace_dir)
-        file_tree = await git.get_file_tree(workspace_dir)
-        observer.on_stage_complete("INGEST", f"{len(file_tree)} files indexed")
-
-        # Stage 1.5: PREFLIGHT — honor .gitignore + .spectraignore, then secret scan.
-        # Filtered tree is the canonical input to every downstream stage so
-        # an excluded path can never leak into a prompt or the cache key.
-        file_tree = _run_preflight_stage(
+        workspace_dir, file_tree, source_files = await _ingest_workspace(
+            git,
+            deps.observer,
+            repo_url,
             workspace_dir,
-            file_tree,
-            observer,
+            owns_workspace=owns_workspace,
             honor_gitignore=honor_gitignore,
             allow_secrets=allow_secrets,
         )
-
-        # Pre-read key source files by heuristic for specialist agents
-        source_files = await _read_key_source_files(git, workspace_dir, file_tree)
-
-        repo_name = _derive_repo_name(repo_url, workspace_dir)
         codebase = Codebase(
             repo_url=repo_url,
-            repo_name=repo_name,
+            repo_name=_derive_repo_name(repo_url, workspace_dir),
             local_path=workspace_dir,
             file_tree=tuple(file_tree),
         )
-
-        # ── DI Wiring: Agent Factory ──────────────────────────────
-        # AgentFactory creates all 8 agents with the decorated gateway.
-        # CLI overrides (--model / --<role>-effort / --model-overrides JSON)
-        # are merged into a per-role AgentRunConfig map and threaded through.
-        meta_prompter, specialists, critique_agent = _build_agents(
-            gateway, agent_overrides, skip_critique=skip_critique
-        )
-
-        # ── Pipeline Stages 2-5 ──────────────────────────────────
-        # Delegates to analyze_repository() which orchestrates:
-        # Stage 2: PLAN  — MetaPrompter creates focus areas
-        # Stage 3: ANALYZE — 6 specialists run in parallel
-        # Stage 4: MERGE — Deduplicate and validate findings
-        # Stage 5: CRITIQUE — CritiqueAgent validates (if not skipped)
-        request = AnalysisRequest(
-            repo_url=repo_url,
-            quick=skip_critique,
-            output_format=output_format,
-        )
-
-        audit_port = _build_audit_port(audit_sink)
-        actor = resolve_actor()
+        request = AnalysisRequest(repo_url=repo_url, quick=skip_critique, output_format=output_format)
         run_id = new_event_id()
-
-        # Load .spectra-waivers.yml + .spectra-approvers.yml from the workspace root
-        active_waivers, expired_waivers = _load_waivers(workspace_dir)
-        cost_tracker = _build_cost_tracker(max_cost_per_hour)
-        ctx = PipelineContext(
+        ctx = _assemble_context(
+            deps=deps,
             request=request,
             codebase=codebase,
-            meta_prompter=meta_prompter,
-            specialists=specialists,
-            critique_agent=critique_agent,
-            git_port=git,
-            observer=observer,
+            git=git,
+            cache=cache,
             source_files=source_files,
-            cache_port=cache,
-            cache_key_factory=_make_cache_key_factory() if cache else None,
-            force_cache_bypass=force,
-            audit_port=audit_port,
-            actor=actor,
-            spectra_version=_SPECTRA_VERSION,
-            run_id=run_id,
-            waivers=active_waivers,
-            expired_waivers=expired_waivers,
-            cost_tracker=cost_tracker,
+            agent_overrides=agent_overrides,
+            skip_critique=skip_critique,
+            force=force,
+            audit_sink=audit_sink,
+            workspace_dir=workspace_dir,
+            max_cost_per_hour=max_cost_per_hour,
             max_cost_usd=max_cost_usd,
+            run_id=run_id,
         )
-        report = await analyze_repository(ctx)
-        report = _attach_receipt(report, run_id)
-
-        # Capability #56 — stamp the chosen classification onto the
-        # frozen report so every render path (HTML / JSON / SARIF) reads
-        # the same single field.
-        if report.classification != classification:
-            report = report.model_copy(update={"classification": classification})
-
-        # ── Policy gate (Capability #17, SPEC-013) ──
-        # Loads .spectra-policy.yml from the workspace root (no-op when absent)
-        # and runs every check against the final report. Violations terminate
-        # the run with PolicyGateError caught at the CLI seam.
+        report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)
-
-        # Stage 6: REPORT
-        observer.on_stage_start("REPORT", "Rendering report")
-        try:
-            if output_format == "json":
-                data = json.dumps(build_json_payload(report), indent=2)
-                Path(output_path).write_text(data, encoding="utf-8")
-            elif output_format == "sarif":
-                sarif = _build_sarif(report)
-                Path(output_path).write_text(
-                    json.dumps(sarif, indent=2),
-                    encoding="utf-8",
-                )
-            else:
-                report_renderer.render(report, output_path)
-        except Exception as exc:
-            logging.getLogger("spectra").error("Report render failed: %s", exc)
-            raise ReportError(ERRORS["SPEC-009"]) from exc
-        observer.on_stage_complete("REPORT", "Report generated")
-
+        _render_report(report, output_path, output_format, report_renderer, deps.observer)
         return report
     finally:
         if owns_workspace:
             shutil.rmtree(workspace_dir, ignore_errors=True)
-        await adapter.close()
+        await deps.adapter.close()
         _close_cache_quietly(cache)
 
 
