@@ -179,6 +179,137 @@ class TestMarkdownImageInjection:
         assert "attacker.com" not in out
 
 
+# ── Markdown link / URL exfiltration (residual concern, R3) ──
+#
+# The original sanitizer caught markdown IMAGES and ANGLE-BRACKET autolinks,
+# but four URL-bearing constructs slipped through and could deliver an
+# attacker-controlled clickable link to a reviewer's browser:
+#   1. inline links ``[text](url)``
+#   2. reference-style links ``[text][ref]`` + a ``[ref]: url`` definition
+#      (the title and description can collude across fields)
+#   3. bare URLs (GitHub auto-linkifies ``https://...`` in markdown)
+#   4. Unicode BiDi overrides + zero-width characters (visual deception)
+
+
+class TestMarkdownLinkExfil:
+    def test_inline_link_in_title_neutered(self):
+        f = _finding(title="Click [here](https://attacker.com/exfil) now")
+        out = render_pr_comment(_report(findings=(f,)))
+        # No clickable URL reaches the rendered comment.
+        assert "attacker.com" not in out
+        # The bracket-paren link syntax must be broken so GitHub does not
+        # render it as an anchor.
+        assert "](http" not in out
+
+    def test_inline_link_in_summary_dropped(self):
+        evil = "see [this fix](https://attacker.com/exfil?d=user) for details"
+        f = _finding(description=evil)
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "attacker.com" not in out
+
+    def test_reference_link_in_title_neutered(self):
+        # Title carries the link USE, description holds the DEFINITION —
+        # combined, they would render as a clickable anchor on GitHub.
+        f = _finding(
+            title="Click [here][evil] for fix",
+            description="[evil]: https://attacker.com/exfil",
+        )
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "attacker.com" not in out
+        # Reference-style brackets must not be intact in the title.
+        assert "][evil]" not in out
+
+    def test_reference_definition_in_summary_dropped(self):
+        # A reference DEFINITION in a description is dangerous even on its
+        # own — a future linked-from-elsewhere comment could resolve it.
+        evil = "real text [evil]: https://attacker.com/exfil"
+        f = _finding(description=evil)
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "attacker.com" not in out
+
+    def test_bare_url_in_title_neutered(self):
+        # GitHub auto-linkifies bare URLs in markdown comments. A title is
+        # NOT inside a code span, so the URL must be broken.
+        f = _finding(title="see https://attacker.com/exfil for details")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "attacker.com" not in out
+
+    def test_bare_url_in_summary_dropped(self):
+        evil = "https://attacker.com/exfil please visit"
+        f = _finding(description=evil)
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "attacker.com" not in out
+
+
+class TestGitHubAutolinkAbuse:
+    """GitHub auto-linkifies @mentions, #issue refs, and commit SHAs in PR
+    comments — a poisoned finding could spam-tag arbitrary users or wire
+    up misleading cross-references. Neutralize the trigger characters.
+    """
+
+    def test_at_mention_in_title_neutered(self):
+        f = _finding(title="ping @everyone fix this")
+        out = render_pr_comment(_report(findings=(f,)))
+        # The '@' must not be followed by a username pattern that GitHub
+        # would render as a notification.
+        assert "@everyone" not in out
+
+    def test_at_mention_in_summary_dropped_or_neutered(self):
+        f = _finding(description="ping @user1 see also @octocat for context")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "@user1" not in out
+        assert "@octocat" not in out
+
+    def test_issue_ref_in_title_neutered(self):
+        f = _finding(title="related to #1337 (totally unrelated upstream issue)")
+        out = render_pr_comment(_report(findings=(f,)))
+        # The '#<digits>' pattern must not survive — GitHub would auto-link
+        # it to whatever issue #1337 happens to be in the host repo.
+        assert "#1337" not in out
+
+    def test_commit_sha_in_summary_dropped_or_neutered(self):
+        # 7+ hex chars get auto-linkified by GitHub as a commit reference.
+        f = _finding(description="see also a1b2c3d4e5f6789012345678901234567890abcd for details")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "a1b2c3d4e5f6789012345678901234567890abcd" not in out
+
+
+class TestUnicodeDeception:
+    """BiDi overrides and zero-width chars enable visual-spoofing attacks
+    where a finding looks innocuous in the rendered comment but carries
+    hidden / re-ordered content that misleads a reviewer.
+    """
+
+    def test_rtl_override_stripped_from_title(self):
+        # U+202E RIGHT-TO-LEFT OVERRIDE flips the visual order of trailing
+        # text — classic "exe-as-jpg" trick.
+        f = _finding(title="Important fix‮ .gpj.exe")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "‮" not in out
+
+    def test_lro_stripped_from_title(self):
+        # U+202D LEFT-TO-RIGHT OVERRIDE — same family.
+        f = _finding(title="ok‭ hidden")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "‭" not in out
+
+    def test_zero_width_space_stripped_from_title(self):
+        f = _finding(title="hello​world")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "​" not in out
+
+    def test_bom_stripped_from_summary(self):
+        f = _finding(description="text﻿with bom")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "﻿" not in out
+
+    def test_zwj_stripped_from_title(self):
+        # U+200D ZERO WIDTH JOINER — used in homoglyph attacks.
+        f = _finding(title="abc‍def")
+        out = render_pr_comment(_report(findings=(f,)))
+        assert "‍" not in out
+
+
 # ── Backtick / codeblock fence break ─────────────────────────
 
 
