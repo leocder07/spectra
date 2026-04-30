@@ -165,9 +165,7 @@ class TestAnalyzeRepository:
         assert report.validation_status == "validated"
 
     @pytest.mark.asyncio
-    async def test_validation_status_quick_mode(
-        self, codebase, meta_prompter, six_specialists, critique_agent
-    ):
+    async def test_validation_status_quick_mode(self, codebase, meta_prompter, six_specialists, critique_agent):
         req = AnalysisRequest(repo_url="https://github.com/test/repo", quick=True)
         ctx = PipelineContext(
             request=req,

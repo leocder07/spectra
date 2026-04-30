@@ -403,6 +403,18 @@ jobs:
 
 The Action also writes SARIF, which GitHub picks up under the **Security** tab — findings show inline on the PR.
 
+### Severity gate (`fail-on`)
+
+The Action ships with a `fail-on: critical` default — any critical finding fails the build so a regression cannot land silently. Loosen or tighten the gate per workflow:
+
+```yaml
+- uses: spectra-ai/spectra@v1
+  with:
+    fail-on: high   # also fail on high — protect main from anything ≥ high
+```
+
+Set `fail-on: none` on draft / preview PRs when you want the report without the gate firing. Accepted values: `critical`, `high`, `medium`, `low`, `none`.
+
 ---
 
 ## CLI Reference

@@ -47,6 +47,10 @@ inputs:
     description: Specific `spectra-ai` version to install. Defaults to latest.
     required: false
     default: ""
+  fail-on:
+    description: Severity gate — exit 1 when any finding is at or above this severity. One of `critical`, `high`, `medium`, `low`, `none`.
+    required: false
+    default: "critical"
 
 outputs:
   grade:
@@ -98,7 +102,8 @@ runs:
         spectra analyze "${TARGET}" \
           ${QUICK_FLAG} \
           --format "${EXT}" \
-          --output "${REPORT_PATH}"
+          --output "${REPORT_PATH}" \
+          --fail-on "${{ inputs.fail-on }}"
         EXIT_CODE=$?
         set -e
 

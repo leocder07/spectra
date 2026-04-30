@@ -63,6 +63,7 @@ If you set `comment-on-pr: "false"` you can drop `pull-requests: write`.
 | `comment-on-pr`     | no       | `true`   | Post or update a PR comment with findings. No-op outside `pull_request` events.                                  |
 | `python-version`    | no       | `3.12`   | Python version installed on the runner.                                                                          |
 | `spectra-version`   | no       | (latest) | Pin a specific `spectra-ai` version (e.g. `0.1.0`).                                                              |
+| `fail-on`           | no       | `critical` | Severity gate. Exit 1 when any finding sits at or above this level. One of `critical`, `high`, `medium`, `low`, `none`. |
 
 ## Outputs
 

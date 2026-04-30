@@ -327,15 +327,11 @@ class TestDisclaimerBanner:
 
 
 def _quick_report() -> AnalysisReport:
-    return _minimal_report().model_copy(
-        update={"validation_status": "non-validated:quick-mode"}
-    )
+    return _minimal_report().model_copy(update={"validation_status": "non-validated:quick-mode"})
 
 
 def _critique_skipped_report() -> AnalysisReport:
-    return _minimal_report().model_copy(
-        update={"validation_status": "non-validated:critique-skipped"}
-    )
+    return _minimal_report().model_copy(update={"validation_status": "non-validated:critique-skipped"})
 
 
 class TestNonValidatedBanner:
