@@ -173,9 +173,7 @@ class TestAgentConfigsLiveWiring:
 
     def test_model_for_reads_from_live_configs(self):
         reporter, _ = _make_reporter()
-        reporter.set_agent_configs(
-            {"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
-        )
+        reporter.set_agent_configs({"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")})
         assert reporter.model_for("security") == "claude-opus-4-7"
         assert reporter.effort_for("security") == "xhigh"
 
@@ -184,14 +182,10 @@ class TestAgentConfigsLiveWiring:
         map) must surface everywhere — no second source of truth.
         """
         reporter, _ = _make_reporter()
-        reporter.set_agent_configs(
-            {"architecture": AgentRunConfig(model="claude-sonnet-4-6", effort="high")}
-        )
+        reporter.set_agent_configs({"architecture": AgentRunConfig(model="claude-sonnet-4-6", effort="high")})
         assert reporter.model_for("architecture") == "claude-sonnet-4-6"
         # And re-binding flips the displayed value with no source edit.
-        reporter.set_agent_configs(
-            {"architecture": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
-        )
+        reporter.set_agent_configs({"architecture": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")})
         assert reporter.model_for("architecture") == "claude-opus-4-7"
         assert reporter.effort_for("architecture") == "xhigh"
 
@@ -213,9 +207,7 @@ class TestAgentConfigsLiveWiring:
 
     def test_render_panel_shows_live_model_in_info_column(self):
         reporter, buf = _make_reporter()
-        reporter.set_agent_configs(
-            {"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")}
-        )
+        reporter.set_agent_configs({"security": AgentRunConfig(model="claude-opus-4-7", effort="xhigh")})
         reporter.on_agent_start("security")
         reporter.on_agent_success("security", 1.0)
         output = buf.getvalue()
