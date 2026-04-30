@@ -224,6 +224,14 @@ Every analysis generates a self-contained HTML report with:
 
 Works offline. No external dependencies. One HTML file. Print-friendly for PDF export.
 
+### See sample reports
+
+> GitHub displays `.html` files as raw source when clicked. Use the "View rendered" links to see the actual reports in your browser.
+
+- [**Sample reports**](docs/launch/reports/) — real Spectra runs against Anthropic SDK, gstack, gbrain, alphaclaw, and the Spectra repo itself
+- [**Quickstart demo reports**](examples/) — Django, Express, FastAPI, Flask + a multi-repo leaderboard
+- [**v0.6.0 self-scan**](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self.html) — Spectra grading itself, with prompt-injection isolation, encrypted cache, signed receipts, and the audit log all active
+
 ---
 
 ## Architecture
