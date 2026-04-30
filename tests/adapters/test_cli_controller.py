@@ -1556,3 +1556,90 @@ class TestCLIClassificationFlag:
         # Rich line-wraps long paths on narrow terminals — flatten output.
         flat_output = "".join(result.output.split())
         assert "spectra-report-public.html" in flat_output
+
+
+# ── Cost-budget flags (Q2 capability #5) ─────────────────────
+
+
+class TestCLICostBudgetFlags:
+    """CLI surface for capability #5 — --max-cost-usd + --max-cost-per-hour.
+
+    Use Click param introspection (NOT --help text) for flag-registration
+    asserts: Typer's help renderer is unreliable on narrow CI terminals.
+    """
+
+    def test_analyze_command_registers_max_cost_usd(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--max-cost-usd" in flags
+
+    def test_analyze_command_registers_max_cost_per_hour(self):
+        import typer
+
+        click_app = typer.main.get_command(app)
+        analyze = click_app.get_command(None, "analyze")
+        flags = {opt for p in analyze.params if hasattr(p, "opts") for opt in p.opts}
+        assert "--max-cost-per-hour" in flags
+
+    def test_no_flag_means_no_enforcement(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+        kwargs = factory.call_args.kwargs
+        assert kwargs["max_cost_usd"] is None
+        assert kwargs["max_cost_per_hour"] is None
+
+    def test_high_budget_allows_pipeline(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--max-cost-usd", "100"],
+        )
+        assert result.exit_code == 0
+        assert factory.call_args.kwargs["max_cost_usd"] == pytest.approx(100.0)
+
+    def test_low_budget_emits_preflight_warning(self):
+        """A budget under the 8-agent floor warns but does not abort."""
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--max-cost-usd", "0.001"],
+        )
+        assert result.exit_code == 0
+        assert "budget" in result.output.lower() or "max-cost" in result.output.lower()
+
+    def test_per_hour_flag_propagates(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--max-cost-per-hour", "5.0"],
+        )
+        assert result.exit_code == 0
+        assert factory.call_args.kwargs["max_cost_per_hour"] == pytest.approx(5.0)
+
+    def test_budget_exceeded_error_renders_brand_voice(self):
+        from spectra.entities.errors import BudgetExceededError
+
+        factory = AsyncMock(
+            side_effect=BudgetExceededError(
+                spent_usd=0.50,
+                budget_usd=0.40,
+                per_agent={"architecture": 0.50},
+            )
+        )
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--max-cost-usd", "0.40"],
+        )
+        assert result.exit_code == 1
+        assert "SPEC-014" in result.output
+        assert "budget exceeded" in result.output.lower()
+        assert "--max-cost-usd" in result.output
