@@ -28,6 +28,7 @@ The Q2 enterprise-readiness release. All ten roadmap items from the Q2 batch lan
 - `BatchPrompt`, `Finding`, `AnalysisReport`, `PipelineContext` extended with new fields for audit, receipt, classification, validation_status, waivers, cost_tracker, max_cost_usd. All additive — existing serialisation/wire formats unchanged.
 - `PipelineState` enum unchanged; new error codes SPEC-012, SPEC-013, SPEC-014 added to `ERRORS` dict.
 - `cli_controller.analyze()` carries `# noqa: PLR0912` for the natural composition-root branching count.
+- Test count: **1973 collected, all passing** (+345 since v0.5.0). Self-scan grade B+ (86/100), 34 findings, 0 critical, 244s wall, $5.99 real Anthropic spend.
 
 ### Manual maintainer actions required
 - Toggle GitHub Private Vulnerability Reporting in repo settings (still UI-only; carried forward from v0.5.0).
