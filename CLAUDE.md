@@ -194,6 +194,20 @@ spectra/
 
 ---
 
+## Glossary
+
+Single at-a-glance index for the three numbering schemes that recur
+across code, prompts, audit events, and CLI messages:
+
+- Roadmap **capability numbers** (`#1` through `#70`)
+- **`SPEC-NNN`** error codes (`SPEC-001` through `SPEC-014`)
+- **`ADR-NNN`** architecture decision records (`ADR-001` through `ADR-020`)
+
+Lookup table: [`docs/glossary.md`](docs/glossary.md). Use it whenever a
+code comment, finding, or audit event references a bare number.
+
+---
+
 ## Error Codes
 
 User-facing reference: [`docs/error-codes.md`](docs/error-codes.md) — one
