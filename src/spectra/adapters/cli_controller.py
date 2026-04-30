@@ -172,6 +172,7 @@ _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 # Injected by the composition root before CLI runs
 _analyzer_factory: Callable[..., Awaitable[object]] | None = None
 _cache_provider: Callable[[], CachePort] | None = None
+_shred_executor: Callable[[], Path] | None = None
 
 
 def set_analyzer_factory(
@@ -195,6 +196,19 @@ def set_cache_provider(provider: Callable[[], CachePort]) -> None:
     """
     global _cache_provider  # noqa: PLW0603
     _cache_provider = provider
+
+
+def set_shred_executor(executor: Callable[[], Path]) -> None:
+    """Inject the destructive shred callable used by ``spectra cache shred``.
+
+    The composition root passes a zero-arg callable that overwrites + deletes
+    the cache file AND drops the per-user keyring entries, then returns the
+    path of the file it shredded. Lives behind a setter (instead of being
+    plumbed through ``cache_provider``) so the CLI never imports
+    infrastructure modules directly.
+    """
+    global _shred_executor  # noqa: PLW0603
+    _shred_executor = executor
 
 
 def _print_banner() -> None:
@@ -865,7 +879,7 @@ def cache_doctor() -> None:
 
 
 def _render_doctor_environment(cache: CachePort) -> None:
-    """Render the environment table — path, UID, keyring backend status."""
+    """Render the environment table — path, UID, keyring backend, encryption."""
     db_path = getattr(cache, "db_path", Path("cache.db"))
     has_secret = bool(getattr(cache, "has_secret", False))
     backend_label = "OS keyring (HMAC enforced)" if has_secret else "disabled (no secret)"
@@ -875,7 +889,16 @@ def _render_doctor_environment(cache: CachePort) -> None:
     table.add_row("Cache file", str(db_path))
     table.add_row("UID", _doctor_uid_label())
     table.add_row("Keyring backend", backend_label)
+    table.add_row("Encryption", _doctor_encryption_label(cache))
     console.print(table)
+
+
+def _doctor_encryption_label(cache: CachePort) -> str:
+    """Map the cache's ``encryption_status`` to a friendly doctor row value."""
+    status = getattr(cache, "encryption_status", "plain")
+    if status == "sqlcipher":
+        return "SQLCipher enabled"
+    return "fallback (plain SQLite)"
 
 
 def _doctor_uid_label() -> str:
@@ -904,3 +927,41 @@ def _render_doctor_row_counts(cache: CachePort) -> None:
         pct = f"{(verified / total):.0%}" if total else "—"
         table.add_row(name, str(total), str(verified), str(failed), pct)
     console.print(table)
+
+
+# ── Roadmap #13: spectra cache shred ─────────────────────────
+
+
+@cache_app.command("shred")
+def cache_shred(
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip the destructive-action confirmation prompt",
+    ),
+) -> None:
+    """Securely overwrite + delete cache.db AND drop keyring secrets.
+
+    This is the recovery primitive when a cache is suspected to be
+    compromised, when re-keying is required after a teammate's machine
+    is lost, or when cleaning up before disposal. Re-running ``spectra
+    analyze`` after a shred will cold-start a fresh encrypted cache
+    under freshly minted keys.
+    """
+    if _shred_executor is None:
+        console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
+        raise typer.Exit(code=1)
+    if not yes and not typer.confirm(
+        "Permanently overwrite + delete cache.db AND drop keyring secrets?",
+        default=False,
+    ):
+        console.print(f"[{AMBER}]⚠[/] Aborted")
+        return
+    try:
+        shredded = _shred_executor()
+    except Exception as exc:
+        console.print(f"[{RED}]✗[/] shred failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(f"  [{GREEN}]✓[/] shred complete: {shredded}")
+    console.print("  [dim]next analyze run will cold-mint fresh keys[/]")
