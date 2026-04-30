@@ -56,6 +56,8 @@ from spectra.use_cases.interfaces import (
     GitPort,
     ProgressObserver,
     ReportStorePort,
+    Span,
+    TracerPort,
 )
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
@@ -69,6 +71,7 @@ from spectra.use_cases.orchestrate_agents import (
     run_specialists_batched,
     run_specialists_with_budget,
 )
+from spectra.use_cases.tracing import safe_span
 from spectra.use_cases.waiver_filter import (
     filter_findings_by_waivers,
     parse_inline_pragmas,
@@ -150,6 +153,15 @@ class PipelineContext:
     """#25 + ADR-022: when wired, the pipeline writes a ``ReportSummary``
     after the report is built. Failure is non-fatal — same pattern as
     the audit port. ``None`` (the default) skips history persistence."""
+    tracer: TracerPort | None = None
+    """ADR-023: span-emitting tracer. ``None`` (default) means tracing
+    is disabled — every ``safe_span(ctx.tracer, ...)`` call falls back
+    to the no-op span. Wired by the composition root only when
+    ``--otel-endpoint`` is supplied."""
+    team: str = "default"
+    """ADR-023 §4: cost-attribution team tag. Stamped on the root span
+    + every per-agent span so the CFO query (``sum by (spectra.team)
+    (cost.usd)``) can break Anthropic spend down by team."""
 
 
 @dataclass
@@ -235,18 +247,39 @@ async def _run_pipeline(
     ctx: PipelineContext,
     state: _PipelineState,
 ) -> AnalysisReport:
-    """Thin coordinator that delegates to stage functions."""
+    """Thin coordinator that delegates to stage functions.
+
+    Wraps the entire pipeline in a root span (``spectra.analyze_repository``)
+    so every per-stage and per-agent span hangs off one trace tree.
+    """
     await _emit_audit(ctx, "scan.started", {"repo": ctx.codebase.repo_name})
+    with safe_span(ctx.tracer, "spectra.analyze_repository", _root_span_attrs(ctx)) as root:
+        try:
+            return await _run_pipeline_body(ctx, state, root)
+        finally:
+            await safe_flush(ctx.audit_port)
+
+
+async def _run_pipeline_body(
+    ctx: PipelineContext,
+    state: _PipelineState,
+    root: Span,
+) -> AnalysisReport:
+    """Inner coordinator — kept separate so the root span scope is unambiguous."""
     try:
         cached = _try_serve_from_cache(ctx)
         if cached is not None:
-            await _emit_audit(ctx, "cache.hit", {"served_from_cache": True})
-            await _emit_scan_completed(ctx, cached)
+            root.set_attribute("cache.short_circuit", value=True)
+            with safe_span(ctx.tracer, "spectra.stage.cache_short_circuit"):
+                await _emit_audit(ctx, "cache.hit", {"served_from_cache": True})
+                await _emit_scan_completed(ctx, cached)
+            _stamp_report_attrs(root, cached)
             return cached
         plan = await _run_plan_stage(ctx, state)
         await _resolve_source_files(ctx, plan, state)
         state.analysis = await _run_analyze_stage(ctx, plan, state)
-        findings = _run_merge_stage(state, ctx)
+        with safe_span(ctx.tracer, "spectra.stage.merge"):
+            findings = _run_merge_stage(state, ctx)
         output = await _run_critique_pipeline(ctx, findings, state)
         suppressed = _apply_waivers_and_pragmas(ctx, output.findings, state)
         output_with_waivers = _StageOutput(
@@ -254,22 +287,48 @@ async def _run_pipeline(
             insights=output.insights,
             is_compromised=output.is_compromised,
         )
-        report = _build_report(
-            ctx,
-            state,
-            output_with_waivers,
-            waived_count=suppressed.waived_count,
-            expired_count=len(ctx.expired_waivers),
-        )
-        _store_in_cache(ctx, report)
-        await _safe_persist_history(ctx, report)
-        await _emit_scan_completed(ctx, report)
+        with safe_span(ctx.tracer, "spectra.stage.report"):
+            report = _build_report(
+                ctx,
+                state,
+                output_with_waivers,
+                waived_count=suppressed.waived_count,
+                expired_count=len(ctx.expired_waivers),
+            )
+            _store_in_cache(ctx, report)
+            await _safe_persist_history(ctx, report)
+            await _emit_scan_completed(ctx, report)
+        _stamp_report_attrs(root, report)
         return report
     except Exception as exc:
+        root.record_exception(exc)
         await _emit_audit(ctx, "scan.failed", {"error": _truncate(str(exc), 200)})
         raise
-    finally:
-        await safe_flush(ctx.audit_port)
+
+
+def _root_span_attrs(ctx: PipelineContext) -> dict[str, str | int | float | bool]:
+    """Build the root-span attribute set (ADR-023 §4 cost-attribution tags)."""
+    attrs: dict[str, str | int | float | bool] = {
+        "spectra.team": ctx.team,
+        "spectra.repo_url": ctx.request.repo_url,
+        "spectra.repo_name": ctx.codebase.repo_name,
+        "spectra.version": ctx.spectra_version,
+    }
+    sig = _try_cache_signature(ctx)
+    if sig is not None:
+        attrs["spectra.repo_signature"] = sig
+    if ctx.run_id:
+        attrs["spectra.run_id"] = ctx.run_id
+    return attrs
+
+
+def _stamp_report_attrs(root: Span, report: AnalysisReport) -> None:
+    """Copy the final report's headline metrics onto the root span."""
+    root.set_attribute("spectra.score", float(report.score_card.overall_score))
+    root.set_attribute("spectra.findings", len(report.findings))
+    root.set_attribute("spectra.tokens", int(report.total_tokens_used))
+    root.set_attribute("cost.usd", float(report.total_cost_usd))
+    root.set_attribute("spectra.is_degraded", value=bool(report.is_degraded))
 
 
 async def _emit_audit(
@@ -502,14 +561,36 @@ async def _run_plan_stage(
 ) -> AgentOutput:
     """Execute MetaPrompter and wire token allocations."""
     _notify(ctx.observer, "on_stage_start", "PLAN", "Running MetaPrompter")
-    plan_output = await ctx.meta_prompter.run(
-        "\n".join(ctx.codebase.file_tree),
-    )
+    with safe_span(ctx.tracer, "spectra.stage.plan", _stage_attrs(ctx, "plan")) as span:
+        plan_output = await ctx.meta_prompter.run(
+            "\n".join(ctx.codebase.file_tree),
+        )
+        _stamp_agent_attrs(span, plan_output, ctx.team)
     _track_output(state, plan_output)
     _notify(ctx.observer, "on_stage_complete", "PLAN", "Plan ready")
     allocs = _extract_token_allocations(plan_output.raw_response)
     allocate_specialist_budgets(state.budget, allocs)
     return plan_output
+
+
+def _stage_attrs(ctx: PipelineContext, stage: str) -> dict[str, str | int | float | bool]:
+    """Attribute baseline for a per-stage span (team + stage label)."""
+    return {"spectra.team": ctx.team, "spectra.stage": stage}
+
+
+def _stamp_agent_attrs(span: Span, output: AgentOutput, team: str) -> None:
+    """Stamp cost + token + role attributes on a span from an AgentOutput.
+
+    Called for both the MetaPrompter (stage.plan) and per-specialist
+    spans (agent.*). Cost is computed from the same ``estimate_cost``
+    used by the report so the span value never disagrees with the
+    user-facing total.
+    """
+    span.set_attribute("agent.role", output.agent_role)
+    span.set_attribute("tokens.total", int(output.tokens_used))
+    span.set_attribute("agent.duration_seconds", float(output.duration_seconds))
+    span.set_attribute("cost.usd", float(estimate_cost((output,))))
+    span.set_attribute("spectra.team", team)
 
 
 async def _resolve_source_files(
@@ -539,15 +620,38 @@ async def _run_analyze_stage(
 ) -> _AnalysisResult:
     """Run 6 specialists in parallel and collect results."""
     _notify(ctx.observer, "on_stage_start", "ANALYZE", "Running specialists")
-    if _phase3_eligible(ctx):
-        analysis = await _run_analyze_stage_with_cache(ctx, plan_output, state)
-    else:
-        prompts = _build_specialist_prompts(ctx, plan_output, state)
-        analysis = await _execute_specialists(ctx, prompts)
+    with safe_span(ctx.tracer, "spectra.stage.analyze", _stage_attrs(ctx, "analyze")) as stage_span:
+        if _phase3_eligible(ctx):
+            analysis = await _run_analyze_stage_with_cache(ctx, plan_output, state)
+        else:
+            prompts = _build_specialist_prompts(ctx, plan_output, state)
+            analysis = await _execute_specialists(ctx, prompts)
+        _emit_per_agent_spans(ctx, analysis)
+        stage_span.set_attribute("agent.success_count", len(analysis.successes))
+        stage_span.set_attribute("agent.failure_count", len(analysis.failed_roles))
     _track_outputs(state, analysis.successes)
     _notify(ctx.observer, "on_stage_complete", "ANALYZE", "Analysis complete")
     _log_budget_warning(state)
     return analysis
+
+
+def _emit_per_agent_spans(ctx: PipelineContext, analysis: _AnalysisResult) -> None:
+    """Open one ``spectra.agent.{role}`` span per specialist outcome.
+
+    Spans are emitted post-hoc rather than wrapping each ``agent.run``
+    so the existing parallel ``asyncio.gather`` semantics are
+    preserved. The span carries the same cost / token attributes that
+    show up on the report — one source of truth (``estimate_cost``).
+    """
+    for output in analysis.successes:
+        attrs = {"agent.role": output.agent_role, "spectra.team": ctx.team}
+        with safe_span(ctx.tracer, f"spectra.agent.{output.agent_role}", attrs) as span:
+            _stamp_agent_attrs(span, output, ctx.team)
+            span.set_attribute("agent.outcome", "success")
+    for role in analysis.failed_roles:
+        attrs = {"agent.role": role, "spectra.team": ctx.team}
+        with safe_span(ctx.tracer, f"spectra.agent.{role}", attrs) as span:
+            span.set_attribute("agent.outcome", "failure")
 
 
 def _phase3_eligible(ctx: PipelineContext) -> bool:
@@ -934,12 +1038,17 @@ async def _execute_critique(
 ) -> _StageOutput:
     """Execute CritiqueAgent, fold compromised findings, and assemble result."""
     _notify(ctx.observer, "on_stage_start", "CRITIQUE", "Validating findings")
-    filtered, insights, out = await _run_critique_stage(
-        ctx.critique_agent,
-        findings,
-        ctx.observer,
-        state.flagged_files,
-    )
+    with safe_span(ctx.tracer, "spectra.stage.critique", _stage_attrs(ctx, "critique")) as span:
+        filtered, insights, out = await _run_critique_stage(
+            ctx.critique_agent,
+            findings,
+            ctx.observer,
+            state.flagged_files,
+        )
+        if out is not None:
+            _stamp_agent_attrs(span, out, ctx.team)
+        else:
+            span.set_attribute("agent.outcome", "failure")
     compromised = _extract_compromised_findings(out.raw_response if out is not None else "")
     final_findings = filtered + compromised
     if out is not None:
