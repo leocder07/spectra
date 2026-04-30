@@ -43,8 +43,8 @@ A Python 3.12+ CLI that runs 8 LLM agents over a repository and produces a grade
 | **GitHub** | Source clone target. The action posts the PR comment via `gh` and uploads SARIF for the Security tab. |
 | **PyPI** | Distribution channel. Trusted publisher (OIDC), no API token. See [10-deployment-and-release](./10-deployment-and-release.md). |
 | **Sigstore** | Keyless signing of release wheels. Bundles attached to each GitHub Release. |
-| **OS Keyring** | Stores the per-`$UID` 32-byte HMAC secret used to sign cache rows ([ADR-012](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-012-cache-hmac-per-user-namespace.md)). |
-| **SIEM / OTLP collector** *(v0.6.0)* | Receives the JSON-Lines audit-event stream via `--audit-sink otlp:<url>` ([ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md)). |
+| **OS Keyring** | Stores the per-`$UID` 32-byte HMAC secret used to sign cache rows ([ADR-012](./adr/ADR-012-cache-hmac-per-user-namespace.md)). |
+| **SIEM / OTLP collector** *(v0.6.0)* | Receives the JSON-Lines audit-event stream via `--audit-sink otlp:<url>` ([ADR-018](./adr/ADR-018-audit-log-and-identity.md)). |
 
 ## Trust boundaries
 
@@ -61,5 +61,5 @@ A Python 3.12+ CLI that runs 8 LLM agents over a repository and produces a grade
 
 ## Open questions
 
-1. Should `spectra serve` (HTTP/MCP server) ship in Q5 alongside Managed Agents (strategy ADR-016)? Greenlight unlocks Slack-bot + hosted-Q&A; rejection keeps the CLI-only commitment. Listed in strategy [INDEX §Open architectural questions](../../../spectra-wt-strategy/docs/strategy/architecture/INDEX.md).
+1. Should `spectra serve` (HTTP/MCP server) ship in Q5 alongside Managed Agents (strategy ADR-016)? Greenlight unlocks Slack-bot + hosted-Q&A; rejection keeps the CLI-only commitment. Listed in strategy [INDEX §Open architectural questions](../strategy/architecture/INDEX.md).
 2. Bedrock / Vertex priority — customer-driven, gated on a named procurement deal.

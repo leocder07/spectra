@@ -29,6 +29,12 @@ Security:
     - Clone directories use ``tempfile.mkdtemp`` with ``0o700`` permissions.
     - Cleanup is guaranteed via ``finally`` block with ``shutil.rmtree``.
     - The Anthropic client is explicitly closed to release connection pools.
+
+ADR references in this module: ADR-001 (clean architecture composition
+root), ADR-012 (cache HMAC + per-user namespace + legacy migration),
+ADR-013 (cost tracker), ADR-018 (audit log + identity + receipt wiring).
+See ``docs/architecture/adr/`` and ``docs/glossary.md`` for the
+at-a-glance ADR index.
 """
 
 from __future__ import annotations

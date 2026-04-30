@@ -16,6 +16,11 @@ UUIDv7 is preferred for ``event_id`` because it is sortable; the standard
 library does not yet ship UUIDv7, so we degrade to ``uuid4`` which keeps
 global uniqueness without sortability — documented trade-off, revisit when
 ``uuid7`` lands in stdlib.
+
+ADR references in this module: ADR-012 (cache HMAC), ADR-014 (memory
+stores), ADR-015 (query_codebase), ADR-018 (audit log + identity). See
+``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
+ADR index.
 """
 
 from __future__ import annotations

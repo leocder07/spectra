@@ -28,7 +28,7 @@ Today the loop is six concurrent prompts, validated by one critique. Opus 4.7 (a
 
 **Today:** Only CritiqueAgent uses it ([ADR-008](../../architecture/adr/ADR-008-adaptive-thinking-supersedes-extended.md)) with a hardcoded 80K budget.
 
-**Target:** Every specialist gets a per-role `task_budget` ([ADR-013](ADR-013-task-budget-and-rate-coordination.md)). Adaptive thinking expands beyond Critique on a per-finding basis — for example, the security specialist toggles thinking on for a single suspect finding ("is this really a SQL injection or just a parameterized query?") and off for routine findings. The Anthropic API exposes per-message thinking control; we pass it on a per-batch basis once we have telemetry on which findings need deep reasoning.
+**Target:** Every specialist gets a per-role `task_budget` ([ADR-013](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md)). Adaptive thinking expands beyond Critique on a per-finding basis — for example, the security specialist toggles thinking on for a single suspect finding ("is this really a SQL injection or just a parameterized query?") and off for routine findings. The Anthropic API exposes per-message thinking control; we pass it on a per-batch basis once we have telemetry on which findings need deep reasoning.
 
 **Where Spectra uses it:** `SpecialistAgent` gains an optional per-batch thinking override; the per-role default stays "off" for cost discipline.
 
@@ -52,9 +52,9 @@ Today the loop is six concurrent prompts, validated by one critique. Opus 4.7 (a
 
 **Today:** All file content is interpolated into the prompt.
 
-**Target:** Large files (≥10K tokens) are uploaded once via Files API, referenced by `file_id` in subsequent calls. ADR bodies, design docs, large source files all use this path. The per-developer memory and per-org memory tiers ([ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md)) use the Memory Tool primitive directly.
+**Target:** Large files (≥10K tokens) are uploaded once via Files API, referenced by `file_id` in subsequent calls. ADR bodies, design docs, large source files all use this path. The per-developer memory and per-org memory tiers ([ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md)) use the Memory Tool primitive directly.
 
-**Where Spectra uses it:** `MemoryPort` adapters wrap Files API + Memory Tool. The `query_codebase` use case ([ADR-015](ADR-015-query-codebase-use-case.md)) references files by `file_id` for ADR citations.
+**Where Spectra uses it:** `MemoryPort` adapters wrap Files API + Memory Tool. The `query_codebase` use case ([ADR-015](../../architecture/adr/ADR-015-query-codebase-use-case.md)) references files by `file_id` for ADR citations.
 
 ### 1.5 Code execution sandbox
 
@@ -70,13 +70,13 @@ Today the loop is six concurrent prompts, validated by one critique. Opus 4.7 (a
 
 **Target:** The dependency specialist queries OSV.dev / NVD via the OSV.dev MCP server (preferred) or, when unavailable, via web fetch. The security specialist consults CVE feeds for the org's deployed dependency versions. The architecture specialist looks up framework-specific best practices for unfamiliar stacks.
 
-**Where Spectra uses it:** Per-specialist tool wiring on the Managed Agents path ([ADR-016](ADR-016-managed-agents-gateway.md)). Falls back to MCP servers when not on Managed Agents.
+**Where Spectra uses it:** Per-specialist tool wiring on the Managed Agents path ([ADR-016](../../architecture/adr/ADR-016-managed-agents-gateway.md)). Falls back to MCP servers when not on Managed Agents.
 
 ---
 
 ## 2. The 8 specialists today are fixed prompts to a generic LLM. Could they be Managed Agents?
 
-Yes — and they should be by Q6 ([ADR-016](ADR-016-managed-agents-gateway.md)). The migration is sequential, not big-bang.
+Yes — and they should be by Q6 ([ADR-016](../../architecture/adr/ADR-016-managed-agents-gateway.md)). The migration is sequential, not big-bang.
 
 ### 2.1 What the loop looks like today
 
@@ -214,11 +214,11 @@ flowchart TB
 | **Dependency** | approved package list, banned packages, license preferences | A newly-added unapproved package is high-severity even if it has no CVEs |
 | **Performance** | known hot paths, established performance budgets | A regression against an established budget is signal; a new path on a cold surface is not |
 
-### 3.3 Privacy invariants ([ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md))
+### 3.3 Privacy invariants ([ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md))
 
 - Per-org store keys are workspace-scoped; cross-org reads are physically impossible (different API keys held in OS keyring + AWS SM, never in process memory simultaneously).
-- Each per-agent store holds findings *patterns*, not findings *content*. The pattern "auth uses `verify_ownership(...)`" goes in; the SQL excerpt that triggered the pattern stays in the per-repo SQLite cache (which is HMAC + per-user — [ADR-012](ADR-012-cache-hmac-per-user-namespace.md)).
-- CI mode disables per-developer + per-org writes ([ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md) Invariant 3).
+- Each per-agent store holds findings *patterns*, not findings *content*. The pattern "auth uses `verify_ownership(...)`" goes in; the SQL excerpt that triggered the pattern stays in the per-repo SQLite cache (which is HMAC + per-user — [ADR-012](../../architecture/adr/ADR-012-cache-hmac-per-user-namespace.md)).
+- CI mode disables per-developer + per-org writes ([ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md) Invariant 3).
 - Right-to-be-forgotten is a one-call API.
 
 ---
@@ -440,7 +440,7 @@ flowchart TB
 
 - **No Spectra-operated control plane.** CLI-only commitment ([product-roadmap.md TL;DR](../product-roadmap.md)) holds. SaaS is a separate product if/when greenlit (post-Q6).
 - **No vector store / RAG over codebases.** [memory-second-brain-findings.md §3](../memory-second-brain-findings.md) — Anthropic prompt cache + Memory Store FUSE mount cover the use case.
-- **No 7th dimension on the ScoreCard.** Plugins map findings to the existing 6 dimensions ([ADR-017](ADR-017-custom-rules-plugin-architecture.md)). Adding a dimension is an entity-layer change deferred indefinitely.
+- **No 7th dimension on the ScoreCard.** Plugins map findings to the existing 6 dimensions ([ADR-017](../../architecture/adr/ADR-017-custom-rules-plugin-architecture.md)). Adding a dimension is an entity-layer change deferred indefinitely.
 - **No worker daemon / Temporal queue for the analyze loop.** The analyze loop is single-process; portfolio scheduling is a separate system (Q3 #24-#26) that orchestrates *invocations* of the analyze loop.
 
 ---
@@ -482,8 +482,8 @@ The architecture grows by *adding ports and adapters*, not by promoting infrastr
 ### What could be wrong
 
 1. **Anthropic deprecates a beta primitive.** `memory-2026-...` and `task-budgets-2026-03-13` are beta headers. A schema change forces an adapter refactor. Mitigation: every adapter has a fallback (`LocalFileMemoryAdapter` covers Memory Tool outages, `LLMGateway` covers Managed Agents outages).
-2. **Managed Agents pricing model shifts to per-session-time, not per-token.** Cost prediction becomes harder. Mitigation: `CostTrackerPort` ([ADR-013](ADR-013-task-budget-and-rate-coordination.md)) carries a `ManagedSessionCost` rate sheet updated per Anthropic pricing change.
-3. **The plugin ecosystem fragments.** 50 third-party specialists with 50 different output qualities erode the "Spectra grade is consistent" story. Mitigation: Sigstore-signed plugins + leaderboard publishes per-plugin catch-rates ([ADR-017](ADR-017-custom-rules-plugin-architecture.md)).
+2. **Managed Agents pricing model shifts to per-session-time, not per-token.** Cost prediction becomes harder. Mitigation: `CostTrackerPort` ([ADR-013](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md)) carries a `ManagedSessionCost` rate sheet updated per Anthropic pricing change.
+3. **The plugin ecosystem fragments.** 50 third-party specialists with 50 different output qualities erode the "Spectra grade is consistent" story. Mitigation: Sigstore-signed plugins + leaderboard publishes per-plugin catch-rates ([ADR-017](../../architecture/adr/ADR-017-custom-rules-plugin-architecture.md)).
 4. **The second-brain narrative does not land.** `spectra ask` is a bet that engineers will use a CLI Q&A surface over their codebase memory. If they do not, M3 onwards underperforms. Mitigation: instrument cache-hit and re-ask rate; if `spectra ask` adoption is < 5% of `spectra analyze` users by Q5, deprioritise M5+.
 5. **Customers reject the Anthropic-native bet entirely.** Enterprise procurement teams that demand vendor-neutrality from day one are a real segment. Mitigation: Bedrock + Vertex `LLMGateway` adapters in Q4; documented fallback for every Anthropic-native primitive.
 
@@ -503,19 +503,19 @@ For reference across the 10 ADRs in this batch, the primitives we adopt:
 
 | Primitive | Used by | Where in Spectra |
 |-----------|---------|------------------|
-| **Adaptive thinking** (`thinking={"type": "adaptive"}`) | CritiqueAgent (existing); per-batch on specialists (target) | [ADR-008](../../architecture/adr/ADR-008-adaptive-thinking-supersedes-extended.md), [ADR-013](ADR-013-task-budget-and-rate-coordination.md) |
-| **`task_budget`** (beta header `task-budgets-2026-03-13`) | All 8 agents | [ADR-013](ADR-013-task-budget-and-rate-coordination.md) |
-| **`output_config.effort`** | All 8 agents (per-batch eventually) | [ADR-013](ADR-013-task-budget-and-rate-coordination.md), §1.2 above |
-| **Prompt caching** (`cache_control: ephemeral`) | `query_codebase` preamble; per-specialist Skills (target) | [ADR-015](ADR-015-query-codebase-use-case.md) |
-| **Files API** | ADR ingest; large-file references | [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md), [ADR-015](ADR-015-query-codebase-use-case.md) |
-| **Memory Tool** (beta header `memory-2026-...`) | Per-developer memory | [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md) |
-| **Memory Stores** (`/v1/memory_stores`, FUSE mount) | Per-team / per-org memory; per-agent memory (target) | [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md), §3 above |
-| **Managed Agents** (`/v1/agents`, `/v1/sessions`) | The 6 specialists in Q6+ | [ADR-016](ADR-016-managed-agents-gateway.md) |
-| **Skills** (`.claude-plugin/skills/`) | Public knowledge; per-language patterns; per-specialist prompts | [ADR-017](ADR-017-custom-rules-plugin-architecture.md), [memory-second-brain-findings.md §3](../memory-second-brain-findings.md) |
+| **Adaptive thinking** (`thinking={"type": "adaptive"}`) | CritiqueAgent (existing); per-batch on specialists (target) | [ADR-008](../../architecture/adr/ADR-008-adaptive-thinking-supersedes-extended.md), [ADR-013](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md) |
+| **`task_budget`** (beta header `task-budgets-2026-03-13`) | All 8 agents | [ADR-013](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md) |
+| **`output_config.effort`** | All 8 agents (per-batch eventually) | [ADR-013](../../architecture/adr/ADR-013-task-budget-and-rate-coordination.md), §1.2 above |
+| **Prompt caching** (`cache_control: ephemeral`) | `query_codebase` preamble; per-specialist Skills (target) | [ADR-015](../../architecture/adr/ADR-015-query-codebase-use-case.md) |
+| **Files API** | ADR ingest; large-file references | [ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md), [ADR-015](../../architecture/adr/ADR-015-query-codebase-use-case.md) |
+| **Memory Tool** (beta header `memory-2026-...`) | Per-developer memory | [ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md) |
+| **Memory Stores** (`/v1/memory_stores`, FUSE mount) | Per-team / per-org memory; per-agent memory (target) | [ADR-014](../../architecture/adr/ADR-014-anthropic-memory-stores-for-team-org.md), §3 above |
+| **Managed Agents** (`/v1/agents`, `/v1/sessions`) | The 6 specialists in Q6+ | [ADR-016](../../architecture/adr/ADR-016-managed-agents-gateway.md) |
+| **Skills** (`.claude-plugin/skills/`) | Public knowledge; per-language patterns; per-specialist prompts | [ADR-017](../../architecture/adr/ADR-017-custom-rules-plugin-architecture.md), [memory-second-brain-findings.md §3](../memory-second-brain-findings.md) |
 | **Vision (high-res)** | CritiqueAgent reasoning over architecture diagrams | §1.3 above |
 | **Code execution sandbox** | CritiqueAgent fix verification (opt-in) | §1.5 above |
 | **Web fetch / web search** | DependencyAgent CVE lookups; ArchitectureAgent framework lookups | §1.6 above |
-| **MCP tool wiring** (Semgrep, TruffleHog, OSV.dev) | SecurityAgent + DependencyAgent | §4 above, [ADR-016](ADR-016-managed-agents-gateway.md) |
+| **MCP tool wiring** (Semgrep, TruffleHog, OSV.dev) | SecurityAgent + DependencyAgent | §4 above, [ADR-016](../../architecture/adr/ADR-016-managed-agents-gateway.md) |
 | **Batch API** | Portfolio overnight scans | [product-roadmap.md #23](../product-roadmap.md), Q3 |
 
 ---

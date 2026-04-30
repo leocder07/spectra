@@ -4,6 +4,11 @@ A single ``SpecialistAgent`` class handles all 6 analysis dimensions
 (architecture, security, quality, documentation, dependency,
 performance). Each instance is configured with a dimension-specific
 system prompt and ID prefix via ``specialist_prompts.SPECIALIST_CONFIGS``.
+
+ADR references: ADR-002 (parallel agent pipeline), ADR-009 (batch
+granularity), ADR-011 (prompt-injection isolation — per-call nonce).
+See ``docs/architecture/adr/`` and ``docs/glossary.md`` for the
+at-a-glance ADR index.
 """
 
 from __future__ import annotations

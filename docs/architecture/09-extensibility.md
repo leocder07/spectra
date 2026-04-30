@@ -30,7 +30,7 @@ Q6 lifts the constraint cleanly via plugin discovery.
 
 ## Q6 design (ADR-017)
 
-[ADR-017](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-017-custom-rules-plugin-architecture.md). Four extension surfaces, each with its own audience:
+[ADR-017](./adr/ADR-017-custom-rules-plugin-architecture.md). Four extension surfaces, each with its own audience:
 
 ### 1. Specialist plugins (entry-point discovery)
 
@@ -53,7 +53,7 @@ class Specialist(Protocol):                    # Q6 — Layer 2 port
 
 Discovery is `importlib.metadata.entry_points(group="spectra.specialists")`. Built-ins live in a `BUILTIN_SPECIALISTS` registry that registers the same 6 as today, exposed through the same entry-point group for uniformity.
 
-**Trust model.** Plugins must be Sigstore-signed and the signing identity must chain to a Spectra trust root. This is the open question in [INDEX § Open architectural questions](../../../spectra-wt-strategy/docs/strategy/architecture/INDEX.md): Sigstore-rooted vs community-signed. Sigstore-rooted is the safer default; community-signed accelerates ecosystem velocity and is on the table for a founder call before Q6.
+**Trust model.** Plugins must be Sigstore-signed and the signing identity must chain to a Spectra trust root. This is the open question in [INDEX § Open architectural questions](../strategy/architecture/INDEX.md): Sigstore-rooted vs community-signed. Sigstore-rooted is the safer default; community-signed accelerates ecosystem velocity and is on the table for a founder call before Q6.
 
 ### 2. Skills (per-language knowledge packs)
 
@@ -86,7 +86,7 @@ Rule packs are CRP-respectful: no rule pack forces a dependency on classes it do
 
 ### 4. MCP server tool wiring (Managed Agents path)
 
-[ADR-016 §4](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-016-managed-agents-gateway.md). When the specialists become Managed Agents (Q5/Q6), each specialist gains a configurable tool list. Curated examples in the [agentic architecture vision](../../../spectra-wt-strategy/docs/strategy/architecture/agentic-architecture.md):
+[ADR-016 §4](./adr/ADR-016-managed-agents-gateway.md). When the specialists become Managed Agents (Q5/Q6), each specialist gains a configurable tool list. Curated examples in the [agentic architecture vision](../strategy/architecture/agentic-architecture.md):
 
 | Specialist | MCP server | Purpose |
 |------------|-----------|---------|
@@ -101,7 +101,7 @@ The use case never knows where the tool runs — Anthropic-side or local — bec
 
 The plugin surface is **purely additive**. Adding a 3rd-party specialist does not break the `LLMGateway` / `CachePort` / `Specialist` contracts. The 6 BUILTIN specialists keep working with zero plugins installed.
 
-Adding a 7th dimension (e.g. `defi`) does require an entity-layer change to the `Dimension` Literal. This is by design — see [03 — Domain Model § Open questions](./03-domain-model.md#open-questions) and [INDEX § Open architectural questions Q3](../../../spectra-wt-strategy/docs/strategy/architecture/INDEX.md).
+Adding a 7th dimension (e.g. `defi`) does require an entity-layer change to the `Dimension` Literal. This is by design — see [03 — Domain Model § Open questions](./03-domain-model.md#open-questions) and [INDEX § Open architectural questions Q3](../strategy/architecture/INDEX.md).
 
 ## Composition root impact
 
@@ -114,7 +114,7 @@ Everything else is unchanged. Use case, ports, entities — none touched.
 
 ## Q4 designed: `query_codebase` use case
 
-[ADR-015](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-015-query-codebase-use-case.md). New Layer-2 use case + `spectra ask` / `spectra brief` CLI subcommands. Prompt-cached preamble drives ~$0.05 per cached call. Streaming Markdown answers with citations into `FileLocation` value objects. Per-Q&A audit event.
+[ADR-015](./adr/ADR-015-query-codebase-use-case.md). New Layer-2 use case + `spectra ask` / `spectra brief` CLI subcommands. Prompt-cached preamble drives ~$0.05 per cached call. Streaming Markdown answers with citations into `FileLocation` value objects. Per-Q&A audit event.
 
 The Q&A use case shares the `Codebase` and `MemoryPort` entities with `analyze_repository` but never produces or consumes `Finding`. This is the bounded-context split flagged in [03 — Domain Model § Bounded contexts](./03-domain-model.md#bounded-contexts).
 

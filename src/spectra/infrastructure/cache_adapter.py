@@ -19,6 +19,10 @@ On read the adapter recomputes and constant-time-compares the MAC; a
 mismatch drops the row and returns a cache miss. Combined with the
 per-``$UID`` directory layout, this defends against cache poisoning on
 shared dev hosts and CI runner images.
+
+ADR references in this module: ADR-006 (cache port), ADR-012 (cache HMAC
++ per-user namespace). See ``docs/architecture/adr/`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations
