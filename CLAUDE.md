@@ -21,6 +21,8 @@ pip install -e ".[dev]"
 spectra analyze <repo-url>
 spectra analyze <repo-url> --quick    # Skip CritiqueAgent
 spectra analyze <repo-url> --format json
+spectra analyze <repo-url> --audit-sink stdout|file:<path>|otlp:<url>
+spectra verify spectra-report.json    # Verify Ed25519 receipt
 
 # Run tests
 pytest tests/ -v

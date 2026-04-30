@@ -3573,6 +3573,14 @@
             </div>
             <div class="footer-line">{{ report.repo_url }}</div>
             <div class="footer-line" style="opacity: 0.5;">{{ generated_at }}</div>
+            {% if report.receipt %}
+            <div class="footer-line" style="margin-top: 0.75rem; opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
+                signed receipt &middot; scan {{ report.receipt.scan_id[:8] }} &middot; key {{ report.receipt.public_key_fingerprint[:8] }}
+            </div>
+            <div class="footer-line" style="opacity: 0.45; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                verify with: <code>spectra verify &lt;report.json&gt;</code>
+            </div>
+            {% endif %}
         </footer>
     </div>
 
