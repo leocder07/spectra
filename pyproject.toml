@@ -28,7 +28,10 @@ classifiers = [
 # enough that the next major (which can break us) requires an
 # explicit Renovate PR + maintainer review.
 dependencies = [
-    "anthropic>=0.40,<2.0",
+    # anthropic ships fast-moving 0.x minors — <1.0 keeps us inside the
+    # current pre-1.0 stream so a future v1.0 (which can break us) needs
+    # an explicit PR rather than a transitive lockfile bump.
+    "anthropic>=0.40,<1.0",
     "typer>=0.12,<1.0",
     "rich>=13,<15",
     "pydantic>=2.5,<3.0",
@@ -45,8 +48,10 @@ dependencies = [
     # underlying ``libsqlcipher`` is unavailable on the platform (Windows
     # wheels are scarce). Cache + HMAC remain functional under fallback.
     "pysqlcipher3>=1.2,<2.0",
-    # #57 + ADR-018 + #18: Ed25519 signed scan receipts + waiver signature verification
-    "cryptography>=43,<46",
+    # #57 + ADR-018 + #18: Ed25519 signed scan receipts + waiver signature
+    # verification. Bound at <45 — v45 is gated on a verified rebuild +
+    # full receipt regression sweep before we widen.
+    "cryptography>=43,<45",
     # #17 + #18 + ADR-020: YAML config / policy / waivers / approvers
     "pyyaml>=6,<7",
 ]
@@ -54,16 +59,19 @@ dependencies = [
 [project.optional-dependencies]
 # Development-only dependencies — NOT included in production installs
 # Install with: pip install -e ".[dev]"
+# Note: ``pyyaml`` is a runtime dep (see ``[project].dependencies``) and is
+# inherited transitively by the dev install, so we do not list it twice.
 dev = [
     "pytest>=8,<10",
-    "pytest-asyncio>=0.24,<2.0",
+    # pytest-asyncio is still on 0.x; <1.0 keeps us inside the current
+    # major series so a future v1.0 (which can break us) needs an explicit
+    # PR rather than a transitive lockfile bump.
+    "pytest-asyncio>=0.24,<1.0",
     "pytest-cov>=5,<8",
     "pytest-timeout>=2.2,<3.0",
     "ruff>=0.8,<1.0",
     "mypy>=1.13,<2.0",
     "build>=1.2,<2.0",
-    # action.yml manifest contract tests load the YAML and assert on its shape
-    "pyyaml>=6,<7",
 ]
 
 [project.scripts]

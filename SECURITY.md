@@ -82,6 +82,32 @@ For context, when assessing whether a finding is in scope:
 - Cache I/O failures degrade gracefully — never fatal (SPEC-010)
 - All LLM calls go through a logging + retry decorator chain; no raw API access
 
+## Known supply-chain risks
+
+We track risks in our runtime dependency tree that do not yet warrant a hard pin
+or a fork, but that maintainers and security reviewers should be aware of.
+
+### `pysqlcipher3` — Python bindings unmaintained since 2019
+
+- **What it is.** `pysqlcipher3` provides Python bindings to `libsqlcipher`,
+  the actively maintained C library that backs SQLCipher (a transparent
+  AES-256 extension for SQLite). The C library ships regular releases. The
+  Python wheel bindings have not shipped a new release since 2019.
+- **How Spectra uses it.** At-rest encryption for the local cache database
+  only (Q2 #13). The cache stores per-file findings, per-batch findings, and
+  full-report write-back rows; it never stores credentials.
+- **Failure mode is graceful, not fatal.** When `import pysqlcipher3` fails
+  (missing wheel on Windows, libsqlcipher unavailable on the platform, etc.),
+  `SqliteCacheAdapter` degrades to plain SQLite plus a `WARN` on the
+  ProgressObserver. The cache stays functional and the per-row HMAC integrity
+  check (ADR-012) remains active — only at-rest confidentiality is lost.
+- **Mitigation roadmap.** We monitor `sqlcipher3-binary` (community fork,
+  actively maintained) for production-readiness. When the fork has a stable
+  release with maintainers we can reach and a track record on the platforms
+  we support (macOS, Linux, Windows), we will switch in a single Renovate PR
+  + CHANGELOG entry. Until then, the fallback path above is the documented
+  safe behavior.
+
 ## Hall of Fame
 
 Researchers who report a confirmed vulnerability through this policy and follow coordinated disclosure are listed here, with permission.
