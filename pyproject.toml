@@ -64,6 +64,14 @@ dependencies = [
     # Bound at <6 so the next major (which can break us) requires an explicit
     # PR rather than a transitive lockfile bump.
     "redis>=5.0,<6.0",
+    # #30 + #33 + ADR-023: OpenTelemetry tracing + per-agent cost attribution.
+    # The OTel SDK + OTLP/HTTP exporter are wired at the composition root
+    # only when --otel-endpoint is set; the default tracer is the in-process
+    # NoopTracerAdapter (zero overhead). Bounds match the OTel Python LTS
+    # stream — <2.0 keeps a future major behind an explicit Renovate PR.
+    "opentelemetry-api>=1.27,<2.0",
+    "opentelemetry-sdk>=1.27,<2.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.27,<2.0",
 ]
 
 [project.optional-dependencies]
