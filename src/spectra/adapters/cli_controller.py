@@ -164,6 +164,28 @@ _PER_AGENT_ROLES: tuple[str, ...] = (
 _CLI_TO_ROLE: dict[str, str] = {"meta": "meta_prompter"}
 
 
+def _model_help(role: str) -> str:
+    """Return ``help=`` text for a per-role ``--<role>-model`` flag.
+
+    Includes the allowed-model list so users can discover valid choices
+    without consulting the README. Validated against ``_ALLOWED_MODELS``
+    so help text and validator stay in lock-step.
+    """
+    allowed = ", ".join(_ALLOWED_MODELS)
+    return f"Override {role} model. Allowed: {allowed}"
+
+
+def _effort_help(role: str) -> str:
+    """Return ``help=`` text for a per-role ``--<role>-effort`` flag.
+
+    Includes the allowed-effort list and the Opus-tier constraint
+    (``xhigh``/``max`` are only valid on Opus models). Validated against
+    ``_ALLOWED_EFFORTS`` so help text and validator stay in lock-step.
+    """
+    allowed = ", ".join(_ALLOWED_EFFORTS)
+    return f"Override {role} effort. Allowed: {allowed} (xhigh/max Opus-tier only)"
+
+
 _DEFAULT_OUTPUT = Path("spectra-report.html")
 _OUTPUT_OPTION = typer.Option(
     _DEFAULT_OUTPUT,
@@ -557,28 +579,50 @@ def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception han
         "--verbose",
         help="Show debug output",
     ),
-    model: str | None = typer.Option(None, "--model", help="Default model for the 6 specialists"),
-    effort: str | None = typer.Option(None, "--effort", help="Default effort for the 6 specialists"),
-    meta_model: str | None = typer.Option(None, "--meta-model", help="Override MetaPrompter model"),
-    meta_effort: str | None = typer.Option(None, "--meta-effort", help="Override MetaPrompter effort"),
-    critique_model: str | None = typer.Option(None, "--critique-model", help="Override CritiqueAgent model"),
-    critique_effort: str | None = typer.Option(None, "--critique-effort", help="Override CritiqueAgent effort"),
-    architecture_model: str | None = typer.Option(None, "--architecture-model", help="Override architecture model"),
-    architecture_effort: str | None = typer.Option(None, "--architecture-effort", help="Override architecture effort"),
-    security_model: str | None = typer.Option(None, "--security-model", help="Override security model"),
-    security_effort: str | None = typer.Option(None, "--security-effort", help="Override security effort"),
-    quality_model: str | None = typer.Option(None, "--quality-model", help="Override quality model"),
-    quality_effort: str | None = typer.Option(None, "--quality-effort", help="Override quality effort"),
-    documentation_model: str | None = typer.Option(None, "--documentation-model", help="Override documentation model"),
-    documentation_effort: str | None = typer.Option(
-        None, "--documentation-effort", help="Override documentation effort"
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help=f"Default model for the 6 specialists. Allowed: {', '.join(_ALLOWED_MODELS)}",
     ),
-    dependency_model: str | None = typer.Option(None, "--dependency-model", help="Override dependency model"),
-    dependency_effort: str | None = typer.Option(None, "--dependency-effort", help="Override dependency effort"),
-    performance_model: str | None = typer.Option(None, "--performance-model", help="Override performance model"),
-    performance_effort: str | None = typer.Option(None, "--performance-effort", help="Override performance effort"),
-    model_overrides: str | None = typer.Option(None, "--model-overrides", help="JSON: {role: model}"),
-    effort_overrides: str | None = typer.Option(None, "--effort-overrides", help="JSON: {role: effort}"),
+    effort: str | None = typer.Option(
+        None,
+        "--effort",
+        help=(
+            f"Default effort for the 6 specialists. Allowed: {', '.join(_ALLOWED_EFFORTS)} (xhigh/max Opus-tier only)"
+        ),
+    ),
+    meta_model: str | None = typer.Option(None, "--meta-model", help=_model_help("MetaPrompter")),
+    meta_effort: str | None = typer.Option(None, "--meta-effort", help=_effort_help("MetaPrompter")),
+    critique_model: str | None = typer.Option(None, "--critique-model", help=_model_help("CritiqueAgent")),
+    critique_effort: str | None = typer.Option(None, "--critique-effort", help=_effort_help("CritiqueAgent")),
+    architecture_model: str | None = typer.Option(None, "--architecture-model", help=_model_help("architecture")),
+    architecture_effort: str | None = typer.Option(None, "--architecture-effort", help=_effort_help("architecture")),
+    security_model: str | None = typer.Option(None, "--security-model", help=_model_help("security")),
+    security_effort: str | None = typer.Option(None, "--security-effort", help=_effort_help("security")),
+    quality_model: str | None = typer.Option(None, "--quality-model", help=_model_help("quality")),
+    quality_effort: str | None = typer.Option(None, "--quality-effort", help=_effort_help("quality")),
+    documentation_model: str | None = typer.Option(None, "--documentation-model", help=_model_help("documentation")),
+    documentation_effort: str | None = typer.Option(None, "--documentation-effort", help=_effort_help("documentation")),
+    dependency_model: str | None = typer.Option(None, "--dependency-model", help=_model_help("dependency")),
+    dependency_effort: str | None = typer.Option(None, "--dependency-effort", help=_effort_help("dependency")),
+    performance_model: str | None = typer.Option(None, "--performance-model", help=_model_help("performance")),
+    performance_effort: str | None = typer.Option(None, "--performance-effort", help=_effort_help("performance")),
+    model_overrides: str | None = typer.Option(
+        None,
+        "--model-overrides",
+        help=(
+            'JSON map of role to model, e.g. \'{"security":"claude-opus-4-7"}\'. '
+            f"Models allowed: {', '.join(_ALLOWED_MODELS)}"
+        ),
+    ),
+    effort_overrides: str | None = typer.Option(
+        None,
+        "--effort-overrides",
+        help=(
+            'JSON map of role to effort, e.g. \'{"security":"xhigh"}\'. '
+            f"Efforts allowed: {', '.join(_ALLOWED_EFFORTS)}"
+        ),
+    ),
     classification: str = typer.Option(
         "confidential",
         "--classification",
