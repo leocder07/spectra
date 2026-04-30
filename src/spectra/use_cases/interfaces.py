@@ -370,7 +370,7 @@ class CachePort(Protocol):
 
 
 class CostTrackerPort(Protocol):
-    """Port for per-run + rolling-hour cost tracking (SPEC-012).
+    """Port for per-run + rolling-hour cost tracking (SPEC-014).
 
     Implemented by ``InMemoryCostTracker`` (default for solo runs) and
     ``SqliteCostTracker`` (shared ``cache.db`` for ``--max-cost-per-hour``

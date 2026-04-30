@@ -220,7 +220,7 @@ async def run_specialists_with_budget(
     estimate_per_agent: float,
     timeout_seconds: float = 120.0,
 ) -> list[AgentOutput | Exception]:
-    """Run specialists sequentially with a per-agent budget gate (SPEC-012).
+    """Run specialists sequentially with a per-agent budget gate (SPEC-014).
 
     Sequential execution is intentional here: the gate must observe each
     completed agent's actual cost before deciding whether the next call
@@ -241,7 +241,7 @@ async def run_specialists_with_budget(
         Per-agent ``AgentOutput`` or ``Exception`` in input order.
 
     Raises:
-        BudgetExceededError: SPEC-012 when the gate fires before a call.
+        BudgetExceededError: SPEC-014 when the gate fires before a call.
     """
     results: list[AgentOutput | Exception] = []
     for agent in agents:

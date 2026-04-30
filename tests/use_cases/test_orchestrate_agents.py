@@ -334,7 +334,7 @@ class TestRunSpecialistsPhase3:
         assert f in out.findings
 
 
-# ── Budget gate (SPEC-012) ──────────────────────────────────────
+# ── Budget gate (SPEC-014) ──────────────────────────────────────
 
 
 class TestBudgetGate:

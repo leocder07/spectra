@@ -91,7 +91,7 @@ class TestErrorsDict:
         assert ERRORS[code].max_retries == expected_retries
 
     def test_non_retryable_have_zero_retries(self):
-        for code in ("SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009", "SPEC-012"):
+        for code in ("SPEC-004", "SPEC-006", "SPEC-007", "SPEC-008", "SPEC-009", "SPEC-014"):
             assert ERRORS[code].max_retries == 0
 
     def test_spec_014_present_and_non_retryable(self):
@@ -101,7 +101,7 @@ class TestErrorsDict:
         assert "budget" in spec014.message.lower()
 
 
-# ── BudgetExceededError (SPEC-012) ──────────────────────────────
+# ── BudgetExceededError (SPEC-014) ──────────────────────────────
 
 
 class TestBudgetExceededError:
@@ -338,7 +338,7 @@ class TestErrorCatchability:
             "SPEC-009",
             "SPEC-010",
             "SPEC-011",
-            "SPEC-012",
+            "SPEC-014",
         ],
     )
     def test_all_error_codes_have_message(self, code):
@@ -360,7 +360,7 @@ class TestErrorCatchability:
             "SPEC-009",
             "SPEC-010",
             "SPEC-011",
-            "SPEC-012",
+            "SPEC-014",
         ],
     )
     def test_all_errors_are_frozen(self, code):

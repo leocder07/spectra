@@ -1021,7 +1021,7 @@ async def _execute_specialists(
 ) -> _AnalysisResult:
     """Run specialists and evaluate results.
 
-    Routes to ``run_specialists_with_budget`` when SPEC-012 is wired
+    Routes to ``run_specialists_with_budget`` when SPEC-014 is wired
     (sequential, gated execution) or to ``run_specialists`` for the
     standard parallel path.
     """
