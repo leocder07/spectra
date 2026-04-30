@@ -13,7 +13,9 @@ catching a regression that re-serializes the work.
 from __future__ import annotations
 
 import asyncio
+import shutil
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +23,7 @@ import pytest
 from spectra.infrastructure.main import (
     _prioritize_source_files,
     _read_key_source_files,
+    _run_analysis,
 )
 
 
@@ -134,3 +137,76 @@ class TestPrioritizeSourceFilesComplexity:
         assert ranked[1] == "pyproject.toml"
         assert ranked[2] == "src/spectra/foo.py"
         assert ranked[3] == "tests/something.py"
+
+
+class TestWorkspaceCleanupOffloaded:
+    """Pin Fix 2 — ``shutil.rmtree`` runs via ``asyncio.to_thread`` not inline."""
+
+    @pytest.mark.asyncio
+    async def test_rmtree_called_via_to_thread(self, tmp_path: Path) -> None:
+        """The cleanup path must dispatch ``shutil.rmtree`` off the event loop.
+
+        We instrument both ``asyncio.to_thread`` and ``shutil.rmtree`` and
+        assert every ``rmtree`` we observe was wrapped: i.e. ``to_thread``
+        was called with ``shutil.rmtree`` as its callable. If a future
+        refactor re-introduces a synchronous ``shutil.rmtree(workspace_dir,
+        ...)`` directly on the event loop, this test fails.
+        """
+        original_to_thread = asyncio.to_thread
+        observed: dict[str, int] = {"to_thread_rmtree": 0, "direct_rmtree": 0}
+
+        async def spy_to_thread(func: object, /, *args: object, **kwargs: object) -> object:
+            if func is shutil.rmtree or getattr(func, "__name__", "") == "rmtree":
+                observed["to_thread_rmtree"] += 1
+            return await original_to_thread(func, *args, **kwargs)  # type: ignore[arg-type]
+
+        def spy_rmtree(*args: object, **kwargs: object) -> None:
+            observed["direct_rmtree"] += 1
+
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
+            patch("spectra.infrastructure.main.shutil.rmtree", side_effect=spy_rmtree),
+            patch("spectra.infrastructure.main.asyncio.to_thread", side_effect=spy_to_thread),
+            patch("spectra.infrastructure.main.AnthropicAdapter") as mock_adapter,
+            patch("spectra.infrastructure.main.GitAdapter") as mock_git_cls,
+            patch("spectra.infrastructure.main._provision_cache", return_value=None),
+            patch("spectra.infrastructure.main._build_audit_port", return_value=None),
+            patch(
+                "spectra.infrastructure.main._allocate_workspace",
+                return_value=(str(tmp_path), True),
+            ),
+            patch(
+                "spectra.infrastructure.main._run_preflight_stage",
+                side_effect=RuntimeError("stop here"),
+            ),
+        ):
+            mock_adapter.return_value.close = _make_async_noop()
+            mock_git = mock_git_cls.return_value
+            mock_git.prepare_workspace = _make_async_return(str(tmp_path))
+            mock_git.validate_repo_size = _make_async_noop()
+            mock_git.get_file_tree = _make_async_return([])
+            with pytest.raises(RuntimeError, match="stop here"):
+                await _run_analysis(
+                    "https://github.com/test/repo",
+                    "/tmp/out.html",  # noqa: S108
+                    no_cache=True,
+                )
+
+        assert observed["to_thread_rmtree"] >= 1, (
+            "shutil.rmtree was not dispatched via asyncio.to_thread; cleanup is blocking the event loop"
+        )
+        assert observed["direct_rmtree"] >= 1, "test instrumentation never observed an rmtree call — wiring drift"
+
+
+def _make_async_noop() -> object:
+    async def _noop(*args: object, **kwargs: object) -> None:
+        return None
+
+    return _noop
+
+
+def _make_async_return(value: object) -> object:
+    async def _ret(*args: object, **kwargs: object) -> object:
+        return value
+
+    return _ret
