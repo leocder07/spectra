@@ -44,6 +44,7 @@ from spectra.entities.enums import (
 from spectra.entities.errors import (
     ERRORS,
     AgentError,
+    BudgetExceededError,
     GitError,
     SecretDetectedError,
     SpectraError,
@@ -112,6 +113,7 @@ __all__ = [
     "AuditTarget",
     "BatchCacheKey",
     "BatchPrompt",
+    "BudgetExceededError",
     "CacheEntry",
     "CacheSecret",
     "CacheStats",
