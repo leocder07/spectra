@@ -579,6 +579,55 @@ class TestAnalysisReport:
         )
         assert report.critical_finding_count() == 0
 
+    def test_classification_defaults_to_confidential(self, sample_scorecard, sample_finding):
+        """Default classification preserves backward-compat for existing users.
+
+        Capability #56: every report shipped before the dual-mode render
+        carried full findings — defaulting to ``confidential`` keeps that
+        behavior unchanged. Public mode is opt-in only.
+        """
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+        )
+        assert report.classification == "confidential"
+
+    def test_classification_can_be_set_public(self, sample_scorecard, sample_finding):
+        """Reports may be marked ``public`` for sharing outside the org."""
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+            classification="public",
+        )
+        assert report.classification == "public"
+
+    def test_classification_rejects_unknown_value(self, sample_scorecard, sample_finding):
+        """Only ``confidential`` and ``public`` are accepted (Literal type)."""
+        with pytest.raises(ValidationError):
+            AnalysisReport(
+                repo_url="https://github.com/test/repo",
+                repo_name="repo",
+                score_card=sample_scorecard,
+                findings=(sample_finding,),
+                analysis_duration_seconds=1.0,
+                total_tokens_used=100,
+                total_cost_usd=0.01,
+                agents_used=(),
+                classification="secret",  # type: ignore[arg-type]
+            )
+
 
 # ── Codebase ────────────────────────────────────────────────────
 

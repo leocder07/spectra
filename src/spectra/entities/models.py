@@ -27,6 +27,16 @@ from spectra.entities.receipt import ScanReceipt
 PASSING_SCORE: float = 60.0
 """Minimum score (0-100) for a dimension to be considered passing."""
 
+Classification = Literal["confidential", "public"]
+"""Report classification — controls watermark, banner, and findings redaction.
+
+``confidential`` (default) renders the full report with all findings,
+code snippets, and file paths plus a CONFIDENTIAL watermark and DLP
+meta tag. ``public`` strictly redacts every individual finding,
+keeping only the overall grade, dimension scores, and findings counts —
+suitable for sharing outside the organization. See capability #56.
+"""
+
 EXCELLENT_SCORE: float = 90.0
 """Threshold for an excellent dimension score."""
 
@@ -300,6 +310,12 @@ class AnalysisReport(BaseModel, frozen=True):
     """Roadmap #57: tamper-evident Ed25519 signature over the score card.
     Embedded in JSON output and surfaced as a verification command in HTML.
     ``None`` when the receipt signer was unavailable (degrade, never fail)."""
+
+    classification: Classification = "confidential"
+    """Capability #56: ``confidential`` (default, full findings + watermark
+    + DLP meta tag) or ``public`` (strictly redacted summary suitable for
+    sharing). Render pipelines pick the template, emit the file suffix,
+    and choose the watermark + banner text from this single field."""
 
     def critical_finding_count(self) -> int:
         """Return the number of findings with critical severity."""
