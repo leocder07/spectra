@@ -1,0 +1,78 @@
+' 05-agent-orchestration.puml — asyncio.gather of 6 specialists
+' For: docs/architecture/05-agent-architecture.md
+' Last revised: 2026-04-30
+'
+' The 6 specialists fan out via asyncio.gather; the orchestrator
+' enforces a Semaphore(max_concurrency=4) to bound API call bursts and
+' wait_for(timeout=120s) per agent.
+
+@startuml
+title Agent orchestration — 6 specialists in parallel
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+}
+skinparam database {
+  BackgroundColor #F59E0B
+  FontColor #000000
+}
+skinparam queue {
+  BackgroundColor #22C55E
+  FontColor #000000
+}
+
+[orchestrate_agents.py\n(Layer 2)] as orch
+queue "Semaphore(4)" as sem
+queue "asyncio.gather\nreturn_exceptions=True" as gather
+
+component "ArchitectureAgent\n(Opus 4.7, xhigh)" as a1
+component "SecurityAgent\n(Opus 4.7, xhigh)" as a2
+component "QualityAgent\n(Opus 4.7, xhigh)" as a3
+component "DocumentationAgent\n(Opus 4.7, xhigh)" as a4
+component "DependencyAgent\n(Opus 4.7, xhigh)" as a5
+component "PerformanceAgent\n(Opus 4.7, xhigh)" as a6
+
+database "wait_for(120s)\nper agent" as t
+
+orch --> gather
+gather --> a1
+gather --> a2
+gather --> a3
+gather --> a4
+gather --> a5
+gather --> a6
+
+a1 --> sem : acquire
+a2 --> sem
+a3 --> sem
+a4 --> sem
+a5 --> sem
+a6 --> sem
+
+sem --> t
+
+note bottom of gather
+  return_exceptions=True isolates failures.
+  Failure state machine (evaluate_results):
+    0-1 fail → "merging" (reweight)
+    ≥2 fail  → "degraded" (partial report)
+end note
+
+note right of sem #FEF3C7
+  Semaphore(4) bounds concurrent API
+  calls. All 6 launch immediately; only
+  4 are in-flight against Anthropic at any
+  time, smoothing 429 risk on Tier-2 keys.
+end note
+
+note left of orch
+  Phase 3 path uses run_specialists_batched:
+  one task per (agent, BatchPrompt) pair,
+  collapsed back to one AgentOutput per role
+  before the orchestrator returns.
+end note
+
+@enduml

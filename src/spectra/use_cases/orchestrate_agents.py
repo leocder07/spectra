@@ -113,7 +113,8 @@ async def run_specialists(
     tasks = [_run_one(agent, prompts.get(agent.role, "")) for agent in agents]
     # asyncio.gather launches ALL tasks concurrently on the event loop.
     # return_exceptions=True: individual failures don't cancel siblings,
-    # so 5 agents can succeed even if 1 times out or errors.
+    # so the remaining specialists can complete even if one times out
+    # or errors. SPEC-007 fires only if 2+ specialists fail (see merge stage).
     return await asyncio.gather(*tasks, return_exceptions=True)
 
 

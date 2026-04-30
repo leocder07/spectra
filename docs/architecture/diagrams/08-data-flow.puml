@@ -1,0 +1,75 @@
+' 08-data-flow.puml — per-data-class flow + retention
+' For: docs/architecture/08-data-flow-and-privacy.md
+' Last revised: 2026-04-30
+'
+' Each edge is annotated with: encryption, persistence, retention.
+
+@startuml
+title Data flow — Customer machine → Spectra → external
+
+skinparam backgroundColor #FFFFFF
+skinparam component {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+}
+skinparam database {
+  BackgroundColor #F59E0B
+  FontColor #000000
+}
+skinparam cloud {
+  BackgroundColor #E5E7EB
+  FontColor #000000
+}
+
+actor "Developer" as dev
+
+cloud "Customer machine\n(or CI runner)" as host {
+  database "Workspace\n(/tmp/spectra-XXXX or local repo path)" as ws
+  database "cache.db\n${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/\nWAL, mode 0600, per-row HMAC" as cache
+  database "OS Keyring\nservice=spectra-cache-hmac\naccount=$UID" as kr
+  database "audit.jsonl\n${XDG_STATE_HOME:-~/.local/state}/spectra/\n(Q2 designed)" as audit #9CA3AF
+  database "Report files\n.html / .json / .sarif" as out
+  component "spectra CLI" as cli
+}
+
+cloud "Anthropic API\nmodels/messages, streaming" as api
+cloud "GitHub\n(clone target, PR comment, SARIF upload)" as gh
+cloud "SIEM via OTLP\n(Q2 designed — ADR-018)" as siem #9CA3AF
+
+dev -down-> cli : invoke (no PII)
+gh -right-> ws : git clone over TLS\n(retention: tempdir cleanup on exit\nor user-owned for local paths)
+
+cli -right-> ws : read source files\n(in-memory, never persisted by Spectra)
+ws -right-> cli : file bytes (≤1MB read cap)
+
+cli -right-> api : prompts (incl. nonce-fenced source bytes)\nTLS, streaming\nretention: NOT stored by Anthropic on Workbench API
+api -right-> cli : findings JSON
+
+cli -down-> cache : Phase 1/2/3 cache writes\n(MAC-protected; per-`$UID`)
+cli -down-> kr : read 32-byte secret (once per process)
+cache -up-> cli : MAC-verified hits\n(retention: until `spectra cache prune` or user clear)
+
+cli -down-> out : render HTML / JSON / SARIF\n(retention: file-system; user-owned)
+out -right-> gh : optional — SARIF upload via Action
+
+cli -down-> audit : emit AuditEvent (Q2 designed)\n(retention: 365d default rotation)
+audit -right-> siem : OTLP forwarding (Q2 designed)\n(retention: customer SIEM policy)
+
+note bottom of api #FEF3C7
+  Anthropic Workbench API does not persist
+  prompts or completions for training (per
+  Anthropic data policy). Spectra adds:
+    - per-file random-nonce fences
+    - explicit data-vs-instruction system block
+end note
+
+note bottom of audit #E5E7EB
+  Privacy boundary (ADR-018 §4):
+    LOG repo_signature, finding_signature,
+        actor, cost_usd, tokens_*, MAC fingerprint.
+    NEVER LOG repo URL, file paths, code excerpts,
+        finding text, secret material.
+end note
+
+@enduml

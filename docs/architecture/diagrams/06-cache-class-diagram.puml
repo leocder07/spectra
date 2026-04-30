@@ -1,0 +1,98 @@
+' 06-cache-class-diagram.puml — CachePort + adapter + 4 tables
+' For: docs/architecture/06-cache-architecture.md
+' Last revised: 2026-04-30
+'
+' Three caches + one telemetry log live in a single cache.db. ADR-012
+' adds the per-row mac BLOB column on every data table.
+
+@startuml
+title Cache subsystem — port, adapter, 4 SQLite tables
+
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #22C55E
+  FontColor #000000
+  BorderColor #166534
+}
+skinparam interface {
+  BackgroundColor #F59E0B
+  FontColor #000000
+}
+skinparam database {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+}
+
+interface CachePort <<Layer 2>>
+class SqliteCacheAdapter <<Layer 4>> {
+  - _conn: sqlite3.Connection (WAL)
+  - _secret: CacheSecret | None
+  - _run_versions: tuple[str,str,str,str] | None
+  - _mac_failures: int
+  + bind_run_context(model_v, prompt_v, schema_v, spectra_v)
+  + get_findings / put_findings (Phase 1)
+  + get_full_report / put_full_report (Phase 2)
+  + get_batch_findings / put_batch_findings (Phase 3)
+  + record_hit (telemetry)
+  + clear_all / clear_by_repo / prune_older_than (Phase 4)
+  + count_rows (cache doctor)
+  - _verify_*_mac (constant-time blake2b compare)
+  - _drop_tampered_row (delete + WARN)
+}
+
+CachePort <|.. SqliteCacheAdapter
+
+database "cache.db\n${XDG_CACHE_HOME:-~/.cache}/spectra/$UID/\n(WAL, mode 0600)" as db {
+
+  class findings_cache <<Phase 1 — per-file>> {
+    PK file_hash, dimension, model_version, prompt_version, schema_version
+    file_path, findings_json
+    spectra_version, repo_signature, computed_at
+    mac BLOB  ' ADR-012
+  }
+  class full_report_cache <<Phase 2 — per-repo>> {
+    PK repo_signature, spectra_version, model_versions,
+       prompt_versions, schema_version
+    report_json, computed_at
+    mac BLOB  ' ADR-012
+  }
+  class findings_batches <<Phase 3 — per focus_area>> {
+    PK batch_id, dimension, model_version, prompt_version,
+       schema_version, spectra_version
+    findings_json, computed_at
+    mac BLOB  ' ADR-012
+  }
+  class hit_log <<Telemetry>> {
+    ts, hit, dimension, batch_id
+  }
+}
+
+SqliteCacheAdapter --> findings_cache : writes / verifies MAC
+SqliteCacheAdapter --> full_report_cache : writes / verifies MAC
+SqliteCacheAdapter --> findings_batches : writes / verifies MAC
+SqliteCacheAdapter --> hit_log : append-only
+
+class KeyringSecretAdapter <<Layer 4>> {
+  - _backend: keyring
+  - _uid: str
+  + get(): CacheSecret  ' service spectra-cache-hmac
+}
+
+SqliteCacheAdapter o-- "0..1" CacheSecret : per-user 32-byte HMAC key
+
+KeyringSecretAdapter --> CacheSecret : mints or loads
+
+note bottom of db
+  Phase 4 (PR #19): spectra cache prune,
+  spectra cache clear, spectra cache stats,
+  spectra cache doctor (PR #40 — verifies MAC tally).
+end note
+
+note right of SqliteCacheAdapter
+  Failure mode: SPEC-010.
+  Cache I/O errors degrade to no-cache for the
+  rest of the run. Cache failures are NEVER fatal.
+end note
+
+@enduml

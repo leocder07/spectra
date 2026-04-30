@@ -1,13 +1,19 @@
 # Getting Started
 
-Get a full repository analysis in under 2 minutes.
+Get a full repository analysis in under 5 minutes.
 
 ---
 
 ## 1. Install
 
 ```bash
-git clone https://github.com/your-org/spectra.git
+pip install spectra-ai
+```
+
+Or for development:
+
+```bash
+git clone https://github.com/leocder07/spectra.git
 cd spectra
 pip install -e ".[dev]"
 ```

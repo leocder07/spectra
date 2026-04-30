@@ -1,0 +1,80 @@
+' 09-extensibility-plugin.puml - Specialist plugin entry-point discovery
+' For: docs/architecture/09-extensibility.md
+' Last revised: 2026-04-30
+'
+' ADR-017: Q6 plugin architecture. Today the 6 specialists are the
+' built-ins; the diagram shows the discovery shape and how an external
+' plugin registers via an entry point. Skills are per-language knowledge
+' packs delivered through `.claude-plugin/`.
+
+@startuml
+title Plugin architecture - Specialist discovery (ADR-017, Q6 designed)
+
+skinparam backgroundColor #FFFFFF
+skinparam classFontColor #000000
+skinparam classBackgroundColor #7C3AED
+skinparam interfaceBackgroundColor #F59E0B
+
+interface Specialist <<Protocol>> {
+  + role: AgentRole
+  + dimension: Dimension
+  + system_prompt: str
+  + run(prompt): AgentOutput
+}
+
+' Built-in specialists
+class ArchitectureAgent
+class SecurityAgent
+class QualityAgent
+class DocumentationAgent
+class DependencyAgent
+class PerformanceAgent
+
+' 3rd-party plugins (Q6 designed)
+class "spectra-defi: DeFiAgent" as ext1 #DDD6FE
+class "spectra-mobile: ReactNativeAgent" as ext2 #DDD6FE
+
+Specialist <|.. ArchitectureAgent
+Specialist <|.. SecurityAgent
+Specialist <|.. QualityAgent
+Specialist <|.. DocumentationAgent
+Specialist <|.. DependencyAgent
+Specialist <|.. PerformanceAgent
+Specialist <|.. ext1 : Q6
+Specialist <|.. ext2 : Q6
+
+class AgentFactory {
+  Q6: consults entry points + BUILTIN_SPECIALISTS
+}
+
+class "Skills (.claude-plugin/skills/*.md)" as Skills #DDD6FE
+class "Rule packs (.spectra-rules/*.yml)" as RulePacks #DDD6FE
+class "Entry point: project.entry-points.spectra.specialists" as EntryPoints #DDD6FE
+
+ArchitectureAgent --> AgentFactory
+SecurityAgent --> AgentFactory
+QualityAgent --> AgentFactory
+DocumentationAgent --> AgentFactory
+DependencyAgent --> AgentFactory
+PerformanceAgent --> AgentFactory
+EntryPoints ..> AgentFactory : pip install discovers
+Skills ..> AgentFactory : loaded into prompts
+RulePacks ..> AgentFactory : overlays prompts/weights/thresholds
+ext1 --> EntryPoints
+ext2 --> EntryPoints
+
+note right of AgentFactory #FEF3C7
+  Today (v0.5.0): factory resolves the 6
+  BUILTIN specialists from SPECIALIST_CONFIGS.
+
+  Q6 (ADR-017): the surface is additive.
+  Adding 3rd-party specialists does not break
+  the LLMGateway / CachePort contracts.
+
+  Trust model: Sigstore-signed plugins + Spectra
+  trust root (open question in INDEX.md -
+  community-signed alternative is on the table
+  for ecosystem velocity).
+end note
+
+@enduml

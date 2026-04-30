@@ -4,7 +4,7 @@
 
 ### The full spectrum of your codebase
 
-**Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in under 5 minutes.** It runs 8 specialized Claude agents in parallel (Opus 4.7) so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
+**Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in under 5 minutes.** It runs 8 specialized Claude agents (6 specialists in parallel, plus a planner and a critic) on Opus 4.7, so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
 
 #### <a id="disclaimer"></a>Disclaimer
 
@@ -228,6 +228,8 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 ## Architecture
 
+> **Full architecture reference:** [`docs/architecture/`](docs/architecture/) — 10 documents + 19 PlantUML diagrams covering the C4 model, domain entities, pipeline flow, agent orchestration, cache subsystem, security model, data flow, plugin extensibility, and the release pipeline. Status table tracks what's shipped (v0.5.0) vs what's designed-and-in-flight (Q2). Diagrams render via `plantuml -tsvg docs/architecture/diagrams/*.puml`.
+
 ### System context
 
 Spectra in its environment — who invokes it and what it talks to. Two install paths (local pip + GitHub Action), one PyPI package. Source: [`docs/diagrams/system-context.md`](docs/diagrams/system-context.md).
@@ -243,7 +245,7 @@ flowchart LR
     Dev["<b>Developer</b><br/>[Person]<br/>Runs spectra analyze<br/>from a terminal"]:::person
     PR["<b>GitHub PR</b><br/>[External CI]<br/>pull_request event<br/>invokes the Action"]:::person
 
-    Spectra(["<b>Spectra CLI</b><br/>[Software System]<br/>8 AI agents · 6 dimensions<br/>Clean Architecture · Python 3.12+<br/>5-stage pipeline + cache"]):::system
+    Spectra(["<b>Spectra CLI</b><br/>[Software System]<br/>8 AI agents · 6 dimensions<br/>Clean Architecture · Python 3.12+<br/>6-stage pipeline + cache"]):::system
 
     Anthropic["<b>Anthropic API</b><br/>[External SaaS]<br/>Claude Opus 4.7<br/>all 8 agents"]:::external
     GitHub["<b>GitHub.com</b><br/>[External Service]<br/>Git clone source<br/>HTTPS only"]:::external
@@ -557,6 +559,17 @@ python -m sigstore verify identity \
 Expected output: `OK: spectra_ai-0.4.0-py3-none-any.whl`
 
 If either check fails, do not install — open an issue at https://github.com/leocder07/spectra/security/advisories/new.
+
+---
+
+## Privacy & Data Processing
+
+Spectra runs on the Customer's machine; the only outbound data flow is to Anthropic's API for inference, governed by the Customer's own Anthropic agreement. We publish a template Data Processing Addendum, an authoritative sub-processor list, and a per-edge data flow diagram so procurement and legal teams have a starting position rather than a blank page.
+
+- [`docs/legal/DPA.md`](docs/legal/DPA.md) — GDPR Art. 28 — compatible Data Processing Addendum (template — requires legal review)
+- [`docs/legal/SUBPROCESSORS.md`](docs/legal/SUBPROCESSORS.md) — Sub-processor declaration (Anthropic only)
+- [`docs/legal/DATA_FLOW.md`](docs/legal/DATA_FLOW.md) — Per-edge data flow diagram, v0.5.0 baseline
+- [`SECURITY.md`](SECURITY.md) — Vulnerability reporting, supported versions, hardening already shipped
 
 ---
 

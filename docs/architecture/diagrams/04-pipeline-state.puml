@@ -1,0 +1,68 @@
+' 04-pipeline-state.puml — PipelineState transitions
+' For: docs/architecture/04-pipeline-flow.md
+' Last revised: 2026-04-30
+'
+' PipelineState literals from src/spectra/entities/enums.py plus the
+' Q2-designed budget-exceeded transition.
+
+@startuml
+title PipelineState — lifecycle transitions
+
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+  ArrowColor #7C3AED
+}
+
+[*] --> pending : process start
+
+pending --> ingesting : analyze_repository entered
+
+ingesting --> failed : SPEC-001 git clone failed (exhausted retries)
+ingesting --> meta_prompting : workspace prepared\n(includes Stage 1.5 PREFLIGHT)
+
+meta_prompting --> failed : SPEC-002 / 005 / 006 from MetaPrompter
+meta_prompting --> analyzing : plan JSON parsed
+meta_prompting --> reporting : Phase 2 cache HIT\n(short-circuit)
+
+analyzing --> degraded : 2+ specialists failed\n(SPEC-007 — partial report)
+analyzing --> merging : 0-1 failures
+
+merging --> critiquing : critique enabled\n(not --quick, not degraded)
+merging --> reporting : critique skipped
+
+critiquing --> compromised : ADR-011 — rule_id\nSPEC-PROMPT-INJECTION-DETECTED emitted
+critiquing --> reporting : critique complete\n(filtered + insights)
+critiquing --> reporting : SPEC-008 critique failed\n(unmodified findings, logged)
+
+reporting --> complete : HTML/JSON/SARIF emitted
+reporting --> failed : SPEC-009 render failed
+
+degraded --> reporting : assemble partial report
+compromised --> reporting : banner + Q2-designed\nrefuse public-mode emission
+
+complete --> [*]
+degraded --> [*]
+compromised --> [*]
+failed --> [*]
+
+note right of compromised #FEE2E2
+  Terminal — public-mode emission
+  refuses to publish a grade (Q2).
+end note
+
+note right of degraded #FEF3C7
+  ≥2 specialists failed; pipeline still
+  produces a partial report so the
+  human reviewer can act on what works.
+end note
+
+' Q2 designed transition
+state "budget_exceeded" as be #9CA3AF
+analyzing --> be : --max-cost-usd reached\n(Q2 designed — ADR-013)
+critiquing --> be : --max-cost-usd reached
+be --> reporting : Q2 — emit "budget exceeded" report
+
+@enduml

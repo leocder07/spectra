@@ -1,0 +1,63 @@
+' 10-publish-pipeline.puml — CI publish.yml pipeline
+' For: docs/architecture/10-deployment-and-release.md
+' Last revised: 2026-04-30
+'
+' Mirrors .github/workflows/publish.yml: 4 jobs (build, test, publish,
+' sign) with SLSA L3 build provenance and Sigstore keyless signing.
+
+@startuml
+title Release pipeline — publish.yml (push tag → PyPI + Sigstore)
+
+skinparam backgroundColor #FFFFFF
+skinparam activity {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+  DiamondBackgroundColor #F59E0B
+  DiamondFontColor #000000
+  StartColor #22C55E
+  EndColor #EF4444
+}
+
+start
+:git tag vX.Y.Z && git push origin vX.Y.Z;
+
+partition "build job" {
+  :checkout;
+  :setup-python 3.12;
+  :pip install build;
+  :python -m build → dist/;
+  :twine check dist/*;
+  :actions/attest-build-provenance@v2\n→ SLSA L3 attestation per artifact;
+  :upload-artifact dist/;
+}
+
+partition "test job" {
+  :pip install -e .[dev];
+  :ruff check src/ tests/;
+  :pytest --cov-fail-under=70;
+}
+
+if (build && test green?) then (yes)
+  partition "publish job\n(environment=pypi, OIDC trusted publisher)" {
+    :download-artifact dist/;
+    :pypa/gh-action-pypi-publish\n(no API token — OIDC);
+    :wheel + sdist now on PyPI;
+  }
+
+  partition "sign job\n(Sigstore keyless via OIDC)" {
+    :download-artifact dist/;
+    :pip install sigstore>=3,<4;
+    :python -m sigstore sign dist/*.whl dist/*.tar.gz;
+    :upload .sigstore bundles\nas workflow artifact;
+    :gh release upload <tag> dist/*.sigstore*;
+  }
+
+  :GitHub Release\n(notes + signed bundles +\nSLSA attestation + provenance);
+  stop
+else (no)
+  :fail; do not publish;
+  end
+endif
+
+@enduml

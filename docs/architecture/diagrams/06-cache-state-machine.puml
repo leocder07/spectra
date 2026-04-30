@@ -1,0 +1,58 @@
+' 06-cache-state-machine.puml — per-row lifecycle
+' For: docs/architecture/06-cache-architecture.md
+' Last revised: 2026-04-30
+'
+' From INSERT to drop. Every PUT writes mac=blake2b(secret, key, value).
+' Every GET recomputes + compare_digest; mismatch deletes the row.
+
+@startuml
+title Cache row — lifecycle state machine
+
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+  ArrowColor #7C3AED
+}
+
+[*] --> created : put_*(...)\nINSERT OR REPLACE
+
+state created {
+  created : mac = blake2b(secret, key_parts, payload)
+  created : repo_signature, computed_at = now(UTC)
+}
+
+created --> verified : get_*() + secret bound\nrecompute + compare_digest OK
+created --> hit_no_secret : get_*() + secret = None\n(legacy mode — no MAC enforced)
+
+verified --> served : return findings / report
+
+state served #22C55E
+state hit_no_secret #FEF3C7
+
+verified --> dropped : MAC mismatch\n_drop_tampered_row()
+created --> stale_keys : composite key mismatch on lookup\n(model / prompt / schema / spectra version bumped)
+
+stale_keys --> [*] : never returned\n(deferred deletion via\nspectra cache prune)
+
+dropped : DELETE row by composite key
+dropped : _mac_failures += 1
+dropped : LOG SPEC-010 WARN
+dropped --> [*] : run continues with cache miss
+
+served --> [*]
+hit_no_secret --> served
+
+note right of stale_keys
+  Composite-key invalidation is policy-free.
+  A stale row is invisible — physical deletion
+  is deferred to `spectra cache prune` (PR #19).
+end note
+
+note right of dropped #FEE2E2
+  Tamper detection — single SPEC-010 WARN
+  per row. Pipeline is never aborted.
+end note
+
+@enduml
