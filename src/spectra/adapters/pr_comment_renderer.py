@@ -1,7 +1,7 @@
 """Markdown-safe PR comment renderer — Layer 3 adapter.
 
 Composes the body of the GitHub PR comment posted by the Spectra Action
-from an ``AnalysisReport``. Two security guarantees protect the host
+from an ``AnalysisReport``. Three security guarantees protect the host
 repository from a malicious finding (Red Team T3):
 
 1. **Field allowlist.** Only six finding fields ever surface in the
@@ -18,8 +18,24 @@ repository from a malicious finding (Red Team T3):
    rendered inside an inline code span with ``[``, ``]``, ``(``, and
    ``)`` backslash-escaped so they cannot terminate the span and
    inject a fake link. Summaries containing markdown image syntax
-   (``![..](..)``) or autolinks (``<http..>``) are dropped entirely
-   so attacker-controlled URLs never reach a reviewer's browser.
+   (``![..](..)``), inline links (``[t](u)``), reference-style
+   definitions (``[ref]: u``), autolinks (``<http..>``), bare URLs,
+   GitHub @mentions, ``#issue`` refs, or commit SHAs are dropped
+   entirely so attacker-controlled URLs / notification triggers never
+   reach a reviewer's browser.
+
+3. **Visual-spoofing defense.** BiDi override codepoints (U+202A-E,
+   U+2066-9) and zero-width characters (U+200B-D, U+FEFF) are
+   stripped from every text field before HTML-escape. In titles —
+   which cannot be dropped because they are the only human-readable
+   identifier — inline / reference markdown link syntax is broken by
+   inserting a space, bare URLs are replaced with ``[url removed]``,
+   and ``@username`` / ``#1234`` GitHub-autolink triggers are
+   neutralized by inserting a single U+200B between the trigger
+   character and the rest of the token (re-introduced *after*
+   invisible-stripping ran) so the reader still sees the model's
+   text but GitHub no longer renders it as a clickable mention or
+   issue reference.
 
 The renderer is a pure function — no I/O, no globals — and produces a
 deterministic ``str`` for a given ``AnalysisReport``. It is invoked
@@ -81,28 +97,166 @@ _IMAGE_PATTERN: Final[re.Pattern[str]] = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 # Autolinks: ``<https://...>`` — same exfil risk via referrer/click.
 _AUTOLINK_PATTERN: Final[re.Pattern[str]] = re.compile(r"<https?://[^>]+>", re.IGNORECASE)
 
+# Inline markdown link: ``[text](url)`` — a clickable anchor that GitHub
+# renders as ``<a href="url">text</a>``. An attacker could ship a phishing
+# link or exfil URL through any free-form text field this way.
+_INLINE_LINK_PATTERN: Final[re.Pattern[str]] = re.compile(r"\[[^\]]*\]\([^)]*\)")
+
+# Reference-style markdown link USE: ``[text][ref]``. The matching
+# ``[ref]: url`` definition can live anywhere in the rendered comment —
+# including a different finding's description — so any occurrence is
+# treated as exfil risk.
+_REFERENCE_LINK_PATTERN: Final[re.Pattern[str]] = re.compile(r"\[[^\]]*\]\[[^\]]*\]")
+
+# Reference-style link DEFINITION: ``[ref]: https://...``. Even without a
+# matching use site in the same comment, a definition can be resolved by
+# a sibling comment in the same PR thread, so we drop on definition too.
+_REFERENCE_DEF_PATTERN: Final[re.Pattern[str]] = re.compile(r"\[[^\]]+\]:\s*\S+")
+
+# Bare URL: ``http(s)://...``. GitHub auto-linkifies these in PR comments
+# even without explicit markdown syntax, so they must not survive.
+_BARE_URL_PATTERN: Final[re.Pattern[str]] = re.compile(r"https?://\S+", re.IGNORECASE)
+
+# GitHub @mention: ``@username``. A poisoned finding could spam-tag
+# arbitrary maintainers / @everyone / @org/team via a notification.
+# GitHub usernames are 1-39 chars: alphanumeric + single hyphens.
+_MENTION_PATTERN: Final[re.Pattern[str]] = re.compile(r"@[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\b")
+
+# GitHub issue / PR reference: ``#123`` — auto-links to issue #123 in
+# the host repo, which the attacker does not own. Drop to prevent
+# misleading cross-references.
+_ISSUE_REF_PATTERN: Final[re.Pattern[str]] = re.compile(r"(?<![A-Za-z0-9_])#\d+\b")
+
+# Git commit SHA reference: 7-40 hex chars. GitHub auto-linkifies these
+# as commit references in the host repo.
+_COMMIT_SHA_PATTERN: Final[re.Pattern[str]] = re.compile(r"\b[0-9a-f]{7,40}\b", re.IGNORECASE)
+
+# Unicode visual-spoofing characters — BiDi overrides + zero-width chars.
+# Stripped from every text field before HTML-escape so they cannot reorder
+# or hide content in the rendered comment.
+#   U+200B ZERO WIDTH SPACE
+#   U+200C ZERO WIDTH NON-JOINER
+#   U+200D ZERO WIDTH JOINER
+#   U+202A LEFT-TO-RIGHT EMBEDDING
+#   U+202B RIGHT-TO-LEFT EMBEDDING
+#   U+202C POP DIRECTIONAL FORMATTING
+#   U+202D LEFT-TO-RIGHT OVERRIDE
+#   U+202E RIGHT-TO-LEFT OVERRIDE
+#   U+2066 LEFT-TO-RIGHT ISOLATE
+#   U+2067 RIGHT-TO-LEFT ISOLATE
+#   U+2068 FIRST STRONG ISOLATE
+#   U+2069 POP DIRECTIONAL ISOLATE
+#   U+FEFF ZERO WIDTH NO-BREAK SPACE (BOM)
+_INVISIBLE_CHARS: Final[re.Pattern[str]] = re.compile(r"[​‌‍‪‫‬‭‮⁦⁧⁨⁩﻿]")
+
+# Patterns that, if present in a description, cause the entire summary to
+# be dropped. Mirrors the original "drop on image/autolink" philosophy:
+# we never partially sanitize a URL-bearing field.
+_SUMMARY_DROP_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    _IMAGE_PATTERN,
+    _AUTOLINK_PATTERN,
+    _INLINE_LINK_PATTERN,
+    _REFERENCE_LINK_PATTERN,
+    _REFERENCE_DEF_PATTERN,
+    _BARE_URL_PATTERN,
+    _MENTION_PATTERN,
+    _COMMIT_SHA_PATTERN,
+)
+
+_URL_REMOVED: Final[str] = "[url removed]"
+"""Placeholder substituted for any URL-like substring in a title."""
+
+
+def _strip_invisibles(text: str) -> str:
+    """Strip BiDi overrides + zero-width chars before any other handling."""
+    return _INVISIBLE_CHARS.sub("", text)
+
+
+def _neuter_title_links(title: str) -> str:
+    """Break markdown link syntax + bare URLs in a title.
+
+    A title cannot be dropped (it is the only identifier surfaced for
+    the finding), so URL-bearing constructs are broken in place:
+
+    - ``[text](url)`` and ``[text][ref]`` — a space is inserted between
+      ``]`` and the following ``(`` / ``[`` so GitHub no longer parses
+      it as a link.
+    - ``http(s)://...`` bare URLs are replaced with ``[url removed]``
+      so neither the URL nor any auto-linkified anchor reaches the
+      reviewer's browser.
+    """
+    # Break inline + reference link syntax first (order matters — we want
+    # to neutralize the structural patterns before any URL replacement).
+    cleaned = title.replace("](", "] (").replace("][", "] [")
+    # Drop reference-style definitions outright — they have no purpose
+    # inside a single-line title.
+    cleaned = _REFERENCE_DEF_PATTERN.sub(_URL_REMOVED, cleaned)
+    # Replace any remaining bare URL with the placeholder.
+    return _BARE_URL_PATTERN.sub(_URL_REMOVED, cleaned)
+
+
+def _neuter_title_autolink_triggers(title: str) -> str:
+    """Break GitHub @mention / #issue / commit-SHA auto-link triggers.
+
+    A single U+200B ZERO WIDTH SPACE is inserted between the trigger
+    character and the rest of the token (``@​everyone``, ``#​1337``)
+    so GitHub no longer recognises the auto-link prefix, while the
+    reader still sees roughly what the model wrote. Commit SHAs are
+    replaced with ``[ref removed]`` since there is no benign rendering
+    of an opaque hex blob in a finding title.
+
+    NOTE: this function is the ONE place that intentionally emits
+    U+200B *after* ``_strip_invisibles`` has already run — the strip
+    happens earlier in the pipeline so a model-emitted U+200B cannot
+    survive, but our own controlled ZWSP insertion here is what
+    breaks the auto-link.
+    """
+    cleaned = _MENTION_PATTERN.sub(lambda m: m.group(0).replace("@", "@​", 1), title)
+    cleaned = _ISSUE_REF_PATTERN.sub(lambda m: m.group(0).replace("#", "#​", 1), cleaned)
+    return _COMMIT_SHA_PATTERN.sub("[ref removed]", cleaned)
+
 
 def _sanitize_title(title: str) -> str:
     """Make a finding title safe to embed in the comment body.
 
-    HTML-escapes all metacharacters and replaces backticks with a
-    visually identical but inert codepoint so a malicious title cannot
-    break an enclosing codeblock fence.
+    Pipeline: strip invisible spoofing chars → neutralize URL/link
+    syntax → neutralize GitHub auto-link triggers → replace backticks
+    with U+02CB → HTML-escape.
+
+    The ordering is load-bearing: ``_strip_invisibles`` runs first so
+    a model-emitted ZWSP/RLO cannot ride along inside a token that
+    later steps would otherwise sanitize. The auto-link-trigger step
+    re-introduces a single ZWSP after the ``@``/``#`` *after* the
+    strip has already run — that one controlled invisible is what
+    keeps the rendered title human-readable while still breaking
+    GitHub's auto-link parser.
     """
-    cleaned = title.replace("`", _BACKTICK_REPLACEMENT)
+    cleaned = _strip_invisibles(title)
+    cleaned = _neuter_title_links(cleaned)
+    cleaned = _neuter_title_autolink_triggers(cleaned)
+    cleaned = cleaned.replace("`", _BACKTICK_REPLACEMENT)
     return html.escape(cleaned, quote=False)
 
 
 def _sanitize_summary(description: str) -> str | None:
     """Return a safe truncated summary, or ``None`` to drop the field.
 
-    Returns ``None`` when the description contains markdown image
-    syntax or autolinks — the entire summary is dropped rather than
-    sanitized so attacker URLs never appear, even quoted.
+    Returns ``None`` when the description contains any URL- or
+    auto-link-bearing pattern (image, autolink, inline link,
+    reference-style link / definition, bare URL, @mention, commit
+    SHA) — the entire summary is dropped rather than sanitized so
+    attacker URLs / notification triggers never appear, even quoted.
+
+    Note that ``#issue`` references are NOT in the drop list — the
+    digits-after-hash pattern is too common in legitimate finding text
+    (line numbers, sizes, counts) and we accept the residual risk of a
+    misleading issue cross-reference inside a description bullet.
     """
-    if _IMAGE_PATTERN.search(description) or _AUTOLINK_PATTERN.search(description):
-        return None
-    truncated = description if len(description) <= SUMMARY_MAX_CHARS else description[:SUMMARY_MAX_CHARS] + "…"
+    cleaned = _strip_invisibles(description)
+    for pattern in _SUMMARY_DROP_PATTERNS:
+        if pattern.search(cleaned):
+            return None
+    truncated = cleaned if len(cleaned) <= SUMMARY_MAX_CHARS else cleaned[:SUMMARY_MAX_CHARS] + "…"
     return html.escape(truncated, quote=False)
 
 
