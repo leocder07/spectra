@@ -1417,10 +1417,13 @@ class TestAttachReceiptExceptionScope:
         from spectra.infrastructure.main import _attach_receipt
 
         report = self._stub_report()
-        with patch(
-            "spectra.infrastructure.main.KeyringReceiptKeyStore",
-            side_effect=OSError("dbus not available"),
-        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+        with (
+            patch(
+                "spectra.infrastructure.main.KeyringReceiptKeyStore",
+                side_effect=OSError("dbus not available"),
+            ),
+            caplog.at_level("DEBUG", logger="spectra.receipt"),
+        ):
             out = _attach_receipt(report, run_id="run-1")
         assert out.receipt is None
         # The swallowed exception class + the run_id show up in the log
@@ -1438,10 +1441,13 @@ class TestAttachReceiptExceptionScope:
         from spectra.infrastructure.main import _attach_receipt
 
         report = self._stub_report()
-        with patch(
-            "spectra.infrastructure.main.KeyringReceiptKeyStore",
-            side_effect=keyring.errors.NoKeyringError("no backend"),
-        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+        with (
+            patch(
+                "spectra.infrastructure.main.KeyringReceiptKeyStore",
+                side_effect=keyring.errors.NoKeyringError("no backend"),
+            ),
+            caplog.at_level("DEBUG", logger="spectra.receipt"),
+        ):
             out = _attach_receipt(report, run_id="run-2")
         assert out.receipt is None
         joined = "\n".join(r.getMessage() for r in caplog.records)
@@ -1454,10 +1460,13 @@ class TestAttachReceiptExceptionScope:
         from spectra.infrastructure.main import _attach_receipt
 
         report = self._stub_report()
-        with patch(
-            "spectra.infrastructure.main.KeyringReceiptKeyStore",
-            side_effect=ValueError("invalid PEM"),
-        ), caplog.at_level("DEBUG", logger="spectra.receipt"):
+        with (
+            patch(
+                "spectra.infrastructure.main.KeyringReceiptKeyStore",
+                side_effect=ValueError("invalid PEM"),
+            ),
+            caplog.at_level("DEBUG", logger="spectra.receipt"),
+        ):
             out = _attach_receipt(report, run_id="run-3")
         assert out.receipt is None
 
@@ -1472,10 +1481,13 @@ class TestAttachReceiptExceptionScope:
         from spectra.infrastructure.main import _attach_receipt
 
         report = self._stub_report()
-        with patch(
-            "spectra.infrastructure.main.KeyringReceiptKeyStore",
-            side_effect=RuntimeError("unexpected"),
-        ), pytest.raises(RuntimeError, match="unexpected"):
+        with (
+            patch(
+                "spectra.infrastructure.main.KeyringReceiptKeyStore",
+                side_effect=RuntimeError("unexpected"),
+            ),
+            pytest.raises(RuntimeError, match="unexpected"),
+        ):
             _attach_receipt(report, run_id="run-4")
 
     def test_attribute_error_propagates(self):
@@ -1487,8 +1499,11 @@ class TestAttachReceiptExceptionScope:
         from spectra.infrastructure.main import _attach_receipt
 
         report = self._stub_report()
-        with patch(
-            "spectra.infrastructure.main.KeyringReceiptKeyStore",
-            side_effect=AttributeError("'NoneType' object has no attribute 'x'"),
-        ), pytest.raises(AttributeError):
+        with (
+            patch(
+                "spectra.infrastructure.main.KeyringReceiptKeyStore",
+                side_effect=AttributeError("'NoneType' object has no attribute 'x'"),
+            ),
+            pytest.raises(AttributeError),
+        ):
             _attach_receipt(report, run_id="run-5")
