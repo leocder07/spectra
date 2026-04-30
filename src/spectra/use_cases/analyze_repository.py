@@ -43,7 +43,13 @@ from spectra.entities.models import (
 )
 from spectra.use_cases.audit import safe_emit, safe_flush
 from spectra.use_cases.injection_scanner import scan_files_for_injection
-from spectra.use_cases.interfaces import AuditPort, CachePort, GitPort, ProgressObserver
+from spectra.use_cases.interfaces import (
+    AuditPort,
+    CachePort,
+    CostTrackerPort,
+    GitPort,
+    ProgressObserver,
+)
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
     allocate_specialist_budgets,
@@ -54,6 +60,7 @@ from spectra.use_cases.orchestrate_agents import (
     evaluate_results,
     run_specialists,
     run_specialists_batched,
+    run_specialists_with_budget,
 )
 from spectra.use_cases.waiver_filter import (
     filter_findings_by_waivers,
@@ -125,6 +132,13 @@ class PipelineContext:
     expired_waivers: tuple[Waiver, ...] = ()
     """Verified waivers past ``expires_at`` — surfaced on the report so
     the team knows the gate has gaps that need rotation."""
+    cost_tracker: CostTrackerPort | None = None
+    """SPEC-014: when present, the orchestrator gates each agent call
+    against ``max_cost_usd`` before issuing it. ``None`` (the default)
+    preserves Phase 1-3 behaviour — no budget enforcement."""
+    max_cost_usd: float | None = None
+    """Per-run USD cap. ``None`` disables enforcement even when a
+    tracker is wired (useful for development)."""
 
 
 @dataclass
@@ -467,7 +481,7 @@ async def _run_analyze_stage(
         analysis = await _run_analyze_stage_with_cache(ctx, plan_output, state)
     else:
         prompts = _build_specialist_prompts(ctx, plan_output, state)
-        analysis = await _execute_specialists(ctx.specialists, prompts, ctx.observer)
+        analysis = await _execute_specialists(ctx, prompts)
     _track_outputs(state, analysis.successes)
     _notify(ctx.observer, "on_stage_complete", "ANALYZE", "Analysis complete")
     _log_budget_warning(state)
@@ -1002,14 +1016,20 @@ def _track_outputs(
 
 
 async def _execute_specialists(
-    specialists: list[AnalysisAgent],
+    ctx: PipelineContext,
     prompts: dict[AgentRole, str],
-    observer: ProgressObserver | None,
 ) -> _AnalysisResult:
-    """Run specialists in parallel and evaluate results."""
+    """Run specialists and evaluate results.
+
+    Routes to ``run_specialists_with_budget`` when SPEC-012 is wired
+    (sequential, gated execution) or to ``run_specialists`` for the
+    standard parallel path.
+    """
+    specialists = ctx.specialists
+    observer = ctx.observer
     roles = [s.role for s in specialists]
     _notify_agent_starts(observer, roles)
-    results = await run_specialists(specialists, prompts)
+    results = await _dispatch_specialists(ctx, prompts)
     successes, failed_roles, pipe_state = evaluate_results(
         results,
         roles,
@@ -1022,6 +1042,23 @@ async def _execute_specialists(
         pipe_state == "degraded",
         successes,
     )
+
+
+async def _dispatch_specialists(
+    ctx: PipelineContext,
+    prompts: dict[AgentRole, str],
+) -> list[AgentOutput | Exception]:
+    """Pick the parallel or budget-gated executor based on context."""
+    if ctx.cost_tracker is not None and ctx.max_cost_usd is not None:
+        # Conservative per-agent input estimate: ~$0.005 (8 agents x 5K tokens).
+        return await run_specialists_with_budget(
+            ctx.specialists,
+            prompts,
+            tracker=ctx.cost_tracker,
+            max_cost_usd=ctx.max_cost_usd,
+            estimate_per_agent=0.005,
+        )
+    return await run_specialists(ctx.specialists, prompts)
 
 
 def _notify_agent_starts(

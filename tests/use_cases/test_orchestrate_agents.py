@@ -332,3 +332,106 @@ class TestRunSpecialistsPhase3:
         out = results["security"]
         assert isinstance(out, AgentOutput)
         assert f in out.findings
+
+
+# ── Budget gate (SPEC-012) ──────────────────────────────────────
+
+
+class TestBudgetGate:
+    """run_specialists_with_budget — pre-call gate + post-call record.
+
+    The gate aborts mid-pipeline when the in-memory cost tracker projects
+    the next call will push the run over ``--max-cost-usd``. Already-completed
+    agents keep their results; remaining agents are skipped.
+    """
+
+    @pytest.mark.asyncio
+    async def test_under_budget_runs_all_agents(self):
+        from spectra.infrastructure.cost_tracker import InMemoryCostTracker
+        from spectra.use_cases.orchestrate_agents import run_specialists_with_budget
+
+        tracker = InMemoryCostTracker()
+        agents = [_make_agent("architecture"), _make_agent("security")]
+        prompts = {"architecture": "x", "security": "y"}
+        results = await run_specialists_with_budget(
+            agents,
+            prompts,
+            tracker=tracker,
+            max_cost_usd=10.0,
+            estimate_per_agent=0.01,
+        )
+        assert len(results) == 2
+        assert all(isinstance(r, AgentOutput) for r in results)
+
+    @pytest.mark.asyncio
+    async def test_gate_aborts_after_4th_agent(self):
+        """Pre-loading the tracker triggers the gate before the 4th agent runs."""
+        from spectra.entities.errors import BudgetExceededError
+        from spectra.infrastructure.cost_tracker import InMemoryCostTracker
+        from spectra.use_cases.orchestrate_agents import run_specialists_with_budget
+
+        tracker = InMemoryCostTracker()
+        # Pre-load tracker to 0.30; with estimate=0.10 and max=0.40 the gate
+        # passes once (would_exceed(0.10, 0.40) = 0.30 + 0.10 > 0.40 = False),
+        # but after the first agent records (>0 actual cost) the gate fires.
+        tracker.record("preload", 0.30)
+        agents = [
+            _make_agent("architecture"),
+            _make_agent("security"),
+            _make_agent("quality"),
+            _make_agent("documentation"),
+            _make_agent("dependency"),
+            _make_agent("performance"),
+        ]
+        prompts = {a.role: "x" for a in agents}
+        with pytest.raises(BudgetExceededError) as exc_info:
+            await run_specialists_with_budget(
+                agents,
+                prompts,
+                tracker=tracker,
+                max_cost_usd=0.40,
+                estimate_per_agent=0.10,
+            )
+        # Gate fires before all agents complete.
+        assert exc_info.value.budget_usd == pytest.approx(0.40)
+        assert exc_info.value.spent_usd > 0.30
+        # At least the preload + first agent's actual cost was recorded.
+        assert "architecture" in exc_info.value.per_agent
+
+    @pytest.mark.asyncio
+    async def test_no_max_runs_unbounded(self):
+        from spectra.infrastructure.cost_tracker import InMemoryCostTracker
+        from spectra.use_cases.orchestrate_agents import run_specialists_with_budget
+
+        tracker = InMemoryCostTracker()
+        agents = [_make_agent("architecture"), _make_agent("security")]
+        prompts = {"architecture": "x", "security": "y"}
+        # max_cost_usd=None disables enforcement entirely
+        results = await run_specialists_with_budget(
+            agents,
+            prompts,
+            tracker=tracker,
+            max_cost_usd=None,
+            estimate_per_agent=0.01,
+        )
+        assert len(results) == 2
+
+    @pytest.mark.asyncio
+    async def test_records_actual_cost_after_completion(self):
+        from spectra.infrastructure.cost_tracker import InMemoryCostTracker
+        from spectra.use_cases.orchestrate_agents import run_specialists_with_budget
+
+        tracker = InMemoryCostTracker()
+        # Each mock returns tokens_used=100 → cost ~ 100/1000 * _OPUS_AVG_PER_1K
+        agents = [_make_agent("architecture")]
+        prompts = {"architecture": "x"}
+        await run_specialists_with_budget(
+            agents,
+            prompts,
+            tracker=tracker,
+            max_cost_usd=10.0,
+            estimate_per_agent=0.01,
+        )
+        # Tracker should have recorded a positive cost for "architecture".
+        assert tracker.total() > 0
+        assert "architecture" in tracker.per_agent()
