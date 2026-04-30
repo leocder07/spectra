@@ -1643,3 +1643,46 @@ class TestCLICostBudgetFlags:
         assert "SPEC-014" in result.output
         assert "budget exceeded" in result.output.lower()
         assert "--max-cost-usd" in result.output
+
+
+class TestPipelineInfoBanner:
+    """Pin the per-run pipeline banner so stale model strings cannot creep
+    back in. v0.6.0 runs Opus 4.7 across the board (CLAUDE.md §8 Agents) —
+    the banner must reflect that, with the right effort label per role.
+    """
+
+    def test_banner_advertises_opus_47_for_meta(self):
+        from spectra.adapters.cli_controller import _PIPELINE_INFO
+
+        assert "MetaPrompter" in _PIPELINE_INFO
+        assert "opus-4.7" in _PIPELINE_INFO
+        # MetaPrompter runs at medium effort (planner only — no full code).
+        meta_line = next(line for line in _PIPELINE_INFO.splitlines() if "MetaPrompter" in line)
+        assert "opus-4.7" in meta_line
+        assert "medium" in meta_line
+        assert "planner" in meta_line
+
+    def test_banner_advertises_opus_47_xhigh_for_specialists(self):
+        from spectra.adapters.cli_controller import _PIPELINE_INFO
+
+        specialists_line = next(line for line in _PIPELINE_INFO.splitlines() if "Specialists" in line)
+        assert "opus-4.7" in specialists_line
+        assert "xhigh" in specialists_line
+        assert "parallel" in specialists_line
+
+    def test_banner_advertises_opus_47_thinking_for_critique(self):
+        from spectra.adapters.cli_controller import _PIPELINE_INFO
+
+        critique_line = next(line for line in _PIPELINE_INFO.splitlines() if "CritiqueAgent" in line)
+        assert "opus-4.7" in critique_line
+        # CritiqueAgent is the only agent allowed to use adaptive thinking.
+        assert "thinking" in critique_line
+        assert "validates" in critique_line
+
+    def test_banner_does_not_show_stale_model_strings(self):
+        """Regression guard for v0.5.x banners that named sonnet-4.5 / opus-4.6."""
+        from spectra.adapters.cli_controller import _PIPELINE_INFO
+
+        assert "sonnet-4.5" not in _PIPELINE_INFO
+        assert "opus-4.6" not in _PIPELINE_INFO
+        assert "sonnet-4.6" not in _PIPELINE_INFO
