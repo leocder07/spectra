@@ -139,6 +139,15 @@ _OUTPUT_OPTION = typer.Option(
     help="Report output path",
 )
 
+# Q2 #19: severity gate. Ordering — worst first — drives the at-or-above check.
+_FAIL_ON_SEVERITY_RANK: dict[str, int] = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+}
+_FAIL_ON_CHOICES: tuple[str, ...] = ("critical", "high", "medium", "low", "none")
+
 # ASCII banner — hacker terminal aesthetic
 _BANNER = """\
 [bold #7C3AED]
@@ -227,12 +236,13 @@ def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in parsed.items()}
 
 
-def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
+def _validate_analyze_inputs(repo_url: str, fmt: str, fail_on: str) -> None:
     """Validate CLI inputs and exit with code 1 on any error.
 
     Raises:
-        typer.Exit: If url is malformed, format is invalid, or the
-            analyzer factory has not been injected by the composition root.
+        typer.Exit: If url is malformed, format is invalid, ``--fail-on``
+            is not one of the documented choices, or the analyzer factory
+            has not been injected by the composition root.
     """
     source_error = _validate_repo_source(repo_url)
     if source_error:
@@ -243,9 +253,34 @@ def _validate_analyze_inputs(repo_url: str, fmt: str) -> None:
         console.print(f"[{RED}]✗[/] Invalid format: use html, json, or sarif")
         raise typer.Exit(code=1)
 
+    if fail_on not in _FAIL_ON_CHOICES:
+        allowed = ", ".join(_FAIL_ON_CHOICES)
+        console.print(
+            f"[{RED}]✗[/] Invalid --fail-on: {fail_on!r}: use one of: {allowed}"
+        )
+        raise typer.Exit(code=1)
+
     if _analyzer_factory is None:
         console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
         raise typer.Exit(code=1)
+
+
+def _count_findings_at_or_above(report: object, threshold: str) -> int:
+    """Count report findings whose severity is at or above ``threshold``.
+
+    Returns 0 when ``threshold == "none"`` (gate disabled). Severity
+    ranking lives in ``_FAIL_ON_SEVERITY_RANK`` — worst first, so a lower
+    rank number means a more severe finding.
+    """
+    if threshold == "none":
+        return 0
+    cutoff = _FAIL_ON_SEVERITY_RANK[threshold]
+    findings = getattr(report, "findings", ()) or ()
+    return sum(
+        1
+        for f in findings
+        if _FAIL_ON_SEVERITY_RANK.get(getattr(f, "severity", ""), 99) <= cutoff
+    )
 
 
 def _gather_and_validate_overrides(
@@ -392,6 +427,11 @@ def analyze(
         "--min-score",
         help="Minimum overall score to pass (exit 1 if below)",
     ),
+    fail_on: str = typer.Option(
+        "none",
+        "--fail-on",
+        help="Exit 1 when any finding is at or above this severity (critical/high/medium/low/none)",
+    ),
     force: bool = typer.Option(
         False,
         "--force",
@@ -447,7 +487,7 @@ def analyze(
             format="%(name)s %(levelname)s %(message)s",
         )
 
-    _validate_analyze_inputs(repo_url, fmt)
+    _validate_analyze_inputs(repo_url, fmt, fail_on)
     overrides = _gather_and_validate_overrides(
         model_effort=(model, effort),
         per_role_models={
@@ -528,6 +568,18 @@ def analyze(
             raise typer.Exit(code=1)
         if sc:
             console.print(f"  [{GREEN}]✓[/] Quality gate passed: {sc.overall_score:.0f} >= {min_score:.0f}")
+
+    # Q2 #19: severity gate — exit 1 when any finding sits at or above
+    # the --fail-on threshold. The Action layer flips the default to
+    # 'critical' for CI; the CLI default is 'none' so existing scripts
+    # never start failing without an explicit opt-in.
+    offending = _count_findings_at_or_above(report, fail_on)
+    if offending > 0:
+        console.print(
+            f"\n[{RED}]✗[/] --fail-on={fail_on}: {offending} finding(s) "
+            f"at or above the {fail_on} severity threshold"
+        )
+        raise typer.Exit(code=1)
 
 
 def _print_secret_detection(exc: SecretDetectedError) -> None:

@@ -20,6 +20,8 @@ from spectra.entities.errors import (
 )
 from spectra.entities.models import (
     DimensionScore,
+    FileLocation,
+    Finding,
     ScoreCard,
     SecretFinding,
     score_to_grade,
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
 runner = CliRunner()
 
 
-def _fake_report(*, overall: float = 83.0):
+def _fake_report(*, overall: float = 83.0, findings: tuple = ()):
     """Build a minimal report-shaped object for successful analysis flow."""
     dims = (
         DimensionScore(dimension="architecture", score=90.0, grade="A", findings_count=2, weight=0.25),
@@ -50,12 +52,27 @@ def _fake_report(*, overall: float = 83.0):
     return SimpleNamespace(
         score_card=sc,
         repo_name="test-repo",
-        findings=(),
+        findings=findings,
         total_findings=18,
         analysis_duration_seconds=42.0,
         total_cost_usd=0.15,
         is_degraded=False,
         degraded_dimensions=(),
+    )
+
+
+def _finding_at(severity: str, *, idx: int = 1) -> Finding:
+    """Build a minimal Finding at a given severity for --fail-on tests."""
+    return Finding(
+        id=f"f-{severity}-{idx}",
+        dimension="security",
+        severity=severity,
+        title=f"{severity} test finding",
+        description="Test",
+        location=FileLocation(file_path=f"src/file{idx}.py", line_start=idx),
+        recommendation="Fix",
+        agent_role="security",
+        confidence=0.9,
     )
 
 
@@ -1287,3 +1304,144 @@ class TestCLIPreflightFlags:
                 break
         else:
             pytest.fail("SPEC-011 line not found in output")
+
+
+# ── Q2 #19: --fail-on severity gate ──────────────────────────
+
+
+class TestFailOnSeverityGate:
+    """``--fail-on <severity>`` exits 1 when any finding is at or above
+    the threshold; ``none`` disables the gate (always exit 0).
+
+    Severity ordering (worst first): critical > high > medium > low.
+    """
+
+    def test_help_lists_fail_on(self):
+        result = runner.invoke(app, ["analyze", "--help"])
+        assert "--fail-on" in result.output
+
+    def test_default_fail_on_is_none_so_no_gating(self):
+        # Backwards compatibility: existing users invoking `spectra analyze`
+        # without --fail-on must keep getting exit 0 even if a critical
+        # finding exists. The Action layer is what flips the default to
+        # critical for CI.
+        report = _fake_report(findings=(_finding_at("critical"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(app, ["analyze", "https://github.com/test/repo"])
+        assert result.exit_code == 0
+
+    def test_fail_on_critical_with_critical_finding_exits_1(self):
+        report = _fake_report(findings=(_finding_at("critical"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "critical"],
+        )
+        assert result.exit_code == 1
+        assert "fail-on" in result.output.lower() or "severity" in result.output.lower()
+
+    def test_fail_on_critical_with_only_high_findings_exits_0(self):
+        report = _fake_report(
+            findings=(_finding_at("high", idx=1), _finding_at("high", idx=2)),
+        )
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "critical"],
+        )
+        assert result.exit_code == 0
+
+    def test_fail_on_high_with_only_high_findings_exits_1(self):
+        # high is at the threshold — gate fires.
+        report = _fake_report(findings=(_finding_at("high"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "high"],
+        )
+        assert result.exit_code == 1
+
+    def test_fail_on_high_with_only_medium_findings_exits_0(self):
+        report = _fake_report(findings=(_finding_at("medium"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "high"],
+        )
+        assert result.exit_code == 0
+
+    def test_fail_on_medium_with_low_findings_exits_0(self):
+        report = _fake_report(findings=(_finding_at("low"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "medium"],
+        )
+        assert result.exit_code == 0
+
+    def test_fail_on_low_with_low_findings_exits_1(self):
+        report = _fake_report(findings=(_finding_at("low"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "low"],
+        )
+        assert result.exit_code == 1
+
+    def test_fail_on_none_with_critical_findings_exits_0(self):
+        # Explicit override — user wants reports without ever failing.
+        report = _fake_report(findings=(_finding_at("critical"),))
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "none"],
+        )
+        assert result.exit_code == 0
+
+    def test_fail_on_invalid_severity_rejected(self):
+        factory = AsyncMock(return_value=_fake_report())
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "BOGUS"],
+        )
+        assert result.exit_code == 1
+        assert "fail-on" in result.output.lower() or "invalid" in result.output.lower()
+        # Helpful error must list valid choices.
+        assert "critical" in result.output.lower()
+        assert "none" in result.output.lower()
+
+    def test_fail_on_critical_with_no_findings_exits_0(self):
+        report = _fake_report(findings=())
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "critical"],
+        )
+        assert result.exit_code == 0
+
+    def test_fail_on_message_names_offending_severity_count(self):
+        report = _fake_report(
+            findings=(
+                _finding_at("critical", idx=1),
+                _finding_at("critical", idx=2),
+            ),
+        )
+        factory = AsyncMock(return_value=report)
+        set_analyzer_factory(factory)
+        result = runner.invoke(
+            app,
+            ["analyze", "https://github.com/test/repo", "--fail-on", "critical"],
+        )
+        assert result.exit_code == 1
+        # The user must see how many findings tripped the gate.
+        assert "2" in result.output
