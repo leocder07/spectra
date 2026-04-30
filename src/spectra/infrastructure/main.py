@@ -244,6 +244,7 @@ def _assemble_context(
     actor = resolve_actor()
     active_waivers, expired_waivers = _load_waivers(workspace_dir)
     cost_tracker = _build_cost_tracker(max_cost_per_hour)
+    report_store = _provision_history_store_safe()
     return PipelineContext(
         request=request,
         codebase=codebase,
@@ -264,7 +265,26 @@ def _assemble_context(
         expired_waivers=expired_waivers,
         cost_tracker=cost_tracker,
         max_cost_usd=max_cost_usd,
+        report_store=report_store,  # type: ignore[arg-type]
     )
+
+
+def _provision_history_store_safe() -> object | None:
+    """Build a history store for the pipeline; return None on any failure.
+
+    History persistence is a side benefit, not a hard requirement: a
+    misconfigured Postgres URL or a locked sqlite directory must not
+    abort the analyze run.
+    """
+    try:
+        return _provision_history_store()
+    except Exception as exc:
+        logging.getLogger("spectra.history").debug(
+            "History store unavailable for this run: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 async def _run_and_stamp(
