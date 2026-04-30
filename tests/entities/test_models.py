@@ -457,6 +457,74 @@ class TestAnalysisReport:
         )
         assert report.is_compromised is True
 
+    def test_validation_status_default_is_validated(
+        self,
+        sample_scorecard,
+        sample_finding,
+    ):
+        # Q2 #20: default to "validated" — full pipeline ran with critique.
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+        )
+        assert report.validation_status == "validated"
+
+    def test_validation_status_quick_mode(self, sample_scorecard, sample_finding):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+            validation_status="non-validated:quick-mode",
+        )
+        assert report.validation_status == "non-validated:quick-mode"
+
+    def test_validation_status_critique_skipped(
+        self,
+        sample_scorecard,
+        sample_finding,
+    ):
+        report = AnalysisReport(
+            repo_url="https://github.com/test/repo",
+            repo_name="repo",
+            score_card=sample_scorecard,
+            findings=(sample_finding,),
+            analysis_duration_seconds=1.0,
+            total_tokens_used=100,
+            total_cost_usd=0.01,
+            agents_used=(),
+            validation_status="non-validated:critique-skipped",
+        )
+        assert report.validation_status == "non-validated:critique-skipped"
+
+    def test_validation_status_rejects_unknown_literal(
+        self,
+        sample_scorecard,
+        sample_finding,
+    ):
+        with pytest.raises(ValidationError):
+            AnalysisReport(
+                repo_url="https://github.com/test/repo",
+                repo_name="repo",
+                score_card=sample_scorecard,
+                findings=(sample_finding,),
+                analysis_duration_seconds=1.0,
+                total_tokens_used=100,
+                total_cost_usd=0.01,
+                agents_used=(),
+                validation_status="bogus-status",
+            )
+
     def test_critical_finding_count_with_criticals(
         self,
         sample_scorecard,

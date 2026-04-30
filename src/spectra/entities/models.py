@@ -240,6 +240,23 @@ class AgentContext(BaseModel, frozen=True):
     max_tokens: int
 
 
+ValidationStatus = Literal[
+    "validated",
+    "non-validated:critique-skipped",
+    "non-validated:quick-mode",
+]
+"""Q2 #20: trust-stamp on the report.
+
+- ``validated``: full pipeline ran, CritiqueAgent confirmed every finding.
+- ``non-validated:quick-mode``: caller passed ``--quick``; critique never ran.
+- ``non-validated:critique-skipped``: critique was skipped for another
+  reason (e.g. ``--no-critique``, degraded run that bypassed critique).
+
+The HTML banner, JSON top-level field, and SARIF
+``runs[0].properties.validation_status`` all surface the same string so
+SAST consumers know whether the adversarial input check ran."""
+
+
 class AnalysisReport(BaseModel, frozen=True):
     """Final report combining all agent results.
 
@@ -256,6 +273,7 @@ class AnalysisReport(BaseModel, frozen=True):
         degraded_dimensions: Dimensions missing due to agent failure.
         cross_cutting_insights: CritiqueAgent cross-dimension notes.
         hallucination_removed_count: Findings removed by path validation.
+        validation_status: Q2 #20 trust stamp — see ``ValidationStatus``.
     """
 
     repo_url: str
@@ -275,6 +293,7 @@ class AnalysisReport(BaseModel, frozen=True):
     attempt and emitted a ``SPEC-PROMPT-INJECTION-DETECTED`` finding.
     The report renderer surfaces a banner; public-mode reports refuse to
     publish a grade for compromised runs."""
+    validation_status: ValidationStatus = "validated"
 
     def critical_finding_count(self) -> int:
         """Return the number of findings with critical severity."""

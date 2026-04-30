@@ -65,6 +65,7 @@ from spectra.entities.models import (
     ScoreCard,
     SecretFinding,
     TokenBudget,
+    ValidationStatus,
     estimate_cost,
     score_to_grade,
 )
@@ -108,6 +109,7 @@ __all__ = [
     "SpectraError",
     "SpectraRetryError",
     "TokenBudget",
+    "ValidationStatus",
     "disclaimer_payload",
     "estimate_cost",
     "score_to_grade",
