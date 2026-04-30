@@ -6,7 +6,7 @@ Thanks for your interest in contributing to Spectra.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/spectra.git
+git clone https://github.com/leocder07/spectra.git
 cd spectra
 
 # Create a virtual environment
@@ -73,15 +73,16 @@ Layer 4: infrastructure/  -> Imports from all inner layers
 ### Pipeline Stages
 
 ```
-INGEST -> PLAN -> ANALYZE -> MERGE -> CRITIQUE -> REPORT
+INGEST -> PREFLIGHT (1.5) -> PLAN -> ANALYZE -> MERGE -> CRITIQUE -> REPORT
 ```
 
-1. **INGEST** — Clone repo, extract file tree (GitPython)
-2. **PLAN** — MetaPrompter (Sonnet 4.5) creates per-agent focus areas from file tree only
-3. **ANALYZE** — 6 specialists run in parallel via `asyncio.gather` (all Opus 4.6)
-4. **MERGE** — Deduplicate findings, validate file paths, remove hallucinations
-5. **CRITIQUE** — CritiqueAgent (Opus 4.6, extended thinking) validates all findings
-6. **REPORT** — Render HTML via Jinja2 with executive summary and VC due diligence
+1. **INGEST** — Clone repo (HTTPS) or validate local path (`GitPort.prepare_workspace`)
+2. **PREFLIGHT (Stage 1.5)** — `WorkspaceFilterPort` honors `.gitignore` + `.spectraignore`; `SecretScannerPort` aborts on secret detection (SPEC-011, `--allow-secrets` to override)
+3. **PLAN** — MetaPrompter (Opus 4.7, effort=medium) builds focus-area plan from file tree only (≤5K tokens, never source code)
+4. **ANALYZE** — 6 specialists run in parallel via `asyncio.gather` (all Opus 4.7, effort=xhigh). Per-`focus_area` cache splits each batch into cached + fresh
+5. **MERGE** — Deduplicate findings (cached UNION fresh), validate file paths, remove hallucinations
+6. **CRITIQUE** — CritiqueAgent (Opus 4.7, adaptive thinking + 80K task_budget) validates all findings + adversarial input check
+7. **REPORT** — Render HTML/JSON/SARIF via Jinja2; emit Ed25519-signed receipt; honor `--classification confidential|public` (v0.6.0)
 
 ### Key Patterns
 
@@ -163,7 +164,7 @@ def score_to_grade(score: float) -> Grade:
 
 ### Error Handling
 
-All fallible operations use the `SpectraError` pattern with codes SPEC-001 to SPEC-009:
+All fallible operations use the `SpectraError` pattern with codes SPEC-001 through SPEC-014 (see CLAUDE.md for the full registry):
 
 ```python
 from spectra.entities.errors import ERRORS, AgentError
@@ -302,13 +303,18 @@ async def test_run_specialists_timeout():
 
 ## Architecture Decision Records
 
-Design decisions are documented in `docs/adr/`:
+Design decisions are documented in `docs/architecture/adr/` (10 records as of v0.6.0); strategy ADRs 011-020 live in `docs/strategy/`. Highlights:
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [ADR-001](docs/adr/ADR-001-clean-architecture.md) | Clean Architecture with 4 layers | Accepted |
-| [ADR-002](docs/adr/ADR-002-parallel-agent-pipeline.md) | 8-agent parallel analysis pipeline | Accepted |
-| [ADR-003](docs/adr/ADR-003-extended-thinking-critique-only.md) | Extended thinking for CritiqueAgent only | Accepted |
-| [ADR-004](docs/adr/ADR-004-frozen-pydantic-models.md) | Pydantic frozen models for domain entities | Accepted |
+| [ADR-001](docs/architecture/adr/ADR-001-clean-architecture.md) | Clean Architecture with 4 layers | Accepted |
+| [ADR-002](docs/architecture/adr/ADR-002-parallel-agent-pipeline.md) | 8-agent parallel analysis pipeline | Accepted |
+| [ADR-003](docs/architecture/adr/ADR-003-extended-thinking-critique-only.md) | Extended thinking for CritiqueAgent only | Superseded by ADR-008 |
+| [ADR-004](docs/architecture/adr/ADR-004-frozen-pydantic-models.md) | Pydantic frozen models for domain entities | Accepted |
+| [ADR-005](docs/architecture/adr/ADR-005-opus-4-7-migration.md) | Migrate all 8 agents to Opus 4.7 | Accepted |
+| [ADR-006](docs/architecture/adr/ADR-006-cache-port-incremental-analysis.md) | CachePort + 4-phase incremental analysis | Accepted |
+| [ADR-008](docs/architecture/adr/ADR-008-adaptive-thinking-supersedes-extended.md) | Adaptive thinking supersedes extended thinking | Accepted |
+| [ADR-009](docs/architecture/adr/ADR-009-batch-granularity-per-focus-area.md) | Phase 3 per-`focus_area` batch caching | Accepted |
+| ADR-011 — ADR-020 (strategy) | Q1 + Q2 capabilities (prompt-injection, cache HMAC, audit log, encrypted cache, signed receipts, policy + waivers, dual-mode classification) | Shipped in v0.5.0 / v0.6.0 |
 
 When making architectural decisions, add a new ADR following the same format: Status, Date, Context, Decision, Consequences (Positive/Negative/Mitigation).
