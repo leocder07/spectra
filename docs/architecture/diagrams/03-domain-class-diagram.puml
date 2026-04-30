@@ -1,0 +1,251 @@
+' 03-domain-class-diagram.puml — Layer 1 entities (frozen Pydantic models)
+' For: docs/architecture/03-domain-model.md
+' Last revised: 2026-04-30
+'
+' Every model carries `frozen=True`. Q2-designed entities (Receipt, Waiver,
+' Policy, AuditEvent, MemoryEntry, CodebaseQuestion / CodebaseAnswer) are
+' annotated with «Q2 designed» so a status flip is the only edit needed
+' when v0.6.0 ships.
+
+@startuml
+title Domain Model — Spectra entities (Layer 1)
+
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  ArrowColor #7C3AED
+  BorderColor #4C1D95
+}
+skinparam stereotypeCBackgroundColor #F59E0B
+skinparam stereotypeCFontColor #000000
+
+note as N1 #FEF3C7
+  All entities are immutable (frozen=True).
+  No spectra imports — Layer 1 sees stdlib + pydantic only.
+end note
+
+class Codebase << (E,#7C3AED) entity >> {
+  +repo_url: str
+  +repo_name: str
+  +local_path: str
+  +file_tree: tuple[str, ...]
+  +file_count(): int
+}
+
+class FileLocation << (V,#A78BFA) value >> {
+  +file_path: str
+  +line_start: int
+  +line_end: int | None
+}
+
+class Finding << (E,#7C3AED) entity >> {
+  +id: str
+  +dimension: Dimension
+  +severity: Severity
+  +title: str
+  +description: str
+  +location: FileLocation
+  +recommendation: str
+  +agent_role: AgentRole
+  +confidence: float
+  +validated_by_critique: bool
+  +estimated_hours: float
+  +rule_id: str  ' ADR-011 SPEC-PROMPT-INJECTION-DETECTED sentinel
+  +__hash__(): hash by (path, line, dim)
+  +is_critical(): bool
+  +is_actionable(): bool
+}
+
+class SecretFinding << (V,#A78BFA) value >> {
+  +file_path: str
+  +line: int
+  +pattern_name: str  ' aws_access_key | github_pat | …
+}
+
+class DimensionScore << (V,#A78BFA) value >> {
+  +dimension: Dimension
+  +score: float (0..100)
+  +grade: Grade
+  +findings_count: int
+  +weight: float
+}
+
+class ScoreCard << (V,#A78BFA) value >> {
+  +overall_score: float
+  +overall_grade: Grade
+  +dimensions: tuple[DimensionScore, ...]
+  +total_findings: int
+  +worst_dimension(): DimensionScore | None
+  +best_dimension(): DimensionScore | None
+}
+
+class AgentOutput << (V,#A78BFA) value >> {
+  +agent_role: AgentRole
+  +findings: tuple[Finding, ...]
+  +tokens_used: int
+  +duration_seconds: float
+  +raw_response: str
+  +dimension_score: float | None
+}
+
+class AnalysisReport << (E,#7C3AED) aggregate >> {
+  +repo_url: str
+  +repo_name: str
+  +score_card: ScoreCard
+  +findings: tuple[Finding, ...]
+  +analysis_duration_seconds: float
+  +total_tokens_used: int
+  +total_cost_usd: float
+  +agents_used: tuple[AgentRole, ...]
+  +is_degraded: bool
+  +degraded_dimensions: tuple[Dimension, ...]
+  +cross_cutting_insights: tuple[str, ...]
+  +hallucination_removed_count: int
+  +is_compromised: bool  ' ADR-011
+  ' Q2 designed:
+  +classification: Literal["confidential","public"]  «Q2 designed»
+  +receipt: Receipt | None  «Q2 designed»
+  +validation_status: Literal["validated","non-validated"] «Q2 designed»
+  +critical_finding_count(): int
+}
+
+class TokenBudget << (V,#A78BFA) value >> {
+  +total: int = 800_000
+  +meta_prompter: int = 5_000
+  +specialists_pool: int = 500_000
+  +critique_reserved: int = 200_000
+  +buffer: int = 95_000
+}
+
+class CacheEntry << (E,#7C3AED) entity >> {
+  +file_hash: str
+  +file_path: str
+  +dimension: Dimension
+  +findings: tuple[Finding, ...]
+  +model_version: str
+  +prompt_version: str
+  +spectra_version: str
+  +schema_version: SchemaVersion
+  +computed_at: datetime
+}
+
+class CacheSecret << (V,#A78BFA) value >> {
+  +value: bytes (exactly 32)  ' ADR-012 per-user keyring secret
+}
+
+class CacheStats << (V,#A78BFA) value >> {
+  +total_entries: int
+  +db_size_bytes: int
+  +hit_rate_last_100: float
+  +full_report_entries: int
+  +batch_entries: int
+  +hit_rate_by_dimension: dict[Dimension, float]
+}
+
+class BatchPrompt << (V,#A78BFA) value >> {
+  +batch_id: str  ' blake2b(sorted(file_hashes))
+  +file_paths: tuple[str, ...]
+  +file_hashes: tuple[str, ...]
+  +prompt_text: str
+  +nonce: str  ' ADR-011 §1 — token_urlsafe(16) per call
+}
+
+class BatchCacheKey << (V,#A78BFA) value >> {
+  +batch_id: str
+  +dimension: Dimension
+  +model_version: str
+  +prompt_version: str
+  +schema_version: str
+  +spectra_version: str
+}
+
+class RepoCacheKey << (V,#A78BFA) value >> {
+  +repo_signature: str
+  +spectra_version: str
+  +model_versions: str
+  +prompt_versions: str
+  +schema_version: str
+}
+
+class AgentRunConfig << (V,#A78BFA) value >> {
+  +model: ModelId
+  +effort: EffortLevel
+  +task_budget_tokens: int | None
+}
+
+' ── Q2 designed entities ─────────────────────────────────────
+class Receipt << (V,#9CA3AF) Q2 designed >> {
+  +scan_id: UUIDv7
+  +signed_at: datetime
+  +signature: bytes  ' Ed25519 over repo_signature + score_card
+  +signing_key_id: str
+}
+
+class Waiver << (V,#9CA3AF) Q2 designed >> {
+  +rule_id: str
+  +file_path: str
+  +reason: str
+  +expires: date
+  +signature: bytes  ' Ed25519
+}
+
+class Policy << (V,#9CA3AF) Q2 designed >> {
+  +rules: tuple[PolicyRule, ...]
+  +severity_gate: Severity
+  +max_cost_usd: float | None
+}
+
+class AuditEvent << (E,#9CA3AF) Q2 designed >> {
+  +event_id: UUIDv7
+  +ts: datetime
+  +event: AuditEventType
+  +actor: Identity
+  +target: AuditTarget
+  +payload: dict[str, primitive]
+  +run_id: str | None
+}
+
+class Identity << (V,#9CA3AF) Q2 designed >> {
+  +actor: str
+  +source: env|git|oidc|hostname
+  +confidence: high|medium|low
+}
+
+class MemoryEntry << (E,#9CA3AF) Q4 designed >> {
+  +scope: developer|team|org
+  +key: str
+  +value_blob_id: str
+  +created_at: datetime
+}
+
+class CodebaseQuestion << (V,#9CA3AF) Q4 designed >> {
+  +text: str
+  +scope: Codebase | repo_signature
+}
+
+class CodebaseAnswer << (V,#9CA3AF) Q4 designed >> {
+  +text: str
+  +citations: tuple[FileLocation, ...]
+  +tokens_used: int
+}
+
+' ── Composition relationships ────────────────────────────────
+ScoreCard "1" *-- "many" DimensionScore
+AnalysisReport "1" *-- "1" ScoreCard
+AnalysisReport "1" *-- "many" Finding
+Finding "1" *-- "1" FileLocation
+AgentOutput "1" *-- "many" Finding
+CacheEntry "1" *-- "many" Finding
+BatchPrompt --> BatchCacheKey : keyed by
+
+AnalysisReport ..> Receipt : carries «Q2»
+Policy ..> Waiver : composed with «Q2»
+AuditEvent --> Identity : actor «Q2»
+
+note bottom of AnalysisReport
+  Aggregate root for the pipeline result.
+  Renderers consume this — never any Layer-2 type.
+end note
+
+@enduml

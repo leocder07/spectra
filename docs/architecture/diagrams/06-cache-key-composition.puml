@@ -1,0 +1,73 @@
+' 06-cache-key-composition.puml — composite-key derivation
+' For: docs/architecture/06-cache-architecture.md
+' Last revised: 2026-04-30
+'
+' UML object diagram showing the four-tuple bound by bind_run_context()
+' and how each cache key is composed for the three phases.
+
+@startuml
+title Cache key composition (Object diagram — frozen at run start)
+
+skinparam backgroundColor #FFFFFF
+skinparam object {
+  BackgroundColor #7C3AED
+  FontColor #FFFFFF
+  BorderColor #4C1D95
+  ArrowColor #7C3AED
+}
+
+object "bind_run_context()" as bind {
+  model_versions   = "claude-opus-4-7"
+  prompt_versions  = blake2b(_SHARED_GUIDANCE | role+system_prompt x6 | _CRITIQUE_PROMPT)
+  schema_version   = "v1"
+  spectra_version  = "0.5.0"
+}
+
+object "RepoCacheKey (Phase 2)" as r {
+  repo_signature   = blake2b(file_tree)
+  + 4-tuple from bind_run_context
+}
+
+object "BatchCacheKey (Phase 3)" as b {
+  batch_id         = blake2b(sorted(file_hashes))
+  dimension        = "security"
+  + 4-tuple from bind_run_context
+}
+
+object "(file_hash, dimension) (Phase 1)" as f {
+  file_hash        = blake2b(file_bytes)
+  dimension        = "architecture"
+  model_version    = bound
+  prompt_version   = bound (per-dim)
+  schema_version   = bound
+}
+
+bind --> r : composes
+bind --> b : composes
+bind --> f : composes
+
+object "Per-row MAC (ADR-012)" as mac {
+  blake2b(key=secret, digest_size=32)
+  .update(part || NUL) for part in key_parts
+  .update(serialized_value)
+}
+
+r ..> mac : keyed by\nrepo_signature + 4-tuple + report_json
+b ..> mac : keyed by\nbatch_id + dim + 4-tuple + findings_json
+f ..> mac : keyed by\nfile_hash + dim + 3-tuple + findings_json
+
+note bottom of mac #FEF3C7
+  CacheSecret(value=32 bytes) is per-`$UID`,
+  loaded from OS keyring at adapter construction.
+  Bumping ANY key component or the secret
+  produces a different MAC — compare_digest
+  rejects the row at lookup.
+end note
+
+note right of bind
+  Atomic four-tuple binding eliminates the
+  half-bound state of the Phase 1 set_* setters.
+  Composition root calls this once at startup.
+end note
+
+@enduml

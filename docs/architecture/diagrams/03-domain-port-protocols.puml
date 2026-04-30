@@ -1,0 +1,139 @@
+' 03-domain-port-protocols.puml — Layer-2 ports as Java-like interfaces
+' For: docs/architecture/02-component-architecture.md (and 03-domain-model.md)
+' Last revised: 2026-04-30
+'
+' Every infrastructure adapter implements one of these. Adding a
+' capability without growing the port surface is preferred — sibling
+' Protocols (e.g. ADR-016 ManagedAgentGateway) are the safe extension
+' shape.
+
+@startuml
+title Layer-2 Ports — Protocols implemented by Layer-4 adapters
+
+skinparam backgroundColor #FFFFFF
+skinparam interface {
+  BackgroundColor #F59E0B
+  FontColor #000000
+  BorderColor #B45309
+}
+skinparam class {
+  BackgroundColor #22C55E
+  FontColor #000000
+  BorderColor #166534
+}
+skinparam stereotypeIBackgroundColor #FCD34D
+
+interface LLMGateway <<Protocol>> {
+  + analyze(system, user, model, max_tokens, effort?): str
+  + analyze_with_thinking(system, user, model, max_tokens, effort?, task_budget_tokens?): str
+}
+
+interface GitPort <<Protocol>> {
+  + prepare_workspace(source, target_dir): str
+  + clone(repo_url, target_dir): None
+  + get_file_tree(repo_dir): list[str]
+  + read_file(repo_dir, path): str
+  + validate_repo_size(repo_dir): None
+}
+
+interface TokenPort <<Protocol>> {
+  + count(text): int
+  + fits_budget(text, budget): bool
+}
+
+interface ReportPort <<Protocol>> {
+  + render(report: AnalysisReport, path): str
+}
+
+interface ProgressObserver <<Protocol>> {
+  + on_stage_start(stage, message)
+  + on_stage_complete(stage, message)
+  + on_agent_start(role)
+  + on_agent_success(role, duration)
+  + on_agent_failure(role, error)
+  + on_cache_lookup(dim, hits, total)
+}
+
+interface CachePort <<Protocol>> {
+  + get_findings(file_hash, dim): tuple[Finding] | None
+  + put_findings(file_hash, dim, findings, model_v, prompt_v): None
+  + get_full_report(key: RepoCacheKey): AnalysisReport | None
+  + put_full_report(key, report): None
+  + get_batch_findings(key: BatchCacheKey): tuple[Finding] | None
+  + put_batch_findings(key, findings): None
+  + record_hit(dim, batch_id, hit): None
+  + bind_run_context(model_versions, prompt_versions, schema_version, spectra_version)
+  + batch_key_for(batch_id, dim): BatchCacheKey | None
+  + compute_repo_signature(file_tree): str
+  + stats(): CacheStats
+  + clear_all(): int
+  + clear_by_repo(sig): int
+  + prune_older_than(cutoff, include_hit_log?): dict[str,int]
+}
+
+interface WorkspaceFilterPort <<Protocol>> {
+  + filter_files(repo_dir, file_paths): list[str]
+}
+
+interface SecretScannerPort <<Protocol>> {
+  + scan(repo_dir, file_paths): tuple[SecretFinding, ...]
+}
+
+' ── Q2 designed (ADR-018, ADR-020) ───────────────────────────
+interface AuditPort <<Protocol, Q2 designed>> #9CA3AF {
+  + emit(event: AuditEvent): None
+  + flush(): None
+}
+
+interface CostTrackerPort <<Protocol, Q2 designed>> #9CA3AF {
+  + record(usd: float, agent_role): None
+  + remaining_run_budget(): float
+  + remaining_window_budget(window): float
+}
+
+interface PolicyPort <<Protocol, Q2 designed>> #9CA3AF {
+  + load(repo_dir): Policy
+  + verify_waiver(w: Waiver): bool
+}
+
+interface ReceiptSigner <<Protocol, Q2 designed>> #9CA3AF {
+  + sign(report: AnalysisReport): Receipt
+  + verify(report, receipt): bool
+}
+
+' ── Q4 designed (ADR-014, ADR-015) ───────────────────────────
+interface MemoryPort <<Protocol, Q4 designed>> #9CA3AF {
+  + read(scope, key): bytes | None
+  + write(scope, key, value): None
+}
+
+' ── Adapters ─────────────────────────────────────────────────
+class AnthropicAdapter
+class RetryDecorator
+class LoggingDecorator
+class GitAdapter
+class TiktokenAdapter
+class ReportAdapter
+class RichProgressReporter
+class SqliteCacheAdapter
+class PathspecFilterAdapter
+class RegexSecretScanner
+
+LLMGateway <|.. AnthropicAdapter
+LLMGateway <|.. RetryDecorator
+LLMGateway <|.. LoggingDecorator
+GitPort <|.. GitAdapter
+TokenPort <|.. TiktokenAdapter
+ReportPort <|.. ReportAdapter
+ProgressObserver <|.. RichProgressReporter
+CachePort <|.. SqliteCacheAdapter
+WorkspaceFilterPort <|.. PathspecFilterAdapter
+SecretScannerPort <|.. RegexSecretScanner
+
+note bottom of LLMGateway
+  Decorator chain in main.py (composition root):
+  LoggingDecorator(RetryDecorator(AnthropicAdapter))
+  All three satisfy LLMGateway via structural subtyping.
+end note
+
+@enduml
