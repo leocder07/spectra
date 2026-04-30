@@ -40,6 +40,11 @@ dependencies = [
     "keyring>=24,<26",
     # #6 pre-flight: gitignore + .spectraignore semantics
     "pathspec>=0.12,<1.0",
+    # Roadmap #13: SQLCipher-at-rest cache encryption. Optional in
+    # practice — the adapter degrades to plain SQLite + WARN when the
+    # underlying ``libsqlcipher`` is unavailable on the platform (Windows
+    # wheels are scarce). Cache + HMAC remain functional under fallback.
+    "pysqlcipher3>=1.2,<2.0",
 ]
 
 [project.optional-dependencies]
