@@ -1,9 +1,11 @@
 """CLI subcommands for waiver authoring (#18) — ``spectra waive`` + ``spectra approver register``.
 
 Layer 3 adapter. Composes the entity-layer Waiver/Approver models with
-the infrastructure-layer ``YamlWaiverAdapter`` (signing) and an injected
-keyring backend (private-key storage). The keyring import is deferred so
-unit tests inject an in-memory fake without touching the OS keychain.
+the infrastructure-layer ``YamlWaiverAdapter`` (signing) and two injected
+ports: a keyring backend (private-key storage) and a ``SignerPort``
+(Ed25519 keypair generation + public-key derivation). Both ports are
+deferred behind setters so unit tests swap fakes in without touching the
+OS keychain or the real ``cryptography`` stack.
 
 Brand-voice: every ``✗`` line is ≤80 chars and explains what to do next.
 """
@@ -24,6 +26,7 @@ from spectra.entities.models import (
     Waiver,
     compute_finding_signature,
 )
+from spectra.use_cases.interfaces import SignerPort
 
 console = Console()
 
@@ -81,6 +84,39 @@ def _get_backend() -> KeyringBackend:
     return _backend
 
 
+# ── Signer port (injectable for tests) ────────────────────────
+
+
+_signer: SignerPort | None = None
+
+
+def set_signer(signer: SignerPort | None) -> SignerPort | None:
+    """Inject a ``SignerPort`` implementation; returns the previous one for restore.
+
+    The composition root wires the real ``Ed25519SignerAdapter``; tests
+    pass an in-memory fake. Keeping the seam at the adapter boundary
+    closes the dependency-rule break that previously had this module
+    importing ``cryptography`` directly (Fix R3-Arch-3).
+    """
+    global _signer  # noqa: PLW0603
+    previous = _signer
+    _signer = signer
+    return previous
+
+
+def _get_signer() -> SignerPort:
+    """Return the active signer (lazily binds the real adapter on first call)."""
+    global _signer  # noqa: PLW0603
+    if _signer is None:
+        # Deferred import — ``cryptography`` lives in Layer 4 and would
+        # otherwise create an adapters→infrastructure import cycle at
+        # module load.
+        from spectra.infrastructure.ed25519_signer import Ed25519SignerAdapter
+
+        _signer = Ed25519SignerAdapter()
+    return _signer
+
+
 # ── Approver subcommands ──────────────────────────────────────
 
 approver_app = typer.Typer(help="Manage signed-waiver approvers (#18)")
@@ -100,29 +136,20 @@ def approver_register(
 
     Public key is appended to ``.spectra-approvers.yml``; the private
     key seed is stored in the OS keyring under ``spectra-approvers/<name>``.
+
+    Both the keypair generation and the public-key re-derivation flow
+    through the injected ``SignerPort`` — this module no longer imports
+    ``cryptography`` directly (Fix R3-Arch-3).
     """
-    # Deferred import — break the adapters↔infrastructure circular at module load
-    from spectra.infrastructure.yaml_waiver_adapter import generate_keypair
-
     backend = _get_backend()
-    if backend.get_password(_KEYRING_SERVICE, name) is not None:
+    signer = _get_signer()
+    existing_priv = backend.get_password(_KEYRING_SERVICE, name)
+    if existing_priv is not None:
         console.print(f"[{AMBER}]⚠[/] Approver {name!r} already has a registered key; reusing it")
-        priv_hex = backend.get_password(_KEYRING_SERVICE, name) or ""
-        # Recover pubkey by re-deriving from priv
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-        priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(priv_hex))
-        pub_hex = (
-            priv.public_key()
-            .public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw,
-            )
-            .hex()
-        )
+        priv_hex = existing_priv
+        pub_hex = signer.derive_public_key(priv_hex)
     else:
-        priv_hex, pub_hex = generate_keypair()
+        priv_hex, pub_hex = signer.generate_keypair()
         backend.set_password(_KEYRING_SERVICE, name, priv_hex)
 
     approver = Approver(name=name, email=email, public_key=pub_hex)
@@ -246,5 +273,6 @@ __all__ = [
     "InMemoryKeyring",
     "approver_app",
     "set_keyring_backend",
+    "set_signer",
     "waive_command",
 ]

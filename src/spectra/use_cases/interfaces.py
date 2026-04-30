@@ -508,6 +508,42 @@ class WaiverPort(Protocol):
         ...
 
 
+class SignerPort(Protocol):
+    """Port for Ed25519 keypair generation and signing (Fix R3-Arch-3).
+
+    Closes the dependency-rule break in ``adapters/waiver_cli.py`` where
+    the CLI subcommand imported ``cryptography.hazmat.primitives.asymmetric.ed25519``
+    directly. Implemented by ``Ed25519SignerAdapter`` (Layer 4) and
+    injected via ``set_signer`` at composition time.
+
+    Hex encoding contract:
+        - ``private_hex`` and ``public_hex`` are 64-char (32-byte) hex strings.
+        - ``signature`` is raw bytes (the CLI ``hex()``-encodes for storage).
+
+    Errors:
+        Implementations raise ``ValueError`` for malformed hex, wrong-length
+        keys, or non-hex digits. Verification failures return ``False``
+        rather than raising — the adapter swallows ``InvalidSignature`` so
+        callers can branch cleanly without a try/except.
+    """
+
+    def generate_keypair(self) -> tuple[str, str]:
+        """Mint a fresh Ed25519 keypair as ``(private_hex, public_hex)``."""
+        ...
+
+    def derive_public_key(self, private_hex: str) -> str:
+        """Derive the public key from a 64-char private hex seed."""
+        ...
+
+    def sign(self, payload: bytes, private_hex: str) -> bytes:
+        """Sign ``payload`` and return the raw 64-byte signature."""
+        ...
+
+    def verify(self, payload: bytes, signature: bytes, public_hex: str) -> bool:
+        """Verify ``signature`` over ``payload``; return False on mismatch."""
+        ...
+
+
 class SecretScannerPort(Protocol):
     """Port for the pre-flight secret scan.
 

@@ -1028,16 +1028,20 @@ def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
     This is the ``[project.scripts]`` entry point. It injects the
-    analyzer factory, the cache provider, and the receipt verifier into
-    the CLI controller before starting Typer. The cache provider and
-    verifier serve the lightweight ``spectra cache *`` and
-    ``spectra verify`` subcommands without spinning up the LLM stack.
+    analyzer factory, the cache provider, the receipt verifier, and the
+    Ed25519 signer (Fix R3-Arch-3) into their respective adapter seams
+    before starting Typer. The cache provider and verifier serve the
+    lightweight ``spectra cache *`` and ``spectra verify`` subcommands
+    without spinning up the LLM stack.
     """
+    from spectra.adapters.waiver_cli import set_signer
     from spectra.infrastructure.audit_wiring import default_receipt_public_key_path
+    from spectra.infrastructure.ed25519_signer import Ed25519SignerAdapter
     from spectra.infrastructure.receipt_signer import verify_receipt
 
     set_analyzer_factory(_run_analysis)
     set_cache_provider(_provision_cache_only)
     set_shred_executor(_shred_cache_and_keys)
     set_verifier(verify_receipt, default_public_key_path=default_receipt_public_key_path())
+    set_signer(Ed25519SignerAdapter())
     cli_entry()
