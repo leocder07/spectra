@@ -34,7 +34,7 @@ class _RecordingGateway:
             creation_tokens=creation_tokens, read_tokens=read_tokens,
         )
 
-    async def analyze(  # noqa: PLR0913 — Protocol shape
+    async def analyze(
         self,
         system_prompt: str,
         user_prompt: str,
@@ -52,7 +52,7 @@ class _RecordingGateway:
         )
         return '{"findings": [], "dimension_score": 80, "summary": "ok"}'
 
-    async def analyze_with_thinking(  # noqa: PLR0913 — Protocol shape
+    async def analyze_with_thinking(
         self,
         system_prompt: str,
         user_prompt: str,
