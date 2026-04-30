@@ -148,12 +148,17 @@ def _build_summary_text(report: object) -> Text:
     critical = sum(1 for f in getattr(report, "findings", ()) if getattr(f, "severity", "") == "critical")
     duration = getattr(report, "analysis_duration_seconds", 0.0)
     cost = getattr(report, "total_cost_usd", 0.0)
+    saved = getattr(report, "cost_saved_usd", 0.0)
     parts = [
         f"{total} findings",
         f"{critical} critical",
         f"{duration:.0f}s",
         f"${cost:.2f}",
     ]
+    # ADR-024: surface prompt-cache savings on the summary line when
+    # the run actually saved money (>= $0.01 — sub-cent savings are noise).
+    if saved >= 0.01:
+        parts.append(f"saved ${saved:.2f} via prompt cache")
     return Text(" · ".join(parts), style=GRAY)
 
 

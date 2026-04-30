@@ -881,6 +881,103 @@ class TestEstimateCost:
         assert cost == round(cost, 4)
 
 
+# ── CacheUsage + estimate_cache_savings (ADR-024) ──────────────
+
+
+class TestCacheUsage:
+    def test_default_is_zero(self):
+        from spectra.entities.models import CacheUsage
+
+        usage = CacheUsage()
+        assert usage.creation_tokens == 0
+        assert usage.read_tokens == 0
+
+    def test_negative_values_rejected(self):
+        from pydantic import ValidationError
+
+        from spectra.entities.models import CacheUsage
+
+        with pytest.raises(ValidationError):
+            CacheUsage(creation_tokens=-1)
+
+    def test_frozen(self):
+        from pydantic import ValidationError
+
+        from spectra.entities.models import CacheUsage
+
+        usage = CacheUsage(creation_tokens=10)
+        with pytest.raises(ValidationError):
+            usage.creation_tokens = 20  # type: ignore[misc]
+
+
+class TestEstimateCacheSavings:
+    def _output_with_cache(self, creation: int, read: int):
+        from spectra.entities.models import CacheUsage
+
+        return AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+            cache_usage=CacheUsage(creation_tokens=creation, read_tokens=read),
+        )
+
+    def test_empty_outputs_returns_zero(self):
+        from spectra.entities.models import estimate_cache_savings
+
+        assert estimate_cache_savings(()) == 0.0
+
+    def test_no_cache_usage_returns_zero(self):
+        """Outputs without prompt-cache participation save nothing."""
+        from spectra.entities.models import estimate_cache_savings
+
+        out = AgentOutput(
+            agent_role="security",
+            findings=(),
+            tokens_used=1000,
+            duration_seconds=1.0,
+            raw_response="{}",
+        )
+        assert estimate_cache_savings((out,)) == 0.0
+
+    def test_cache_read_returns_positive_savings(self):
+        """A pure cache read at 90% off — 10K tokens at $0.005/1K times 0.90 = $0.045."""
+        from spectra.entities.models import estimate_cache_savings
+
+        out = self._output_with_cache(creation=0, read=10_000)
+        # 10_000 * 0.90 * (0.005 / 1000) = 0.045
+        assert estimate_cache_savings((out,)) == 0.045
+
+    def test_pure_cache_write_returns_negative(self):
+        """First-write premium (25%) without a read costs us money."""
+        from spectra.entities.models import estimate_cache_savings
+
+        out = self._output_with_cache(creation=10_000, read=0)
+        # -10_000 * 0.25 * (0.005 / 1000) = -0.0125
+        assert estimate_cache_savings((out,)) == -0.0125
+
+    def test_balanced_write_then_two_reads_is_net_positive(self):
+        """One write at 0.25x then two reads at 0.90x per token swings positive."""
+        from spectra.entities.models import estimate_cache_savings
+
+        # Same prefix written once, served twice
+        write = self._output_with_cache(creation=4000, read=0)
+        read1 = self._output_with_cache(creation=0, read=4000)
+        read2 = self._output_with_cache(creation=0, read=4000)
+        savings = estimate_cache_savings((write, read1, read2))
+        # (4000*0.90 + 4000*0.90 - 4000*0.25) * 0.005 / 1000
+        # = (3600 + 3600 - 1000) * 0.000005 = 6200 * 0.000005 = 0.031
+        assert savings == 0.031
+
+    def test_savings_are_rounded(self):
+        from spectra.entities.models import estimate_cache_savings
+
+        out = self._output_with_cache(creation=0, read=1)
+        savings = estimate_cache_savings((out,))
+        assert savings == round(savings, 4)
+
+
 # ── Finding edge cases ─────────────────────────────────────────
 
 
