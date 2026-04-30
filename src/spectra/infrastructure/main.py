@@ -900,6 +900,34 @@ def _sarif_run_properties(report: AnalysisReport) -> dict[str, object]:
 # ── Audit + receipt wiring (ADR-018, #57) ────────────────────
 
 
+def _receipt_degrade_exception_types() -> tuple[type[BaseException], ...]:
+    """Return the exception classes that trigger silent receipt degradation.
+
+    Pulled into a function so the keyring import stays lazy — the keyring
+    package is an optional runtime dep and must not be required to import
+    ``spectra.infrastructure.main``. ``keyring.errors.KeyringError`` is
+    appended only when the import succeeds; on Windows / minimal images
+    the import-time ``ImportError`` already handles the same scenarios.
+    """
+    from cryptography.exceptions import InvalidSignature
+
+    base: tuple[type[BaseException], ...] = (
+        OSError,
+        ImportError,
+        ValueError,
+        TypeError,
+        InvalidSignature,
+    )
+    try:
+        import keyring.errors as _kr_errors
+    except ImportError:
+        return base
+    return (*base, _kr_errors.KeyringError)
+
+
+_RECEIPT_DEGRADE_EXCEPTIONS: tuple[type[BaseException], ...] = _receipt_degrade_exception_types()
+
+
 def _build_audit_port(spec: str | None) -> AuditPort | None:
     """Construct the audit adapter from a sink spec; degrade to ``None``.
 
@@ -915,13 +943,35 @@ def _build_audit_port(spec: str | None) -> AuditPort | None:
 
 
 def _attach_receipt(report: AnalysisReport, run_id: str) -> AnalysisReport:
-    """Sign ``report`` and embed the resulting receipt; degrade on failure."""
+    """Sign ``report`` and embed the resulting receipt; degrade on failure.
+
+    Catches the narrow set of failures the signer can realistically raise:
+
+    - ``OSError`` — public-key file write or keyring socket failure
+    - ``ImportError`` — optional ``keyring`` backend missing on this host
+    - ``ValueError`` / ``TypeError`` — malformed key bytes (cryptography)
+    - ``InvalidSignature`` — signature verification by the underlying
+      cryptography stack (defensive; ``sign`` itself does not raise it)
+    - ``keyring.errors.KeyringError`` — every keyring backend failure
+      (NoKeyring, KeyringLocked, PasswordSetError, …)
+
+    Anything else (``AttributeError``, ``RuntimeError``, etc.) signals a
+    programmer bug and propagates so the operator sees the real cause
+    instead of a silently missing receipt. Every swallowed exception is
+    DEBUG-logged with ``run_id`` so the missing receipt can be correlated
+    with the offending scan.
+    """
     try:
         keystore = KeyringReceiptKeyStore(public_key_path=default_receipt_public_key_path())
         signer = ReceiptSigner(keystore=keystore)
         receipt = signer.sign(report, scan_id=run_id)
-    except Exception as exc:
-        logging.getLogger("spectra.receipt").warning("Receipt signing skipped: %s", exc)
+    except _RECEIPT_DEGRADE_EXCEPTIONS as exc:
+        logging.getLogger("spectra.receipt").debug(
+            "Receipt signing skipped for run_id=%s: %s: %s",
+            run_id,
+            type(exc).__name__,
+            exc,
+        )
         return report
     return report.model_copy(update={"receipt": receipt})
 
