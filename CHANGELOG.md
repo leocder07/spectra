@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (BREAKING for grade values)
+- **Scoring is now penalty-only and deterministic.** The `_estimate_score()`
+  function previously blended `0.4 * llm_holistic + 0.6 * penalty`. The
+  LLM holistic was responsible for ~95% of the variance observed in the
+  v0.6.0 self-scan series (security swung 99→93→77 across three
+  identical-code runs because the LLM's mood swung; the penalty score
+  was a flat 96-99 across the same runs). The new formula uses the
+  deterministic severity-weighted, confidence-scaled penalty only. The
+  agent's `dimension_score` field is still emitted and captured for
+  telemetry but no longer influences the user-facing grade. **Same
+  finding set produces the same score, every time.** Existing reports
+  will read ~3-7 points higher under the new formula because the LLM
+  blend was historically dragging scores down. See
+  [`docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`](docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md)
+  for the full root-cause investigation, LLM-as-judge dedup analysis
+  (1.73x ratio), and the data behind the change.
+
+### Documentation
+- **`docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`** — root-cause
+  investigation of grade volatility in the three-scan series.
+  Includes the LLM-as-judge clustering analysis showing 133 raw
+  findings dedup to 77 distinct issues (1.73x), of which 17 recur in
+  all three scans (the real signal) and 39 are pure stochastic
+  paraphrasings.
+- Analysis scripts checked into
+  `docs/launch/reports/v0.6.0/scripts/` so the findings can be
+  reproduced (`compare3.py`, `score_analysis.py`, `llm_judge.py`).
+
 ## [0.6.0] - 2026-04-30
 
 The Q2 enterprise-readiness release. All ten roadmap items from the Q2 batch land together, taking Spectra from "trustworthy CI gate" (v0.5.0) to "auditable, governable, signable platform that a regulated buyer can integrate." Every capability is additive — no breaking changes to v0.5.0 wire formats. The new `--max-cost-usd` budget gate, signed waivers, signed scan receipts, and the dual-mode confidential/public report are the headline asks from CISO + finance personas.

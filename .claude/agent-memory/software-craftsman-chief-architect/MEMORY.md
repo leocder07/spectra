@@ -1,0 +1,4 @@
+- [Spectra architecture invariants](architecture_invariants.md) — load-bearing truths about Spectra's Clean Architecture (4 layers, 8 agents, ports)
+- [ADR discipline](feedback_adr_discipline.md) — append-only ADRs; supersede via new ADR rather than editing
+- [Mermaid is source of truth](feedback_mermaid_sources.md) — `.md` files own the diagrams; SVGs are downstream artifacts
+- [Diagram rendering tooling](reference_diagram_tooling.md) — how to regenerate SVGs from Mermaid sources

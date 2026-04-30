@@ -1604,34 +1604,42 @@ def _estimate_score(
     findings: list[Finding],
     llm_score: float | None = None,
 ) -> float:
-    """Blend LLM assessment with penalty-based formula.
+    """Compute dimension score from findings using the deterministic penalty formula.
 
-    When the LLM provides a holistic score, we weight it 40% and the
-    penalty-based score 60% to anchor on evidence while respecting
-    the LLM's broader context awareness.
+    The score is a pure function of the finding set: severity-weighted
+    confidence-scaled penalties subtracted from 100, capped at the
+    ``_MAX_PENALTY`` floor. **The LLM holistic ``dimension_score`` is
+    deliberately ignored** — see PR #60 / scoring investigation in
+    ``docs/launch/reports/v0.6.0/SCORING-ANALYSIS.md`` for the data.
 
-    When a finding admits "insufficient code/content", the LLM score
-    is capped at 50 to prevent self-inflated scores when the agent
-    could not properly analyze the code.
+    Why we dropped the 40/60 LLM blend:
+
+    - Three identical-code self-scans produced overall scores 92/85/85
+      (8-pt spread) and security scores 99/93/77 (22-pt spread). The
+      penalty-only score for security was 96/98/96 across the same
+      runs — i.e. the LLM holistic was responsible for ~95% of the
+      variance.
+    - The LLM has no privileged information about "what severity should
+      this dimension hold" beyond what its own findings already encode.
+      Blending its overall guess with the formula adds noise without
+      adding signal.
+    - Penalty-only is the contract users want: *if the same set of
+      findings arrives twice, you get the same score twice.* Variance
+      now lives entirely upstream — in which findings the model
+      surfaces — where it belongs and where users can attack it
+      (averaging across runs, deduping semantically, etc.).
 
     Args:
         findings: Findings for a single dimension.
-        llm_score: Optional LLM-assigned score (0-100).
+        llm_score: Ignored. Accepted for backward compatibility with
+            callers that pass it; will be removed in a future major.
 
     Returns:
-        Blended dimension score between 0 and 100.
+        Penalty-only dimension score between 0 and 100.
     """
     if not findings:
         return DEFAULT_DIMENSION_SCORE
-    if _has_insufficient_data(findings):
-        penalty_score = _compute_penalty_score(findings)
-        capped_llm = min(llm_score or 50.0, 50.0)
-        return round(0.4 * capped_llm + 0.6 * penalty_score, 1)
-    penalty_score = _compute_penalty_score(findings)
-    if llm_score is not None:
-        # 40/60 blend: trust evidence more than LLM self-assessment
-        return round(0.4 * llm_score + 0.6 * penalty_score, 1)
-    return round(penalty_score, 1)
+    return round(_compute_penalty_score(findings), 1)
 
 
 def _compute_penalty_score(findings: list[Finding]) -> float:
