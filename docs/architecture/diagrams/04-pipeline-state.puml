@@ -2,8 +2,9 @@
 ' For: docs/architecture/04-pipeline-flow.md
 ' Last revised: 2026-04-30
 '
-' PipelineState literals from src/spectra/entities/enums.py plus the
-' Q2-designed budget-exceeded transition.
+' PipelineState literals from src/spectra/entities/enums.py.
+' v0.6.0 promoted the budget-exceeded transition (SPEC-014) and
+' the public-mode refusal to shipped (solid violet).
 
 @startuml
 title PipelineState — lifecycle transitions
@@ -41,7 +42,7 @@ reporting --> complete : HTML/JSON/SARIF emitted
 reporting --> failed : SPEC-009 render failed
 
 degraded --> reporting : assemble partial report
-compromised --> reporting : banner + Q2-designed\nrefuse public-mode emission
+compromised --> reporting : banner +\nrefuse public-mode emission (v0.6.0)
 
 complete --> [*]
 degraded --> [*]
@@ -50,7 +51,7 @@ failed --> [*]
 
 note right of compromised #FEE2E2
   Terminal — public-mode emission
-  refuses to publish a grade (Q2).
+  refuses to publish a grade (v0.6.0).
 end note
 
 note right of degraded #FEF3C7
@@ -59,10 +60,10 @@ note right of degraded #FEF3C7
   human reviewer can act on what works.
 end note
 
-' Q2 designed transition
-state "budget_exceeded" as be #9CA3AF
-analyzing --> be : --max-cost-usd reached\n(Q2 designed — ADR-013)
-critiquing --> be : --max-cost-usd reached
-be --> reporting : Q2 — emit "budget exceeded" report
+' v0.6.0 — promoted from Q2-designed to shipped (ADR-013, roadmap #5)
+state "budget_exceeded" as be #7C3AED
+analyzing --> be : --max-cost-usd reached\n(SPEC-014, v0.6.0)
+critiquing --> be : --max-cost-usd reached\n(SPEC-014, v0.6.0)
+be --> reporting : emit partial report\n(per-agent cost breakdown)
 
 @enduml

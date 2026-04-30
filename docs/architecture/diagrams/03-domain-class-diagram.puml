@@ -2,10 +2,9 @@
 ' For: docs/architecture/03-domain-model.md
 ' Last revised: 2026-04-30
 '
-' Every model carries `frozen=True`. Q2-designed entities (Receipt, Waiver,
-' Policy, AuditEvent, MemoryEntry, CodebaseQuestion / CodebaseAnswer) are
-' annotated with «Q2 designed» so a status flip is the only edit needed
-' when v0.6.0 ships.
+' Every model carries `frozen=True`. v0.6.0 promoted Receipt, Waiver,
+' Policy, AuditEvent, Identity from Q2-designed (grey, dashed) to
+' shipped (violet, solid). Q4-designed memory entities remain greyed.
 
 @startuml
 title Domain Model — Spectra entities (Layer 1)
@@ -103,10 +102,12 @@ class AnalysisReport << (E,#7C3AED) aggregate >> {
   +cross_cutting_insights: tuple[str, ...]
   +hallucination_removed_count: int
   +is_compromised: bool  ' ADR-011
-  ' Q2 designed:
-  +classification: Literal["confidential","public"]  «Q2 designed»
-  +receipt: Receipt | None  «Q2 designed»
-  +validation_status: Literal["validated","non-validated"] «Q2 designed»
+  ' v0.6.0 (shipped):
+  +classification: Literal["confidential","public"] = "confidential"
+  +receipt: Receipt | None  ' Ed25519 — `spectra verify`
+  +validation_status: Literal["validated","non-validated:critique-skipped","non-validated:quick-mode"]
+  +waivers_applied: tuple[Waiver, ...]
+  +cost_breakdown: dict[AgentRole, float]
   +critical_finding_count(): int
 }
 
@@ -174,40 +175,43 @@ class AgentRunConfig << (V,#A78BFA) value >> {
   +task_budget_tokens: int | None
 }
 
-' ── Q2 designed entities ─────────────────────────────────────
-class Receipt << (V,#9CA3AF) Q2 designed >> {
+' ── Shipped in v0.6.0 (Q2) ───────────────────────────────────
+class Receipt << (V,#7C3AED) value >> {
   +scan_id: UUIDv7
   +signed_at: datetime
-  +signature: bytes  ' Ed25519 over repo_signature + score_card
-  +signing_key_id: str
+  +signature: bytes  ' Ed25519 over repo_signature + score_card hash
+  +public_key_pem: str
 }
 
-class Waiver << (V,#9CA3AF) Q2 designed >> {
+class Waiver << (V,#7C3AED) value >> {
   +rule_id: str
   +file_path: str
   +reason: str
-  +expires: date
-  +signature: bytes  ' Ed25519
+  +waived_by: str
+  +waived_at: datetime
+  +expires_at: datetime | None
+  +signature: bytes  ' Ed25519 over canonical JSON
 }
 
-class Policy << (V,#9CA3AF) Q2 designed >> {
+class Policy << (V,#7C3AED) value >> {
   +rules: tuple[PolicyRule, ...]
   +severity_gate: Severity
   +max_cost_usd: float | None
+  +dimension_weights: dict[Dimension, float] | None
 }
 
-class AuditEvent << (E,#9CA3AF) Q2 designed >> {
+class AuditEvent << (E,#7C3AED) entity >> {
   +event_id: UUIDv7
   +ts: datetime
   +event: AuditEventType
   +actor: Identity
   +target: AuditTarget
-  +payload: dict[str, primitive]
+  +payload: dict[str, primitive]  ' bounded; FORBIDDEN_PAYLOAD_KEYS rejected
   +run_id: str | None
 }
 
-class Identity << (V,#9CA3AF) Q2 designed >> {
-  +actor: str
+class Identity << (V,#7C3AED) value >> {
+  +actor: str  ' 16-char hash for privacy
   +source: env|git|oidc|hostname
   +confidence: high|medium|low
 }
@@ -239,9 +243,9 @@ AgentOutput "1" *-- "many" Finding
 CacheEntry "1" *-- "many" Finding
 BatchPrompt --> BatchCacheKey : keyed by
 
-AnalysisReport ..> Receipt : carries «Q2»
-Policy ..> Waiver : composed with «Q2»
-AuditEvent --> Identity : actor «Q2»
+AnalysisReport ..> Receipt : carries (v0.6.0)
+Policy ..> Waiver : composed with (v0.6.0)
+AuditEvent --> Identity : actor (v0.6.0)
 
 note bottom of AnalysisReport
   Aggregate root for the pipeline result.
