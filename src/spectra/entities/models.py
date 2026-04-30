@@ -317,6 +317,12 @@ class AnalysisReport(BaseModel, frozen=True):
     sharing). Render pipelines pick the template, emit the file suffix,
     and choose the watermark + banner text from this single field."""
 
+    waived_finding_count: int = 0
+    """#18: count of findings suppressed by validated waivers + inline pragmas."""
+    expired_waiver_count: int = 0
+    """#18: count of expired waivers found in ``.spectra-waivers.yml`` —
+    surfaced so the team rotates them before they're needed again."""
+
     def critical_finding_count(self) -> int:
         """Return the number of findings with critical severity."""
         return sum(1 for f in self.findings if f.is_critical())

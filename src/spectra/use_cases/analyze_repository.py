@@ -37,6 +37,7 @@ from spectra.entities.models import (
     ScoreCard,
     TokenBudget,
     ValidationStatus,
+    Waiver,
     estimate_cost,
     score_to_grade,
 )
@@ -53,6 +54,11 @@ from spectra.use_cases.orchestrate_agents import (
     evaluate_results,
     run_specialists,
     run_specialists_batched,
+)
+from spectra.use_cases.waiver_filter import (
+    filter_findings_by_waivers,
+    parse_inline_pragmas,
+    pragmas_to_ephemeral_waivers,
 )
 
 if TYPE_CHECKING:
@@ -111,6 +117,14 @@ class PipelineContext:
     actor: Identity | None = None
     spectra_version: str = "0.0.0"
     run_id: str = ""
+    waivers: tuple[Waiver, ...] = ()
+    """Capability #18: signature-verified, non-expired waivers loaded from
+    ``.spectra-waivers.yml``. Findings whose composite signature matches
+    any entry are dropped before the report is built. Default empty
+    tuple = no waivers (current behaviour preserved)."""
+    expired_waivers: tuple[Waiver, ...] = ()
+    """Verified waivers past ``expires_at`` — surfaced on the report so
+    the team knows the gate has gaps that need rotation."""
 
 
 @dataclass
@@ -209,7 +223,19 @@ async def _run_pipeline(
         state.analysis = await _run_analyze_stage(ctx, plan, state)
         findings = _run_merge_stage(state, ctx)
         output = await _run_critique_pipeline(ctx, findings, state)
-        report = _build_report(ctx, state, output)
+        suppressed = _apply_waivers_and_pragmas(ctx, output.findings, state)
+        output_with_waivers = _StageOutput(
+            findings=suppressed.findings,
+            insights=output.insights,
+            is_compromised=output.is_compromised,
+        )
+        report = _build_report(
+            ctx,
+            state,
+            output_with_waivers,
+            waived_count=suppressed.waived_count,
+            expired_count=len(ctx.expired_waivers),
+        )
         _store_in_cache(ctx, report)
         await _emit_scan_completed(ctx, report)
         return report
@@ -293,6 +319,53 @@ def _try_cache_signature(ctx: PipelineContext) -> str | None:
 def _truncate(text: str, limit: int) -> str:
     """Cap ``text`` at ``limit`` chars for audit-payload bounds."""
     return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+@dataclass(frozen=True)
+class _SuppressionResult:
+    """Findings post-waiver + tally of how many were dropped."""
+
+    findings: tuple[Finding, ...]
+    waived_count: int
+
+
+def _apply_waivers_and_pragmas(
+    ctx: PipelineContext,
+    findings: tuple[Finding, ...],
+    state: _PipelineState,
+) -> _SuppressionResult:
+    """Drop findings matched by ``.spectra-waivers.yml`` or inline pragmas.
+
+    Inline pragmas are scanned across the source files we read for the
+    specialists (``state.source_files``). They are converted to ephemeral
+    waivers bound to the exact (file, line, rule) of an actual finding —
+    a pragma alone cannot suppress something that was never flagged.
+
+    Args:
+        ctx: Pipeline context carrying the verified waiver tuple.
+        findings: Findings emerging from the critique stage.
+        state: Mutable state holding the pre-read source files.
+
+    Returns:
+        Filtered findings + the count of suppressions for the report.
+    """
+    pragmas = _scan_pragmas(state.source_files)
+    ephemeral = pragmas_to_ephemeral_waivers(pragmas, findings)
+    all_waivers = tuple(ctx.waivers) + ephemeral
+    if not all_waivers:
+        return _SuppressionResult(findings, waived_count=0)
+    filtered = filter_findings_by_waivers(findings, all_waivers)
+    return _SuppressionResult(filtered, waived_count=len(findings) - len(filtered))
+
+
+def _scan_pragmas(source_files: dict[str, str] | None) -> tuple:
+    """Aggregate inline pragmas across every file we read for analysis."""
+    if not source_files:
+        return ()
+    out: list = []
+    for path, content in source_files.items():
+        out.extend(parse_inline_pragmas(path, content))
+    return tuple(out)
 
 
 # ── Phase 2: repo-level cache short-circuit ───────────────────
@@ -806,8 +879,19 @@ def _build_report(
     ctx: PipelineContext,
     state: _PipelineState,
     output: _StageOutput,
+    *,
+    waived_count: int = 0,
+    expired_count: int = 0,
 ) -> AnalysisReport:
-    """Compute scores and assemble the final report."""
+    """Compute scores and assemble the final report.
+
+    Args:
+        ctx: Pipeline context.
+        state: Mutable accumulator with agent outputs + analysis result.
+        output: Final-stage output with findings + insights.
+        waived_count: How many findings were suppressed by waivers/pragmas.
+        expired_count: How many waivers were past ``expires_at``.
+    """
     score_card = _compute_scorecard(
         output.findings,
         state.analysis.failed_roles,
@@ -829,6 +913,8 @@ def _build_report(
         hallucination_removed_count=meta.hallucinations,
         is_compromised=output.is_compromised,
         validation_status=_resolve_validation_status(ctx),
+        waived_finding_count=waived_count,
+        expired_waiver_count=expired_count,
     )
 
 
