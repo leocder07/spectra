@@ -44,6 +44,7 @@ from spectra.entities.models import (
     TokenBudget,
     ValidationStatus,
     Waiver,
+    estimate_cache_savings,
     estimate_cost,
     score_to_grade,
 )
@@ -213,6 +214,7 @@ class _ReportMeta:
     duration: float
     tokens: int
     cost: float
+    cost_saved: float
     agents: tuple[AgentRole, ...]
     is_degraded: bool
     degraded_dims: tuple[Dimension, ...]
@@ -1091,6 +1093,7 @@ def _build_report(
         analysis_duration_seconds=meta.duration,
         total_tokens_used=meta.tokens,
         total_cost_usd=meta.cost,
+        cost_saved_usd=meta.cost_saved,
         agents_used=meta.agents,
         is_degraded=meta.is_degraded,
         degraded_dimensions=meta.degraded_dims,
@@ -1126,10 +1129,12 @@ def _report_metadata(
 ) -> _ReportMeta:
     """Compute all derived metadata for the report."""
     analysis = state.analysis
+    outputs = tuple(state.agent_outputs)
     return _ReportMeta(
         duration=round(time.monotonic() - state.start_time, 2),
         tokens=state.tokens_used,
-        cost=estimate_cost(tuple(state.agent_outputs)),
+        cost=estimate_cost(outputs),
+        cost_saved=estimate_cache_savings(outputs),
         agents=_active_agents(ctx.specialists, analysis),
         is_degraded=analysis.is_degraded,
         degraded_dims=_degraded_dims(analysis.failed_roles),

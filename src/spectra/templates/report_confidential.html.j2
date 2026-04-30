@@ -2785,7 +2785,7 @@
                 </div>
                 <div class="stat">
                     <div class="stat-value">$<span class="counter-animate" data-target="{{ "%.2f" | format(report.total_cost_usd) }}" data-decimals="2">0</span></div>
-                    <div class="stat-label">Cost</div>
+                    <div class="stat-label">Cost{% if report.cost_saved_usd >= 0.01 %} <span title="Anthropic prompt caching + Batch API (ADR-024)">(saved ${{ "%.2f" | format(report.cost_saved_usd) }})</span>{% endif %}</div>
                 </div>
                 <div class="stat">
                     <div class="stat-value"><span class="counter-animate" data-target="{{ report.agents_used | length }}">0</span></div>
@@ -3625,7 +3625,7 @@
                 <a href="https://github.com/leocder07/spectra">spectra</a>
                 <span class="sep"> &middot; </span>{{ report.agents_used | length }} agents
                 <span class="sep"> &middot; </span>{{ report.analysis_duration_seconds | round(0) | int }}s
-                <span class="sep"> &middot; </span>${{ "%.2f" | format(report.total_cost_usd) }}
+                <span class="sep"> &middot; </span>${{ "%.2f" | format(report.total_cost_usd) }}{% if report.cost_saved_usd >= 0.01 %} (saved ${{ "%.2f" | format(report.cost_saved_usd) }} via prompt cache){% endif %}
             </div>
             <div class="footer-line">{{ report.repo_url }}</div>
             <div class="footer-line" style="opacity: 0.5;">{{ generated_at }}</div>

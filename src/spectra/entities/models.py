@@ -322,6 +322,10 @@ class AnalysisReport(BaseModel, frozen=True):
     analysis_duration_seconds: float
     total_tokens_used: int
     total_cost_usd: float
+    cost_saved_usd: float = 0.0
+    """ADR-024: USD saved (vs. no-cache baseline) on this scan via Anthropic
+    prompt caching and/or Batch API. Defaults to 0.0 for legacy reports
+    and adapters that do not participate in either primitive."""
     agents_used: tuple[AgentRole, ...]
     is_degraded: bool = False
     degraded_dimensions: tuple[Dimension, ...] = ()
