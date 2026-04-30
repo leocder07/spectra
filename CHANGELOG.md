@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- **Architecture documentation refresh.** Added `docs/architecture/` — 10 numbered HLD/LLD documents (`01-system-context` through `10-deployment-and-release`) plus 19 PlantUML source diagrams + rendered SVGs covering C4 levels 1-3, the 6-stage pipeline (happy + cached + compromised paths), the PipelineState transitions, agent orchestration + decorator chain, cache class diagram + state machine + key composition, secret pre-flight + prompt-injection defence in depth, data flow + privacy boundary, Q6-designed plugin architecture, and the publish.yml pipeline. Documents cross-reference the strategy ADRs (011-020) and use status badges (Stable / Q2 designed / Q4 designed / Q6 designed) so promoting a Q2 capability to "shipped" is a single edit per element when v0.6.0 lands. Render with `plantuml -tsvg docs/architecture/diagrams/*.puml`.
+
 ## [0.5.0] - 2026-04-29
 
 The Q1 trust foundation. All six capabilities required to make the Spectra grade defensible as a CI gate land together. Every Red Team critical/high closes; supply-chain hygiene is no longer absent; the cache is per-user + tamper-evident; the report is honest about what it is and is not. The marketing leaderboard work in the roadmap is gated on this release.
