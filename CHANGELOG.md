@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (dependency bounds — round 3 maintainability sweep)
+- `anthropic` upper bound tightened from `<2.0` to `<1.0`. The SDK is
+  still on the 0.x series and ships fast minors; pinning inside the
+  current pre-1.0 stream forces an explicit Renovate PR + maintainer
+  review the day v1.0 lands. Note: the audit finding asked for `<0.50`,
+  but the working lockfile resolves to `0.84.0` — pinning `<0.50`
+  would have been a multi-major *downgrade* of the SDK rather than a
+  tightening, so we held the bound at `<1.0`.
+- `cryptography` upper bound tightened from `<46` to `<45`. v45 is
+  gated on a verified rebuild + full Ed25519 receipt regression sweep
+  before we widen.
+- `pytest-asyncio` upper bound tightened from `<2.0` to `<1.0`. The
+  package is still on 0.x, so the new bound matches reality.
+- `pyyaml` removed from the `[dev]` extras — it is already a runtime
+  dep and was duplicated.
+
 ### Changed (BREAKING for grade values)
 - **Scoring is now penalty-only and deterministic.** The `_estimate_score()`
   function previously blended `0.4 * llm_holistic + 0.6 * penalty`. The
