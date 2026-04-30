@@ -228,6 +228,8 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 ## Architecture
 
+> **Full architecture reference:** [`docs/architecture/`](docs/architecture/) — 10 documents + 19 PlantUML diagrams covering the C4 model, domain entities, pipeline flow, agent orchestration, cache subsystem, security model, data flow, plugin extensibility, and the release pipeline. Status table tracks what's shipped (v0.5.0) vs what's designed-and-in-flight (Q2). Diagrams render via `plantuml -tsvg docs/architecture/diagrams/*.puml`.
+
 ### System context
 
 Spectra in its environment — who invokes it and what it talks to. Two install paths (local pip + GitHub Action), one PyPI package. Source: [`docs/diagrams/system-context.md`](docs/diagrams/system-context.md).
