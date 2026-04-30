@@ -39,6 +39,7 @@ from spectra.entities.models import (
     FileLocation,
     Finding,
     RepoCacheKey,
+    ReportSummary,
     ScoreCard,
     TokenBudget,
     ValidationStatus,
@@ -54,6 +55,7 @@ from spectra.use_cases.interfaces import (
     CostTrackerPort,
     GitPort,
     ProgressObserver,
+    ReportStorePort,
 )
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
@@ -144,6 +146,10 @@ class PipelineContext:
     max_cost_usd: float | None = None
     """Per-run USD cap. ``None`` disables enforcement even when a
     tracker is wired (useful for development)."""
+    report_store: ReportStorePort | None = None
+    """#25 + ADR-022: when wired, the pipeline writes a ``ReportSummary``
+    after the report is built. Failure is non-fatal — same pattern as
+    the audit port. ``None`` (the default) skips history persistence."""
 
 
 @dataclass
@@ -256,6 +262,7 @@ async def _run_pipeline(
             expired_count=len(ctx.expired_waivers),
         )
         _store_in_cache(ctx, report)
+        await _safe_persist_history(ctx, report)
         await _emit_scan_completed(ctx, report)
         return report
     except Exception as exc:
@@ -385,6 +392,56 @@ def _scan_pragmas(source_files: dict[str, str] | None) -> tuple:
     for path, content in source_files.items():
         out.extend(parse_inline_pragmas(path, content))
     return tuple(out)
+
+
+# ── #25 + ADR-022: history-store persistence ─────────────────
+
+
+async def _safe_persist_history(
+    ctx: PipelineContext,
+    report: AnalysisReport,
+) -> None:
+    """Best-effort write of a ``ReportSummary`` to the history store.
+
+    Failure is non-fatal — same contract as the audit port. A history
+    outage MUST never abort the pipeline; the operator already has the
+    full report in hand. We log + continue.
+    """
+    if ctx.report_store is None:
+        return
+    try:
+        repo_signature = _repo_signature_for_history(ctx)
+        summary = ReportSummary.from_report(
+            report=report,
+            scan_id=ctx.run_id or new_event_id(),
+            repo_signature=repo_signature,
+            timestamp=datetime.now(UTC),
+            model_versions=_history_model_versions(ctx),
+            prompt_versions=_history_prompt_versions(ctx),
+            spectra_version=ctx.spectra_version,
+        )
+        await ctx.report_store.store(summary)
+    except Exception as exc:
+        _log.warning("Report store write failed (non-fatal): %s: %s", type(exc).__name__, exc)
+
+
+def _repo_signature_for_history(ctx: PipelineContext) -> str:
+    """Reuse the audit signature helper so history + audit + cache agree."""
+    return _repo_signature_for_audit(ctx)
+
+
+def _history_model_versions(ctx: PipelineContext) -> str:
+    """Pull model versions from the cache run-context if bound, else default."""
+    if ctx.cache_versions is not None:
+        return ctx.cache_versions.model_versions
+    return "unknown"
+
+
+def _history_prompt_versions(ctx: PipelineContext) -> str:
+    """Pull prompt versions from the cache run-context if bound, else default."""
+    if ctx.cache_versions is not None:
+        return ctx.cache_versions.prompt_versions
+    return "unknown"
 
 
 # ── Phase 2: repo-level cache short-circuit ───────────────────
