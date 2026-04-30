@@ -24,6 +24,7 @@ It never imports from adapters or infrastructure.
 
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import (
+    CostTrackerPort,
     GitPort,
     LLMGateway,
     ProgressObserver,
@@ -40,6 +41,7 @@ from spectra.use_cases.orchestrate_agents import (
     AnalysisAgent,
     evaluate_results,
     run_specialists,
+    run_specialists_with_budget,
 )
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
@@ -49,6 +51,7 @@ __all__ = [
     # orchestration
     "AnalysisAgent",
     # interfaces (ports)
+    "CostTrackerPort",
     "GitPort",
     "LLMGateway",
     "PipelineContext",
@@ -62,4 +65,5 @@ __all__ = [
     "is_local_path",
     "resolve_agent_configs",
     "run_specialists",
+    "run_specialists_with_budget",
 ]
