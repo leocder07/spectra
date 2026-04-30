@@ -24,6 +24,7 @@ from datetime import datetime  # noqa: TC003 — used by Protocol signatures at 
 from pathlib import Path
 from typing import Protocol
 
+from spectra.entities.audit import AuditEvent
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.models import (
     AnalysisReport,
@@ -385,6 +386,33 @@ class WorkspaceFilterPort(Protocol):
         Returns:
             Paths kept after applying ``.gitignore`` (when honored) and
             ``.spectraignore``. Input order is preserved.
+        """
+        ...
+
+
+class AuditPort(Protocol):
+    """Append-only audit-event sink (ADR-018).
+
+    Implementations route to JSONL files, OTLP collectors, stdout, or
+    cloud-native log services. Every method is best-effort: emit failures
+    must NEVER abort the analysis pipeline. Callers wrap calls with
+    :func:`spectra.use_cases.audit.safe_emit` to enforce that contract.
+    """
+
+    async def emit(self, event: AuditEvent) -> None:
+        """Persist a single audit event.
+
+        Implementations swallow transient I/O errors internally where
+        possible; outright exceptions are caught by ``safe_emit`` so the
+        pipeline keeps running.
+        """
+        ...
+
+    async def flush(self) -> None:
+        """Force any buffered events to the sink.
+
+        Called once at pipeline shutdown. Adapters with no buffer return
+        immediately.
         """
         ...
 
