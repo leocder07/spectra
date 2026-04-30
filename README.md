@@ -237,6 +237,8 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 ## Architecture
 
 > **Full architecture reference:** [`docs/architecture/`](docs/architecture/) — 10 documents + 19 PlantUML diagrams covering the C4 model, domain entities, pipeline flow, agent orchestration, cache subsystem, security model, data flow, plugin extensibility, and the release pipeline. Status table tracks what shipped in v0.6.0 (the Q1 + Q2 capabilities) vs Q3+ designed work. Diagrams render via `plantuml -tsvg docs/architecture/diagrams/*.puml`.
+>
+> **Glossary:** [`docs/glossary.md`](docs/glossary.md) — at-a-glance index for the three numbering schemes that recur in code comments and audit events: roadmap capability numbers (`#1`-`#70`), `SPEC-NNN` error codes, and `ADR-NNN` architecture decisions. All 20 ADRs are now consolidated under `docs/architecture/adr/`.
 
 ### System context
 
