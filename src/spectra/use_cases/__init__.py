@@ -30,7 +30,9 @@ from spectra.use_cases.interfaces import (
     ProgressObserver,
     ReportPort,
     ReportStorePort,
+    Span,
     TokenPort,
+    TracerPort,
     is_local_path,
 )
 from spectra.use_cases.manage_token_budget import (
@@ -45,6 +47,7 @@ from spectra.use_cases.orchestrate_agents import (
     run_specialists_with_budget,
 )
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
+from spectra.use_cases.tracing import NoopTracerAdapter, safe_span
 
 __all__ = [
     # token budget
@@ -55,11 +58,15 @@ __all__ = [
     "CostTrackerPort",
     "GitPort",
     "LLMGateway",
+    # tracing (ADR-023)
+    "NoopTracerAdapter",
     "PipelineContext",
     "ProgressObserver",
     "ReportPort",
     "ReportStorePort",
+    "Span",
     "TokenPort",
+    "TracerPort",
     "allocate_specialist_budgets",
     "analyze_repository",
     "check_budget_remaining",
@@ -68,4 +75,5 @@ __all__ = [
     "resolve_agent_configs",
     "run_specialists",
     "run_specialists_with_budget",
+    "safe_span",
 ]
