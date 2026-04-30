@@ -1,0 +1,1178 @@
+{
+  "disclaimer": {
+    "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
+    "url": "https://github.com/leocder07/spectra#disclaimer"
+  },
+  "repo_url": "https://github.com/simonw/llm",
+  "repo_name": "llm",
+  "score_card": {
+    "overall_score": 77.1,
+    "overall_grade": "B-",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 73.1,
+        "grade": "C+",
+        "findings_count": 11,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 88.9,
+        "grade": "A-",
+        "findings_count": 10,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 69.8,
+        "grade": "C-",
+        "findings_count": 6,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 78.8,
+        "grade": "B-",
+        "findings_count": 11,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 82.3,
+        "grade": "B",
+        "findings_count": 7,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 65.7,
+        "grade": "D+",
+        "findings_count": 12,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 57
+  },
+  "findings": [
+    {
+      "id": "arch-000",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "CLI module is a 4000+ line god file mixing concerns",
+      "description": "llm/cli.py contains the entire CLI surface (prompt, chat, keys, logs, models, templates, schemas, tools, aliases, fragments, plugins, install, embed, embed-multi, similar, embed-models, collections), plus inline SQL constants (LOGS_SQL, ATTACHMENTS_SQL, FRAGMENTS_SQL, TOOLS_SQL), template loading (load_template, _parse_yaml_template, LoadTemplateError), model option storage (get_all_model_options/set_model_option/clear_model_option/get_model_options), tool gathering/approval/debug callbacks, and helper utilities. This violates single-responsibility and makes the CLI layer the largest and most coupled module in the project. Splitting into llm/cli/ subpackage (commands/, sql.py, templates_io.py, model_options.py, tools_runtime.py) would dramatically improve maintainability and testability.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1,
+        "line_end": null
+      },
+      "recommendation": "Convert llm/cli.py into a llm/cli/ package: one module per command group (prompt.py, chat.py, logs.py, models.py, embed.py, templates.py, fragments.py, tools.py, schemas.py, keys.py, aliases.py, plugins.py), an sql.py for query constants, and move load_template / model_options helpers into llm/templates.py and llm/model_options.py respectively. The cli() group itself should be a thin __init__.py that registers subcommand modules.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 24.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-001",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "CLI reaches into private model internals (_BaseConversation, ChainResponse)",
+      "description": "llm/cli.py imports `_BaseConversation` and `ChainResponse` from `llm.models` (a leading-underscore name signals private API) and dereferences `response._responses` on ChainResponse to iterate token usage. This breaks the public/private boundary of the core library and means any refactor of models.py risks silently breaking the CLI. The fact that `_BaseConversation` is leaked through `load_conversation`'s return type annotation makes this a true layering violation rather than a one-off shortcut.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 47,
+        "line_end": 47
+      },
+      "recommendation": "Promote _BaseConversation to a public name (BaseConversation) or expose only Conversation/AsyncConversation in load_conversation's signature. Add a public iterator (e.g. ChainResponse.responses property or __iter__) so the CLI does not need to touch _responses.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-002",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Embeddings module has hidden bidirectional coupling with models via local imports",
+      "description": "llm/embeddings.py uses local `import llm` calls inside Collection.__init__, Collection.model, Collection.embed, Collection.embed_multi_with_metadata, and similar_by_vector to break what would otherwise be a circular import with llm/__init__.py (which itself imports Collection from embeddings). This pattern works but obscures the dependency graph and makes static analysis harder. embeddings.py also depends on llm.encode/decode/cosine_similarity/get_embedding_model \u2014 utilities that arguably belong in a shared embeddings_utils module rather than the package root.",
+      "location": {
+        "file_path": "llm/embeddings.py",
+        "line_start": 39,
+        "line_end": 39
+      },
+      "recommendation": "Extract encode/decode/cosine_similarity into llm/vector_utils.py and get_embedding_model into a small llm/registry.py module. Have both llm/__init__.py and llm/embeddings.py import from those leaf modules so the dependency becomes a DAG and the local-import workaround is no longer needed.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-003",
+      "dimension": "architecture",
+      "severity": "high",
+      "title": "models.py is a 1900+ line module mixing 8 distinct responsibilities",
+      "description": "llm/models.py contains: domain value types (Attachment, Tool, Toolbox, ToolCall, ToolResult, ToolOutput, Usage, Prompt), conversation orchestration (Conversation, AsyncConversation, _BaseConversation), response state machines (Response, AsyncResponse, _BaseResponse with stream-event grouping/part assembly), chain orchestration (ChainResponse, AsyncChainResponse, _chain_for_tool_results), database serialization (log_to_db, from_row, FRAGMENT_SQL), JSON serialization (_response_to_dict, _response_from_dict), abstract model base classes (Model/AsyncModel/KeyModel/AsyncKeyModel/EmbeddingModel), and registry types (ModelWithAliases). Each of these is a legitimate module of its own and the file's size makes navigation, review, and incremental change hard.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 1,
+        "line_end": null
+      },
+      "recommendation": "Split into llm/types.py (Attachment, Usage, Tool*, ToolResult/Output, CancelToolCall), llm/prompt.py (Prompt + _wrap_tools), llm/conversation.py (Conversation/Async + _BaseConversation), llm/response.py (Response/Async + _BaseResponse + stream-event assembly), llm/chain.py (ChainResponse/Async + _chain_for_tool_results), llm/persistence.py (log_to_db, from_row, FRAGMENT_SQL, _response_to_dict, _response_from_dict), and llm/base.py (Model/AsyncModel/KeyModel/AsyncKeyModel/EmbeddingModel). Re-export from llm/__init__.py to preserve API.",
+      "agent_role": "architecture",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 40.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-004",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "Persistence (SQLite log_to_db) hard-coded into core domain class",
+      "description": "_BaseResponse.log_to_db (in llm/models.py) directly executes inserts against sqlite_utils tables (`responses`, `conversations`, `schemas`, `prompt_fragments`, `system_fragments`, `prompt_attachments`, `tool_responses`, `tool_calls`, `tool_results`, `tool_results_attachments`, `tool_instances`). The domain Response class therefore knows the full SQLite schema. This couples the model abstraction to a specific storage backend and makes alternative log stores (Postgres, JSONL, no-op) impossible without subclassing. _BaseResponse.from_row similarly hard-codes the sqlite_utils Database API.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Introduce a ResponseStore protocol (save(response), load(response_id) -> ResponseDict) with a SqliteResponseStore implementation. Move log_to_db / from_row out of _BaseResponse into the store, leaving Response with just to_dict/from_dict for serialization. CLI calls `store.save(response)` instead of `response.log_to_db(db)`.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-005",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Plugin manager singleton mutated from multiple call sites with idempotency flag",
+      "description": "llm/plugins.py exposes a module-level `pm` PluginManager and a `_loaded` boolean guard. load_plugins() is called from llm/__init__.py (every get_models_with_aliases, get_tools, get_embedding_models, get_template_loaders, get_fragment_loaders) and again from llm/cli.py at import time. The singleton + idempotency-flag pattern works but: (1) prevents reloading plugins for tests, (2) makes plugin-load order observable through hidden state, (3) couples every registry function to the side-effect of load_plugins(). The flag is also racy under threaded use.",
+      "location": {
+        "file_path": "llm/plugins.py",
+        "line_start": 18,
+        "line_end": 47
+      },
+      "recommendation": "Wrap pm and _loaded in a PluginRegistry class with explicit load() / reload() methods. Provide a get_plugin_registry() accessor with lru_cache. Tests can then construct a fresh registry rather than reaching into module state. Document that registry mutation is not thread-safe.",
+      "agent_role": "architecture",
+      "confidence": 0.75,
+      "validated_by_critique": true,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-006",
+      "dimension": "architecture",
+      "severity": "low",
+      "title": "Default OpenAI plugin contains 280+ register() calls \u2014 should be data-driven",
+      "description": "llm/default_plugins/openai_models.py has a single 250-line register_models function that calls register(...) for every supported OpenAI model with hand-written boolean flags (vision, reasoning, verbosity, supports_schema, supports_tools, image_detail_original, can_stream, allows_system_prompt). New model families (gpt-5, gpt-5.1, gpt-5.2, gpt-5.4, gpt-5.5) each duplicate the same kwargs block. This is maintenance-heavy and prone to drift between sync and async registration.",
+      "location": {
+        "file_path": "llm/default_plugins/openai_models.py",
+        "line_start": 56,
+        "line_end": 280
+      },
+      "recommendation": "Define a MODELS = [...] table of dicts/dataclasses (model_id, aliases, capabilities) and iterate it once to register both Chat and AsyncChat. Capability presets (REASONING_MODEL_CAPS, GPT5_CAPS) reduce repetition further.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-007",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Hookspec set is small and well-scoped \u2014 positive architectural signal",
+      "description": "llm/hookspecs.py defines exactly 6 hooks (register_commands, register_models, register_embedding_models, register_template_loaders, register_fragment_loaders, register_tools), each with a clear docstring and single responsibility. The plugin contract is therefore narrow and easy to implement, as evidenced by the llm-markov example plugin in docs/. This is a healthy pattern that the rest of the architecture should aspire to.",
+      "location": {
+        "file_path": "llm/hookspecs.py",
+        "line_start": 1,
+        "line_end": 39
+      },
+      "recommendation": "Maintain this discipline as the project grows \u2014 resist adding hooks for one-off use cases. Document the stability guarantee for these 6 hooks in CONTRIBUTING.md.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-009",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Templates module is well-isolated \u2014 positive architectural signal",
+      "description": "llm/templates.py is 90 lines, has a single Pydantic model (Template) with extra='forbid', a small AttachmentType helper, and pure functions for evaluate/vars/interpolate/extract_vars. It has no dependencies on cli, models, or plugins \u2014 only stdlib + pydantic. This is exactly the kind of leaf module the rest of the codebase should look like, and it makes Template trivially testable.",
+      "location": {
+        "file_path": "llm/templates.py",
+        "line_start": 1,
+        "line_end": 90
+      },
+      "recommendation": "No changes needed. Use as the reference shape when extracting modules out of cli.py and models.py.",
+      "agent_role": "architecture",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-010",
+      "dimension": "architecture",
+      "severity": "info",
+      "title": "Serialization layer (TypedDicts + ResponseDict) provides clean wire-format boundary",
+      "description": "llm/serialization.py defines a complete TypedDict surface (PartDict union, MessageDict, PromptDict, UsageDict, ResponseDict, AttachmentDict) used by Response.to_dict / from_dict. This gives the project a typed, language-agnostic JSON wire format and a clear seam between in-memory dataclasses (Part, Message, Response) and persistence. The discriminated union on the `type` field is correctly modelled with Literal[...] for type-narrowing.",
+      "location": {
+        "file_path": "llm/serialization.py",
+        "line_start": 1,
+        "line_end": 200
+      },
+      "recommendation": "Add a TypeAdapter-based runtime validator (pydantic) for ResponseDict so external callers ingesting JSON can fail fast on malformed payloads. Consider exporting JSON Schema in the docs build.",
+      "agent_role": "architecture",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "arch-011",
+      "dimension": "architecture",
+      "severity": "medium",
+      "title": "CLI commands directly call sqlite_utils \u2014 no repository/service layer",
+      "description": "Most CLI subcommands (logs_list, schemas_list, fragments_list, fragments_set, fragments_remove, embed, embed_multi, similar, collections_*) construct sqlite_utils.Database(...) inline and execute hand-rolled SQL or query() calls. There is no intermediate service/repository layer between Click commands and SQLite. This means: (1) command handlers are hard to unit-test without a real DB file, (2) SQL is duplicated (e.g. logs queries built up via sql_format dict), (3) any future migration to a different store requires touching every command. The 100-line LOGS_SQL/TOOLS_SQL constants embedded in cli.py compound the issue.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Introduce llm/store/ with LogStore, FragmentStore, SchemaStore, EmbeddingStore classes wrapping the sqlite_utils calls. CLI commands receive a store instance (constructed once in cli() or per-command). SQL constants move into the store module. Tests can then inject in-memory stores.",
+      "agent_role": "architecture",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-000",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Arbitrary Python code execution via --functions flag",
+      "description": "The `_tools_from_code` function uses `exec()` to execute arbitrary Python code passed via the `--functions` CLI flag or read from a file path. While this is a documented and intended feature for users to define custom tools, it represents an arbitrary code execution sink that has no sandboxing. CWE-94: Improper Control of Generation of Code ('Code Injection'). The risk is mitigated by the fact that this is local CLI tooling where the user is the trust boundary, and templates loaded from disk set `_functions_is_trusted = True` only when loaded from the filesystem (not from URLs/plugins). However, templates loaded via `load_template` from HTTPS URLs do NOT set `_functions_is_trusted`, which is a correct mitigation \u2014 but worth verifying that downstream code respects this flag (it does in cli.py prompt() and chat()).",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 2497,
+        "line_end": 2516
+      },
+      "recommendation": "Current mitigation (the `_functions_is_trusted` flag preventing remote-loaded template functions from executing) is correct. Consider adding an explicit warning when --functions is used, and document the trust boundary clearly. Optionally restrict the `exec` namespace builtins to limit accidental damage.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-001",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "Remote template loading executes YAML-defined tool/function specs without confirmation",
+      "description": "`load_template` accepts http:// and https:// URLs and parses returned YAML into a Template. While `_functions_is_trusted` is correctly NOT set for remote templates (preventing inline Python `functions:` execution), remote templates can still specify `tools:` (registered plugin tools) which will be invoked automatically during prompt execution. A malicious remote template could combine destructive registered tools with crafted prompts to achieve unintended actions on the user's machine. CWE-829: Inclusion of Functionality from Untrusted Control Sphere.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 2388,
+        "line_end": 2396
+      },
+      "recommendation": "Consider prompting for user confirmation before executing a remote template, or display the template contents and require explicit acceptance. At minimum, document the risks of `-t https://...` clearly. Apply timeouts and size limits to httpx.get to prevent DoS via large responses.",
+      "agent_role": "security",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-002",
+      "dimension": "security",
+      "severity": "medium",
+      "title": "HTTP fragment fetcher lacks SSRF protection and timeouts",
+      "description": "`resolve_fragments` fetches arbitrary URLs from user input without validating that the URL targets an external (non-internal) host. There is no timeout configured on the httpx.Client, no maximum response size limit, and no protection against internal addresses (127.0.0.1, 169.254.169.254 metadata service, RFC1918 ranges). When a fragment URL comes from a remote template or untrusted prompt input, this enables SSRF. CWE-918: Server-Side Request Forgery (SSRF). Similarly, `resolve_attachment` calls `httpx.head(value)` and `Attachment.content_bytes` calls `httpx.get` without these protections.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 148,
+        "line_end": 156
+      },
+      "recommendation": "Add explicit timeouts (e.g. timeout=30.0) on all httpx clients. Add a max-response-size limit. Consider blocking fetches to private/loopback/link-local addresses by resolving the hostname and rejecting RFC1918/127.0.0.0/8/169.254.0.0/16 ranges before issuing the request. Reuse existing helpers across resolve_fragments, resolve_attachment, Attachment.content_bytes, and load_template.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-003",
+      "dimension": "security",
+      "severity": "low",
+      "title": "API keys stored in plaintext JSON file",
+      "description": "API keys are stored in `~/.config/io.datasette.llm/keys.json` as plaintext JSON. The file is created with chmod 0o600 (owner read/write only) which is the correct Unix mitigation, but on subsequent writes via `keys_set` the chmod is not re-applied, and on Windows there is no equivalent ACL hardening. CWE-312: Cleartext Storage of Sensitive Information. The 0o600 permission and 'Do not share!' note are reasonable mitigations for a local CLI tool, but cleartext storage means any process running as the user can read all keys.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1410,
+        "line_end": 1423
+      },
+      "recommendation": "Re-apply path.chmod(0o600) on every write in keys_set to ensure permissions persist if the file is recreated. On Windows, document that users should rely on user-profile ACLs. Consider integrating with platform secret stores (macOS Keychain, Windows Credential Manager, Linux Secret Service) as an opt-in alternative.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-004",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Plugin code loaded and executed from setuptools entrypoints without verification",
+      "description": "`load_plugins()` calls `pm.load_setuptools_entrypoints('llm')` which loads and executes any package in the user's Python environment that registers an `llm` entry point. The `llm install`/`llm uninstall` commands wrap pip and execute it with arbitrary user-supplied package names. CWE-829: Inclusion of Functionality from Untrusted Control Sphere. This is the standard plugin model for Python CLI tools and is well-documented behavior, but it means `llm install <pkg>` from an untrusted source results in arbitrary code execution on the next `llm` invocation. The user is the trust boundary.",
+      "location": {
+        "file_path": "llm/plugins.py",
+        "line_start": 22,
+        "line_end": 50
+      },
+      "recommendation": "This is by design for a plugin system. Document clearly in the README/security notes that `llm install` executes arbitrary code from the named package, and recommend installing only plugins from trusted sources. Consider supporting a plugin allowlist for security-conscious deployments.",
+      "agent_role": "security",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-005",
+      "dimension": "security",
+      "severity": "low",
+      "title": "No timeout on httpx HEAD/GET in attachment resolution and template fetch",
+      "description": "`resolve_attachment` issues `httpx.head(value)` without a timeout; `load_template` issues `httpx.get(name)` without a timeout; `Attachment.resolve_type` and `Attachment.content_bytes` (in models.py) also issue httpx requests without timeouts. A slow or hung remote server can hang the CLI indefinitely. CWE-1088: Synchronous Access of Remote Resource without Timeout.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 245,
+        "line_end": 245
+      },
+      "recommendation": "Add a default timeout to all outbound httpx calls (e.g. timeout=30.0). Consolidate HTTP clients into a helper that applies timeouts, redirect limits, and size caps consistently.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-006",
+      "dimension": "security",
+      "severity": "info",
+      "title": "Tool execution is not sandboxed",
+      "description": "Tool implementations registered via plugins or --functions execute with the full privileges of the LLM CLI user. There is no sandboxing of arguments coming from the model. The `--tools-approve` flag (manual approval per call) is the active mitigation and is appropriate for a CLI tool where the user is the trust boundary. CWE-693: Protection Mechanism Failure (informational \u2014 no protection mechanism is expected at this layer for a CLI). Worth noting that an LLM with access to filesystem-modifying tools and no --ta flag can be prompt-injected via fragment content (e.g. a malicious URL fetched as a fragment) into invoking destructive operations.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 717,
+        "line_end": 730
+      },
+      "recommendation": "Document prompt-injection risk when combining tools with web/HTTP fragments. Consider making --tools-approve default to on when any HTTP fragment is in use. The current --ta opt-in is a reasonable mitigation; this finding is informational.",
+      "agent_role": "security",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-007",
+      "dimension": "security",
+      "severity": "info",
+      "title": "SQL queries in migrations and CLI use parameterized queries \u2014 no SQL injection",
+      "description": "Reviewed migrations and CLI SQL paths: all user-supplied values are bound via `:name` named parameters or `?` positional parameters through sqlite_utils. The dynamic SQL fragments (e.g. LOGS_SQL `extra_where` composition, `where_bits` joining, FRAGMENTS_SQL `placeholders` expansion) only concatenate trusted hardcoded clauses or `?` placeholders \u2014 never user input. Schema/table/column names are hardcoded. No SQL injection risk identified. This finding documents the positive control. CWE-89 mitigated.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1660,
+        "line_end": 1740
+      },
+      "recommendation": "No action required. Continue using parameterized queries. If new dynamic SQL is added, ensure column/table identifiers come from hardcoded allowlists.",
+      "agent_role": "security",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-008",
+      "dimension": "security",
+      "severity": "info",
+      "title": "YAML deserialization uses safe_load \u2014 no arbitrary object instantiation",
+      "description": "Template parsing uses `yaml.safe_load()` which restricts the YAML graph to basic Python types (no `!!python/object` constructors). This correctly mitigates CWE-502: Deserialization of Untrusted Data for the YAML path. Templates loaded from URLs cannot trigger arbitrary code execution via YAML.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 2370,
+        "line_end": 2385
+      },
+      "recommendation": "No action required. Continue using yaml.safe_load. Do not switch to yaml.load without an explicit safe Loader.",
+      "agent_role": "security",
+      "confidence": 0.98,
+      "validated_by_critique": false,
+      "estimated_hours": 0.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "sec-009",
+      "dimension": "security",
+      "severity": "low",
+      "title": "Path traversal possible via Fragment file path resolution",
+      "description": "`resolve_fragments` accepts arbitrary file paths and reads them via `pathlib.Path(fragment).read_text()`. Combined with templates from remote sources, a malicious template could specify `fragments: ['/etc/passwd']` or similar to exfiltrate file contents through the prompt sent to a remote LLM. CWE-22: Path Traversal. The user is the actor invoking the CLI so this is a self-inflicted risk, but in combination with a remote template (load_template via HTTPS) it becomes a privilege boundary crossing.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 178,
+        "line_end": 188
+      },
+      "recommendation": "When a Template was loaded from an http(s):// URL, set a flag (similar to `_functions_is_trusted`) that disables filesystem fragment resolution from that template's `fragments:` list. Or, prompt for confirmation before reading filesystem paths specified by remote templates.",
+      "agent_role": "security",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-000",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "prompt() function in cli.py is excessively long with very high cyclomatic complexity",
+      "description": "The prompt() command function spans approximately 350 lines (~line 311 to 660) with deeply nested conditional logic handling save mode, template loading, fragment resolution, attachment processing, conversation loading, options validation, async/sync execution branches, and error handling. Cyclomatic complexity is well above 30. This makes the function extremely hard to test, modify safely, and reason about. Bugs in one branch are hard to isolate.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 311,
+        "line_end": 660
+      },
+      "recommendation": "Decompose into focused helpers: _save_template_from_prompt(), _apply_template(), _resolve_model_and_conversation(), _execute_async_prompt(), _execute_sync_prompt(), _log_response(). Target functions of <=50 lines each with cyclomatic complexity <=10.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-001",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "logs_list() command function exceeds 400 lines with 30+ parameters",
+      "description": "The logs_list function (around line 1000-1450) has over 30 click-option parameters and 400+ lines of body code mixing SQL construction, JSON serialization, three different output formats (JSON, extract, markdown short, markdown full), and complex conditional rendering. The repeated SQL string interpolation and large embedded SQL templates further harm readability. This is a classic god-function.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1000,
+        "line_end": 1450
+      },
+      "recommendation": "Extract: _build_logs_query(), _fetch_attachments_and_fragments(), _output_logs_json(), _output_logs_short(), _output_logs_markdown(), _render_log_row_markdown(). Move large SQL templates to module-level constants (already done for some) and unify their use.",
+      "agent_role": "quality",
+      "confidence": 0.95,
+      "validated_by_critique": false,
+      "estimated_hours": 20.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-002",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Significant duplication between Chat.execute and AsyncChat.execute in openai_models.py",
+      "description": "The streaming and non-streaming logic in Chat.execute and AsyncChat.execute is nearly identical (~100 lines each), differing only by sync vs async iteration. Maintenance requires changes in two places, risking divergence (e.g., chunk handling, tool call accumulation, usage extraction). Similar duplication exists between display_stream_events and display_async_stream_events in cli.py.",
+      "location": {
+        "file_path": "llm/default_plugins/openai_models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Factor common chunk-processing into a sync/async-agnostic helper class or use generic processors. Alternatively, share a tool_call accumulator and finish_processing helper, leaving only the iteration shape unique. For display_stream_events, share the body via a generic event processor.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-003",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Bare/broad exception handling in prompt() command swallows errors",
+      "description": "The prompt command catches `except Exception as ex:` and re-raises as ClickException unless a test sentinel is set. This blanket catch combined with `warnings.simplefilter(\"ignore\", ResourceWarning)` at module level masks real issues. The test sentinel `sys._called_from_test` is fragile and couples library code to test infrastructure.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 78,
+        "line_end": 80
+      },
+      "recommendation": "Replace global ResourceWarning suppression with targeted suppression at the call sites that need it. Replace `sys._called_from_test` with an explicit env var or click context flag. Narrow the exception catch to specific provider exceptions where possible.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-004",
+      "dimension": "quality",
+      "severity": "medium",
+      "title": "Duplicate option-validation block in prompt vs chat commands",
+      "description": "Both prompt() and chat() commands re-implement model option validation with identical logic (validating via pydantic, building validated_options dict, merging defaults). The fragment/attachment resolution boilerplate is also repeated. This duplication invites drift; e.g., chat() does not merge `default_options` from get_model_options() the same way prompt() does.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract _validate_and_merge_options(model, options) and _resolve_prompt_inputs(db, fragments, system_fragments, attachments, attachment_types) helpers used by both commands.",
+      "agent_role": "quality",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "qual-005",
+      "dimension": "quality",
+      "severity": "high",
+      "title": "_BaseResponse class has grown to over 700 lines with mixed responsibilities",
+      "description": "_BaseResponse in llm/models.py mixes streaming event normalization, part-index allocation, message assembly, DB serialization (log_to_db is ~150 lines), tool execution, dict serialization, rehydration, and usage tracking. The class exceeds 700 lines and has high coupling to multiple subsystems. log_to_db alone has cyclomatic complexity >15 due to nested loops and conditionals around tool/attachment persistence.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Extract a separate ResponseSerializer/ResponseLogger class for log_to_db logic, and a StreamEventBuffer class for _process_chunk/_resolve_part_index/_build_parts. This separates persistence and streaming concerns from the response value object.",
+      "agent_role": "quality",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 16.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-000",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Public CLI helper functions in llm/cli.py lack docstrings",
+      "description": "Many module-level functions in llm/cli.py that implement core CLI behavior have no docstrings \u2014 including resolve_attachment_with_type, attachment_types_callback, json_validator, schema_option, load_conversation, render_errors, get_history, _human_readable_size, logs_on, get_all_model_options, set_model_option, clear_model_option, _parse_yaml_template, load_template, _tools_from_code, _gather_tools, and _get_conversation_tools. Some, like load_template and _gather_tools, have non-trivial behavior (URL fetching, plugin prefix dispatch, instantiation from spec, exec of Python code) that benefits from explicit documentation of inputs, outputs, and exceptions raised.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 230,
+        "line_end": 3000
+      },
+      "recommendation": "Add concise docstrings (Google or NumPy style) to each of these functions describing parameters, return values, and any exceptions raised. Prioritize load_template, _tools_from_code, _gather_tools, load_conversation, and resolve_attachment_with_type since these are the most likely to be called by plugin authors or third-party tooling.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-002",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Tool authoring and Toolbox lifecycle documentation incomplete",
+      "description": "Toolbox in llm/models.py is a substantial public API with non-obvious behavior: __init_subclass__ wraps __init__ to track _config for serialization, prepare()/prepare_async() are called at most once per Toolbox instance (gated by _prepared / _async_prepared), method_tools() exposes every public callable as 'ClassName_methodname', and add_tool(pass_self=True) binds methods to the instance. The class docstring is missing entirely and individual method docstrings are terse. Without prose docs explaining the lifecycle, naming convention, instance_id persistence, and the difference between sync and async prepare hooks, plugin authors cannot reliably build Toolboxes.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 215,
+        "line_end": 305
+      },
+      "recommendation": "Add a comprehensive class docstring to Toolbox describing the lifecycle (init \u2192 prepare \u2192 tool calls), the auto-naming pattern, _config tracking, prepare vs prepare_async semantics, and how add_tool() integrates extras. In docs/tools.md, add a 'Writing a Toolbox plugin' section walking through a complete example. Document that method names starting with underscore or in _blocked are excluded.",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": true,
+      "estimated_hours": 5.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-003",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "StreamEvent part_index auto-allocation rules undocumented for plugin authors",
+      "description": "llm/models.py contains intricate logic in _resolve_part_index and _build_parts that determines how plugin-yielded StreamEvents become Parts: same-family text/reasoning events concatenate, tool-call events group by tool_call_id, tool_result always starts a fresh part, and mixing families at the same part_index raises ValueError. Plugin authors writing custom Model.execute() implementations must understand these rules to emit correct streams, but the rules live only in implementation comments. The StreamEvent dataclass docstring (llm/parts.py) describes part_index but does not enumerate the failure modes (e.g. 'tool_call_args without prior tool_call_name and no tool_call_id starts a new part').",
+      "location": {
+        "file_path": "llm/parts.py",
+        "line_start": 256,
+        "line_end": 295
+      },
+      "recommendation": "Add a dedicated section in docs/plugins/plugin-hooks.md (or a new docs/plugins/streaming.md) titled 'Emitting StreamEvents from a custom model' that documents: (1) the five event types, (2) automatic part_index allocation rules with examples, (3) when to set part_index explicitly, (4) the same-family-per-part invariant and the ValueError it raises, (5) provider_metadata merge semantics (last non-None wins per key), and (6) the redacted reasoning hoisting behavior.",
+      "agent_role": "documentation",
+      "confidence": 0.9,
+      "validated_by_critique": true,
+      "estimated_hours": 5.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-004",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Python API reference does not document AsyncResponse, ChainResponse, or StreamEvent",
+      "description": "docs/python-api.md is referenced as the Python API surface, but the codebase exposes a rich async API (AsyncModel, AsyncKeyModel, AsyncConversation, AsyncResponse, AsyncChainResponse) plus chain-of-thought primitives (ChainResponse, StreamEvent, ToolCall, ToolResult, ToolOutput, CancelToolCall) that all need reference docs. The new to_dict()/from_dict() serialization API on Response and AsyncResponse is also a public surface (see llm/serialization.py with thorough TypedDict docs) but needs a usage example showing round-trip persistence and reply().",
+      "location": {
+        "file_path": "docs/python-api.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add reference sections in docs/python-api.md for: (1) async usage with get_async_model() and await response patterns, (2) Response.reply() and the auto-execute-tool-calls behavior, (3) Response.to_dict()/from_dict() with a JSON-persistence example, (4) ChainResponse.responses() iteration and chain_limit semantics, (5) before_call/after_call callbacks and CancelToolCall, (6) StreamEvent stream_events()/astream_events() consumption.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-005",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Embeddings documentation does not cover Collection programmatic API",
+      "description": "llm/embeddings.py defines Collection with a rich public API: embed(), embed_multi(), embed_multi_with_metadata(), similar(), similar_by_id(), similar_by_vector(), count(), delete(), exists(), and the content_hash() override hook. Methods have docstrings but the user-facing docs/embeddings/index.md is the entry point that needs to surface this API. Notably, the dedup-by-content-hash behavior, the store= flag's interaction with bytes vs str (content vs content_blob), and the prefix= filter on similar_*() are non-obvious behaviors that users need to discover.",
+      "location": {
+        "file_path": "docs/embeddings/index.md",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Expand docs/embeddings/index.md (or add docs/embeddings/python-api.md) with: (1) Collection constructor signature including create=False and DoesNotExist, (2) embed() / embed_multi() / embed_multi_with_metadata() with the dedup-by-hash explanation, (3) the store= flag semantics for str vs bytes, (4) similar_*() methods with prefix= and skip_id= examples, (5) overriding content_hash() for custom dedup. Cross-link to the CLI commands embed, embed-multi, similar.",
+      "agent_role": "documentation",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-006",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "Default model options persistence (model_options.json) is undocumented",
+      "description": "llm/cli.py adds an `llm models options` command group (list/show/set/clear) backed by ~/.config/io.datasette.llm/model_options.json via get_model_options/set_model_option/clear_model_option. This is a user-facing feature that interacts with -o on the prompt command (defaults are merged in), but there is no evidence in the documentation files (setup.md, index.md) describing its existence, the file location, or the precedence rules (default options merged with explicit -o, with -o winning).",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1620,
+        "line_end": 1740
+      },
+      "recommendation": "Add a section to docs/setup.md or docs/usage.md titled 'Setting default model options' that documents the four subcommands, the model_options.json location (under user_dir()), the precedence rules (validated_options merge with default_options, explicit -o wins), and that values are validated against the model's pydantic Options schema at set time but stored as strings in JSON.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-007",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Fragment loaders and template loaders plugin hooks lack examples in CLI help",
+      "description": "The `llm fragments loaders` and `llm templates loaders` commands fall back to printing 'Undocumented' when a plugin's loader function lacks a __doc__. This is a documentation contract for plugin authors \u2014 write a docstring on your loader callable and it will be surfaced \u2014 but this convention is not stated in the plugin hooks documentation. Plugin authors writing register_fragment_loaders / register_template_loaders implementations may not realize their loader's docstring is the user-visible help text.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1845,
+        "line_end": 1875
+      },
+      "recommendation": "Document in docs/plugins/plugin-hooks.md (sections for register_fragment_loaders and register_template_loaders) that the loader callable's docstring becomes the user-visible help text shown by `llm fragments loaders` / `llm templates loaders`. Recommend a 1-line summary followed by argument format examples.",
+      "agent_role": "documentation",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-008",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "LLM_RAISE_ERRORS and LLM_LOAD_PLUGINS environment variables undocumented",
+      "description": "llm/cli.py checks os.environ.get('LLM_RAISE_ERRORS') to decide whether to raise unexpected exceptions for debugging, llm/plugins.py reads LLM_LOAD_PLUGINS to selectively load specific plugin packages by name (used for test isolation), and llm/default_plugins/openai_models.py reads LLM_OPENAI_SHOW_RESPONSES to enable httpx logging. These are useful debugging knobs but are not surfaced in the user-facing documentation files (setup.md, contributing.md).",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 850,
+        "line_end": 860
+      },
+      "recommendation": "Add an 'Environment variables' table to docs/setup.md or docs/contributing.md listing LLM_USER_PATH, LLM_MODEL, LLM_EMBEDDING_MODEL, LLM_EMBEDDINGS_DB, LLM_TOOLS_DEBUG, LLM_RAISE_ERRORS, LLM_LOAD_PLUGINS, and LLM_OPENAI_SHOW_RESPONSES with one-line descriptions of each.",
+      "agent_role": "documentation",
+      "confidence": 0.88,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-009",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "llm-markov example plugin lacks README or inline narrative",
+      "description": "docs/plugins/llm-markov/ contains pyproject.toml and llm_markov.py and is referenced from the plugin authoring docs as a reference example, but the example code itself has no docstrings on Markov, build_markov_table, or generate, and no README walking a reader through what each piece does. For a tutorial example whose primary purpose is to teach plugin authors, the lack of inline explanation is a missed opportunity.",
+      "location": {
+        "file_path": "docs/plugins/llm-markov/llm_markov.py",
+        "line_start": 1,
+        "line_end": 60
+      },
+      "recommendation": "Add a module docstring to llm_markov.py explaining the example's purpose, brief docstrings to Markov, build_markov_table, and generate, and consider adding a README.md in docs/plugins/llm-markov/ that explains the entry-point declaration, the @llm.hookimpl decorator, the Options inner class with field validators, and the execute() generator contract.",
+      "agent_role": "documentation",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-010",
+      "dimension": "documentation",
+      "severity": "low",
+      "title": "Migrations module lacks documentation of schema evolution",
+      "description": "llm/migrations.py declares 22 migrations that progressively build the logs.db schema (conversations, responses, attachments, fragments, tools, tool_calls, tool_results, schemas, etc.). Each migration function has no docstring explaining intent. The schema is queried by the `llm logs list` command via large hand-written SQL strings (LOGS_SQL, FRAGMENTS_SQL, TOOLS_SQL, ATTACHMENTS_SQL in cli.py) \u2014 a contributor wanting to add a column or query needs to read all 22 migrations to understand the current shape.",
+      "location": {
+        "file_path": "llm/migrations.py",
+        "line_start": 1,
+        "line_end": 350
+      },
+      "recommendation": "Add a module-level docstring summarizing the database schema and the migration discipline. Add 1-line docstrings to each migration function describing the intent (e.g. 'Add resolved_model column to track gemini-1.5-flash-latest aliasing'). Consider an ADR or schema diagram in docs/contributing.md for the logs.db structure.",
+      "agent_role": "documentation",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "doc-011",
+      "dimension": "documentation",
+      "severity": "medium",
+      "title": "extra-openai-models.yaml configuration format undocumented in code",
+      "description": "llm/default_plugins/openai_models.py reads ~/.config/io.datasette.llm/extra-openai-models.yaml to register additional OpenAI-compatible models (e.g. local llama.cpp or self-hosted endpoints). The supported keys are non-trivial: model_id, aliases, model_name, api_base, api_type, api_version, api_engine, headers, reasoning, can_stream, supports_schema, supports_tools, vision, audio, completion, api_key_name. None of this is captured as a docstring, schema, or comment in the source \u2014 users must reverse-engineer the loader to know what is supported.",
+      "location": {
+        "file_path": "llm/default_plugins/openai_models.py",
+        "line_start": 230,
+        "line_end": 290
+      },
+      "recommendation": "Add a module-level docstring or a dedicated section comment listing every supported extra-openai-models.yaml key with type and default. Cross-link from docs/setup.md (or wherever extra OpenAI-compatible models are discussed) and consider validating the structure with a pydantic model that doubles as inline documentation.",
+      "agent_role": "documentation",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-000",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Core runtime dependencies are entirely unpinned (no lower bounds on critical packages)",
+      "description": "Several core runtime dependencies in pyproject.toml have no version constraints at all: 'click', 'PyYAML', 'pluggy', 'python-ulid', 'setuptools', 'pip', 'pyreadline3', and 'puremagic'. Without minimum version pins, downstream installs can resolve to ancient, possibly vulnerable versions, or to brand-new majors that introduce breaking API changes (e.g. click 8.x\u21929.x, pluggy 1.x\u21922.x). The project actually depends on click features that warrant a floor (DefaultGroup compatibility, click<8.2.0 is pinned in dev but not in runtime), creating a dev/runtime mismatch.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 22,
+        "line_end": 36
+      },
+      "recommendation": "Add explicit lower-bound version constraints for all runtime dependencies, e.g. 'click>=8.0,<9', 'PyYAML>=6.0', 'pluggy>=1.0', 'python-ulid>=1.1', 'puremagic>=1.15'. Avoid depending on bare 'setuptools' and 'pip' as runtime deps unless absolutely necessary \u2014 these should generally only be in build/dev dependencies.",
+      "agent_role": "dependency",
+      "confidence": 0.95,
+      "validated_by_critique": true,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-001",
+      "dimension": "maintainability",
+      "severity": "high",
+      "title": "Dev/runtime version mismatch on click introduces install-time conflicts",
+      "description": "Runtime dependency lists 'click' with no upper bound, but the dev group pins 'click<8.2.0' explicitly with a comment referencing issue #1024. This indicates a known incompatibility with click 8.2.0+, but production users installing 'llm' will receive click 8.2+ and hit the same bug. The constraint must be reflected in the runtime dependency list, not just the dev group.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 23,
+        "line_end": 41
+      },
+      "recommendation": "Move the click upper bound to the runtime dependencies: replace 'click' with 'click>=8.0,<8.2.0' (or whatever version actually works), and remove the duplicate from the dev group. Then track the upstream issue and bump when fixed.",
+      "agent_role": "dependency",
+      "confidence": 0.97,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-003",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "No lock file present for reproducible builds",
+      "description": "The repository declares dependencies in pyproject.toml with the [dependency-groups] dev list but does not appear to include a lock file (uv.lock, requirements.lock, poetry.lock, pip-compile output). For a CLI tool published to PyPI, library-style flexible pinning is appropriate, but contributors and CI cannot reproduce a known-good environment. This makes 'works on my machine' issues harder to debug and CVE remediation slower.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Generate and commit a lock file for development/CI reproducibility \u2014 e.g. 'uv lock' (uv.lock) or 'pip-compile' (requirements-dev.txt). Use this lock file in CI workflows (.github/workflows/test.yml). Keep flexible pins in pyproject.toml [project.dependencies] for downstream library consumers.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-004",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "docs/requirements.txt referenced but contents unknown \u2014 likely duplicates dev deps",
+      "description": "The plan references docs/requirements.txt but its contents are not visible in the provided code. The dev dependency group already lists doc tooling (sphinx==7.2.6, furo==2023.9.10, sphinx-autobuild, sphinx-copybutton, sphinx-markdown-builder==0.6.8, myst-parser). Maintaining two sources of truth for docs deps risks drift. sphinx 7.2.6 (released Aug 2023) is also significantly behind current sphinx 8.x.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 56,
+        "line_end": 62
+      },
+      "recommendation": "Consolidate docs dependencies into a single source \u2014 either move them entirely to pyproject.toml [dependency-groups.docs] and have ReadTheDocs install via 'pip install .[docs]' or uv equivalent, or remove them from dev/. Also consider upgrading sphinx to 8.x and furo to a current release (2024.x).",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 1.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-006",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "Unpinned doc tooling \u2014 sphinx-autobuild, sphinx-copybutton, myst-parser have no version constraints",
+      "description": "Inside the dev group, three doc tools (sphinx-autobuild, sphinx-copybutton, myst-parser) and several test/lint tools (build, pytest, numpy, cogapp, ruff, syrupy, types-click, types-PyYAML, types-setuptools) are unpinned, while sphinx==7.2.6, furo==2023.9.10, sphinx-markdown-builder==0.6.8, and llm-echo==0.3a3 are exact-pinned. This is an inconsistent strategy \u2014 exact pins for some doc tools but unpinned for others creates resolver instability and mismatched upgrades.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 39,
+        "line_end": 63
+      },
+      "recommendation": "Adopt a consistent strategy: either lower-bound all dev tools (e.g. 'sphinx-autobuild>=2024.4', 'myst-parser>=2.0', 'pytest>=8.0', 'ruff>=0.5') or move all exact pins to a lock file. Avoid mixing '==' and bare names in the same group.",
+      "agent_role": "dependency",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-007",
+      "dimension": "maintainability",
+      "severity": "low",
+      "title": "openai>=2.32.0 minimum-only constraint allows future major bumps",
+      "description": "openai client is pinned with a minimum 'openai>=2.32.0' but no upper bound. The OpenAI SDK has historically introduced breaking changes between majors (the 0.x\u21921.x rewrite was a major refactor). Without an upper bound, a future openai 3.x release could silently break llm installs.",
+      "location": {
+        "file_path": "pyproject.toml",
+        "line_start": 25,
+        "line_end": 25
+      },
+      "recommendation": "Add an upper bound: 'openai>=2.32.0,<3'. Same applies to other libraries with strong API stability boundaries (sqlite-utils, pydantic). Note pydantic>=2.0.0 already correctly excludes pydantic 1.x but should also bound pydantic<3 for the same reason.",
+      "agent_role": "dependency",
+      "confidence": 0.8,
+      "validated_by_critique": false,
+      "estimated_hours": 0.5,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "dep-008",
+      "dimension": "maintainability",
+      "severity": "medium",
+      "title": "Plugin install path executes arbitrary PyPI code without verification",
+      "description": "llm/cli.py 'install' command runs 'pip install <packages>' via runpy with no integrity verification, no allowlist, and no warning about supply-chain risk. Plugin packages can contain arbitrary Python that runs at import time (register_models hook auto-runs on next CLI invocation via load_plugins). A malicious or typosquatted plugin (e.g. 'llm-anthropc' instead of 'llm-anthropic') could exfiltrate API keys from user_dir()/keys.json. Combined with bundling pip as a runtime dep, this elevates the supply-chain blast radius.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 0,
+        "line_end": null
+      },
+      "recommendation": "Add a confirmation prompt for 'llm install' showing the exact package(s) being installed and where they will source from. Consider supporting --require-hashes for reproducible plugin installs. Document the plugin trust model prominently. Long-term, consider a curated plugin registry or signature verification.",
+      "agent_role": "dependency",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-000",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Synchronous httpx client created per-fragment URL fetch in CLI",
+      "description": "resolve_fragments() instantiates a new httpx.Client for every URL fragment. Each Client allocates a new connection pool that is never explicitly closed (relies on GC), preventing connection reuse across multiple URL fragments in the same prompt. With N URL fragments this is N TCP/TLS handshakes that could be amortized.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 152,
+        "line_end": 160
+      },
+      "recommendation": "Hoist a single httpx.Client outside the loop (or use httpx.get with a shared transport). Use a context manager to ensure connections close. For attachments, resolve_attachment() also calls httpx.head/httpx.get without reuse \u2014 same fix applies.",
+      "agent_role": "performance",
+      "confidence": 0.9,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-001",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Per-row sqlite_utils inserts in log_to_db cause many round-trips",
+      "description": "Response.log_to_db() performs many separate db['table'].insert() calls for fragments, attachments, tool_responses, tool_calls, tool_results, and tool_results_attachments. Each insert is a separate SQL statement and (without an outer transaction) implicitly auto-commits. For a response with K fragments, M tool calls, and L tool results with attachments, this is O(K+M+L) round-trips with corresponding fsync overhead. A response with 10 tool calls + 10 results can easily produce 30+ individual writes.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 1167,
+        "line_end": 1310
+      },
+      "recommendation": "Wrap the entire log_to_db body in a single `with db.conn:` transaction (BEGIN/COMMIT) and use insert_all() for the fragment/attachment/tool_call/tool_result loops. This collapses many fsyncs into one and reduces SQLite write overhead by an order of magnitude on chatty responses.",
+      "agent_role": "performance",
+      "confidence": 0.92,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-002",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Stream event buffer grows unboundedly for long responses",
+      "description": "_BaseResponse stores every StreamEvent in self._stream_events AND every text chunk in self._chunks for the lifetime of the Response object. For long streaming responses (e.g. a 100k-token completion), this doubles memory use: chunks are kept once as raw strings and again as wrapped StreamEvent objects. _build_parts() then groups all events into Part objects, holding a third copy briefly. There is no streaming finalization path \u2014 _stream_events grows monotonically.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 753,
+        "line_end": 770
+      },
+      "recommendation": "Either (a) finalize parts incrementally and drop the per-event buffer when a part closes, or (b) document that response objects retain full stream history and recommend explicit disposal. At minimum, avoid keeping both _chunks and _stream_events for text \u2014 derive _chunks lazily from _stream_events when needed.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-003",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "asyncio.run() called inside synchronous tool execution per coroutine",
+      "description": "Response.execute_tool_calls() (sync path) calls asyncio.run(tool.implementation(...)) for each async tool. asyncio.run() creates and tears down a new event loop per call. With N async tools called sequentially, this is N event-loop creation/teardown cycles plus serial execution \u2014 no concurrency benefit. For chains with parallel tool calls this defeats parallelism entirely.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 1591,
+        "line_end": 1593
+      },
+      "recommendation": "If the tool is async and the response is sync, either (a) batch-collect async tools and run them concurrently via asyncio.run(asyncio.gather(...)) once, or (b) document this anti-pattern and direct users to AsyncResponse for async tools. The async path (AsyncResponse.execute_tool_calls) already gathers async tasks correctly.",
+      "agent_role": "performance",
+      "confidence": 0.88,
+      "validated_by_critique": true,
+      "estimated_hours": 4.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-004",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "N+1 query pattern in logs_list for fragments and tool info",
+      "description": "logs_list executes the main responses query, then issues separate queries for attachments, prompt_fragments, system_fragments, and tool info. While this is bounded (4-5 queries regardless of row count, using IN clauses), the FRAGMENTS_SQL is run twice (once for prompt_fragments, once for system_fragments) when a single UNION query would suffice. The TOOLS_SQL also uses correlated subqueries with json_group_array which scales poorly when responses have many tool_results with attachments.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 1259,
+        "line_end": 1271
+      },
+      "recommendation": "Combine prompt_fragments and system_fragments fetches into a single UNION ALL query (the FRAGMENT_SQL pattern in models.py already does this). For TOOLS_SQL, consider denormalizing tool_results.attachments into a separate batched fetch rather than nested json_group_array correlated subqueries.",
+      "agent_role": "performance",
+      "confidence": 0.75,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-005",
+      "dimension": "performance",
+      "severity": "high",
+      "title": "Cosine similarity computed in Python via SQLite UDF for every row",
+      "description": "Collection.similar_by_vector() registers `distance_score` as a Python SQLite function and executes it for every embedding row via SQL. For each row, llm.decode() unpacks bytes via struct.unpack with a Python loop, then cosine_similarity computes three sums in pure Python with zip(). With 10k embeddings of 1536 dimensions each, this is ~46M Python multiplications per query \u2014 orders of magnitude slower than numpy. There is also no ANN index, so every similarity query is O(N*D).",
+      "location": {
+        "file_path": "llm/embeddings.py",
+        "line_start": 199,
+        "line_end": 207
+      },
+      "recommendation": "Use numpy: load all embeddings into a single (N, D) numpy array (cached on the Collection), compute cosine similarity as a vectorized matmul, then sort. Even without ANN, this is 50-100x faster. For larger collections, integrate sqlite-vec or a similar vector extension for sub-linear search. Cache the numpy array and invalidate on insert.",
+      "agent_role": "performance",
+      "confidence": 0.93,
+      "validated_by_critique": false,
+      "estimated_hours": 6.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-007",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "OpenAI streaming chunks accumulated in memory for full duration",
+      "description": "Both Chat.execute and AsyncChat.execute append every chunk to a `chunks` list, then call combine_chunks() at the end to build response.response_json. For long streamed responses this retains every Pydantic chunk object (typically with full delta + usage metadata) in memory until completion. With a 50k-token streamed response, this can be tens of MB of retained chunk objects per active response.",
+      "location": {
+        "file_path": "llm/default_plugins/openai_models.py",
+        "line_start": 671,
+        "line_end": 687
+      },
+      "recommendation": "Accumulate only the fields needed by combine_chunks (content string, role, finish_reason, last usage) incrementally, rather than retaining every chunk object. This reduces memory by ~10x for long streams.",
+      "agent_role": "performance",
+      "confidence": 0.82,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-008",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Unbounded chain loop with chain_limit=0 has no safety ceiling",
+      "description": "ChainResponse and AsyncChainResponse honor chain_limit but the CLI explicitly documents `set 0 for unlimited`. With a misbehaving model that keeps producing tool calls, this becomes an infinite loop consuming API credits and tokens. There is no time-based or token-based circuit breaker.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 2076,
+        "line_end": 2078
+      },
+      "recommendation": "Add a hard cap (e.g. 100 iterations or a configurable max_total_tokens / max_duration_seconds) even when chain_limit=0, with a clear error message. Alternatively, log a warning every N iterations so runaway chains are visible in operational dashboards.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-009",
+      "dimension": "performance",
+      "severity": "medium",
+      "title": "Conversation message chain rebuilt and copied on every turn",
+      "description": "_BaseConversation._build_full_chain() copies the previous response's full message chain (`chain.extend(last.prompt.messages)`) plus its outputs on every prompt() call. Each Prompt also stores a copy via `list(messages)`. For a long conversation with 50 turns, the Nth turn's chain is O(N) Messages, all retained \u2014 and rebuilding the full chain from scratch each turn means total memory and copying work is O(N^2) over the conversation.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 547,
+        "line_end": 581
+      },
+      "recommendation": "Use an immutable linked-list / persistent-data-structure approach where each response's chain references the prior chain rather than copying it. Alternatively, document that long conversations should be summarized periodically. For typical 5-10 turn conversations this is fine, but signaling the O(N^2) growth is important for long-running agent loops.",
+      "agent_role": "performance",
+      "confidence": 0.76,
+      "validated_by_critique": false,
+      "estimated_hours": 8.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-010",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "embed_multi reads input file twice to compute progress length",
+      "description": "When input is a file (not stdin), embed_multi opens it once to count rows for progress bar length, then reopens it to actually iterate. For very large input files (multi-GB JSON/CSV) this doubles I/O. A streaming progress bar without expected_length, or a single pass that emits both count and iter via tee, would avoid the duplicate read.",
+      "location": {
+        "file_path": "llm/cli.py",
+        "line_start": 2009,
+        "line_end": 2017
+      },
+      "recommendation": "Skip the count step for very large files (size threshold) and let the progress bar work without a known length. Alternatively, use seek(0) and rewind a single file handle.",
+      "agent_role": "performance",
+      "confidence": 0.85,
+      "validated_by_critique": false,
+      "estimated_hours": 1.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-012",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "Migration runs on every CLI invocation without version short-circuit",
+      "description": "migrate(db) is called on virtually every llm command (prompt, chat, logs, fragments, schemas, etc.). It opens _llm_migrations, fetches all applied rows, and iterates MIGRATIONS to check each. While individual cost is small, on cold cache this is 2-3 SQLite queries per CLI invocation just to confirm there's nothing to do. For high-frequency scripted use (e.g. embedding pipelines calling `llm` thousands of times) this is measurable overhead.",
+      "location": {
+        "file_path": "llm/migrations.py",
+        "line_start": 9,
+        "line_end": 21
+      },
+      "recommendation": "Cache a 'migrations_at_version' marker (e.g. a single row in user_dir or a PRAGMA user_version) and skip the table read if the version matches the latest known migration. Alternatively, document the recommended pattern of using the Python API (not CLI) for high-frequency operations.",
+      "agent_role": "performance",
+      "confidence": 0.78,
+      "validated_by_critique": false,
+      "estimated_hours": 2.0,
+      "code_snippet": "",
+      "rule_id": ""
+    },
+    {
+      "id": "perf-013",
+      "dimension": "performance",
+      "severity": "low",
+      "title": "ensure_fragment / ensure_tool called per fragment/tool without batching",
+      "description": "log_to_db iterates over `self.prompt.fragments`, `self.prompt.system_fragments`, and `self.prompt.tools`, calling ensure_fragment / ensure_tool for each. Each helper presumably does a SELECT-or-INSERT per item. For prompts with many fragments (e.g. RAG with 50 chunks), this is 50 round-trips for fragment dedup alone before the prompt_fragments inserts.",
+      "location": {
+        "file_path": "llm/models.py",
+        "line_start": 1217,
+        "line_end": 1235
+      },
+      "recommendation": "Batch fragment hashing and use a single SELECT to find existing hashes, then bulk-insert the new ones. Same pattern for tools.",
+      "agent_role": "performance",
+      "confidence": 0.7,
+      "validated_by_critique": false,
+      "estimated_hours": 3.0,
+      "code_snippet": "",
+      "rule_id": ""
+    }
+  ],
+  "analysis_duration_seconds": 580.24,
+  "total_tokens_used": 819690,
+  "total_cost_usd": 9.0166,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [
+    "arch-000, arch-003, qual-000, qual-001, qual-005 all converge on the same root cause: cli.py and models.py are oversized god-modules. A single refactor effort splitting both files addresses architecture, complexity, and testability concerns simultaneously.",
+    "sec-001, sec-002, sec-005, sec-009, perf-000 share the HTTP-fetch boundary (resolve_fragments / resolve_attachment / load_template). A single hardened HTTP helper (timeouts, size caps, SSRF guards, connection reuse, remote-trust flag) resolves five findings at once.",
+    "sec-004, dep-002, dep-008 all describe the plugin install/load supply-chain. A unified mitigation (confirmation prompt + documented trust model + optional allowlist) addresses all three.",
+    "arch-004, qual-005, perf-001, perf-013 all touch _BaseResponse.log_to_db. Extracting a ResponseStore protocol with batched/transactional writes simultaneously fixes the layering violation, the SRP issue, and the per-row insert performance problem.",
+    "arch-006, qual-002, perf-007 all relate to openai_models.py \u2014 a data-driven model registry combined with a shared sync/async chunk-processing helper would address duplication, maintenance, and memory-retention concerns together.",
+    "doc-001, doc-002, doc-003, doc-007 all concern plugin-author documentation. A single 'Plugin Authoring Guide' restructure surfacing hookspec docstrings, Toolbox lifecycle, StreamEvent rules, and loader docstring conventions resolves the cluster."
+  ],
+  "hallucination_removed_count": 1,
+  "is_compromised": false,
+  "validation_status": "validated",
+  "receipt": {
+    "scan_id": "0918c504fb0e44ff918a08780225e8bd",
+    "repo_signature": "1c5da9655a9831d7dd0eb9a7645bb6b0",
+    "score_card_hash": "0303a5a03334895ce8efec87f05f8dc8362ce56b11ded30a801bd0e1e7ad64b1",
+    "timestamp": "2026-04-30T14:54:02.612033Z",
+    "spectra_version": "0.0.0",
+    "signature": "870dad132e50f62c34d16878c87762a5282eabb70d782cddb0e854eefd03ab92c0d75b054a13a331dfb5bb9726b70a29c2756712a990ceff99d5da88b0ff750c",
+    "public_key_fingerprint": "c2cc74be1c94e0ab"
+  },
+  "classification": "confidential",
+  "waived_finding_count": 0,
+  "expired_waiver_count": 0
+}
