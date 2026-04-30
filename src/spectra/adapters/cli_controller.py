@@ -38,6 +38,10 @@ from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from spectra.entities.receipt import ScanReceipt as _ReceiptShape
+else:
+    _ReceiptShape = object  # type: ignore[misc, assignment]
+
 app = typer.Typer(
     name="spectra",
     help="8 AI agents analyze your entire repository in under 5 minutes",
@@ -138,6 +142,12 @@ _OUTPUT_OPTION = typer.Option(
     "-o",
     help="Report output path",
 )
+_KEY_OPTION = typer.Option(
+    None,
+    "--key",
+    "-k",
+    help="Path to the Ed25519 public-key PEM (defaults to ~/.config/spectra/receipt.pub)",
+)
 
 # Q2 #19: severity gate. Ordering — worst first — drives the at-or-above check.
 _FAIL_ON_SEVERITY_RANK: dict[str, int] = {
@@ -173,6 +183,8 @@ _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 _analyzer_factory: Callable[..., Awaitable[object]] | None = None
 _cache_provider: Callable[[], CachePort] | None = None
 _shred_executor: Callable[[], Path] | None = None
+_verifier: Callable[[object, bytes | None], bool] | None = None
+_default_public_key_path: Path | None = None
 
 
 def set_analyzer_factory(
@@ -185,6 +197,20 @@ def set_analyzer_factory(
     """
     global _analyzer_factory  # noqa: PLW0603
     _analyzer_factory = factory
+
+
+def set_verifier(
+    verifier: Callable[[object, bytes | None], bool],
+    default_public_key_path: Path | None = None,
+) -> None:
+    """Inject the receipt verifier callable + default public-key path.
+
+    The composition root passes ``verify_receipt`` from the receipt-signer
+    infrastructure module so this CLI never imports cryptography directly.
+    """
+    global _verifier, _default_public_key_path  # noqa: PLW0603
+    _verifier = verifier
+    _default_public_key_path = default_public_key_path
 
 
 def set_cache_provider(provider: Callable[[], CachePort]) -> None:
@@ -460,6 +486,11 @@ def analyze(
         "--allow-secrets",
         help="Continue past pre-flight secret detection (WARN, not abort)",
     ),
+    audit_sink: str | None = typer.Option(
+        None,
+        "--audit-sink",
+        help="Where to send audit events: stdout|file:<path>|otlp:<url>",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -545,6 +576,7 @@ def analyze(
                 agent_overrides=overrides,
                 honor_gitignore=not no_gitignore,
                 allow_secrets=allow_secrets,
+                audit_sink=audit_sink,
             )
         )
     except KeyboardInterrupt:
@@ -637,6 +669,109 @@ def cli_entry() -> None:
     Called by the composition root after DI wiring is complete.
     """
     app()
+
+
+# ── spectra verify ──────────────────────────────────────────
+
+
+@app.command()
+def verify(
+    report_path: Path = typer.Argument(  # noqa: B008 — Typer needs the default at definition time
+        ...,
+        help="Path to a JSON AnalysisReport with an embedded receipt",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    key: Path | None = _KEY_OPTION,
+) -> None:
+    """Verify the Ed25519 receipt embedded in a JSON report.
+
+    Exits 0 when the signature matches and the score-card hash is intact;
+    exits 1 with a brand-voice failure line on any mismatch.
+    """
+    if _verifier is None:
+        console.print(f"[{RED}]✗[/] Not initialized: run via spectra entry point")
+        raise typer.Exit(code=1)
+    raw = _read_report_text(report_path)
+    report = _parse_report(raw)
+    receipt = _extract_receipt(report)
+    pub_pem = _load_pub_pem(key)
+    valid, hash_match = _verify_receipt(report, receipt, pub_pem)
+    if valid and hash_match:
+        console.print(f"  [{GREEN}]✓[/] receipt verified for scan {receipt.scan_id[:8]}")
+        return
+    if not hash_match:
+        console.print(f"[{RED}]✗[/] score card hash mismatch: report mutated since signing")
+    else:
+        console.print(f"[{RED}]✗[/] receipt signature invalid")
+    raise typer.Exit(code=1)
+
+
+def _read_report_text(report_path: Path) -> str:
+    """Read and return the report file contents; exit on I/O error."""
+    try:
+        return report_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        console.print(f"[{RED}]✗[/] Failed to read report: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+def _parse_report(raw: str) -> AnalysisReport:
+    """Parse the JSON report; exit cleanly on schema failure."""
+    try:
+        return AnalysisReport.model_validate_json(raw)
+    except ValueError as exc:
+        console.print(f"[{RED}]✗[/] Invalid report JSON: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+def _extract_receipt(report: AnalysisReport) -> _ReceiptShape:
+    """Return the embedded receipt or exit with a clear message."""
+    receipt = getattr(report, "receipt", None)
+    if receipt is None:
+        console.print(f"[{RED}]✗[/] No receipt found in report")
+        raise typer.Exit(code=1)
+    return receipt
+
+
+def _load_pub_pem(key: Path | None) -> bytes | None:
+    """Load the public-key PEM from the explicit path or the default."""
+    chosen = key if key is not None else _default_public_key_path
+    if chosen is None or not chosen.exists():
+        return None
+    try:
+        return chosen.read_bytes()
+    except OSError:
+        return None
+
+
+def _verify_receipt(
+    report: AnalysisReport,
+    receipt: _ReceiptShape,
+    pub_pem: bytes | None,
+) -> tuple[bool, bool]:
+    """Return (signature_valid, score_card_hash_matches) for the receipt."""
+    if _verifier is None:
+        return (False, False)
+    sig_ok = bool(_verifier(receipt, pub_pem))
+    expected_hash = _compute_score_card_hash(report.score_card)
+    hash_ok = expected_hash == getattr(receipt, "score_card_hash", "")
+    return (sig_ok, hash_ok)
+
+
+def _compute_score_card_hash(score_card: object) -> str:
+    """Recompute the score-card hash (mirrors infrastructure.receipt_signer)."""
+    import hashlib
+    import json as _json_inner
+
+    serialised = _json_inner.dumps(
+        score_card.model_dump(mode="json"),  # type: ignore[attr-defined]
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.blake2b(serialised.encode("utf-8"), digest_size=32).hexdigest()
 
 
 # ── spectra cache subcommands ─────────────────────────────────

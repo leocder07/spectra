@@ -28,7 +28,7 @@ def _event(event_type: str = "scan.started") -> AuditEvent:
 
 
 class _FailingAdapter:
-    async def emit(self, event: AuditEvent) -> None:  # noqa: ARG002
+    async def emit(self, event: AuditEvent) -> None:
         msg = "kaboom"
         raise RuntimeError(msg)
 

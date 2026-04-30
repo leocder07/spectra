@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 from spectra.use_cases.identity_resolver import (
     HASHED_ID_LEN,
@@ -25,7 +28,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         "GITHUB_REF",
     ):
         monkeypatch.delenv(var, raising=False)
-    yield
+    return
 
 
 class TestResolveActorPrecedence:

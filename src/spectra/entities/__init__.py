@@ -50,7 +50,6 @@ from spectra.entities.errors import (
     SpectraRetryError,
     strip_code_fence,
 )
-from spectra.entities.receipt import ScanReceipt
 from spectra.entities.models import (
     DEFAULT_DIMENSION_SCORE,
     EXCELLENT_SCORE,
@@ -80,6 +79,7 @@ from spectra.entities.models import (
     estimate_cost,
     score_to_grade,
 )
+from spectra.entities.receipt import ScanReceipt
 
 __all__ = [
     "DEFAULT_DIMENSION_SCORE",
