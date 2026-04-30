@@ -37,8 +37,10 @@ You do NOT touch:
 3. Infrastructure classes IMPLEMENT Protocol interfaces from interfaces.py
 4. All LLM calls through decorator chain: LoggingDecorator → RetryDecorator → AnthropicAdapter
 5. Parallel execution via `asyncio.gather(return_exceptions=True)`
-6. 30s timeout per agent via `asyncio.wait_for()`
+6. 120s timeout per agent via `asyncio.wait_for()`
 7. No `Any` type. No `# type: ignore`.
+8. v0.6.0: every LLM call passes through `CostTrackerPort.record(usd, agent_role)` for `--max-cost-usd` enforcement (raises SPEC-014 mid-run if the next call would cross the cap).
+9. v0.6.0: pipeline state transitions emit `AuditPort.emit(AuditEvent)` via `safe_emit` (best-effort; never aborts the pipeline).
 
 ## Deliverables
 
@@ -56,17 +58,13 @@ You do NOT touch:
 - `report_adapter.py` — Jinja2 rendering, implements ReportPort
 - `main.py` — Composition root (DI wiring)
 
-### Agents (Layer 4)
+### Agents (Layer 4) — v0.6.0 baseline (all on Opus 4.7 per ADR-005)
 - `agents/base_agent.py` — ABC Template Method pattern
-- `agents/agent_factory.py` — Creates all 8 agent configs
-- `agents/meta_prompter.py` — Sonnet 4.5, file tree only, ≤5K tokens
-- `agents/architecture_agent.py` — Opus 4.6
-- `agents/security_agent.py` — Opus 4.6
-- `agents/quality_agent.py` — Opus 4.6
-- `agents/documentation_agent.py` — Opus 4.6
-- `agents/dependency_agent.py` — Opus 4.6 (supply chain, SBOM, CVEs)
-- `agents/performance_agent.py` — Opus 4.6 (hotspots, N+1, scalability)
-- `agents/critique_agent.py` — Opus 4.6, EXTENDED THINKING enabled
+- `agents/agent_factory.py` — Creates all 8 agent configs from `AgentRunConfig` map
+- `agents/meta_prompter.py` — Opus 4.7, effort=medium, file tree only, ≤5K tokens
+- `agents/specialist_agent.py` — Parameterized specialist (Opus 4.7, effort=xhigh)
+- `agents/specialist_prompts.py` — System prompts per dimension (architecture, security, quality, documentation, dependency, performance)
+- `agents/critique_agent.py` — Opus 4.7, ADAPTIVE THINKING + 80K task_budget (per ADR-008, supersedes ADR-003 extended thinking)
 
 ## Key Patterns
 
@@ -83,7 +81,10 @@ You do NOT touch:
 - 2+ failures → abort, generate partial report, mark as DEGRADED
 - CritiqueAgent failure → skip critique, mark report "unvalidated"
 
-## Extended Thinking
+## Adaptive Thinking (per ADR-008, supersedes ADR-003 extended-thinking)
 
-ONLY the CritiqueAgent uses extended thinking. Set `extended_thinking=True` in the LLM call.
-No other agent should use extended thinking.
+ONLY the CritiqueAgent uses adaptive thinking. The LLMGateway exposes
+`analyze_with_adaptive_thinking()` and a `task_budget_tokens` parameter
+(default 80K for the critique). No other agent uses it — see ADR-008
+for the rationale (per-specialist thinking made findings worse, not
+better, in the v0.2.0-track A/B).
