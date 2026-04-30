@@ -369,6 +369,38 @@ class CachePort(Protocol):
         ...
 
 
+class CostTrackerPort(Protocol):
+    """Port for per-run + rolling-hour cost tracking (SPEC-012).
+
+    Implemented by ``InMemoryCostTracker`` (default for solo runs) and
+    ``SqliteCostTracker`` (shared ``cache.db`` for ``--max-cost-per-hour``
+    enforcement that persists across processes). The orchestrator gates
+    each agent call against ``would_exceed`` and records the actual cost
+    after a successful return.
+    """
+
+    def record(self, agent: str, cost_usd: float) -> None:
+        """Append the agent's actual cost to the current run's ledger."""
+        ...
+
+    def total(self) -> float:
+        """Return total USD recorded for the current run."""
+        ...
+
+    def would_exceed(self, additional: float, max_usd: float) -> bool:
+        """Return True when ``total() + additional > max_usd``.
+
+        ``additional == 0`` and ``max_usd == 0`` returns False — a
+        zero-budget run with no projected cost is technically valid
+        (e.g. a fully cached run).
+        """
+        ...
+
+    def last_hour_total(self) -> float:
+        """Return USD recorded across all runs in the rolling 1-hour window."""
+        ...
+
+
 class WorkspaceFilterPort(Protocol):
     """Port for excluding files from analysis based on ignore patterns.
 
