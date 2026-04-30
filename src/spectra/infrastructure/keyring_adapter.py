@@ -38,6 +38,8 @@ class KeyringBackend(Protocol):
 
     def set_password(self, service: str, account: str, password: str) -> None: ...
 
+    def delete_password(self, service: str, account: str) -> None: ...
+
 
 class KeyringSecretAdapter:
     """Per-user :class:`CacheSecret` provider backed by the OS keyring.
@@ -102,6 +104,32 @@ class KeyringSecretAdapter:
     def backend_name(self) -> str:
         """Return a friendly backend label for ``spectra cache doctor``."""
         return getattr(self._backend, "backend_name", type(self._backend).__name__)
+
+    def shred(self) -> None:
+        """Drop the per-user secret from the keyring + the in-memory cache.
+
+        Called by ``spectra cache shred`` so the next adapter open has to
+        cold-mint a fresh secret. The same encryption key (HKDF-derived
+        from the secret) regenerates with the new bytes — old encrypted
+        cache rows would no longer decrypt, which is the point.
+
+        Idempotent: missing entries are tolerated (the keyring contract
+        does not specify whether ``delete_password`` raises when the
+        target row is absent; we accept either behaviour).
+        """
+        delete = getattr(self._backend, "delete_password", None)
+        if delete is None:
+            self._cached = None
+            return
+        try:
+            delete(_SERVICE, self._uid)
+        except KeyError:
+            # Entry never existed — idempotent shred.
+            pass
+        except Exception as exc:
+            self._cached = None
+            raise _spec_010_keyring(exc) from exc
+        self._cached = None
 
 
 def _import_default_backend() -> KeyringBackend:
