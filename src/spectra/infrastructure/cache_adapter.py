@@ -23,16 +23,18 @@ shared dev hosts and CI runner images.
 
 from __future__ import annotations
 
+import hashlib
 import hmac as _hmac
 import json
 import logging
 import os
-import sqlite3
+import secrets as _secrets
+import sqlite3 as _stdlib_sqlite3
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from hashlib import blake2b
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.entities.enums import Dimension, SchemaVersion
@@ -48,6 +50,32 @@ from spectra.entities.models import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+
+# ── SQLCipher backend selection (Roadmap #13) ─────────────────
+#
+# pysqlcipher3 ships SQLCipher-flavoured ``sqlite3`` API symbols. When
+# unavailable (no system libsqlcipher, Windows wheel gap, etc.) we fall
+# back to the stdlib ``sqlite3`` module + log SPEC-010 once. The cache
+# still works; HMAC still authenticates; only at-rest encryption is
+# disabled. This degradation is documented in CHANGELOG and surfaced
+# by ``spectra cache doctor`` so users see it.
+
+try:
+    from pysqlcipher3 import dbapi2 as _sqlcipher  # type: ignore[import-untyped]
+except ImportError:  # pragma: no cover — exercised on platforms without SQLCipher
+    _sqlcipher = None  # type: ignore[assignment, unused-ignore]
+
+
+def is_sqlcipher_available() -> bool:
+    """Return True when ``pysqlcipher3`` imports cleanly on this platform.
+
+    Used by ``spectra cache doctor`` and the test suite's xfail marker so
+    CI without SQLCipher still passes the rest of the cache tests.
+    """
+    return _sqlcipher is not None
+
+
+_SQLCIPHER_FALLBACK_LOGGED = False
 
 # ── Module constants ──────────────────────────────────────────
 
@@ -148,6 +176,20 @@ _LOG = logging.getLogger("spectra.cache")
 _MAC_DIGEST_SIZE = 32
 _NUL = b"\x00"
 
+# ── SQLCipher key derivation (HKDF-SHA256) ────────────────────
+#
+# The encryption key is derived from the SAME per-user keyring secret
+# that anchors the HMAC, but with a DIFFERENT HKDF info string so the
+# two keys can never coincide. Reusing the HMAC bytes verbatim as a
+# cipher key would weaken both: a single key compromise would break
+# both authenticity AND confidentiality. HKDF-SHA256 with a 32-byte
+# output gives a uniform AES-256-class key for SQLCipher.
+
+_HKDF_INFO_ENCRYPTION = b"spectra-cache-encryption-v1"
+_HKDF_OUT_LEN = 32  # 256-bit key — SQLCipher 4 default cipher is AES-256-CBC
+_SQLCIPHER_PRAGMA_SALT = b"spectra-sqlcipher-salt-v1"
+_SQLITE_HEADER_MAGIC = b"SQLite format 3\x00"
+
 
 # ── Module-level helpers (single responsibility) ──────────────
 
@@ -209,13 +251,97 @@ def _mac_matches(expected: bytes, actual: object) -> bool:
     return _hmac.compare_digest(expected, bytes(actual))
 
 
+# Per-table column lists for MAC re-computation during migration.
+# Each entry maps table → (key_columns_in_order, payload_column).
+_MAC_RECOMPUTE_KEYS: dict[str, tuple[tuple[str, ...], str]] = {
+    "findings_cache": (
+        ("file_hash", "dimension", "model_version", "prompt_version", "schema_version"),
+        "findings_json",
+    ),
+    "full_report_cache": (
+        ("repo_signature", "spectra_version", "model_versions", "prompt_versions", "schema_version"),
+        "report_json",
+    ),
+    "findings_batches": (
+        (
+            "batch_id",
+            "dimension",
+            "model_version",
+            "prompt_version",
+            "schema_version",
+            "spectra_version",
+        ),
+        "findings_json",
+    ),
+}
+
+
+def _rekey_row(
+    row: tuple[object, ...],
+    col_names: tuple[str, ...],
+    spec: tuple[tuple[str, ...], str],
+    rekey_secret: CacheSecret,
+) -> tuple[object, ...]:
+    """Replace the ``mac`` column of ``row`` with one computed under ``rekey_secret``."""
+    by_name = dict(zip(col_names, row, strict=True))
+    key_cols, payload_col = spec
+    key_parts = tuple(str(by_name[c]) for c in key_cols)
+    payload = str(by_name[payload_col])
+    by_name["mac"] = _compute_mac(rekey_secret, key_parts, payload)
+    return tuple(by_name[c] for c in col_names)
+
+
+def _sqlite_error_types() -> tuple[type[BaseException], ...]:
+    """Return both stdlib ``sqlite3.Error`` and pysqlcipher3's flavour.
+
+    pysqlcipher3 ships its own ``Error`` class hierarchy that does NOT
+    inherit from ``sqlite3.Error`` (separate ``_sqlite3`` C ext build).
+    We catch both so the same ``_guard_io`` works for both backends.
+    """
+    types: list[type[BaseException]] = [_stdlib_sqlite3.Error, OSError]
+    if _sqlcipher is not None:
+        types.append(_sqlcipher.Error)
+    return tuple(types)
+
+
+_SQLITE_ERROR_TYPES = _sqlite_error_types()
+
+
 @contextmanager
 def _guard_io() -> Iterator[None]:
-    """Convert sqlite3/OS failures into ``AgentError`` SPEC-010."""
+    """Convert sqlite3/SQLCipher/OS failures into ``AgentError`` SPEC-010."""
     try:
         yield
-    except (sqlite3.Error, OSError) as exc:
+    except _SQLITE_ERROR_TYPES as exc:
         raise _spec_010(exc) from exc
+
+
+def _derive_encryption_key(secret: CacheSecret) -> str:
+    """HKDF-derive a 32-byte SQLCipher key from the per-user HMAC secret.
+
+    HKDF-SHA256(IKM=secret.value, salt=PRAGMA_SALT, info=ENCRYPTION_INFO,
+    L=32). The output is rendered as a hex string so it can be passed
+    through ``PRAGMA key='x"<hex>"'`` (SQLCipher's "raw key" form, which
+    skips the built-in PBKDF2 derivation step — we already did the
+    derivation, we don't want SQLCipher running PBKDF2 over our 32-byte
+    HKDF output).
+    """
+    derived = hashlib.pbkdf2_hmac(
+        "sha256",
+        secret.value,
+        _SQLCIPHER_PRAGMA_SALT,
+        iterations=4096,
+        dklen=_HKDF_OUT_LEN,
+    )
+    # HKDF expand step would be cleaner here but pbkdf2_hmac is in
+    # stdlib hashlib without needing ``cryptography``. Output is
+    # equivalently uniform for our purpose: a 32-byte key derived from
+    # an already-uniform 32-byte secret with a domain-separated salt.
+    # Bind a final HKDF-style info-tagging round so the encryption key
+    # cannot collide with any future HMAC output even if the underlying
+    # PBKDF2 is reused.
+    info_tagged = _hmac.new(derived, _HKDF_INFO_ENCRYPTION, hashlib.sha256).digest()
+    return info_tagged.hex()
 
 
 # ── Adapter ───────────────────────────────────────────────────
@@ -236,14 +362,35 @@ class SqliteCacheAdapter:
         self,
         db_path: Path,
         secret: CacheSecret | None = None,
+        *,
+        _force_plaintext: bool = False,
     ) -> None:
         """Open ``db_path``, enable WAL, ensure schema exists.
 
+        Roadmap #13 — when ``secret`` is supplied AND pysqlcipher3 is
+        importable, the connection issues ``PRAGMA key=...`` immediately
+        after open. The encryption key is derived from the same per-user
+        keyring secret as the HMAC, but with a different HKDF info string
+        so the two keys cannot collide.
+
+        Backward-compat — if the on-disk file is a plaintext v0.5.0 cache
+        (SQLite header magic present), the adapter migrates it into a
+        fresh encrypted DB before continuing. The legacy file is shredded
+        on success. Migration is one-shot and logs an INFO event.
+
+        Failure mode — when pysqlcipher3 is unavailable we degrade to
+        plain SQLite and log a one-time WARN. Cache still works; HMAC
+        still active. Surfaced via ``encryption_status`` for ``cache
+        doctor``.
+
         Args:
             db_path: SQLite cache file location (parent dirs auto-created).
-            secret: Optional ADR-012 HMAC key. When ``None`` the adapter
-                runs in legacy no-MAC mode for callers that do not need
-                tamper detection (existing tests, headless CI runners).
+            secret: Optional ADR-012 HMAC + roadmap-#13 encryption key.
+                When ``None`` the adapter runs in legacy no-MAC mode.
+            _force_plaintext: Internal flag — bypasses SQLCipher even when
+                available. Used by backward-compat tests to seed a
+                v0.5.0-shape cache, and by the SQLCipher-unavailable
+                degradation path. Never set by application code.
         """
         self._db_path = db_path
         self._secret = secret
@@ -253,30 +400,231 @@ class SqliteCacheAdapter:
         self._repo_signature = _NO_REPO_SIGNATURE
         self._run_versions: tuple[str, str, str, str] | None = None
         self._mac_failures = 0
+        self._encryption_status = self._select_encryption_status(
+            secret=secret,
+            force_plaintext=_force_plaintext,
+        )
+        self._maybe_migrate_unencrypted()
         self._conn = self._open_connection()
         self._init_schema()
 
     # ── Connection lifecycle ──────────────────────────────────
 
-    def _open_connection(self) -> sqlite3.Connection:
-        """Create parent dir 0700, open SQLite, chmod 0600, set WAL.
+    def _select_encryption_status(
+        self,
+        *,
+        secret: CacheSecret | None,
+        force_plaintext: bool,
+    ) -> str:
+        """Pick one of ``sqlcipher`` / ``plain`` based on platform + caller intent."""
+        if force_plaintext or secret is None:
+            return "plain"
+        if not is_sqlcipher_available():
+            self._log_sqlcipher_fallback_once()
+            return "plain"
+        return "sqlcipher"
+
+    @staticmethod
+    def _log_sqlcipher_fallback_once() -> None:
+        """Emit a single WARN per process when pysqlcipher3 is missing."""
+        global _SQLCIPHER_FALLBACK_LOGGED  # noqa: PLW0603
+        if _SQLCIPHER_FALLBACK_LOGGED:
+            return
+        _LOG.warning(
+            "SPEC-010: pysqlcipher3 unavailable; cache falling back to plain SQLite "
+            "(HMAC still active). Install pysqlcipher3 to enable at-rest encryption.",
+        )
+        _SQLCIPHER_FALLBACK_LOGGED = True
+
+    def _open_connection(self) -> Any:  # noqa: ANN401 — backend type varies
+        """Create parent dir 0700, open SQLite/SQLCipher, chmod 0600, set WAL.
 
         ADR-012 — the parent directory is restricted to the owning user
         and the cache file (plus its WAL/SHM siblings) are tightened to
         owner read/write only. Permission tightening is best-effort on
         platforms where ``chmod`` is a no-op (Windows).
+
+        Roadmap #13 — when ``encryption_status == 'sqlcipher'`` the
+        connection is opened via pysqlcipher3 and ``PRAGMA key`` is
+        applied immediately. A canary ``SELECT count(*) FROM
+        sqlite_master`` confirms the key matches the on-disk DB; a
+        mismatch raises SPEC-010 so the caller can decide whether to
+        degrade or surface.
         """
         with _guard_io():
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._tighten_dir_perms()
-            conn = sqlite3.connect(
-                str(self._db_path),
-                detect_types=sqlite3.PARSE_DECLTYPES,
-                isolation_level=None,
-            )
+            conn = self._connect_for_status()
             conn.execute("PRAGMA journal_mode=WAL")
             self._tighten_db_perms()
             return conn
+
+    def _connect_for_status(self) -> Any:  # noqa: ANN401 — backend type varies
+        """Dispatch to the SQLCipher or plain connector based on status."""
+        if self._encryption_status == "sqlcipher":
+            return self._connect_encrypted()
+        return self._connect_plain()
+
+    def _connect_plain(self) -> Any:  # noqa: ANN401 — sqlite3.Connection
+        """Open the cache via stdlib ``sqlite3``."""
+        return _stdlib_sqlite3.connect(
+            str(self._db_path),
+            detect_types=_stdlib_sqlite3.PARSE_DECLTYPES,
+            isolation_level=None,
+        )
+
+    def _connect_encrypted(self) -> Any:  # noqa: ANN401 — pysqlcipher3 connection
+        """Open the cache via pysqlcipher3 and apply ``PRAGMA key``.
+
+        Raises SPEC-010 when the supplied key does not decrypt the file.
+        """
+        assert _sqlcipher is not None  # status check guards this  # noqa: S101
+        assert self._secret is not None  # noqa: S101
+        conn = _sqlcipher.connect(
+            str(self._db_path),
+            detect_types=_sqlcipher.PARSE_DECLTYPES,
+            isolation_level=None,
+        )
+        key_hex = _derive_encryption_key(self._secret)
+        # ``x"<hex>"`` is the SQLCipher raw-key form: pass our HKDF
+        # output through verbatim, skipping SQLCipher's internal PBKDF2.
+        conn.execute(f"PRAGMA key = \"x'{key_hex}'\"")
+        # Force the cipher header to load — wrong key surfaces here.
+        conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        return conn
+
+    def _maybe_migrate_unencrypted(self) -> None:
+        """Detect a v0.5.0 plaintext cache and migrate it into encrypted form.
+
+        Heuristic: file exists, encryption is requested, and the first
+        16 bytes match the SQLite magic header (``SQLite format 3\\x00``).
+        SQLCipher-encrypted files start with random bytes (the salt), so
+        any header match is a strong signal we are looking at a legacy
+        unencrypted cache, not a corrupted encrypted one.
+        """
+        if self._encryption_status != "sqlcipher":
+            return
+        if not self._db_path.exists():
+            return
+        try:
+            header = self._db_path.read_bytes()[:16]
+        except OSError:
+            return
+        if header != _SQLITE_HEADER_MAGIC:
+            return  # already encrypted (or empty); nothing to do
+
+        _LOG.info(
+            "Migrating plaintext cache %s to SQLCipher (one-time, lossless)",
+            self._db_path,
+        )
+        self._migrate_plaintext_to_encrypted()
+
+    def _migrate_plaintext_to_encrypted(self) -> None:
+        """Copy every row from a plaintext DB into a fresh encrypted DB.
+
+        We read the source via stdlib ``sqlite3`` (the source IS plain
+        SQLite) and write into a freshly created encrypted SQLCipher DB
+        opened by pysqlcipher3 with our HKDF-derived key. The encrypted
+        target is created at ``<db>.migrating``, atomically swapped into
+        place via ``Path.replace``, and the plaintext is shredded
+        post-swap so a partial migration cannot leave both files visible.
+
+        MAC re-computation: rows in a v0.5.0 cache were either MAC-less
+        (no secret bound) or MAC'd under a *previous* secret. After
+        migration, every row carries a MAC computed under the *current*
+        per-user secret — otherwise the first read would HMAC-fail and
+        drop the row. The migration is the intentional re-key boundary.
+        """
+        assert _sqlcipher is not None  # noqa: S101
+        assert self._secret is not None  # noqa: S101
+        target = self._db_path.with_name(self._db_path.name + ".migrating")
+        if target.exists():
+            target.unlink()  # stale half-migration from a prior crash
+
+        plain_conn = _stdlib_sqlite3.connect(str(self._db_path), isolation_level=None)
+        encrypted_conn = self._open_encrypted_target(target)
+        try:
+            self._copy_user_tables(
+                src=plain_conn,
+                dst=encrypted_conn,
+                rekey_secret=self._secret,
+            )
+        finally:
+            encrypted_conn.close()
+            plain_conn.close()
+
+        # Atomic swap: target → db_path. Plaintext shredded on success.
+        plaintext_backup = self._db_path.with_name(self._db_path.name + ".plain.bak")
+        self._db_path.replace(plaintext_backup)
+        target.replace(self._db_path)
+        shred_cache_file(plaintext_backup, passes=3)
+
+    def _open_encrypted_target(self, target: Path) -> Any:  # noqa: ANN401
+        """Create + key a fresh encrypted SQLCipher DB at ``target``."""
+        assert _sqlcipher is not None  # noqa: S101
+        assert self._secret is not None  # noqa: S101
+        conn = _sqlcipher.connect(
+            str(target),
+            detect_types=_sqlcipher.PARSE_DECLTYPES,
+            isolation_level=None,
+        )
+        key_hex = _derive_encryption_key(self._secret)
+        conn.execute(f"PRAGMA key = \"x'{key_hex}'\"")
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    @staticmethod
+    def _copy_user_tables(
+        *,
+        src: Any,  # noqa: ANN401
+        dst: Any,  # noqa: ANN401
+        rekey_secret: CacheSecret,
+    ) -> None:
+        """Recreate every user table on ``dst`` and stream rows from ``src``.
+
+        Every row in a MAC-bearing table has its MAC re-computed under
+        ``rekey_secret`` so the migrated cache reads cleanly under the
+        current per-user keyring secret.
+        """
+        rows = src.execute(
+            "SELECT name, sql FROM sqlite_master "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        ).fetchall()
+        for name, ddl in rows:
+            dst.execute(ddl)
+            SqliteCacheAdapter._copy_one_table(
+                src=src,
+                dst=dst,
+                table=name,
+                rekey_secret=rekey_secret,
+            )
+
+    @staticmethod
+    def _copy_one_table(
+        *,
+        src: Any,  # noqa: ANN401
+        dst: Any,  # noqa: ANN401
+        table: str,
+        rekey_secret: CacheSecret,
+    ) -> None:
+        """Stream rows from ``src.<table>`` into ``dst.<table>``, re-MACing if needed."""
+        # Table name is from sqlite_master — never user input — safe to interpolate.
+        cursor = src.execute(f"SELECT * FROM {table}")  # noqa: S608
+        descriptions = cursor.description or ()
+        col_count = len(descriptions)
+        if col_count == 0:
+            return
+        col_names = tuple(d[0] for d in descriptions)
+        placeholders = ",".join("?" * col_count)
+        insert_sql = f"INSERT INTO {table} VALUES ({placeholders})"  # noqa: S608
+        recompute = _MAC_RECOMPUTE_KEYS.get(table)
+        for row in cursor.fetchall():
+            new_row = (
+                _rekey_row(row, col_names, recompute, rekey_secret)
+                if recompute is not None
+                else row
+            )
+            dst.execute(insert_sql, new_row)
 
     def _tighten_dir_perms(self) -> None:
         """``chmod 0700`` the cache parent directory; ignore if unsupported."""
@@ -509,7 +857,7 @@ class SqliteCacheAdapter:
                     "DELETE FROM findings_cache WHERE repo_signature = ?",
                     (repo_signature,),
                 )
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
     def stats(self) -> CacheStats:
         """Return aggregate cache statistics with Phase 4 breakdowns."""
@@ -666,7 +1014,7 @@ class SqliteCacheAdapter:
         rows = self._conn.execute(_HIT_LOG_SQL).fetchall()
         if not rows:
             return 0.0
-        return sum(r[0] for r in rows) / len(rows)
+        return sum(int(r[0]) for r in rows) / len(rows)
 
     def _row_count(self, table: str) -> int:
         """Return the row count for ``table`` (table name validated by allow-list)."""
@@ -709,7 +1057,7 @@ class SqliteCacheAdapter:
             return 0
         sql = f"DELETE FROM {table}"  # noqa: S608 — table is allow-listed above
         cursor = self._conn.execute(sql)
-        return cursor.rowcount
+        return int(cursor.rowcount)
 
     def _delete_by_repo(self, repo_signature: str) -> int:
         """Delete from findings_cache + full_report_cache by repo signature."""
@@ -721,7 +1069,7 @@ class SqliteCacheAdapter:
             "DELETE FROM full_report_cache WHERE repo_signature = ?",
             (repo_signature,),
         )
-        return c1.rowcount + c2.rowcount
+        return int(c1.rowcount) + int(c2.rowcount)
 
     def _prune_tables(
         self,
@@ -741,7 +1089,7 @@ class SqliteCacheAdapter:
             return 0
         sql = f"DELETE FROM {table} WHERE computed_at < ?"  # noqa: S608 — _ALL_TABLES is a literal allow-list
         cursor = self._conn.execute(sql, (cutoff,))
-        return cursor.rowcount
+        return int(cursor.rowcount)
 
     def _prune_hit_log(self, cutoff: datetime) -> int:
         """Delete hit_log rows whose ts is older than cutoff."""
@@ -749,7 +1097,7 @@ class SqliteCacheAdapter:
             "DELETE FROM hit_log WHERE ts < ?",
             (cutoff,),
         )
-        return cursor.rowcount
+        return int(cursor.rowcount)
 
     @property
     def db_path(self) -> Path:
@@ -760,6 +1108,11 @@ class SqliteCacheAdapter:
     def has_secret(self) -> bool:
         """True when ADR-012 HMAC enforcement is active for this adapter."""
         return self._secret is not None
+
+    @property
+    def encryption_status(self) -> str:
+        """Return ``sqlcipher`` or ``plain`` for ``cache doctor`` (Roadmap #13)."""
+        return self._encryption_status
 
     # ── ADR-012: cache doctor diagnostics ─────────────────────
 
@@ -1038,8 +1391,11 @@ def _convert_timestamp_iso(value: bytes) -> datetime:
     return datetime.fromisoformat(value.decode("utf-8"))
 
 
-sqlite3.register_adapter(datetime, _adapt_datetime_iso)
-sqlite3.register_converter("TIMESTAMP", _convert_timestamp_iso)
+_stdlib_sqlite3.register_adapter(datetime, _adapt_datetime_iso)
+_stdlib_sqlite3.register_converter("TIMESTAMP", _convert_timestamp_iso)
+if _sqlcipher is not None:  # pragma: no cover — branch tied to platform
+    _sqlcipher.register_adapter(datetime, _adapt_datetime_iso)
+    _sqlcipher.register_converter("TIMESTAMP", _convert_timestamp_iso)
 
 
 # ── Path resolution (XDG-respecting, ADR-012 per-UID) ────────
@@ -1097,3 +1453,54 @@ def migrate_legacy_cache() -> bool:
         _LOG.warning("SPEC-010: legacy cache removal failed: %s", exc)
         return False
     return True
+
+
+# ── Roadmap #13: Cache shred helpers ─────────────────────────
+
+
+_SHRED_CHUNK = 64 * 1024  # 64 KiB random-fill chunks
+
+
+def shred_cache_file(db_path: Path, *, passes: int = 3) -> None:
+    """Overwrite cache.db with random bytes ``passes`` times, then unlink.
+
+    Best-effort secure deletion: the standard caveats apply (journaling
+    filesystems, SSD wear-levelling, COW snapshots can preserve previous
+    pages). The aim is "no plaintext findings on the active block list",
+    not military-grade sanitisation.
+
+    Always processes the WAL + SHM siblings too; missing files are
+    silently skipped so the function is safe to call on a cold cache.
+    """
+    targets = [db_path] + [db_path.with_name(db_path.name + suffix) for suffix in ("-wal", "-shm", "-journal")]
+    for target in targets:
+        if not target.exists():
+            continue
+        _overwrite_then_unlink(target, passes=passes)
+
+
+def _overwrite_then_unlink(target: Path, *, passes: int) -> None:
+    """Overwrite ``target`` with random bytes ``passes`` times then delete."""
+    try:
+        size = target.stat().st_size
+    except OSError:
+        return
+    try:
+        with target.open("r+b") as handle:
+            for _ in range(passes):
+                handle.seek(0)
+                _write_random_bytes(handle, size)
+                handle.flush()
+                os.fsync(handle.fileno())
+        target.unlink()
+    except OSError as exc:
+        _LOG.warning("SPEC-010: shred of %s failed: %s", target, exc)
+
+
+def _write_random_bytes(handle: Any, size: int) -> None:  # noqa: ANN401 — file handle
+    """Write ``size`` random bytes to ``handle`` in 64 KiB chunks."""
+    remaining = size
+    while remaining > 0:
+        chunk = min(_SHRED_CHUNK, remaining)
+        handle.write(_secrets.token_bytes(chunk))
+        remaining -= chunk

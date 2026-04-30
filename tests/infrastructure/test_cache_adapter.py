@@ -31,7 +31,29 @@ from spectra.entities.models import (
 from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
+    is_sqlcipher_available,
 )
+
+
+def _peek_connect(path: Path, secret: bytes | None = None):
+    """Open ``path`` for direct inspection with the right backend.
+
+    Roadmap #13 — when the cache adapter is constructed with a secret AND
+    pysqlcipher3 is available, the on-disk file is encrypted. Tests that
+    poke at the file directly (tamper, schema inspection) need to use the
+    same backend with the same key to read it back.
+    """
+    if secret is not None and is_sqlcipher_available():
+        from pysqlcipher3 import dbapi2 as _cipher  # type: ignore[import-untyped]
+
+        from spectra.entities.models import CacheSecret
+        from spectra.infrastructure.cache_adapter import _derive_encryption_key
+
+        conn = _cipher.connect(str(path))
+        key_hex = _derive_encryption_key(CacheSecret(value=secret))
+        conn.execute(f"PRAGMA key = \"x'{key_hex}'\"")
+        return conn
+    return sqlite3.connect(str(path))
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -825,29 +847,32 @@ def hmac_adapter(cache_path: Path) -> SqliteCacheAdapter:
     return SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
 
 
+_FIXED_PEEK_SECRET = b"\x33" * 32
+
+
 class TestMacColumnSchema:
     def test_findings_cache_has_mac_column(self, cache_path: Path):
-        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
-        with sqlite3.connect(str(cache_path)) as conn:
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret(_FIXED_PEEK_SECRET))
+        with _peek_connect(cache_path, _FIXED_PEEK_SECRET) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_cache)")}
         assert "mac" in cols
 
     def test_full_report_cache_has_mac_column(self, cache_path: Path):
-        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
-        with sqlite3.connect(str(cache_path)) as conn:
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret(_FIXED_PEEK_SECRET))
+        with _peek_connect(cache_path, _FIXED_PEEK_SECRET) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(full_report_cache)")}
         assert "mac" in cols
 
     def test_findings_batches_has_mac_column(self, cache_path: Path):
-        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
-        with sqlite3.connect(str(cache_path)) as conn:
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret(_FIXED_PEEK_SECRET))
+        with _peek_connect(cache_path, _FIXED_PEEK_SECRET) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(findings_batches)")}
         assert "mac" in cols
 
     def test_hit_log_does_not_have_mac_column(self, cache_path: Path):
         """hit_log is telemetry, not authenticated payload."""
-        SqliteCacheAdapter(db_path=cache_path, secret=_secret())
-        with sqlite3.connect(str(cache_path)) as conn:
+        SqliteCacheAdapter(db_path=cache_path, secret=_secret(_FIXED_PEEK_SECRET))
+        with _peek_connect(cache_path, _FIXED_PEEK_SECRET) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(hit_log)")}
         assert "mac" not in cols
 
@@ -871,6 +896,9 @@ class TestHmacRoundTrip:
         assert hmac_adapter.get_batch_findings(_batch_key()) == findings
 
 
+_HMAC_ADAPTER_SECRET = b"\x01" * 32
+
+
 class TestHmacTamperDetection:
     def test_tampered_findings_value_returns_miss_and_drops_row(
         self,
@@ -880,14 +908,14 @@ class TestHmacTamperDetection:
         hmac_adapter.set_model_version("m")
         hmac_adapter.set_prompt_version("security", "p")
         hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
-        # Mutate findings_json directly via raw SQLite — the MAC will no longer match.
-        with sqlite3.connect(str(cache_path)) as conn:
+        # Mutate findings_json directly via SQLCipher — the MAC will no longer match.
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
             conn.commit()
         # Lookup must return miss (not the tampered payload).
         assert hmac_adapter.get_findings("h", "security") is None
         # And the row must be physically removed so the next put can succeed.
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
         assert count == 0
 
@@ -897,11 +925,11 @@ class TestHmacTamperDetection:
         cache_path: Path,
     ):
         hmac_adapter.put_full_report(_key(), _report())
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             conn.execute("UPDATE full_report_cache SET report_json = ?", ('{"tampered": true}',))
             conn.commit()
         assert hmac_adapter.get_full_report(_key()) is None
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             count = conn.execute("SELECT COUNT(*) FROM full_report_cache").fetchone()[0]
         assert count == 0
 
@@ -912,11 +940,11 @@ class TestHmacTamperDetection:
     ):
         _bind_default_context(hmac_adapter)
         hmac_adapter.put_batch_findings(_batch_key(), (_make_finding(),))
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             conn.execute("UPDATE findings_batches SET findings_json = ?", ("[]",))
             conn.commit()
         assert hmac_adapter.get_batch_findings(_batch_key()) is None
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             count = conn.execute("SELECT COUNT(*) FROM findings_batches").fetchone()[0]
         assert count == 0
 
@@ -928,11 +956,11 @@ class TestHmacTamperDetection:
         hmac_adapter.set_model_version("m")
         hmac_adapter.set_prompt_version("security", "p")
         hmac_adapter.put_findings("h", "security", (_make_finding(),), "m", "p")
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             conn.execute("UPDATE findings_cache SET mac = ?", (b"\x00" * 32,))
             conn.commit()
         assert hmac_adapter.get_findings("h", "security") is None
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             count = conn.execute("SELECT COUNT(*) FROM findings_cache").fetchone()[0]
         assert count == 0
 
@@ -942,7 +970,14 @@ class TestHmacRekeyMigration:
         self,
         cache_path: Path,
     ):
-        """Old rows fail HMAC under the new secret and are dropped on read."""
+        """Old rows fail authentication under the new secret.
+
+        Roadmap #13 strengthens the contract: under at-rest encryption,
+        rotating the secret means the entire cache becomes unreadable
+        (decryption fails, raises SPEC-010 at open time). When SQLCipher
+        is unavailable the legacy behaviour applies — open succeeds, but
+        the per-row HMAC drops the stale rows on read.
+        """
         adapter_a = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x01" * 32))
         adapter_a.set_model_version("m")
         adapter_a.set_prompt_version("security", "p")
@@ -950,12 +985,17 @@ class TestHmacRekeyMigration:
         adapter_a.close()
 
         # Re-open with a different secret (simulates silent re-key after lost keyring entry).
+        if is_sqlcipher_available():
+            with pytest.raises(AgentError) as exc:
+                SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x02" * 32))
+            assert exc.value.error.code == "SPEC-010"
+            return
+
+        # Plain-SQLite fallback path: old HMAC fails, row dropped.
         adapter_b = SqliteCacheAdapter(db_path=cache_path, secret=_secret(b"\x02" * 32))
         adapter_b.set_model_version("m")
         adapter_b.set_prompt_version("security", "p")
-        # Old row's MAC was computed with secret-A; under secret-B it must fail.
         assert adapter_b.get_findings("h", "security") is None
-        # And re-puts under the new secret must succeed.
         adapter_b.put_findings("h", "security", (_make_finding(line=42, fid="F-NEW"),), "m", "p")
         got = adapter_b.get_findings("h", "security")
         assert got is not None
@@ -1145,7 +1185,7 @@ class TestCacheDoctorCounts:
         hmac_adapter.set_model_version("m")
         hmac_adapter.set_prompt_version("security", "p")
         hmac_adapter.put_findings("h1", "security", (_make_finding(),), "m", "p")
-        with sqlite3.connect(str(cache_path)) as conn:
+        with _peek_connect(cache_path, _HMAC_ADAPTER_SECRET) as conn:
             conn.execute("UPDATE findings_cache SET findings_json = ?", ("[]",))
             conn.commit()
 
