@@ -534,7 +534,7 @@ def main(
 
 
 @app.command()
-def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception handlers
+def analyze(
     repo_url: str = typer.Argument(
         ...,
         help="Git repository URL to analyze",
@@ -712,28 +712,8 @@ def analyze(  # noqa: PLR0912 — composition-root flag dispatch + exception han
                 max_cost_per_hour=max_cost_per_hour,
             )
         )
-    except KeyboardInterrupt:
-        console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
-        raise typer.Exit(code=130) from None
-    except SecretDetectedError as exc:
-        _print_secret_detection(exc)
-        raise typer.Exit(code=1) from exc
-    except PolicyGateError as exc:
-        _print_policy_violations(exc.violations)
-        raise typer.Exit(code=1) from exc
-    except BudgetExceededError as exc:
-        _print_budget_exceeded(exc)
-        raise typer.Exit(code=1) from exc
-    except (GitError, SpectraRetryError, AgentError) as exc:
-        err = exc.error
-        console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
-        console.print(f"  [dim]docs: {_docs_link(err.code)}[/]")
-        raise typer.Exit(code=1) from exc
-    except Exception as exc:
-        console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
-        if verbose:
-            console.print(traceback.format_exc())
-        raise typer.Exit(code=1) from exc
+    except BaseException as exc:
+        _handle_pipeline_exceptions(exc, verbose=verbose)
 
     if report is None:
         raise typer.Exit(code=1)
@@ -772,64 +752,50 @@ def _print_policy_violations(violations: tuple[Violation, ...]) -> None:
     )
 
 
-def _invoke_analyzer(
-    *,
-    repo_url: str,
-    output_path: str,
-    quick: bool,
-    fmt: str,
-    verbose: bool,
-    force: bool,
-    no_cache: bool,
-    overrides: dict[str, object],
-    no_gitignore: bool,
-    allow_secrets: bool,
-    max_cost_usd: float | None,
-    max_cost_per_hour: float | None,
-) -> object | None:
-    """Run the analyzer and translate domain exceptions into Typer.Exit.
+def _handle_pipeline_exceptions(exc: BaseException, *, verbose: bool) -> None:
+    """Translate any pipeline exception into a brand-voice line + ``typer.Exit``.
 
-    Extracted from ``analyze`` to keep that function under the cyclomatic
-    branch ceiling — adding SPEC-014 pushed it over.
+    Single funnel for every error class the analyzer can raise — replaces
+    a duplicated try/except chain that previously lived in both
+    ``analyze()`` and a never-called ``_invoke_analyzer`` helper. Always
+    raises; the ``NoReturn`` semantics keep the call site terse.
+
+    Exit codes are pinned by ``TestPipelineExceptionHandler``:
+
+    - ``KeyboardInterrupt`` → exit 130, "cancelled" message
+    - ``SecretDetectedError`` → exit 1, SPEC-011 finding block
+    - ``PolicyGateError`` → exit 1, SPEC-013 violation block
+    - ``BudgetExceededError`` → exit 1, SPEC-014 cost breakdown
+    - ``GitError``/``SpectraRetryError``/``AgentError`` → exit 1, code + docs link
+    - Anything else → exit 1, "Unexpected error: <repr>"; traceback only when
+      ``verbose`` is True so CI logs stay readable
+
+    ``BaseException`` is in the parameter type so ``KeyboardInterrupt``
+    can route through here without ruff BLE001 firing on the call site.
     """
-    if _analyzer_factory is None:  # pragma: no cover — guarded by _validate_analyze_inputs
-        raise typer.Exit(code=1)
-    try:
-        return asyncio.run(
-            _analyzer_factory(
-                repo_url=repo_url,
-                output_path=output_path,
-                skip_critique=quick,
-                output_format=fmt,
-                verbose=verbose,
-                force=force,
-                no_cache=no_cache,
-                agent_overrides=overrides,
-                honor_gitignore=not no_gitignore,
-                allow_secrets=allow_secrets,
-                max_cost_usd=max_cost_usd,
-                max_cost_per_hour=max_cost_per_hour,
-            )
-        )
-    except KeyboardInterrupt:
+    if isinstance(exc, KeyboardInterrupt):
         console.print(f"\n[{AMBER}]⚠[/] Analysis cancelled by user")
         raise typer.Exit(code=130) from None
-    except SecretDetectedError as exc:
+    if isinstance(exc, SecretDetectedError):
         _print_secret_detection(exc)
         raise typer.Exit(code=1) from exc
-    except BudgetExceededError as exc:
+    if isinstance(exc, PolicyGateError):
+        _print_policy_violations(exc.violations)
+        raise typer.Exit(code=1) from exc
+    if isinstance(exc, BudgetExceededError):
         _print_budget_exceeded(exc)
         raise typer.Exit(code=1) from exc
-    except (GitError, SpectraRetryError, AgentError) as exc:
+    if isinstance(exc, (GitError, SpectraRetryError, AgentError)):
         err = exc.error
         console.print(f"[{RED}]✗[/] {err.code}: {err.message}")
         console.print(f"  [dim]docs: {_docs_link(err.code)}[/]")
         raise typer.Exit(code=1) from exc
-    except Exception as exc:
-        console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
-        if verbose:
-            console.print(traceback.format_exc())
-        raise typer.Exit(code=1) from exc
+    if isinstance(exc, typer.Exit):
+        raise exc
+    console.print(f"[{RED}]✗[/] Unexpected error: {exc}")
+    if verbose:
+        console.print(traceback.format_exc())
+    raise typer.Exit(code=1) from exc
 
 
 # Conservative floor: 8 agents x ~$0.005 minimum input cost per call.
