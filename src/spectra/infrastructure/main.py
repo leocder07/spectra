@@ -102,6 +102,7 @@ from spectra.infrastructure.cost_tracker import (
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
+from spectra.infrastructure.observability import OtelTracerAdapter
 from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
 from spectra.infrastructure.receipt_signer import ReceiptSigner
 from spectra.infrastructure.redis_cache_adapter import RedisCacheAdapter
@@ -114,7 +115,7 @@ from spectra.infrastructure.yaml_policy_adapter import YamlPolicyAdapter
 from spectra.infrastructure.yaml_waiver_adapter import YamlWaiverAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.identity_resolver import resolve_actor
-from spectra.use_cases.interfaces import is_local_path
+from spectra.use_cases.interfaces import TracerPort, is_local_path
 from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 from spectra.use_cases.source_file_selection import (
@@ -128,6 +129,11 @@ if TYPE_CHECKING:
 
     from spectra.use_cases.interfaces import AuditPort, CachePort, LLMGateway
     from spectra.use_cases.orchestrate_agents import AnalysisAgent
+
+# CLI flag default — when --otel-endpoint is omitted, no tracer is wired
+# (NoopTracerAdapter via PipelineContext default). This keeps the install
+# overhead at zero for users who never enable observability.
+_DEFAULT_TEAM = "default"
 
 
 class ReportError(Exception):
@@ -225,6 +231,8 @@ def _assemble_context(
     max_cost_per_hour: float | None,
     max_cost_usd: float | None,
     run_id: str,
+    tracer: TracerPort | None,
+    team: str,
 ) -> PipelineContext:
     """Bundle every input the use-case pipeline needs into a single ctx.
 
@@ -268,6 +276,8 @@ def _assemble_context(
         cost_tracker=cost_tracker,
         max_cost_usd=max_cost_usd,
         report_store=report_store,  # type: ignore[arg-type]
+        tracer=tracer,
+        team=team,
     )
 
 
@@ -392,6 +402,8 @@ async def _run_analysis(
     max_cost_usd: float | None = None,
     max_cost_per_hour: float | None = None,
     cache_remote: str | None = None,
+    otel_endpoint: str | None = None,
+    team: str = _DEFAULT_TEAM,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -419,6 +431,11 @@ async def _run_analysis(
             wrapped in a ``TieredCacheAdapter`` with ``RedisCacheAdapter``
             as the L2. Falls back to ``SPECTRA_CACHE_REDIS`` env var, then
             local-only when neither is set.
+        otel_endpoint: OTLP/HTTP endpoint. ``None`` (default) disables
+            tracing; otherwise wires :class:`OtelTracerAdapter` so every
+            stage and per-agent span is exported (#30, ADR-023).
+        team: Team tag stamped on every span for cost attribution
+            (#33, ADR-023 §4). Defaults to ``"default"``.
 
     Returns:
         Completed analysis report.
@@ -439,6 +456,7 @@ async def _run_analysis(
     git = GitAdapter()
     report_renderer = ReportAdapter()
     cache = _provision_cache(no_cache=no_cache, cache_remote=cache_remote)
+    tracer = _build_tracer(otel_endpoint, team)
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
         workspace_dir, file_tree, source_files = await _ingest_workspace(
@@ -473,6 +491,8 @@ async def _run_analysis(
             max_cost_per_hour=max_cost_per_hour,
             max_cost_usd=max_cost_usd,
             run_id=run_id,
+            tracer=tracer,
+            team=team,
         )
         report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)
@@ -522,6 +542,46 @@ def _enforce_policy(workspace_dir: str, report: AnalysisReport) -> None:
     violations = adapter.evaluate(policy, report)
     if violations:
         raise PolicyGateError(violations)
+
+
+# ── Tracer adapter construction (ADR-023) ────────────────────
+
+
+def _build_tracer(endpoint: str | None, team: str) -> TracerPort | None:
+    """Wire :class:`OtelTracerAdapter` when ``endpoint`` is configured.
+
+    Returns ``None`` (the PipelineContext default — equivalent to a
+    NoopTracerAdapter via ``safe_span``) when:
+        - ``endpoint`` is not supplied (the 70% case);
+        - the OTel SDK fails to initialise the exporter (degrade,
+          never abort — same posture as audit / receipt failures).
+
+    Args:
+        endpoint: OTLP/HTTP collector URL.
+        team: Cost-attribution tag, copied onto the OTel ``Resource``
+            so it surfaces on every exported span.
+
+    Returns:
+        An ``OtelTracerAdapter`` or ``None``. ``None`` keeps the
+        composition root identical to pre-#30 behaviour.
+    """
+    if not endpoint:
+        return None
+    try:
+        return OtelTracerAdapter(
+            endpoint=endpoint,
+            resource_attributes={
+                "spectra.team": team,
+                "spectra.version": _SPECTRA_VERSION,
+            },
+        )
+    except (OSError, ValueError, ImportError) as exc:
+        logging.getLogger("spectra.tracing").warning(
+            "Tracing disabled — OTel adapter init failed: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 # ── Cache adapter construction ───────────────────────────────

@@ -689,6 +689,23 @@ def analyze(
             "then local-only when neither is set."
         ),
     ),
+    otel_endpoint: str | None = typer.Option(
+        None,
+        "--otel-endpoint",
+        help=(
+            "OTLP/HTTP endpoint for OpenTelemetry trace export "
+            "(e.g. http://collector:4318/v1/traces). Omit to disable tracing."
+        ),
+    ),
+    team: str | None = typer.Option(
+        None,
+        "--team",
+        envvar="SPECTRA_TEAM",
+        help=(
+            "Team tag stamped on every span for cost attribution (#33). "
+            "Defaults to $SPECTRA_TEAM, then 'default'."
+        ),
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -749,6 +766,8 @@ def analyze(
                 max_cost_usd=max_cost_usd,
                 max_cost_per_hour=max_cost_per_hour,
                 cache_remote=cache_remote,
+                otel_endpoint=otel_endpoint,
+                team=team or "default",
             )
         )
     except BaseException as exc:
