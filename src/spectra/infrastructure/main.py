@@ -433,7 +433,11 @@ async def _run_analysis(
         return report
     finally:
         if owns_workspace:
-            shutil.rmtree(workspace_dir, ignore_errors=True)
+            # Offload to a worker thread — on big repos the rmtree walk
+            # can take >100 ms and would otherwise block the event loop
+            # at the very end of the pipeline (no other awaitable runs
+            # during the synchronous walk).
+            await asyncio.to_thread(shutil.rmtree, workspace_dir, ignore_errors=True)
         await deps.adapter.close()
         _close_cache_quietly(cache)
 
