@@ -1358,10 +1358,7 @@ app.add_typer(history_app, name="history")
 def _get_history_store() -> ReportStorePort:
     """Return the history store via the injected provider, or exit cleanly."""
     if _history_store_provider is None:
-        console.print(
-            f"[{RED}]✗[/] No history backend wired: "
-            "set --history-backend or SPECTRA_POSTGRES_URL"
-        )
+        console.print(f"[{RED}]✗[/] No history backend wired: set --history-backend or SPECTRA_POSTGRES_URL")
         raise typer.Exit(code=1)
     return _history_store_provider()
 
@@ -1416,10 +1413,7 @@ def history_trend(
 def history_migrate() -> None:
     """Apply pending SQL migrations to the wired history backend."""
     if _history_migrator is None:
-        console.print(
-            f"[{RED}]✗[/] No history migrator wired: "
-            "set --history-backend or SPECTRA_POSTGRES_URL"
-        )
+        console.print(f"[{RED}]✗[/] No history migrator wired: set --history-backend or SPECTRA_POSTGRES_URL")
         raise typer.Exit(code=1)
     try:
         applied = _history_migrator()

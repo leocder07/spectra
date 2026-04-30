@@ -110,11 +110,7 @@ class _StubStore:
         since: datetime,
         until: datetime,
     ) -> tuple[ReportSummary, ...]:
-        rows = [
-            s
-            for s in self.summaries
-            if s.repo_signature == repo_signature and since <= s.timestamp < until
-        ]
+        rows = [s for s in self.summaries if s.repo_signature == repo_signature and since <= s.timestamp < until]
         rows.sort(key=lambda s: s.timestamp, reverse=True)
         return tuple(rows)
 
