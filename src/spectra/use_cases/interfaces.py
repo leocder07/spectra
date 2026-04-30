@@ -14,18 +14,20 @@ Protocols defined here:
     RemoteCachePort — Distributed L2 cache (ADR-021, capability #21).
     WorkspaceFilterPort — ``.gitignore`` + ``.spectraignore`` honor (Capability #6).
     SecretScannerPort — Pre-flight regex secret scan (Capability #6).
+    TracerPort — Span lifecycle for distributed tracing (ADR-023, #30 + #33).
 
 Helpers:
     is_local_path — Pure classifier distinguishing local paths from URLs.
 
 ADR references in this module: ADR-001 (clean architecture / port pattern),
 ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port),
-ADR-021 (distributed cache port). See ``docs/architecture/adr/`` and
+ADR-021 (distributed cache port), ADR-023 (tracer port). See ``docs/architecture/adr/`` and
 ``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager  # noqa: TC003 — used by Protocol signatures at runtime
 from datetime import datetime  # noqa: TC003 — used by Protocol signatures at runtime
 from pathlib import Path
 from typing import Protocol
@@ -640,6 +642,72 @@ class ReportStorePort(Protocol):
         Ordered most-recent-first. Half-open interval semantics —
         ``since`` is inclusive, ``until`` is exclusive — mirror the
         ``LAG()`` window query in the drift detector (ADR-022 §6).
+        """
+        ...
+
+
+class Span(Protocol):
+    """Single span lifecycle (ADR-023). Structural — adapters supply concrete spans.
+
+    The Protocol mirrors a deliberately small subset of OpenTelemetry's
+    ``Span`` so adapters stay thin and the use-case layer never imports
+    ``opentelemetry.*``. ``set_attribute`` accepts only scalar types
+    that round-trip through OTLP without lossy coercion.
+
+    Attribute key discipline (enforced by ``OtelTracerAdapter``):
+        - ``cost.usd``, ``tokens.input``, ``tokens.output`` — cost attribution.
+        - ``agent.role``, ``agent.model``, ``agent.effort`` — per-agent spans.
+        - ``spectra.team``, ``spectra.repo_signature`` — fleet-wide queries.
+    Sensitive keys (``*key*``, ``*secret*``, ``*token*``, ``*body*``,
+    ``*content*``, ``*code*``) are dropped at attribute set-time by the
+    OTel adapter — see ADR-023 §5 (sensitive-attribute boundary).
+    """
+
+    def set_attribute(self, key: str, value: str | int | float | bool) -> None:
+        """Attach a scalar attribute to this span."""
+        ...
+
+    def add_event(self, name: str, attributes: dict[str, object] | None = None) -> None:
+        """Append a named event to this span (point-in-time annotation)."""
+        ...
+
+    def record_exception(self, exc: BaseException) -> None:
+        """Record an exception under the standard OTel ``exception`` event."""
+        ...
+
+
+class TracerPort(Protocol):
+    """Port for distributed-tracing span lifecycle (ADR-023, #30 + #33).
+
+    Implemented by ``OtelTracerAdapter`` (Layer 4) when an OTLP endpoint
+    is configured, ``InMemoryTracerAdapter`` for tests, and
+    ``NoopTracerAdapter`` (default zero-overhead fallback). The use-case
+    layer imports this Protocol; it never imports OpenTelemetry.
+
+    The single ``span`` method returns a context manager so the typical
+    call site is one ``with`` block — span lifecycle (start, status,
+    end) is owned by the adapter. Exceptions inside the block are
+    recorded by the adapter and re-raised; tracing must never swallow a
+    pipeline failure.
+    """
+
+    def span(
+        self,
+        name: str,
+        attributes: dict[str, str | int | float | bool] | None = None,
+    ) -> AbstractContextManager[Span]:
+        """Open a span as a context manager.
+
+        Args:
+            name: Dotted span name (``spectra.stage.analyze``,
+                ``spectra.agent.security``).
+            attributes: Optional initial attribute set, applied before
+                the span body executes.
+
+        Returns:
+            A context manager yielding a :class:`Span` whose
+            ``set_attribute``/``add_event``/``record_exception`` methods
+            survive even when tracing is disabled (no-op fallback).
         """
         ...
 
