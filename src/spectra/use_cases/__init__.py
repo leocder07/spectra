@@ -24,6 +24,7 @@ It never imports from adapters or infrastructure.
 
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.interfaces import (
+    BatchSubmitterPort,
     CostTrackerPort,
     GitPort,
     LLMGateway,
@@ -55,6 +56,7 @@ __all__ = [
     # orchestration
     "AnalysisAgent",
     # interfaces (ports)
+    "BatchSubmitterPort",
     "CostTrackerPort",
     "GitPort",
     "LLMGateway",
