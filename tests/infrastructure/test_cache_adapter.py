@@ -55,6 +55,7 @@ def _peek_connect(path: Path, secret: bytes | None = None):
         return conn
     return sqlite3.connect(str(path))
 
+
 # ── Helpers ────────────────────────────────────────────────────
 
 
