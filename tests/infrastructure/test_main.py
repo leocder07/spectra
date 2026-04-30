@@ -1507,3 +1507,83 @@ class TestAttachReceiptExceptionScope:
             pytest.raises(AttributeError),
         ):
             _attach_receipt(report, run_id="run-5")
+
+
+# ── R3-Arch-1: _run_analysis decomposition ────────────────────
+
+
+class TestWireDependenciesHelper:
+    """``_wire_dependencies`` builds the gateway+observer bundle.
+
+    Pinning the seam lets us unit-test the composition wiring without
+    invoking the full pipeline. The helper returns a ``_DepBundle``
+    dataclass — a value object the orchestrator threads through to
+    ``_assemble_context``.
+    """
+
+    def test_returns_bundle_with_observer_and_gateway(self):
+        from spectra.infrastructure.main import _DepBundle, _wire_dependencies
+
+        bundle = _wire_dependencies("test-api-key")
+        assert isinstance(bundle, _DepBundle)
+        # The decorator chain wraps the adapter — observer must be the
+        # outermost concern so every retry is logged.
+        assert bundle.observer is not None
+        assert bundle.gateway is not None
+        assert bundle.adapter is not None
+        # The adapter is the inner Anthropic client we close in finally.
+        assert hasattr(bundle.adapter, "close")
+
+    def test_bundle_is_frozen(self):
+        """The bundle is an immutable value object — no field reassignment."""
+        from dataclasses import FrozenInstanceError
+
+        from spectra.infrastructure.main import _wire_dependencies
+
+        bundle = _wire_dependencies("test-api-key")
+        with pytest.raises(FrozenInstanceError):
+            bundle.observer = None  # type: ignore[misc]
+
+
+class TestRunAnalysisDecomposition:
+    """The decomposed ``_run_analysis`` body must stay below the PLR0915
+    statement-count threshold so we can drop the legacy ``# noqa: PLR0915``.
+
+    A ruff regression check would re-fail the lint gate if anyone re-inlined
+    the helpers, which is the protection we want from this test.
+    """
+
+    def test_run_analysis_does_not_carry_plr0915_suppression(self):
+        """Once decomposed, the function body is small enough that we
+        no longer need the ``# noqa: PLR0915`` escape. If a future change
+        re-inlines logic and re-introduces the suppression, this test
+        signals the regression at PR review time.
+        """
+        from pathlib import Path
+
+        main_path = Path("src/spectra/infrastructure/main.py")
+        source = main_path.read_text(encoding="utf-8")
+        # The PLR0915 suppression on _run_analysis is a smell that the
+        # function has accreted too many statements again — flag it.
+        assert "async def _run_analysis(  # noqa: PLR0915" not in source, (
+            "_run_analysis carries a PLR0915 suppression — decompose it"
+        )
+
+    def test_run_analysis_body_is_under_plr0915_threshold(self):
+        """``_run_analysis`` must stay under ruff's PLR0915 statement cap (50).
+
+        AST-based count rather than ``subprocess.run('ruff', ...)`` so the
+        test is hermetic and does not depend on a binary on $PATH.
+        """
+        import ast
+        from pathlib import Path
+
+        source = Path("src/spectra/infrastructure/main.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_run_analysis":
+                statements = sum(1 for _ in ast.walk(node) if isinstance(_, ast.stmt))
+                # Default ruff PLR0915 threshold is 50.
+                assert statements < 50, f"_run_analysis has {statements} statements — decompose further"
+                return
+        pytest.fail("_run_analysis not found in main.py")
