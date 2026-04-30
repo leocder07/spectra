@@ -44,7 +44,6 @@ from typing import TYPE_CHECKING
 
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.adapters.cli_controller import (
-    PolicyGateError,
     cli_entry,
     set_analyzer_factory,
     set_cache_provider,
@@ -54,7 +53,7 @@ from spectra.adapters.cli_controller import (
 from spectra.adapters.progress_reporter import RichProgressReporter
 from spectra.entities.audit import new_event_id
 from spectra.entities.disclaimer import disclaimer_payload
-from spectra.entities.errors import ERRORS, AgentError, SpectraError
+from spectra.entities.errors import ERRORS, AgentError, PolicyGateError, SpectraError
 from spectra.entities.models import (
     AnalysisReport,
     AnalysisRequest,
