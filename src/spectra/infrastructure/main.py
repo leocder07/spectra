@@ -106,6 +106,9 @@ from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from spectra.use_cases.interfaces import AuditPort, LLMGateway
+    from spectra.use_cases.orchestrate_agents import AnalysisAgent
+
 
 class ReportError(Exception):
     """Raised when report rendering fails (SPEC-009).
@@ -120,24 +123,29 @@ class ReportError(Exception):
 
 
 def _build_agents(
-    gateway: object,
+    gateway: LLMGateway,
     agent_overrides: dict[str, object] | None,
     *,
     skip_critique: bool,
-) -> tuple[object, list[object], object | None]:
+) -> tuple[AnalysisAgent, list[AnalysisAgent], AnalysisAgent | None]:
     """Resolve per-agent configs from CLI overrides and build all 8 agents.
+
+    The ``gateway`` argument is typed against the use-case ``LLMGateway``
+    Protocol (Layer 2), preserving the dependency rule via the
+    ``TYPE_CHECKING`` import — no runtime cycle, no ``object`` fallback.
+    Likewise the returned agents satisfy ``AnalysisAgent`` (the Protocol
+    used by the orchestrator) so the seam is type-checked end-to-end.
 
     Returns:
         ``(meta_prompter, specialists, critique_agent)``. ``critique_agent``
         is ``None`` when ``skip_critique`` is True.
     """
     configs = resolve_agent_configs(agent_overrides or {})
-    factory = AgentFactory(gateway=gateway, configs=configs)  # type: ignore[arg-type]
-    return (
-        factory.create("meta_prompter"),
-        factory.create_specialists(),
-        None if skip_critique else factory.create("critique"),
-    )
+    factory = AgentFactory(gateway=gateway, configs=configs)
+    meta: AnalysisAgent = factory.create("meta_prompter")
+    specialists: list[AnalysisAgent] = list(factory.create_specialists())
+    critique: AnalysisAgent | None = None if skip_critique else factory.create("critique")
+    return (meta, specialists, critique)
 
 
 async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
@@ -892,8 +900,12 @@ def _sarif_run_properties(report: AnalysisReport) -> dict[str, object]:
 # ── Audit + receipt wiring (ADR-018, #57) ────────────────────
 
 
-def _build_audit_port(spec: str | None) -> object | None:
-    """Construct the audit adapter from a sink spec; degrade to ``None``."""
+def _build_audit_port(spec: str | None) -> AuditPort | None:
+    """Construct the audit adapter from a sink spec; degrade to ``None``.
+
+    Returns ``None`` when the spec is malformed or the sink cannot be
+    opened — audit emission is best-effort and never fatal (ADR-018 §4).
+    """
     sink = spec or default_audit_sink_spec()
     try:
         return build_audit_adapter(sink)
