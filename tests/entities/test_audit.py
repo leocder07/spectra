@@ -112,7 +112,7 @@ class TestAuditEventPayloadRefusal:
 
 class TestIdentity:
     @pytest.mark.parametrize(
-        "source,confidence",
+        ("source", "confidence"),
         [
             ("env", "medium"),
             ("git", "medium"),

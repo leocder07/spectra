@@ -48,8 +48,10 @@ from spectra.adapters.cli_controller import (
     set_analyzer_factory,
     set_cache_provider,
     set_shred_executor,
+    set_verifier,
 )
 from spectra.adapters.progress_reporter import RichProgressReporter
+from spectra.entities.audit import new_event_id
 from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
@@ -66,6 +68,12 @@ from spectra.infrastructure.agents.specialist_prompts import (
     SPECIALIST_CONFIGS,
 )
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
+from spectra.infrastructure.audit_wiring import (
+    KeyringReceiptKeyStore,
+    build_audit_adapter,
+    default_audit_sink_spec,
+    default_receipt_public_key_path,
+)
 from spectra.infrastructure.cache_adapter import (
     SCHEMA_VERSION,
     SqliteCacheAdapter,
@@ -77,11 +85,13 @@ from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
+from spectra.infrastructure.receipt_signer import ReceiptSigner
 from spectra.infrastructure.regex_secret_scanner import RegexSecretScanner
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
+from spectra.use_cases.identity_resolver import resolve_actor
 from spectra.use_cases.interfaces import is_local_path
 from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
@@ -123,7 +133,7 @@ def _build_agents(
     )
 
 
-async def _run_analysis(
+async def _run_analysis(  # noqa: PLR0915 — composition-root sequential setup
     repo_url: str,
     output_path: str,
     skip_critique: bool = False,
@@ -135,6 +145,7 @@ async def _run_analysis(
     *,
     honor_gitignore: bool = True,
     allow_secrets: bool = False,
+    audit_sink: str | None = None,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -244,6 +255,9 @@ async def _run_analysis(
             output_format=output_format,
         )
 
+        audit_port = _build_audit_port(audit_sink)
+        actor = resolve_actor()
+        run_id = new_event_id()
         ctx = PipelineContext(
             request=request,
             codebase=codebase,
@@ -256,8 +270,13 @@ async def _run_analysis(
             cache_port=cache,
             cache_key_factory=_make_cache_key_factory() if cache else None,
             force_cache_bypass=force,
+            audit_port=audit_port,
+            actor=actor,
+            spectra_version=_SPECTRA_VERSION,
+            run_id=run_id,
         )
         report = await analyze_repository(ctx)
+        report = _attach_receipt(report, run_id)
 
         # Stage 6: REPORT
         observer.on_stage_start("REPORT", "Rendering report")
@@ -714,15 +733,49 @@ def _build_sarif(report: AnalysisReport) -> dict:
     }
 
 
+# ── Audit + receipt wiring (ADR-018, #57) ────────────────────
+
+
+def _build_audit_port(spec: str | None) -> object | None:
+    """Construct the audit adapter from a sink spec; degrade to ``None``."""
+    sink = spec or default_audit_sink_spec()
+    try:
+        return build_audit_adapter(sink)
+    except (ValueError, OSError) as exc:
+        logging.getLogger("spectra.audit").warning(
+            "Audit disabled: failed to build sink %r: %s", sink, exc
+        )
+        return None
+
+
+def _attach_receipt(report: AnalysisReport, run_id: str) -> AnalysisReport:
+    """Sign ``report`` and embed the resulting receipt; degrade on failure."""
+    try:
+        keystore = KeyringReceiptKeyStore(public_key_path=default_receipt_public_key_path())
+        signer = ReceiptSigner(keystore=keystore)
+        receipt = signer.sign(report, scan_id=run_id)
+    except Exception as exc:
+        logging.getLogger("spectra.receipt").warning(
+            "Receipt signing skipped: %s", exc
+        )
+        return report
+    return report.model_copy(update={"receipt": receipt})
+
+
 def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
     This is the ``[project.scripts]`` entry point. It injects the
-    analyzer factory and the cache provider into the CLI controller
-    before starting Typer. The cache provider serves the lightweight
-    ``spectra cache *`` subcommands without spinning up the LLM stack.
+    analyzer factory, the cache provider, and the receipt verifier into
+    the CLI controller before starting Typer. The cache provider and
+    verifier serve the lightweight ``spectra cache *`` and
+    ``spectra verify`` subcommands without spinning up the LLM stack.
     """
+    from spectra.infrastructure.audit_wiring import default_receipt_public_key_path
+    from spectra.infrastructure.receipt_signer import verify_receipt
+
     set_analyzer_factory(_run_analysis)
     set_cache_provider(_provision_cache_only)
     set_shred_executor(_shred_cache_and_keys)
+    set_verifier(verify_receipt, default_public_key_path=default_receipt_public_key_path())
     cli_entry()

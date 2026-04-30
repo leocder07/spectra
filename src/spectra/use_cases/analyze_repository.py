@@ -15,9 +15,11 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from hashlib import blake2b
 from typing import TYPE_CHECKING
 
+from spectra.entities.audit import AuditEvent, AuditTarget, Identity, new_event_id
 from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.errors import ERRORS, strip_code_fence
 from spectra.entities.models import (
@@ -38,8 +40,9 @@ from spectra.entities.models import (
     estimate_cost,
     score_to_grade,
 )
+from spectra.use_cases.audit import safe_emit, safe_flush
 from spectra.use_cases.injection_scanner import scan_files_for_injection
-from spectra.use_cases.interfaces import CachePort, GitPort, ProgressObserver
+from spectra.use_cases.interfaces import AuditPort, CachePort, GitPort, ProgressObserver
 from spectra.use_cases.manage_token_budget import (
     DIMENSION_WEIGHTS,
     allocate_specialist_budgets,
@@ -104,6 +107,10 @@ class PipelineContext:
     cache_key_factory: CacheKeyFactory | None = None
     force_cache_bypass: bool = False
     cache_versions: CacheVersions | None = None
+    audit_port: AuditPort | None = None
+    actor: Identity | None = None
+    spectra_version: str = "0.0.0"
+    run_id: str = ""
 
 
 @dataclass
@@ -190,17 +197,102 @@ async def _run_pipeline(
     state: _PipelineState,
 ) -> AnalysisReport:
     """Thin coordinator that delegates to stage functions."""
-    cached = _try_serve_from_cache(ctx)
+    await _emit_audit(ctx, "scan.started", {"repo": ctx.codebase.repo_name})
+    try:
+        cached = _try_serve_from_cache(ctx)
+        if cached is not None:
+            await _emit_audit(ctx, "cache.hit", {"served_from_cache": True})
+            await _emit_scan_completed(ctx, cached)
+            return cached
+        plan = await _run_plan_stage(ctx, state)
+        await _resolve_source_files(ctx, plan, state)
+        state.analysis = await _run_analyze_stage(ctx, plan, state)
+        findings = _run_merge_stage(state, ctx)
+        output = await _run_critique_pipeline(ctx, findings, state)
+        report = _build_report(ctx, state, output)
+        _store_in_cache(ctx, report)
+        await _emit_scan_completed(ctx, report)
+        return report
+    except Exception as exc:
+        await _emit_audit(ctx, "scan.failed", {"error": _truncate(str(exc), 200)})
+        raise
+    finally:
+        await safe_flush(ctx.audit_port)
+
+
+async def _emit_audit(
+    ctx: PipelineContext,
+    event: str,
+    payload: dict[str, str | int | float | bool] | None = None,
+) -> None:
+    """Best-effort emit of an audit event tied to the run context.
+
+    Skips silently when the run has no actor or audit port wired.
+    """
+    if ctx.audit_port is None or ctx.actor is None:
+        return
+    try:
+        evt = AuditEvent(
+            event_id=new_event_id(),
+            ts=datetime.now(UTC),
+            event=event,  # type: ignore[arg-type]
+            actor=ctx.actor,
+            target=AuditTarget(
+                repo_signature=_repo_signature_for_audit(ctx),
+                run_id=ctx.run_id or None,
+            ),
+            payload=payload or {},
+            spectra_version=ctx.spectra_version,
+            run_id=ctx.run_id or None,
+        )
+    except (ValueError, TypeError):
+        # Payload validation failure is best-effort; never abort.
+        return
+    await safe_emit(ctx.audit_port, evt)
+
+
+async def _emit_scan_completed(ctx: PipelineContext, report: AnalysisReport) -> None:
+    """Emit ``scan.completed`` (or scan.degraded / scan.compromised) for ``report``."""
+    payload: dict[str, str | int | float | bool] = {
+        "score": float(round(report.score_card.overall_score, 2)),
+        "findings": len(report.findings),
+        "tokens": int(report.total_tokens_used),
+        "cost_usd": float(round(report.total_cost_usd, 4)),
+    }
+    if report.is_compromised:
+        await _emit_audit(ctx, "scan.compromised", payload)
+    elif report.is_degraded:
+        await _emit_audit(ctx, "scan.degraded", payload)
+    else:
+        await _emit_audit(ctx, "scan.completed", payload)
+
+
+def _repo_signature_for_audit(ctx: PipelineContext) -> str:
+    """Stable repo signature for the audit target (file-tree blake2b)."""
+    cached = _try_cache_signature(ctx)
     if cached is not None:
         return cached
-    plan = await _run_plan_stage(ctx, state)
-    await _resolve_source_files(ctx, plan, state)
-    state.analysis = await _run_analyze_stage(ctx, plan, state)
-    findings = _run_merge_stage(state, ctx)
-    output = await _run_critique_pipeline(ctx, findings, state)
-    report = _build_report(ctx, state, output)
-    _store_in_cache(ctx, report)
-    return report
+    digest = blake2b(digest_size=16)
+    for path in ctx.codebase.file_tree:
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\x00")
+    return digest.hexdigest()
+
+
+def _try_cache_signature(ctx: PipelineContext) -> str | None:
+    """Best-effort delegation to the cache port's signature computation."""
+    if ctx.cache_port is None:
+        return None
+    try:
+        return ctx.cache_port.compute_repo_signature(ctx.codebase.file_tree)
+    except Exception as exc:
+        _log.debug("compute_repo_signature failed for audit target: %s", exc)
+        return None
+
+
+def _truncate(text: str, limit: int) -> str:
+    """Cap ``text`` at ``limit`` chars for audit-payload bounds."""
+    return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
 # ── Phase 2: repo-level cache short-circuit ───────────────────
