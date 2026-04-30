@@ -52,7 +52,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from spectra.entities.enums import AgentRole, PipelineState
-from spectra.entities.models import AgentOutput, BatchPrompt
+from spectra.entities.errors import BudgetExceededError
+from spectra.entities.models import AgentOutput, BatchPrompt, estimate_cost
+from spectra.use_cases.interfaces import CostTrackerPort
 
 
 class AnalysisAgent(Protocol):
@@ -207,6 +209,88 @@ def _merge_agent_batches(
         duration_seconds=sum(o.duration_seconds for o in outputs),
         raw_response="{}",
     )
+
+
+async def run_specialists_with_budget(
+    agents: list[AnalysisAgent],
+    prompts: dict[AgentRole, str],
+    *,
+    tracker: CostTrackerPort,
+    max_cost_usd: float | None,
+    estimate_per_agent: float,
+    timeout_seconds: float = 120.0,
+) -> list[AgentOutput | Exception]:
+    """Run specialists sequentially with a per-agent budget gate (SPEC-012).
+
+    Sequential execution is intentional here: the gate must observe each
+    completed agent's actual cost before deciding whether the next call
+    fits the cap. ``--max-cost-usd`` is fundamentally serial — racing 6
+    agents past the line would defeat the cap by ``cost(6th agent)``.
+
+    Args:
+        agents: Specialists to execute, in run order.
+        prompts: Role-keyed prompt strings.
+        tracker: Cost ledger; ``record`` is called after each success.
+        max_cost_usd: Per-run cap. ``None`` disables enforcement.
+        estimate_per_agent: USD projection for the next call (input to
+            ``would_exceed``). Conservative; the actual cost from
+            ``estimate_cost(output)`` is recorded post-call.
+        timeout_seconds: Per-agent timeout (default 120s).
+
+    Returns:
+        Per-agent ``AgentOutput`` or ``Exception`` in input order.
+
+    Raises:
+        BudgetExceededError: SPEC-012 when the gate fires before a call.
+    """
+    results: list[AgentOutput | Exception] = []
+    for agent in agents:
+        if _gate_would_block(tracker, max_cost_usd, estimate_per_agent):
+            raise BudgetExceededError(
+                spent_usd=tracker.total(),
+                budget_usd=max_cost_usd or 0.0,
+                per_agent=_per_agent_breakdown(tracker),
+            )
+        prompt = prompts.get(agent.role, "")
+        result = await _run_one_with_record(agent, prompt, tracker, timeout_seconds)
+        results.append(result)
+    return results
+
+
+def _gate_would_block(
+    tracker: CostTrackerPort,
+    max_cost_usd: float | None,
+    estimate_per_agent: float,
+) -> bool:
+    """Return True when ``--max-cost-usd`` would be exceeded by the next call."""
+    if max_cost_usd is None:
+        return False
+    return tracker.would_exceed(estimate_per_agent, max_cost_usd)
+
+
+def _per_agent_breakdown(tracker: CostTrackerPort) -> dict[str, float]:
+    """Return the tracker's per-agent dict, or empty if unsupported."""
+    per_agent = getattr(tracker, "per_agent", None)
+    if per_agent is None:
+        return {}
+    return per_agent()
+
+
+async def _run_one_with_record(
+    agent: AnalysisAgent,
+    prompt: str,
+    tracker: CostTrackerPort,
+    timeout_seconds: float,
+) -> AgentOutput | Exception:
+    """Execute a single agent, capture exceptions, record actual cost."""
+    try:
+        output = await asyncio.wait_for(agent.run(prompt), timeout=timeout_seconds)
+    except Exception as exc:
+        # Orchestrator captures all to preserve fault isolation; the
+        # caller (evaluate_results) classifies failures downstream.
+        return exc
+    tracker.record(agent.role, estimate_cost((output,)))
+    return output
 
 
 def evaluate_results(
