@@ -1,10 +1,10 @@
 # 07 — Security Architecture
 
-**Status:** Stable + Q2 designed · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 
-State the threat model, document the v0.5.0 hardening that closed every Red Team critical/high, and describe the Q2-designed capabilities that make Spectra defensible as a CI gate in regulated workflows.
+State the threat model, document the v0.5.0 hardening that closed every Red Team critical/high, and describe the v0.6.0 capabilities (audit log, signed receipts, encrypted cache, policy + waivers, dual-mode classification, severity gate) that make Spectra defensible as a CI gate in regulated workflows.
 
 ## Audience
 
@@ -20,10 +20,13 @@ Security reviewers, CISOs in procurement, engineers touching anything secret-adj
 | Supply-chain compromise of the published wheel | Distribution integrity | SLSA L3 attestation + Sigstore keyless signing (roadmap #7) |
 | Malicious markdown in a finding breaks PR comments | GitHub PR rendering | Markdown-safe PR comment renderer with field allowlist (roadmap #4) |
 | Buyer treats indicative analysis as compliance evidence | Customer trust | Indicative-analysis disclaimer banner on every report (roadmap #61) |
-| Hostile loop drains Anthropic budget | Cost | Q2-designed `--max-cost-usd` per-run + per-hour rolling cap (ADR-013, roadmap #5) |
-| Stolen laptop is a notifiable event for HIPAA | Cache contents | Q2-designed encrypted cache at rest (SQLCipher) + `spectra cache shred` (roadmap #13) |
-| Audit gap blocks SOC 2 / ISO 27001 procurement | Auditability | Q2-designed `AuditPort` + JSON-Lines/OTLP/CloudWatch sinks (ADR-018) |
-| Forged Spectra grade in a third-party report | Verifiability | Q2-designed Ed25519-signed scan receipt (roadmap #57) |
+| Hostile loop drains Anthropic budget | Cost | `--max-cost-usd` per-run + per-hour rolling cap, fires SPEC-014 (v0.6.0, ADR-013, roadmap #5) |
+| Stolen laptop is a notifiable event for HIPAA | Cache contents | SQLCipher-at-rest encryption + `spectra cache shred` (v0.6.0, roadmap #13) |
+| Audit gap blocks SOC 2 / ISO 27001 procurement | Auditability | `AuditPort` + JSON-Lines/OTLP/stdout sinks (v0.6.0, ADR-018) |
+| Forged Spectra grade in a third-party report | Verifiability | Ed25519-signed scan receipt + `spectra verify` (v0.6.0, roadmap #57) |
+| Unsigned waiver smuggles a finding past the gate | Integrity of gating | Ed25519-verified `.spectra-waivers.yml` with approver registry (v0.6.0, roadmap #18) |
+| Quick-mode report mistaken for fully validated | Provenance | `validation_status` stamp + red banner above ScoreCard (v0.6.0, roadmap #20) |
+| Confidential report leaks via copy-paste | Confidentiality | `--classification confidential` watermark + `--classification public` strict redaction (v0.6.0, roadmap #56) |
 
 ## v0.5.0 — what shipped
 
@@ -111,15 +114,15 @@ Hardening:
 
 See [10 — Deployment & Release](./10-deployment-and-release.md) for the publish pipeline.
 
-## Q2 designed — in flight
+## v0.6.0 — what shipped (Q2)
 
-### 7. Audit log + identity (ADR-018)
+### 7. Audit log + identity (ADR-018, roadmap #12 + #57)
 
-`AuditPort` with three adapter implementations: `JsonlAuditAdapter` (default, `${XDG_STATE_HOME:-~/.local/state}/spectra/audit.jsonl`), `OtlpAuditAdapter` (OpenTelemetry Logs), `CloudWatchAuditAdapter` (optional extra `pip install spectra-ai[aws]`).
+`AuditPort` with three adapter implementations: `JsonLinesAuditAdapter` (file with daily rotation, default sink for file-mode), `OtlpAuditAdapter` (OpenTelemetry Logs HTTP exporter), `StdoutAuditAdapter` (default for CI). All emits go through `safe_emit` so audit failures never abort the pipeline. New `--audit-sink stdout|file:<path>|otlp:<url>` flag.
 
-Identity resolved once per process at startup with explicit precedence: `SPECTRA_USER_ID` env > OIDC token in CI > `git config user.email` > hostname fallback. Confidence label flows into every audit event. We deliberately do not require OIDC — Spectra is CLI-only.
+Identity resolution precedence: env `SPECTRA_ACTOR` > git config > OIDC > `getpass@hostname` (hashed to a 16-char ID for privacy). We deliberately do not require OIDC — Spectra is CLI-only.
 
-Every state transition emits a structured `AuditEvent`. Privacy boundary enforced at the adapter: `payload` keys named `code`, `content`, `secret`, `key`, `token`, `body` are refused. Tests verify the refusal.
+Every state transition emits a structured `AuditEvent`. Privacy boundary enforced at the entity: `FORBIDDEN_PAYLOAD_KEYS` validator rejects `code`/`content`/`secret`/`key`/`token`/`body`/`raw`/`snippet`/`source`; string values capped at 500 chars. Tests verify the refusal.
 
 | What we log | What we never log |
 |-------------|-------------------|
@@ -127,38 +130,39 @@ Every state transition emits a structured `AuditEvent`. Privacy boundary enforce
 
 ### 8. `--max-cost-usd` budget enforcement (ADR-013, roadmap #5)
 
-Per-run hard cap + per-hour rolling cap. Backed by a new `CostTrackerPort` + SQLite `cost_window` table. `task_budget` becomes per-agent (not Critique-only). Violation → new `PipelineState` transition `budget_exceeded` → graceful exit with partial report.
+Per-run hard cap (`--max-cost-usd`) + per-hour rolling cap (`--max-cost-per-hour`). Backed by `CostTrackerPort` (Layer 2) with `InMemoryCostTracker` (default) and `SqliteCostTracker` (rolling 1-hour cap persisted to `cost_log` table in cache.db). Pipeline gate aborts mid-run with **SPEC-014 `BudgetExceededError`** when the next agent call would cross the threshold. Brand-voice ✗ message names the budget, the spend, and lists per-agent breakdown. Pre-flight emits a WARN (not abort) when the budget is below the ~$0.04 8-agent input floor.
 
 ### 9. Encrypted cache at rest (roadmap #13)
 
-`SqlcipherCacheAdapter` sibling of `SqliteCacheAdapter`. Same `CachePort`. New extra `pip install spectra-ai[encrypted-cache]`. `spectra cache shred` zeroes the encryption key and removes the database. Targets HIPAA "stolen laptop is not a notifiable event" use case.
+The per-user cache file is now AES-256 encrypted via SQLCipher 4. The encryption key is derived from the same OS-keyring secret that anchors the per-row HMAC, with a different domain-separation step. Wrong-key surfaces as SPEC-010 at open time. Backward-compat: any existing v0.5.0 plaintext cache is auto-migrated in place — rows streamed into a fresh encrypted DB, MACs re-computed, file atomically swapped, plaintext shredded. New `spectra cache shred [-y]` overwrites cache.db (and WAL/SHM siblings) with random bytes (3 passes) then deletes them; also drops the per-user keyring entry. Targets HIPAA "stolen laptop is not a notifiable event" use case. Adapter degrades to plain SQLite + WARN when `libsqlcipher` is unavailable on the platform.
 
-### 10. `.spectra-policy.yml` + signed `.spectra-waivers.yml` (roadmap #17)
+### 10. `.spectra-policy.yml` + signed `.spectra-waivers.yml` + inline pragma (ADR-020, roadmap #17 + #18 + #68)
 
-Declarative policy at the org and repo level. `Policy` entity carries severity gate, max-cost cap, and tuple of `PolicyRule`. `Waiver` is per-(rule_id, file_path) suppression with an Ed25519 signature and an `expires` date. Replaces ad-hoc CI YAML duplication; foundation for portfolio enforcement.
+Declarative policy at the org and repo level. `PolicyPort` (Layer 2) backed by `YamlPolicyAdapter`. Policy enforces severity gates, per-rule forbid lists, custom dimension weights — fires **SPEC-013 `PolicyViolationError`** on violation; runs even with `--quick`. `WaiverPort` backed by `YamlWaiverAdapter`. Waivers carry an Ed25519 signature over canonical JSON of `(repo_signature, finding_signature, reason, waived_by, waived_at, expires_at)` — unsigned/invalid waivers are dropped + logged, never silently accepted. Expired waivers are surfaced on the report. New `spectra waive <id> --reason "..."` and `spectra approver register --name "..." [--key-file <path>]` subcommands. Inline pragma `# spectra: ignore-next-line SEC-AUTH-101` parsed during ingest as ephemeral one-scan waivers. Malformed YAML fires **SPEC-012 `ConfigInvalidError`**.
 
-### 11. Severity-gate + non-validated stamp (roadmap #20)
+### 11. Severity-gate + non-validated stamp (roadmap #19 + #20)
 
-`spectra-action` input `severity-gate=critical|high|medium|low` exits non-zero when any finding meets or exceeds the gate. `--quick` runs (CritiqueAgent skipped → injection detection skipped) stamp the report with `validation_status="non-validated"` so downstream consumers can refuse to gate on unvalidated grades.
+action.yml gains `inputs.fail-on: critical|high|medium|low|none` (default `critical`). New CLI `--fail-on <severity>` exits 1 when a finding is at or above the threshold. Reports stamped with new `validation_status` Literal: `validated` | `non-validated:critique-skipped` | `non-validated:quick-mode`. `--quick` and `--no-critique` runs render a red banner above the ScoreCard plus the same string in JSON top-level + SARIF `runs[0].properties.validation_status`.
 
-### 12. Dual-mode classification (ADR-018 + roadmap)
+### 12. Dual-mode classification (roadmap #56)
 
-`AnalysisReport.classification: Literal["confidential", "public"]`. Default `confidential` — full report. `public` — file paths and finding text redacted; only the score card and the disclaimer emitted. Compromised runs refuse public-mode emission entirely.
+`Classification` literal + `AnalysisReport.classification` field (default `confidential`). Confidential mode: full HTML with diagonal CONFIDENTIAL watermark + DLP-marker meta tag (`<meta name="x-dlp-classification" content="confidential">`) + visible banner. Public mode: strict redaction — drops every individual finding, code snippet, file path, recommendation; keeps overall grade, dimension scores, findings counts, repo name, scan timestamp, version. Output filename suffixed (`-confidential.html` / `-public.html`) so both can coexist on disk. JSON + SARIF parity. Pinned grep test ensures `BEGIN RSA`, `AKIA*`, `password`, `src/secrets.py` cannot leak through public mode.
 
 ### 13. Ed25519-signed scan receipt (roadmap #57)
 
-`Receipt` entity = UUIDv7 scan_id + Ed25519 signature over `(repo_signature || score_card_canonical_json)`. Verifiable by any third party with the Spectra signing key (rotated quarterly; archived public keys served from a static endpoint).
+`Receipt` entity uses Ed25519 with lazy keypair generation; private key in OS keyring (`spectra-receipt-key`); public PEM at `~/.config/spectra/receipt.pub`. Receipt embedded in JSON output and surfaced in HTML footer. New `spectra verify <report.json>` subcommand exits 0 on signature match + intact score-card hash.
 
 ### 14. DPA + sub-processor declaration (roadmap #11)
 
-Legal pack, not engineering. Signable Data Processing Agreement; named sub-processor list (today: Anthropic only). Anthropic data flow diagram (re-uses [08 — Data Flow & Privacy](./08-data-flow-and-privacy.md)).
+Legal pack, not engineering. Signable Data Processing Agreement; named sub-processor list (today: Anthropic only). Per-edge data flow diagram (re-uses [08 — Data Flow & Privacy](./08-data-flow-and-privacy.md)). Three docs in `docs/legal/`: `DPA.md`, `SUBPROCESSORS.md`, `DATA_FLOW.md`.
 
 ## Identity & secret material
 
 - **API key** never logged, never serialised. Validated at adapter construction; rejected if empty / placeholder.
 - **Cache HMAC secret** lives in the OS keyring; loaded once per process; never written to disk; never appears in error messages. The wrapping `CacheSecret` value object exists to keep the use case layer free of raw `bytes` plumbing.
-- **OIDC token** (Q2) is fetched once at startup for identity resolution and discarded.
-- **Ed25519 signing key** (Q2) is fetched from the keyring at signing time; never serialised.
+- **OIDC token** (v0.6.0) is fetched once at startup for identity resolution and discarded.
+- **Ed25519 receipt signing key** (v0.6.0) is generated lazily, stored in the OS keyring (`spectra-receipt-key`) — never serialised in plaintext on disk; the public PEM at `~/.config/spectra/receipt.pub` is the only on-disk material.
+- **Ed25519 waiver-approver key** (v0.6.0) is registered via `spectra approver register`; private key stays in the approver's environment, public key recorded in the policy.
 
 ## Verifying releases
 
@@ -180,7 +184,7 @@ python -m sigstore verify identity \
 
 - **Boundary, not best-effort.** The injection nonce is required for every batch — no opt-out flag.
 - **Block by default.** Secret pre-flight aborts unless `--allow-secrets` is passed; `--allow-secrets` is intentionally noisy with a WARN per finding.
-- **HMAC + namespace, not encryption.** v0.5.0 ships integrity + isolation; encryption-at-rest is Q2.
+- **HMAC + namespace + encryption-at-rest.** v0.5.0 shipped integrity + isolation; v0.6.0 added SQLCipher AES-256 encryption at rest (with a graceful no-libsqlcipher fallback to plain SQLite + WARN).
 - **Disclaimer is a constant, not a template.** Single source of truth in `entities/disclaimer.py` keeps the four output channels in lock-step.
 - **The harness is the SLA.** Adversarial catch-rate is the public number; the marketing leaderboard work in the roadmap is gated on it.
 
@@ -188,4 +192,4 @@ python -m sigstore verify identity \
 
 1. Should `SecretScannerPort.scan` return early on the first match? Today it walks the whole tree to enumerate every secret for the WARN-line output under `--allow-secrets`. The cost of walking is bounded by the `1MB` per-file cap.
 2. The injection marker list lives in `injection_scanner.py:21`. ADR-011 explicitly allows updates without a major version bump. The harness is the contract; document the update process and require a harness pass in the PR template.
-3. Q2 audit-log retention: the `JsonlAuditAdapter` defaults to 365d via `logrotate`. Should we ship our own rotation (and survive systems without `logrotate`) or remain platform-default? Today's design defers to platform; revisit if a Windows customer hits the gap.
+3. Audit-log retention: `JsonLinesAuditAdapter` does daily file rotation in-process (no `logrotate` dependency). Default retention is platform-default (cleanup is the operator's job). Revisit if a customer wants Spectra-managed retention windows.

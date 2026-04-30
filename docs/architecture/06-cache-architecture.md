@@ -1,6 +1,6 @@
 # 06 — Cache Architecture
 
-**Status:** Stable · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 
@@ -136,9 +136,9 @@ A degraded run never writes the cache. A partial report would poison every subse
 - **`PRIMARY KEY` covers the composite cache key.** Lookups are O(log n).
 - **`idx_repo` and `idx_age` indexes** support `clear_by_repo` and `prune_older_than` without table scans.
 
-## Q2-designed: encrypted cache at rest
+## v0.6.0: encrypted cache at rest (shipped)
 
-Roadmap #13. `SqlcipherCacheAdapter` will sit alongside `SqliteCacheAdapter`, sharing the same `CachePort`. The choice is composition-root config (`SPECTRA_CACHE_ENCRYPTION=sqlcipher`); the use case never knows. The HMAC contract layered on top is unchanged. New dependency on `sqlcipher` (extra install: `pip install spectra-ai[encrypted-cache]`).
+Roadmap #13. The cache file is now AES-256 encrypted via SQLCipher 4. The encryption key is derived from the same OS-keyring secret that anchors the per-row HMAC, with a different domain-separation step so the two keys cannot collide. `PRAGMA key='x"<hex>"'` is issued immediately after every connection open; an empty `SELECT count(*) FROM sqlite_master` canary surfaces wrong-key errors as SPEC-010 at open time. Existing v0.5.0 plaintext caches are auto-migrated in place — rows streamed into a fresh encrypted DB, MACs re-computed under the current secret, file atomically swapped, plaintext shredded post-swap. Adapter falls back to plain SQLite + WARN when `libsqlcipher` is unavailable on the platform; HMAC + per-`$UID` isolation remain active. New `spectra cache shred [-y]` subcommand overwrites cache.db (and WAL/SHM siblings) with random bytes (3 passes) then deletes them.
 
 ## Q3-designed: distributed cache adapters
 
@@ -156,4 +156,4 @@ Roadmap #13. `SqlcipherCacheAdapter` will sit alongside `SqliteCacheAdapter`, sh
 
 1. The `hit_rate_by_dimension` field skips legacy `''` rows from the Phase 4 `hit_log` migration. Once every row carries a real dimension (3 months post-PR-19), drop the filter and simplify `_dimension_hit_rate`.
 2. `legacy_cache_path()` deletion is one-shot per upgrade. After three minor releases (~Q3) the migration code can be retired.
-3. Q2 encrypted cache: should the encryption key live in the same OS keyring entry (rotated together) or a separate keyring entry? Today's design proposes the same entry; revisit if the SQLCipher rekey costs warrant separation.
+3. v0.6.0 encrypted cache uses the same OS keyring entry as the HMAC secret, with domain separation. Revisit if SQLCipher rekey costs warrant a split entry.

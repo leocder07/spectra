@@ -1,6 +1,6 @@
 # 05 — Agent Architecture
 
-**Status:** Stable · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 

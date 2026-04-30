@@ -1,6 +1,6 @@
 # 01 — System Context
 
-**Status:** Stable · **Baseline:** v0.5.0 · **Last revised:** 2026-04-30
+**Status:** Stable · **Baseline:** v0.6.0 · **Last revised:** 2026-04-30
 
 ## Purpose
 
@@ -33,7 +33,7 @@ A Python 3.12+ CLI that runs 8 LLM agents over a repository and produces a grade
 | Developer | Runs `spectra analyze` on a local checkout or HTTPS URL. Reads `spectra-report.html`. |
 | Integrator | Wires `spectra-action` into a `.github/workflows/*.yml` file. |
 | PR reviewer | Reads the markdown-safe PR comment ([`pr_comment_renderer.py`](../../src/spectra/adapters/pr_comment_renderer.py)) on the PR; opens the linked HTML report. |
-| CISO / Auditor | Reads the SARIF feed, the audit log (Q2 designed), and verifies the Ed25519 scan receipt (Q2 designed). |
+| CISO / Auditor | Reads the SARIF feed, the audit log (`--audit-sink`), and verifies the Ed25519 scan receipt via `spectra verify` (v0.6.0). |
 
 ## External systems
 
@@ -44,7 +44,7 @@ A Python 3.12+ CLI that runs 8 LLM agents over a repository and produces a grade
 | **PyPI** | Distribution channel. Trusted publisher (OIDC), no API token. See [10-deployment-and-release](./10-deployment-and-release.md). |
 | **Sigstore** | Keyless signing of release wheels. Bundles attached to each GitHub Release. |
 | **OS Keyring** | Stores the per-`$UID` 32-byte HMAC secret used to sign cache rows ([ADR-012](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-012-cache-hmac-per-user-namespace.md)). |
-| **SIEM / OTLP collector** *(Q2 designed)* | Receives the JSON-Lines audit-event stream ([ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md)). |
+| **SIEM / OTLP collector** *(v0.6.0)* | Receives the JSON-Lines audit-event stream via `--audit-sink otlp:<url>` ([ADR-018](../../../spectra-wt-strategy/docs/strategy/architecture/ADR-018-audit-log-and-identity.md)). |
 
 ## Trust boundaries
 
