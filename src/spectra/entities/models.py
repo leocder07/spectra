@@ -957,10 +957,9 @@ def estimate_cache_savings(outputs: tuple[AgentOutput, ...]) -> float:
     saved = 0.0
     for out in outputs:
         usage = out.cache_usage
-        saved += (
-            usage.read_tokens * _CACHE_READ_DISCOUNT
-            - usage.creation_tokens * _CACHE_WRITE_PREMIUM
-        ) * (_OPUS_INPUT_PER_1K / 1000.0)
+        saved += (usage.read_tokens * _CACHE_READ_DISCOUNT - usage.creation_tokens * _CACHE_WRITE_PREMIUM) * (
+            _OPUS_INPUT_PER_1K / 1000.0
+        )
     return round(saved, 4)
 
 

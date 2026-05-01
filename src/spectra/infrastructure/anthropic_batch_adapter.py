@@ -90,10 +90,7 @@ class AnthropicBatchAdapter:
             msg = "Batch submit requires at least one request"
             raise ValueError(msg)
         if len(requests) > MAX_BATCH_SIZE:
-            msg = (
-                f"Batch size {len(requests)} exceeds MAX_BATCH_SIZE "
-                f"({MAX_BATCH_SIZE}) — split into multiple batches"
-            )
+            msg = f"Batch size {len(requests)} exceeds MAX_BATCH_SIZE ({MAX_BATCH_SIZE}) — split into multiple batches"
             raise ValueError(msg)
         payload = [_request_to_payload(r) for r in requests]
         # The SDK's batch_create_params.Request is a TypedDict shape; our
@@ -153,7 +150,8 @@ def _request_to_payload(request: BatchRequestItem) -> dict[str, object]:
         "model": request.model,
         "max_tokens": request.max_tokens,
         "system": _build_system_blocks(
-            request.system_prompt, request.cache_breakpoint_index,
+            request.system_prompt,
+            request.cache_breakpoint_index,
         ),
         "messages": [{"role": "user", "content": request.user_prompt}],
     }
@@ -191,11 +189,7 @@ def _extract_text(message: object) -> str:
     if message is None:
         return ""
     blocks = getattr(message, "content", []) or []
-    parts = [
-        getattr(block, "text", "")
-        for block in blocks
-        if getattr(block, "type", "") == "text"
-    ]
+    parts = [getattr(block, "text", "") for block in blocks if getattr(block, "type", "") == "text"]
     return "".join(parts)
 
 
