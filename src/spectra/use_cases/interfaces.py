@@ -44,6 +44,7 @@ from spectra.entities.models import (
     BatchResult,
     CacheStats,
     Finding,
+    NotifierMessage,
     Policy,
     RepoCacheKey,
     RepoRegistryEntry,
@@ -892,5 +893,34 @@ class RepoRegistryPort(Protocol):
         Returns the updated entry, or ``None`` when ``repo_url`` is not
         registered. Used by the scheduler after every successful scan
         so the ``--since`` filter on the next run picks up the change.
+        """
+        ...
+
+
+class NotifierPort(Protocol):
+    """Outbound notification port — capability #27 + #34.
+
+    Single port shared by ``SlackWebhookAdapter`` and
+    ``TeamsWebhookAdapter`` (Layer 4). The use-case layer fires
+    ``send(NotifierMessage)`` for drift events (#27), per-finding
+    critical alerts (#34), and the weekly digest. Adapters render the
+    provider-specific JSON.
+
+    Failure mode: webhook outages MUST never abort the analysis pipeline.
+    Implementations log and swallow transport errors; callers wrap with
+    the same ``safe_*`` pattern used for the audit port (see
+    :func:`spectra.use_cases.notifications.safe_send`).
+    """
+
+    async def send(self, message: NotifierMessage) -> None:
+        """Deliver ``message`` to the configured channel.
+
+        Args:
+            message: Provider-agnostic payload.
+
+        Raises:
+            Implementations SHOULD log and swallow transport errors. They
+            MAY raise on programmer errors (e.g. malformed webhook URL at
+            construction time) but never on transient outages.
         """
         ...
