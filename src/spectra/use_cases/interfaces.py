@@ -12,6 +12,7 @@ Protocols defined here:
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
     CachePort — Per-file finding cache (Phase 1, additive).
     RemoteCachePort — Distributed L2 cache (ADR-021, capability #21).
+    RateCoordinatorPort — Fleet-wide token-bucket coordinator (ADR-013, #22).
     WorkspaceFilterPort — ``.gitignore`` + ``.spectraignore`` honor (Capability #6).
     SecretScannerPort — Pre-flight regex secret scan (Capability #6).
     TracerPort — Span lifecycle for distributed tracing (ADR-023, #30 + #33).
@@ -475,6 +476,43 @@ class RemoteCachePort(Protocol):
 
     async def health(self) -> bool:
         """Liveness probe — ``False`` triggers downgrade to L1-only for the run."""
+        ...
+
+
+class RateCoordinatorPort(Protocol):
+    """Fleet-wide rate-limit coordinator (capability #22, ADR-013).
+
+    A token-bucket Port: every Anthropic call ``await``s ``acquire`` to
+    consume ``n_tokens`` (default 1, one request) before issuing the
+    HTTP request. Implementations decide whether the bucket lives in
+    process (``InMemoryRateAdapter``) or in a shared backend
+    (``RedisRateAdapter`` — fleet-wide), but the orchestrator is
+    backend-blind: same call site, same await semantics.
+
+    Failure mode (SPEC-010): backend-side adapters that lose their
+    backend (Redis unreachable, auth failure, timeout) are responsible
+    for falling back to a per-process bucket and logging the SPEC-010
+    warning *once*. ``acquire`` MUST NOT raise on backend failure — the
+    pipeline must keep running with the local-only limit. The single
+    documented raise path is on caller misuse (``n_tokens <= 0`` or
+    a value that exceeds the total bucket capacity).
+    """
+
+    async def acquire(self, n_tokens: int = 1) -> None:
+        """Block until ``n_tokens`` are available in the bucket.
+
+        Args:
+            n_tokens: Tokens to consume. One token == one Anthropic call
+                under the default Spectra wiring; higher values reserve
+                "burstable" capacity for batched calls. Defaults to 1.
+
+        Returns:
+            ``None``. Leases live entirely inside the adapter — the
+            orchestrator never threads a handle through downstream code.
+
+        Raises:
+            ValueError: ``n_tokens`` is non-positive (caller bug).
+        """
         ...
 
 
