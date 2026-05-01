@@ -34,8 +34,10 @@ No inner layer imports from infrastructure.
 from spectra.infrastructure.anthropic_adapter import AnthropicAdapter
 from spectra.infrastructure.anthropic_batch_adapter import AnthropicBatchAdapter
 from spectra.infrastructure.git_adapter import GitAdapter, GitError
+from spectra.infrastructure.inmemory_rate_adapter import InMemoryRateAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.main import ReportError, cli
+from spectra.infrastructure.redis_rate_adapter import RedisRateAdapter
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator, SpectraRetryError
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
@@ -48,8 +50,11 @@ __all__ = [
     "GitAdapter",
     # errors
     "GitError",
+    # rate coordinators (#22, ADR-013)
+    "InMemoryRateAdapter",
     # decorator chain
     "LoggingDecorator",
+    "RedisRateAdapter",
     "ReportAdapter",
     "ReportError",
     "RetryDecorator",

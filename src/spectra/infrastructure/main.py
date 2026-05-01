@@ -233,6 +233,7 @@ def _assemble_context(
     run_id: str,
     tracer: TracerPort | None,
     team: str,
+    rate_coordinator: object | None = None,
 ) -> PipelineContext:
     """Bundle every input the use-case pipeline needs into a single ctx.
 
@@ -278,6 +279,7 @@ def _assemble_context(
         report_store=report_store,  # type: ignore[arg-type]
         tracer=tracer,
         team=team,
+        rate_coordinator=rate_coordinator,  # type: ignore[arg-type]
     )
 
 
@@ -404,6 +406,8 @@ async def _run_analysis(
     cache_remote: str | None = None,
     otel_endpoint: str | None = None,
     team: str = _DEFAULT_TEAM,
+    rate_limit_rpm: int | None = None,
+    rate_coordinator_url: str | None = None,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -436,6 +440,14 @@ async def _run_analysis(
             stage and per-agent span is exported (#30, ADR-023).
         team: Team tag stamped on every span for cost attribution
             (#33, ADR-023 §4). Defaults to ``"default"``.
+        rate_limit_rpm: Optional fleet RPM cap (#22, ADR-013). ``None``
+            disables rate coordination — the orchestrator still relies
+            on its in-process semaphore. When set, every Anthropic call
+            awaits one token from the coordinator first.
+        rate_coordinator_url: Coordinator backend selector. ``None`` or
+            ``"inmemory"`` picks ``InMemoryRateAdapter`` (per-process).
+            ``redis://...`` picks ``RedisRateAdapter`` (fleet-wide).
+            Ignored when ``rate_limit_rpm`` is unset.
 
     Returns:
         Completed analysis report.
@@ -457,6 +469,7 @@ async def _run_analysis(
     report_renderer = ReportAdapter()
     cache = _provision_cache(no_cache=no_cache, cache_remote=cache_remote)
     tracer = _build_tracer(otel_endpoint, team)
+    rate_coordinator = _build_rate_coordinator(rate_limit_rpm, rate_coordinator_url)
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
         workspace_dir, file_tree, source_files = await _ingest_workspace(
@@ -493,6 +506,7 @@ async def _run_analysis(
             run_id=run_id,
             tracer=tracer,
             team=team,
+            rate_coordinator=rate_coordinator,
         )
         report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)
@@ -582,6 +596,64 @@ def _build_tracer(endpoint: str | None, team: str) -> TracerPort | None:
             exc,
         )
         return None
+
+
+# ── Rate coordinator construction (#22, ADR-013) ─────────────
+
+
+def _build_rate_coordinator(
+    rate_limit_rpm: int | None,
+    coordinator_url: str | None,
+) -> object | None:
+    """Wire the rate-coordinator adapter from the CLI flag pair (#22, ADR-013).
+
+    Selection rules:
+        - ``rate_limit_rpm is None``     → no coordinator (fast path).
+        - ``coordinator_url`` starts with ``redis://`` → ``RedisRateAdapter``.
+        - Anything else (or unset)       → ``InMemoryRateAdapter``.
+
+    Returns ``None`` when no rate cap is configured so the orchestrator
+    short-circuits ``_gate_rate`` entirely. A misconfigured Redis URL
+    (auth failure, DNS) does NOT abort here — the adapter degrades to
+    its in-process fallback at first ``acquire`` (SPEC-010).
+
+    Args:
+        rate_limit_rpm: Per-fleet RPM ceiling. ``None`` disables.
+        coordinator_url: ``redis://...`` for fleet mode, ``inmemory``
+            (or ``None``) for solo mode.
+
+    Returns:
+        A ``RateCoordinatorPort``-shaped adapter, or ``None``.
+    """
+    if rate_limit_rpm is None:
+        return None
+    if coordinator_url and coordinator_url.startswith("redis://"):
+        return _build_redis_rate_coordinator(rate_limit_rpm, coordinator_url)
+    from spectra.infrastructure.inmemory_rate_adapter import InMemoryRateAdapter
+
+    return InMemoryRateAdapter(rate_per_minute=rate_limit_rpm)
+
+
+def _build_redis_rate_coordinator(rate_limit_rpm: int, url: str) -> object:
+    """Construct a ``RedisRateAdapter``; degrade to in-process on init failure.
+
+    Live Redis I/O happens on first ``acquire``, not at construction —
+    this only fails when redis-py itself cannot parse the URL. We catch
+    those config bugs and downgrade to InMemoryRateAdapter so the
+    pipeline never aborts on a typo in the connection string.
+    """
+    from spectra.infrastructure.inmemory_rate_adapter import InMemoryRateAdapter
+    from spectra.infrastructure.redis_rate_adapter import RedisRateAdapter
+
+    try:
+        return RedisRateAdapter.from_url(url, rate_per_minute=rate_limit_rpm)
+    except (RuntimeError, OSError, ValueError) as exc:
+        logging.getLogger("spectra.rate").warning(
+            "Rate coordinator: Redis init failed (%s: %s); using in-process limit",
+            type(exc).__name__,
+            exc,
+        )
+        return InMemoryRateAdapter(rate_per_minute=rate_limit_rpm)
 
 
 # ── Cache adapter construction ───────────────────────────────

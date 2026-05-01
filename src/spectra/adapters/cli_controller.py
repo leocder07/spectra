@@ -703,6 +703,26 @@ def analyze(
         envvar="SPECTRA_TEAM",
         help=("Team tag stamped on every span for cost attribution (#33). Defaults to $SPECTRA_TEAM, then 'default'."),
     ),
+    rate_limit_rpm: int | None = typer.Option(
+        None,
+        "--rate-limit-rpm",
+        envvar="SPECTRA_RATE_LIMIT_RPM",
+        help=(
+            "Fleet RPM cap (capability #22, ADR-013). Every Anthropic call "
+            "awaits one token from the coordinator. Default unset = no "
+            "rate limit beyond the in-process semaphore."
+        ),
+    ),
+    rate_coordinator: str | None = typer.Option(
+        None,
+        "--rate-coordinator",
+        envvar="SPECTRA_RATE_COORDINATOR",
+        help=(
+            "Coordinator backend. 'inmemory' (default when --rate-limit-rpm "
+            "is set) is per-process; 'redis://...' shares one bucket across "
+            "every runner pointed at the same Redis (fleet mode)."
+        ),
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -765,6 +785,8 @@ def analyze(
                 cache_remote=cache_remote,
                 otel_endpoint=otel_endpoint,
                 team=team or "default",
+                rate_limit_rpm=rate_limit_rpm,
+                rate_coordinator_url=rate_coordinator,
             )
         )
     except BaseException as exc:

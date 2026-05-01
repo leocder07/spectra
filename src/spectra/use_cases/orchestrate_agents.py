@@ -54,7 +54,7 @@ from typing import Protocol
 from spectra.entities.enums import AgentRole, PipelineState
 from spectra.entities.errors import BudgetExceededError
 from spectra.entities.models import AgentOutput, BatchPrompt, estimate_cost
-from spectra.use_cases.interfaces import CostTrackerPort
+from spectra.use_cases.interfaces import CostTrackerPort, RateCoordinatorPort
 
 
 class AnalysisAgent(Protocol):
@@ -80,6 +80,8 @@ async def run_specialists(
     prompts: dict[AgentRole, str],
     timeout_seconds: float = 120.0,
     max_concurrency: int = 4,
+    *,
+    rate_coordinator: RateCoordinatorPort | None = None,
 ) -> list[AgentOutput | Exception]:
     """Run specialist agents in parallel with individual timeouts.
 
@@ -91,6 +93,10 @@ async def run_specialists(
         prompts: Role-keyed prompt strings for each agent.
         timeout_seconds: Per-agent timeout (default 120s).
         max_concurrency: Maximum concurrent LLM calls.
+        rate_coordinator: Optional fleet RPM coordinator (#22, ADR-013).
+            When wired, every agent ``acquire(1)``s before calling the
+            LLM. ``None`` (default) preserves prior behaviour: only the
+            in-process semaphore gates concurrency.
 
     Returns:
         List of ``AgentOutput`` or ``Exception`` per agent,
@@ -104,8 +110,12 @@ async def run_specialists(
 
     async def _run_one(agent: AnalysisAgent, prompt: str) -> AgentOutput:
         # Each agent acquires the semaphore before calling the LLM,
-        # then gets an independent timeout to prevent stalling
+        # then gets an independent timeout to prevent stalling. The
+        # rate coordinator (when wired) is the fleet-wide back-pressure
+        # gate; it must precede the agent.run so we never burn the slot
+        # on a request that would have queued behind the cap anyway.
         async with semaphore:
+            await _gate_rate(rate_coordinator)
             return await asyncio.wait_for(
                 agent.run(prompt),
                 timeout=timeout_seconds,
@@ -120,6 +130,17 @@ async def run_specialists(
     return await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def _gate_rate(rate_coordinator: RateCoordinatorPort | None) -> None:
+    """Await one token from the coordinator, or return immediately when unwired.
+
+    Centralised so every runner has one canonical seam for the
+    fleet-RPM gate (capability #22, ADR-013).
+    """
+    if rate_coordinator is None:
+        return
+    await rate_coordinator.acquire(1)
+
+
 @dataclass(frozen=True)
 class _BatchExecConfig:
     """Bundled config for batched specialist execution.
@@ -130,6 +151,7 @@ class _BatchExecConfig:
 
     semaphore: asyncio.Semaphore
     timeout_seconds: float
+    rate_coordinator: RateCoordinatorPort | None = None
 
 
 async def run_specialists_batched(
@@ -137,6 +159,8 @@ async def run_specialists_batched(
     fresh_batches: dict[AgentRole, list[BatchPrompt]],
     timeout_seconds: float = 120.0,
     max_concurrency: int = 4,
+    *,
+    rate_coordinator: RateCoordinatorPort | None = None,
 ) -> dict[AgentRole, AgentOutput | Exception]:
     """Run only the fresh batches for each specialist, gathered in parallel.
 
@@ -144,8 +168,16 @@ async def run_specialists_batched(
     ``run`` is invoked with the batch's prompt; results are merged
     into a single ``AgentOutput`` per agent so the rest of the
     pipeline (merge, scoring, critique) is unchanged.
+
+    When ``rate_coordinator`` is wired (capability #22, ADR-013) every
+    (agent x batch) call awaits one token before issuing its LLM
+    request — fleet-wide back-pressure for batched mode.
     """
-    config = _BatchExecConfig(asyncio.Semaphore(max_concurrency), timeout_seconds)
+    config = _BatchExecConfig(
+        semaphore=asyncio.Semaphore(max_concurrency),
+        timeout_seconds=timeout_seconds,
+        rate_coordinator=rate_coordinator,
+    )
     tasks = _schedule_batch_tasks(agents, fresh_batches, config)
     flat = await asyncio.gather(*tasks, return_exceptions=True)
     return _collapse_batch_results(agents, fresh_batches, flat)
@@ -156,8 +188,9 @@ async def _run_one_batch(
     prompt: str,
     config: _BatchExecConfig,
 ) -> AgentOutput:
-    """Acquire the semaphore then run a single batched call with timeout."""
+    """Acquire the semaphore + rate token, then run a batched call with timeout."""
     async with config.semaphore:
+        await _gate_rate(config.rate_coordinator)
         return await asyncio.wait_for(agent.run(prompt), timeout=config.timeout_seconds)
 
 
@@ -219,6 +252,7 @@ async def run_specialists_with_budget(
     max_cost_usd: float | None,
     estimate_per_agent: float,
     timeout_seconds: float = 120.0,
+    rate_coordinator: RateCoordinatorPort | None = None,
 ) -> list[AgentOutput | Exception]:
     """Run specialists sequentially with a per-agent budget gate (SPEC-014).
 
@@ -236,6 +270,9 @@ async def run_specialists_with_budget(
             ``would_exceed``). Conservative; the actual cost from
             ``estimate_cost(output)`` is recorded post-call.
         timeout_seconds: Per-agent timeout (default 120s).
+        rate_coordinator: Optional fleet RPM coordinator (#22, ADR-013).
+            Awaited once per agent; complements (does not replace) the
+            per-run cost cap.
 
     Returns:
         Per-agent ``AgentOutput`` or ``Exception`` in input order.
@@ -252,6 +289,7 @@ async def run_specialists_with_budget(
                 per_agent=_per_agent_breakdown(tracker),
             )
         prompt = prompts.get(agent.role, "")
+        await _gate_rate(rate_coordinator)
         result = await _run_one_with_record(agent, prompt, tracker, timeout_seconds)
         results.append(result)
     return results
