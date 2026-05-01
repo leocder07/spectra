@@ -560,6 +560,27 @@ class TestCli:
             # The factory should receive the _run_analysis function
             assert mock_set.call_args[0][0] is _run_analysis
 
+    def test_cli_wires_portfolio_registry_provider(self):
+        # #26 — the composition root must inject the registry provider so
+        # ``spectra portfolio add|remove|list|dashboard`` work without
+        # the LLM stack.
+        with (
+            patch("spectra.infrastructure.main.set_portfolio_registry_provider") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry"),
+        ):
+            cli()
+            mock_set.assert_called_once()
+
+    def test_cli_wires_portfolio_analyzer(self):
+        # #26 — the analyzer adapter must be wired so ``spectra portfolio
+        # scan`` can iterate the existing pipeline over the registry.
+        with (
+            patch("spectra.infrastructure.main.set_portfolio_analyzer") as mock_set,
+            patch("spectra.infrastructure.main.cli_entry"),
+        ):
+            cli()
+            mock_set.assert_called_once()
+
 
 # ── _build_sarif ─────────────────────────────────────────────
 

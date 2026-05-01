@@ -58,6 +58,8 @@ from spectra.adapters.cli_controller import (
     set_cache_provider,
     set_history_migrator,
     set_history_store_provider,
+    set_portfolio_analyzer,
+    set_portfolio_registry_provider,
     set_shred_executor,
     set_verifier,
 )
@@ -1416,6 +1418,44 @@ def _apply_history_migrations() -> tuple[str, ...]:
     return apply_sqlite_migrations(default_history_path())
 
 
+# ── #26: portfolio registry + analyzer provisioning ──────────
+
+
+def _provision_portfolio_registry() -> object:
+    """Build the SqliteRepoRegistry against the same ``cache.db`` path.
+
+    The portfolio table lives on the cache file so a single backup +
+    encryption story covers both subsystems. The cache adapter applies
+    the table DDL on open; this factory only re-opens the same file
+    through the registry-shaped API.
+    """
+    from spectra.infrastructure.history.sqlite_repo_registry import SqliteRepoRegistry
+
+    return SqliteRepoRegistry(db_path=default_cache_path())
+
+
+def _portfolio_analyzer(repo_url: str) -> object:
+    """Adapt ``_run_analysis`` to the single-arg shape ``portfolio scan`` expects.
+
+    Output filename is derived from the repo's last URL segment so
+    multiple repos in one portfolio scan don't overwrite each other.
+    Defaults match a typical portfolio overnight run: HTML output,
+    confidential classification, full pipeline (no ``--quick``).
+    """
+    repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git") or "repo"
+    output_path = f"spectra-{repo_name}.html"
+    return _run_analysis(
+        repo_url=repo_url,
+        output_path=output_path,
+        skip_critique=False,
+        output_format="html",
+        verbose=False,
+        force=False,
+        no_cache=False,
+        agent_overrides=None,
+    )
+
+
 def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
@@ -1438,4 +1478,6 @@ def cli() -> None:
     set_signer(Ed25519SignerAdapter())
     set_history_store_provider(_provision_history_store)
     set_history_migrator(_apply_history_migrations)
+    set_portfolio_registry_provider(_provision_portfolio_registry)  # type: ignore[arg-type]
+    set_portfolio_analyzer(_portfolio_analyzer)  # type: ignore[arg-type]
     cli_entry()
