@@ -37,6 +37,11 @@ from spectra.infrastructure.git_adapter import GitAdapter, GitError
 from spectra.infrastructure.inmemory_rate_adapter import InMemoryRateAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
 from spectra.infrastructure.main import ReportError, cli
+from spectra.infrastructure.notifiers import (
+    SlackWebhookAdapter,
+    TeamsWebhookAdapter,
+    notifier_from_url,
+)
 from spectra.infrastructure.redis_rate_adapter import RedisRateAdapter
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator, SpectraRetryError
@@ -58,8 +63,12 @@ __all__ = [
     "ReportAdapter",
     "ReportError",
     "RetryDecorator",
+    # notifier adapters (#27 + #34)
+    "SlackWebhookAdapter",
     "SpectraRetryError",
+    "TeamsWebhookAdapter",
     "TiktokenAdapter",
     # entry point
     "cli",
+    "notifier_from_url",
 ]
