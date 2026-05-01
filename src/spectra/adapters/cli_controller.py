@@ -1491,6 +1491,53 @@ def history_trend(
     _render_trend_table(rows, since)
 
 
+@app.command("trend")
+def trend_command(
+    repo: str = typer.Argument(..., help="Repo URL or 32-hex repo_signature"),
+    since: str = typer.Option(
+        "6w",
+        "--since",
+        help="Look back this far (e.g. 6w, 30d, 3m). Default: 6w",
+    ),
+    explain: bool = typer.Option(
+        False,
+        "--explain",
+        help="Run drift detection on the latest scans and print why scores moved",
+    ),
+) -> None:
+    """Print scan history as a table; --explain calls drift detection (#27)."""
+    from spectra.use_cases.drift_detection import detect_drift
+
+    store = _get_history_store()
+    repo_signature = _resolve_history_signature(repo)
+    duration = _parse_duration_or_exit(since)
+    until = datetime.now(UTC)
+    rows = asyncio.run(store.history(repo_signature, since=until - duration, until=until))
+    if not rows:
+        console.print(f"  [{AMBER}]▸[/] No scans in the last {since} for {repo}")
+        return
+    _render_trend_table(rows, since)
+    if explain:
+        events = asyncio.run(detect_drift(store, repo_signature=repo_signature))
+        _print_drift_explanation(events)
+
+
+def _print_drift_explanation(events: tuple[object, ...]) -> None:
+    """Render drift events under the trend table; brand-voice friendly."""
+    if not events:
+        console.print(f"\n  [{GREEN}]✓[/] No drift detected against the previous scan")
+        return
+    console.print(f"\n  [{AMBER}]▸[/] drift detected on {len(events)} dimension(s):")
+    for ev in events:
+        dim = getattr(ev, "dimension", "?")
+        prev = getattr(ev, "previous_score", 0.0)
+        cur = getattr(ev, "current_score", 0.0)
+        prev_g = getattr(ev, "previous_grade", "?")
+        cur_g = getattr(ev, "current_grade", "?")
+        delta = getattr(ev, "delta", cur - prev)
+        console.print(f"    [{RED}]•[/] [{AMBER}]{dim}[/] {prev_g} → {cur_g} ({prev:.1f} → {cur:.1f}, Δ {delta:+.1f})")
+
+
 @history_app.command("migrate")
 def history_migrate() -> None:
     """Apply pending SQL migrations to the wired history backend."""

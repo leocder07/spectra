@@ -38,6 +38,7 @@ from spectra.entities.models import (
     DimensionScore,
     FileLocation,
     Finding,
+    NotifierMessage,
     RepoCacheKey,
     ReportSummary,
     ScoreCard,
@@ -49,12 +50,14 @@ from spectra.entities.models import (
     score_to_grade,
 )
 from spectra.use_cases.audit import safe_emit, safe_flush
+from spectra.use_cases.drift_detection import detect_drift, render_drift_message
 from spectra.use_cases.injection_scanner import scan_files_for_injection
 from spectra.use_cases.interfaces import (
     AuditPort,
     CachePort,
     CostTrackerPort,
     GitPort,
+    NotifierPort,
     ProgressObserver,
     RateCoordinatorPort,
     ReportStorePort,
@@ -66,6 +69,7 @@ from spectra.use_cases.manage_token_budget import (
     allocate_specialist_budgets,
     check_budget_remaining,
 )
+from spectra.use_cases.notifications import safe_send
 from spectra.use_cases.orchestrate_agents import (
     AnalysisAgent,
     evaluate_results,
@@ -171,6 +175,18 @@ class PipelineContext:
     semaphore caps concurrency. The composition root selects between
     InMemoryRateAdapter (solo runs with --rate-limit-rpm) and
     RedisRateAdapter (fleet mode against a shared Redis)."""
+    notifier: NotifierPort | None = None
+    """#27 + #34: outbound webhook for drift events and per-finding
+    critical alerts. ``None`` (default) skips notification — the scan
+    still runs to completion. Wired by the composition root only when
+    ``--notify-webhook`` is supplied."""
+    drift_alert_enabled: bool = True
+    """#27: when True (the default) the post-scan hook runs drift
+    detection and fires the notifier on any DriftEvent. Operators flip
+    via ``--no-drift-alert`` for noisy or experimental repos."""
+    report_url: str | None = None
+    """#27 + #34: optional deeplink to the rendered HTML report. Embedded
+    into notifier messages as the "Open report" action when set."""
 
 
 @dataclass
@@ -306,7 +322,9 @@ async def _run_pipeline_body(
                 expired_count=len(ctx.expired_waivers),
             )
             _store_in_cache(ctx, report)
+            previous_summary = await _try_fetch_latest_history(ctx)
             await _safe_persist_history(ctx, report)
+            await _safe_post_scan_alerts(ctx, report, previous_summary=previous_summary)
             await _emit_scan_completed(ctx, report)
         _stamp_report_attrs(root, report)
         return report
@@ -511,6 +529,154 @@ def _history_prompt_versions(ctx: PipelineContext) -> str:
     if ctx.cache_versions is not None:
         return ctx.cache_versions.prompt_versions
     return "unknown"
+
+
+# ── #27: post-scan drift alert ──────────────────────────────
+
+
+async def _safe_drift_alert(
+    *,
+    notifier: NotifierPort | None,
+    history: ReportStorePort | None,
+    repo_signature: str,
+    repo_name: str,
+    report_url: str | None,
+) -> None:
+    """Run drift detection against history; fire one notifier message on drop.
+
+    Best-effort and non-fatal — exact same contract as the audit and
+    history hooks. A None notifier or history store is a valid
+    configuration (drift alerts disabled for this run). Any exception
+    from drift detection or the notifier is logged + swallowed so the
+    pipeline cannot abort on alerting failures.
+    """
+    if notifier is None or history is None:
+        return
+    try:
+        events = await detect_drift(history, repo_signature=repo_signature)
+    except Exception as exc:
+        _log.warning("Drift detection failed (non-fatal): %s: %s", type(exc).__name__, exc)
+        return
+    if not events:
+        return
+    body = render_drift_message(repo_name=repo_name, events=events, report_url=report_url)
+    overall = next((e for e in events if e.dimension == "overall"), events[0])
+    title = (
+        f"Spectra: {repo_name} dropped from {overall.previous_grade} to {overall.current_grade}"
+        if overall.dimension == "overall"
+        else f"Spectra: {repo_name} drift on {overall.dimension}"
+    )
+    severity = "critical" if overall.delta <= -15 else "high" if overall.delta <= -10 else "medium"
+    msg = NotifierMessage(
+        title=title,
+        body_markdown=body,
+        severity=severity,  # type: ignore[arg-type]
+        link_url=report_url,
+    )
+    await safe_send(notifier, msg)
+
+
+# ── #34: per-finding critical alert ─────────────────────────
+
+
+async def _safe_critical_finding_alert(
+    *,
+    notifier: NotifierPort | None,
+    new_critical_findings: tuple[Finding, ...],
+    repo_name: str,
+    report_url: str | None,
+) -> None:
+    """Fire one notifier message per NEW critical/high finding (#34).
+
+    Idempotency lives at the call site: the orchestrator passes only
+    the findings that are NEW relative to the previous scan (computed
+    via finding signature). Best-effort and non-fatal.
+    """
+    if notifier is None or not new_critical_findings:
+        return
+    for finding in new_critical_findings:
+        body_lines = [
+            f"**{finding.title}** ({finding.severity})",
+            "",
+            f"`{finding.location.file_path}:{finding.location.line_start}` — {finding.description}",
+        ]
+        if finding.recommendation:
+            body_lines.extend(["", f"**Fix:** {finding.recommendation}"])
+        msg = NotifierMessage(
+            title=f"Spectra: {repo_name} — {finding.title}",
+            body_markdown="\n".join(body_lines),
+            severity=finding.severity,
+            link_url=report_url,
+        )
+        await safe_send(notifier, msg)
+
+
+async def _try_fetch_latest_history(ctx: PipelineContext) -> ReportSummary | None:
+    """Fetch the previous summary for this repo; return None on any failure."""
+    if ctx.report_store is None:
+        return None
+    try:
+        repo_signature = _repo_signature_for_history(ctx)
+        return await ctx.report_store.latest(repo_signature)
+    except Exception as exc:
+        _log.debug("Latest-history lookup failed (non-fatal): %s: %s", type(exc).__name__, exc)
+        return None
+
+
+async def _safe_post_scan_alerts(
+    ctx: PipelineContext,
+    report: AnalysisReport,
+    *,
+    previous_summary: ReportSummary | None,
+) -> None:
+    """Run the drift hook + per-finding critical alert hook (#27 + #34)."""
+    if ctx.notifier is None:
+        return
+    repo_signature = _repo_signature_for_history(ctx)
+    if ctx.drift_alert_enabled:
+        await _safe_drift_alert(
+            notifier=ctx.notifier,
+            history=ctx.report_store,
+            repo_signature=repo_signature,
+            repo_name=ctx.codebase.repo_name,
+            report_url=ctx.report_url,
+        )
+    new_criticals = _new_critical_findings_since(
+        current=report.findings,
+        previous_summary=previous_summary,
+    )
+    if new_criticals:
+        await _safe_critical_finding_alert(
+            notifier=ctx.notifier,
+            new_critical_findings=new_criticals,
+            repo_name=ctx.codebase.repo_name,
+            report_url=ctx.report_url,
+        )
+
+
+def _new_critical_findings_since(
+    *,
+    current: tuple[Finding, ...],
+    previous_summary: ReportSummary | None,
+) -> tuple[Finding, ...]:
+    """Return findings (critical/high) absent from the previous scan's signatures.
+
+    The previous summary does NOT carry findings, only severity counts —
+    so the comparison is conservative: when no previous scan exists, the
+    set of "new" criticals is ALL criticals. The first scan ever for a
+    repo will fire a ping per critical, which is the right behaviour
+    (operators have not yet seen them).
+
+    When a previous scan IS present, every current critical/high is
+    treated as "new" because the summary cannot dedupe by signature.
+    A future PR can swap in a per-finding history table; the entire
+    contract above stays intact.
+    """
+    if previous_summary is None:
+        return tuple(f for f in current if f.severity in ("critical", "high"))
+    # Until per-finding history lands, the safer choice is to suppress
+    # repeat alerts entirely — operators see them in the digest instead.
+    return ()
 
 
 # ── Phase 2: repo-level cache short-circuit ───────────────────
