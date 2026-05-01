@@ -171,6 +171,14 @@ class PostgresReportStoreAdapter:
         """Return summaries within ``[since, until)`` ordered most-recent-first."""
         return await asyncio.to_thread(self._history_sync, repo_signature, since, until)
 
+    async def list_signatures_in_window(
+        self,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[str, ...]:
+        """Return distinct ``repo_signature`` values seen in ``[since, until)`` (#34)."""
+        return await asyncio.to_thread(self._list_signatures_sync, since, until)
+
     # ── Sync helpers (run inside ``asyncio.to_thread``) ───────
 
     def _store_sync(self, report: ReportSummary) -> None:
@@ -224,6 +232,19 @@ class PostgresReportStoreAdapter:
                 cur.execute(_SELECT_HISTORY_PG_SQL, (repo_signature, since, until))
                 rows = cur.fetchall()
         return tuple(_row_to_summary(r) for r in rows)
+
+    def _list_signatures_sync(
+        self,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[str, ...]:
+        """Synchronous SELECT DISTINCT repo_signature inside the half-open window."""
+        with self._pool.connection() as conn:
+            cur = conn.cursor()
+            with cur:
+                cur.execute(_SELECT_DISTINCT_SIGNATURES_PG_SQL, (since, until))
+                rows = cur.fetchall()
+        return tuple(str(r[0]) for r in rows)
 
 
 # ── Row <-> entity mapping (shared shape with sqlite adapter) ──
@@ -306,4 +327,10 @@ WHERE repo_signature = %s
   AND ts >= %s
   AND ts <  %s
 ORDER BY ts DESC
+"""
+
+_SELECT_DISTINCT_SIGNATURES_PG_SQL = """
+SELECT DISTINCT repo_signature FROM reports
+WHERE ts >= %s
+  AND ts <  %s
 """

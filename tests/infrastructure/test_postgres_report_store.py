@@ -236,6 +236,24 @@ class TestPostgresAdapterStoresAndQueries:
         assert result[0].scan_id == "A1"
         assert result[1].scan_id == "A2"
 
+    async def test_list_signatures_in_window_returns_distinct_strings(self) -> None:
+        """``list_signatures_in_window`` issues SELECT DISTINCT and unwraps rows (#34)."""
+        from spectra.infrastructure.history.postgres_report_store import (
+            PostgresReportStoreAdapter,
+        )
+
+        cursor = _FakeCursor(fetchall_result=[("rA" * 16,), ("rB" * 16,)])
+        pool = _FakePool(_FakeConn(cursor))
+
+        adapter = PostgresReportStoreAdapter(pool=pool)  # type: ignore[arg-type]
+        sigs = await adapter.list_signatures_in_window(
+            since=datetime(2026, 1, 1, tzinfo=UTC),
+            until=datetime(2027, 1, 1, tzinfo=UTC),
+        )
+        assert sigs == ("rA" * 16, "rB" * 16)
+        sql_texts = [s for s, _ in cursor.executed]
+        assert any("DISTINCT repo_signature" in s for s in sql_texts)
+
 
 class TestBuildPoolGuard:
     """When psycopg is missing, ``build_pool`` raises a clear error."""

@@ -233,3 +233,59 @@ class TestSqliteReportStorePreservesSummaryFields:
         assert latest.finding_count_by_severity == original.finding_count_by_severity
         assert latest.finding_count_by_dimension == original.finding_count_by_dimension
         assert latest.score_card == original.score_card
+
+
+@pytest.mark.asyncio
+class TestSqliteReportStoreListSignaturesInWindow:
+    """``list_signatures_in_window`` powers the digest's fleet-wide sweep (#34)."""
+
+    async def test_returns_distinct_signatures(self, store: SqliteReportStoreAdapter) -> None:
+        ts = datetime(2026, 4, 30, 12, 0, 0, tzinfo=UTC)
+        await store.store(
+            _summary(
+                scan_id="s-r1-1",
+                repo_signature="r1" * 16,
+                timestamp=ts - timedelta(days=2),
+            )
+        )
+        await store.store(
+            _summary(
+                scan_id="s-r1-2",
+                repo_signature="r1" * 16,
+                timestamp=ts - timedelta(days=1),
+            )
+        )
+        await store.store(
+            _summary(
+                scan_id="s-r2-1",
+                repo_signature="r2" * 16,
+                timestamp=ts,
+            )
+        )
+        signatures = await store.list_signatures_in_window(
+            since=ts - timedelta(days=7),
+            until=ts + timedelta(seconds=1),
+        )
+        assert set(signatures) == {"r1" * 16, "r2" * 16}
+
+    async def test_excludes_out_of_window_scans(self, store: SqliteReportStoreAdapter) -> None:
+        ts = datetime(2026, 4, 30, 12, 0, 0, tzinfo=UTC)
+        await store.store(
+            _summary(
+                scan_id="s-old",
+                repo_signature="rOld" * 8,
+                timestamp=ts - timedelta(days=30),
+            )
+        )
+        await store.store(
+            _summary(
+                scan_id="s-new",
+                repo_signature="rNew" * 8,
+                timestamp=ts,
+            )
+        )
+        signatures = await store.list_signatures_in_window(
+            since=ts - timedelta(days=7),
+            until=ts + timedelta(seconds=1),
+        )
+        assert set(signatures) == {"rNew" * 8}
