@@ -88,7 +88,12 @@ class BaseAgent(ABC):
         findings = self.validate_output(parsed)
         dim_score = self._extract_dimension_score(parsed)
         return self.format_result(
-            findings, raw_output, duration, tokens, dim_score, cache_usage,
+            findings,
+            raw_output,
+            duration,
+            tokens,
+            dim_score,
+            cache_usage,
         )
 
     @abstractmethod

@@ -169,7 +169,12 @@ class AnthropicAdapter:
             SpectraRetryError: On connection or rate-limit errors.
         """
         return await self._call_streaming(
-            system_prompt, user_prompt, model, max_tokens, effort, cache_breakpoint_index,
+            system_prompt,
+            user_prompt,
+            model,
+            max_tokens,
+            effort,
+            cache_breakpoint_index,
         )
 
     async def analyze_with_thinking(

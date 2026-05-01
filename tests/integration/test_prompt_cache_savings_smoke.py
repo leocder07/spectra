@@ -31,7 +31,8 @@ class _RecordingGateway:
         self.calls: list[dict[str, object]] = []
         self.last_usage: tuple[int, int] = (1000, 500)
         self.last_cache_usage = CacheUsage(
-            creation_tokens=creation_tokens, read_tokens=read_tokens,
+            creation_tokens=creation_tokens,
+            read_tokens=read_tokens,
         )
 
     async def analyze(
@@ -63,7 +64,12 @@ class _RecordingGateway:
         cache_breakpoint_index: int | None = None,
     ) -> str:
         return await self.analyze(
-            system_prompt, user_prompt, model, max_tokens, effort, cache_breakpoint_index,
+            system_prompt,
+            user_prompt,
+            model,
+            max_tokens,
+            effort,
+            cache_breakpoint_index,
         )
 
 
