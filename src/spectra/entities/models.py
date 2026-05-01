@@ -1125,6 +1125,52 @@ class Approver(BaseModel, frozen=True):
     public_key: str = Field(min_length=64, max_length=64)
 
 
+class RepoRegistryEntry(BaseModel, frozen=True):
+    """One row of ``portfolio_repos`` — a registered repo + tags + last scan (#26).
+
+    The portfolio scheduler (``spectra portfolio scan``) iterates over
+    these to dispatch the analyzer. ``last_scan_at`` is updated by the
+    registry adapter after each successful scan; ``--since`` skips
+    entries whose last scan is fresher than the threshold.
+
+    Two entries are equal when ``repo_url`` matches — the URL is the
+    natural primary key inside one Spectra installation. Tags are a
+    free-form list (e.g. ``team:payments``, ``tier:1``); the registry
+    adapter never interprets them, only round-trips them as JSON.
+
+    Attributes:
+        repo_url: HTTPS URL or local path. Stored verbatim.
+        added_at: UTC timestamp the entry was first registered.
+        last_scan_at: UTC timestamp of the most recent successful scan,
+            or ``None`` for never-scanned entries.
+        tags: Frozen tuple of free-form labels. Order is preserved by
+            the adapter so users see the same order they passed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    repo_url: str = Field(min_length=1)
+    added_at: datetime
+    last_scan_at: datetime | None = None
+    tags: tuple[str, ...] = ()
+
+    def has_tag(self, tag: str) -> bool:
+        """Return True when ``tag`` is a case-sensitive member of ``tags``."""
+        return tag in self.tags
+
+    def is_stale(self, now: datetime, max_age: timedelta) -> bool:
+        """Return True when the entry is due for a rescan.
+
+        Never-scanned entries are always stale. The threshold is half-open
+        — a scan exactly ``max_age`` old is still fresh — so customers
+        who run ``portfolio scan --since 7d`` on a weekly cron get
+        deterministic behaviour.
+        """
+        if self.last_scan_at is None:
+            return True
+        return (now - self.last_scan_at) > max_age
+
+
 def compute_finding_signature(
     file_path: str,
     rule_id: str,

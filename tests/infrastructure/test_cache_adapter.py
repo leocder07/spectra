@@ -453,6 +453,14 @@ class TestPhase3Schema:
         assert "findings_cache" in tables
         assert "hit_log" in tables
 
+    def test_init_schema_creates_portfolio_repos_table(self, cache_path: Path):
+        # #26 — opening the cache adapter co-creates the portfolio registry
+        # table so a single ``cache.db`` file backs both subsystems.
+        SqliteCacheAdapter(db_path=cache_path)
+        with sqlite3.connect(str(cache_path)) as conn:
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "portfolio_repos" in tables
+
     def test_phase_2_full_report_still_works_after_phase_3_schema_extension(
         self,
         adapter: SqliteCacheAdapter,
