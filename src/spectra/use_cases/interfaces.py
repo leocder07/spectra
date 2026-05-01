@@ -11,20 +11,23 @@ Protocols defined here:
     ReportPort — Render AnalysisReport to HTML via Jinja2.
     ProgressObserver — Pipeline stage and agent lifecycle callbacks.
     CachePort — Per-file finding cache (Phase 1, additive).
+    RemoteCachePort — Distributed L2 cache (ADR-021, capability #21).
     WorkspaceFilterPort — ``.gitignore`` + ``.spectraignore`` honor (Capability #6).
     SecretScannerPort — Pre-flight regex secret scan (Capability #6).
+    TracerPort — Span lifecycle for distributed tracing (ADR-023, #30 + #33).
 
 Helpers:
     is_local_path — Pure classifier distinguishing local paths from URLs.
 
 ADR references in this module: ADR-001 (clean architecture / port pattern),
-ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port). See
-``docs/architecture/adr/`` and ``docs/glossary.md`` for the at-a-glance
-ADR index.
+ADR-006 (cache port), ADR-013 (cost tracker), ADR-018 (audit port),
+ADR-021 (distributed cache port), ADR-023 (tracer port). See ``docs/architecture/adr/`` and
+``docs/glossary.md`` for the at-a-glance ADR index.
 """
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager  # noqa: TC003 — used by Protocol signatures at runtime
 from datetime import datetime  # noqa: TC003 — used by Protocol signatures at runtime
 from pathlib import Path
 from typing import Protocol
@@ -42,6 +45,7 @@ from spectra.entities.models import (
     Finding,
     Policy,
     RepoCacheKey,
+    ReportSummary,
     SecretFinding,
     Violation,
     Waiver,
@@ -430,6 +434,50 @@ class CachePort(Protocol):
         ...
 
 
+class RemoteCachePort(Protocol):
+    """Distributed L2 cache backend (ADR-021, capability #21).
+
+    A sibling of ``CachePort`` — same composite-key contract, different
+    operational profile. ``CachePort`` is sync-friendly, single-machine,
+    ~50µs per call. ``RemoteCachePort`` is async-mandatory, networked,
+    eventually consistent across writers, and carries its own failure
+    model (connection refused / timeout / auth → SPEC-010 + degrade to
+    no-cache for the remainder of the run; never fatal).
+
+    The two protocols share entities — every ``BatchCacheKey`` /
+    ``RepoCacheKey`` carries the six-component composite signature so a
+    stale row at L2 never matches a current-context lookup. Per-row
+    HMAC verification (ADR-012) is enforced at this tier as well; the
+    same per-user keyring secret derives both MACs but with a port-name
+    domain separator so the local and remote MACs cannot coincide for
+    the same payload bytes.
+
+    Implementations: ``RedisCacheAdapter`` (capability #21).
+    Composition: ``TieredCacheAdapter`` wraps a ``CachePort`` (L1) plus
+    a ``RemoteCachePort`` (L2) and itself implements both protocols.
+    """
+
+    async def get_findings(self, key: BatchCacheKey) -> tuple[Finding, ...] | None:
+        """Return cached batch findings or ``None`` on miss."""
+        ...
+
+    async def put_findings(self, key: BatchCacheKey, findings: tuple[Finding, ...]) -> None:
+        """Persist findings for a batch under the composite ``key``."""
+        ...
+
+    async def get_full_report(self, key: RepoCacheKey) -> AnalysisReport | None:
+        """Return the cached full report or ``None`` on miss (Phase 2 short-circuit)."""
+        ...
+
+    async def put_full_report(self, key: RepoCacheKey, report: AnalysisReport) -> None:
+        """Persist the full ``AnalysisReport`` under ``key`` (write-back path)."""
+        ...
+
+    async def health(self) -> bool:
+        """Liveness probe — ``False`` triggers downgrade to L1-only for the run."""
+        ...
+
+
 class CostTrackerPort(Protocol):
     """Port for per-run + rolling-hour cost tracking (SPEC-014).
 
@@ -602,6 +650,121 @@ class SignerPort(Protocol):
 
     def verify(self, payload: bytes, signature: bytes, public_hex: str) -> bool:
         """Verify ``signature`` over ``payload``; return False on mismatch."""
+        ...
+
+
+class ReportStorePort(Protocol):
+    """Append-only history store for scan summaries (#25, ADR-022).
+
+    Powers ``spectra history latest|trend``, the portfolio dashboard,
+    Slack drift alerts, and the leaderboard endpoint. Implementations
+    persist ``ReportSummary`` rows keyed by ``repo_signature`` and ``ts``
+    so range queries are index-only scans.
+
+    The port is async because the production backend (Postgres) issues
+    network I/O. The SQLite single-user fallback wraps a synchronous
+    sqlite3 connection in ``asyncio.to_thread`` so the contract is the
+    same regardless of backend.
+
+    Failure mode: every method swallows transient I/O errors internally
+    and surfaces them as logged warnings. Callers wrap the integration
+    point in the same ``safe_*`` pattern used for the audit port — a
+    history-store outage MUST never abort the analysis pipeline.
+    """
+
+    async def store(self, report: ReportSummary) -> None:
+        """Persist one scan summary. Latest write wins on duplicate ``scan_id``.
+
+        Idempotent — replaying the same summary is a no-op.
+        """
+        ...
+
+    async def latest(self, repo_signature: str) -> ReportSummary | None:
+        """Return the most recent summary for ``repo_signature`` or ``None``.
+
+        ``None`` is the legitimate "first scan ever" answer; callers
+        should treat it as a non-error.
+        """
+        ...
+
+    async def history(
+        self,
+        repo_signature: str,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[ReportSummary, ...]:
+        """Return summaries for ``repo_signature`` whose ``timestamp`` is in ``[since, until]``.
+
+        Ordered most-recent-first. Half-open interval semantics —
+        ``since`` is inclusive, ``until`` is exclusive — mirror the
+        ``LAG()`` window query in the drift detector (ADR-022 §6).
+        """
+        ...
+
+
+class Span(Protocol):
+    """Single span lifecycle (ADR-023). Structural — adapters supply concrete spans.
+
+    The Protocol mirrors a deliberately small subset of OpenTelemetry's
+    ``Span`` so adapters stay thin and the use-case layer never imports
+    ``opentelemetry.*``. ``set_attribute`` accepts only scalar types
+    that round-trip through OTLP without lossy coercion.
+
+    Attribute key discipline (enforced by ``OtelTracerAdapter``):
+        - ``cost.usd``, ``tokens.input``, ``tokens.output`` — cost attribution.
+        - ``agent.role``, ``agent.model``, ``agent.effort`` — per-agent spans.
+        - ``spectra.team``, ``spectra.repo_signature`` — fleet-wide queries.
+    Sensitive keys (``*key*``, ``*secret*``, ``*token*``, ``*body*``,
+    ``*content*``, ``*code*``) are dropped at attribute set-time by the
+    OTel adapter — see ADR-023 §5 (sensitive-attribute boundary).
+    """
+
+    def set_attribute(self, key: str, value: str | int | float | bool) -> None:
+        """Attach a scalar attribute to this span."""
+        ...
+
+    def add_event(self, name: str, attributes: dict[str, object] | None = None) -> None:
+        """Append a named event to this span (point-in-time annotation)."""
+        ...
+
+    def record_exception(self, exc: BaseException) -> None:
+        """Record an exception under the standard OTel ``exception`` event."""
+        ...
+
+
+class TracerPort(Protocol):
+    """Port for distributed-tracing span lifecycle (ADR-023, #30 + #33).
+
+    Implemented by ``OtelTracerAdapter`` (Layer 4) when an OTLP endpoint
+    is configured, ``InMemoryTracerAdapter`` for tests, and
+    ``NoopTracerAdapter`` (default zero-overhead fallback). The use-case
+    layer imports this Protocol; it never imports OpenTelemetry.
+
+    The single ``span`` method returns a context manager so the typical
+    call site is one ``with`` block — span lifecycle (start, status,
+    end) is owned by the adapter. Exceptions inside the block are
+    recorded by the adapter and re-raised; tracing must never swallow a
+    pipeline failure.
+    """
+
+    def span(
+        self,
+        name: str,
+        attributes: dict[str, str | int | float | bool] | None = None,
+    ) -> AbstractContextManager[Span]:
+        """Open a span as a context manager.
+
+        Args:
+            name: Dotted span name (``spectra.stage.analyze``,
+                ``spectra.agent.security``).
+            attributes: Optional initial attribute set, applied before
+                the span body executes.
+
+        Returns:
+            A context manager yielding a :class:`Span` whose
+            ``set_attribute``/``add_event``/``record_exception`` methods
+            survive even when tracing is disabled (no-op fallback).
+        """
         ...
 
 

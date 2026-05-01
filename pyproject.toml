@@ -54,6 +54,24 @@ dependencies = [
     "cryptography>=43,<45",
     # #17 + #18 + ADR-020: YAML config / policy / waivers / approvers
     "pyyaml>=6,<7",
+    # #25 + ADR-022: Postgres history-store driver + connection pool.
+    # Optional in practice — composition root only imports psycopg lazily
+    # when ``--history-backend postgres`` is requested. The default sqlite
+    # backend ships with the stdlib and runs without psycopg installed.
+    "psycopg[pool]>=3.1,<4.0",
+    # #21 + ADR-021: distributed L2 cache via Redis (opt-in via --cache-remote).
+    # redis-py merged the legacy aioredis package as ``redis.asyncio`` in 5.0.
+    # Bound at <6 so the next major (which can break us) requires an explicit
+    # PR rather than a transitive lockfile bump.
+    "redis>=5.0,<6.0",
+    # #30 + #33 + ADR-023: OpenTelemetry tracing + per-agent cost attribution.
+    # The OTel SDK + OTLP/HTTP exporter are wired at the composition root
+    # only when --otel-endpoint is set; the default tracer is the in-process
+    # NoopTracerAdapter (zero overhead). Bounds match the OTel Python LTS
+    # stream — <2.0 keeps a future major behind an explicit Renovate PR.
+    "opentelemetry-api>=1.27,<2.0",
+    "opentelemetry-sdk>=1.27,<2.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.27,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +90,11 @@ dev = [
     "ruff>=0.8,<1.0",
     "mypy>=1.13,<2.0",
     "build>=1.2,<2.0",
+    # #21 + ADR-021: in-process Redis fake for the L2 cache test suite.
+    # Lets us exercise RedisCacheAdapter end-to-end without Docker so CI
+    # stays hermetic. Live-Redis verification is gated by the
+    # ``SPECTRA_CACHE_REDIS`` env var (see test_redis_cache_integration.py).
+    "fakeredis>=2,<3",
 ]
 
 [project.scripts]

@@ -39,8 +39,8 @@ from spectra.entities.errors import (
     SecretDetectedError,
     SpectraRetryError,
 )
-from spectra.entities.models import AnalysisReport, CacheStats, Violation
-from spectra.use_cases.interfaces import CachePort, is_local_path
+from spectra.entities.models import AnalysisReport, CacheStats, ReportSummary, Violation
+from spectra.use_cases.interfaces import CachePort, ReportStorePort, is_local_path
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
@@ -253,6 +253,8 @@ _cache_provider: Callable[[], CachePort] | None = None
 _shred_executor: Callable[[], Path] | None = None
 _verifier: Callable[[object, bytes | None], bool] | None = None
 _default_public_key_path: Path | None = None
+_history_store_provider: Callable[[], ReportStorePort] | None = None
+_history_migrator: Callable[[], tuple[str, ...]] | None = None
 
 
 def set_analyzer_factory(
@@ -290,6 +292,29 @@ def set_cache_provider(provider: Callable[[], CachePort]) -> None:
     """
     global _cache_provider  # noqa: PLW0603
     _cache_provider = provider
+
+
+def set_history_store_provider(provider: Callable[[], ReportStorePort] | None) -> None:
+    """Inject the history-store factory used by ``spectra history latest|trend``.
+
+    The composition root passes a zero-arg callable that returns a fresh
+    ``ReportStorePort``. The CLI invokes it lazily so the LLM stack is
+    never required when only querying scan history. Pass ``None`` to clear
+    the provider (used by the test fixture).
+    """
+    global _history_store_provider  # noqa: PLW0603
+    _history_store_provider = provider
+
+
+def set_history_migrator(migrator: Callable[[], tuple[str, ...]] | None) -> None:
+    """Inject the migration runner used by ``spectra history migrate``.
+
+    The composition root passes a zero-arg callable that applies any
+    pending SQL migrations and returns the version strings actually
+    applied. Pass ``None`` to clear the migrator (used by the test fixture).
+    """
+    global _history_migrator  # noqa: PLW0603
+    _history_migrator = migrator
 
 
 def set_shred_executor(executor: Callable[[], Path]) -> None:
@@ -655,6 +680,29 @@ def analyze(
         "--max-cost-per-hour",
         help="Rolling 1-hour cost cap (USD). Persists across runs via cache.db.",
     ),
+    cache_remote: str | None = typer.Option(
+        None,
+        "--cache-remote",
+        help=(
+            "Distributed L2 cache URL (capability #21, ADR-021). Example: "
+            "redis://localhost:6379/0. Defaults to $SPECTRA_CACHE_REDIS, "
+            "then local-only when neither is set."
+        ),
+    ),
+    otel_endpoint: str | None = typer.Option(
+        None,
+        "--otel-endpoint",
+        help=(
+            "OTLP/HTTP endpoint for OpenTelemetry trace export "
+            "(e.g. http://collector:4318/v1/traces). Omit to disable tracing."
+        ),
+    ),
+    team: str | None = typer.Option(
+        None,
+        "--team",
+        envvar="SPECTRA_TEAM",
+        help=("Team tag stamped on every span for cost attribution (#33). Defaults to $SPECTRA_TEAM, then 'default'."),
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -714,6 +762,9 @@ def analyze(
                 classification=classification,
                 max_cost_usd=max_cost_usd,
                 max_cost_per_hour=max_cost_per_hour,
+                cache_remote=cache_remote,
+                otel_endpoint=otel_endpoint,
+                team=team or "default",
             )
         )
     except BaseException as exc:
@@ -1321,3 +1372,121 @@ def cache_shred(
         raise typer.Exit(code=1) from exc
     console.print(f"  [{GREEN}]✓[/] shred complete: {shredded}")
     console.print("  [dim]next analyze run will cold-mint fresh keys[/]")
+
+
+# ── #25 + ADR-022: spectra history subcommands ───────────────
+
+
+history_app = typer.Typer(help="Query scan history and apply schema migrations")
+app.add_typer(history_app, name="history")
+
+
+def _get_history_store() -> ReportStorePort:
+    """Return the history store via the injected provider, or exit cleanly."""
+    if _history_store_provider is None:
+        console.print(f"[{RED}]✗[/] No history backend wired: set --history-backend or SPECTRA_POSTGRES_URL")
+        raise typer.Exit(code=1)
+    return _history_store_provider()
+
+
+def _format_summary_line(summary: ReportSummary) -> str:
+    """One-line representation of a ReportSummary for terminal output."""
+    ts = summary.timestamp.strftime("%Y-%m-%d %H:%M")
+    return (
+        f"{ts}  {summary.overall_grade:>2}  "
+        f"score={summary.overall_score:5.1f}  "
+        f"findings={summary.total_findings:3d}  "
+        f"scan={summary.scan_id}"
+    )
+
+
+@history_app.command("latest")
+def history_latest(
+    repo: str = typer.Argument(..., help="Repo URL or 32-hex repo_signature"),
+) -> None:
+    """Print the most recent scan summary for ``repo``."""
+    store = _get_history_store()
+    repo_signature = _resolve_history_signature(repo)
+    summary = asyncio.run(store.latest(repo_signature))
+    if summary is None:
+        console.print(f"  [{AMBER}]▸[/] No scans recorded for {repo}")
+        return
+    console.print(f"  [{GREEN}]✓[/] {_format_summary_line(summary)}")
+
+
+@history_app.command("trend")
+def history_trend(
+    repo: str = typer.Argument(..., help="Repo URL or 32-hex repo_signature"),
+    since: str = typer.Option(
+        "6w",
+        "--since",
+        help="Look back this far (e.g. 6w, 30d, 3m). Default: 6w",
+    ),
+) -> None:
+    """Print scans for ``repo`` within the lookback window as a table."""
+    store = _get_history_store()
+    repo_signature = _resolve_history_signature(repo)
+    duration = _parse_duration_or_exit(since)
+    until = datetime.now(UTC)
+    rows = asyncio.run(store.history(repo_signature, since=until - duration, until=until))
+    if not rows:
+        console.print(f"  [{AMBER}]▸[/] No scans in the last {since} for {repo}")
+        return
+    _render_trend_table(rows, since)
+
+
+@history_app.command("migrate")
+def history_migrate() -> None:
+    """Apply pending SQL migrations to the wired history backend."""
+    if _history_migrator is None:
+        console.print(f"[{RED}]✗[/] No history migrator wired: set --history-backend or SPECTRA_POSTGRES_URL")
+        raise typer.Exit(code=1)
+    try:
+        applied = _history_migrator()
+    except Exception as exc:
+        console.print(f"[{RED}]✗[/] migration failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    if not applied:
+        console.print(f"  [{GREEN}]✓[/] schema is up to date — no pending migrations")
+        return
+    console.print(f"  [{GREEN}]✓[/] applied {len(applied)} migration(s):")
+    for version in applied:
+        console.print(f"    [dim]·[/] {version}")
+
+
+def _resolve_history_signature(repo: str) -> str:
+    """Resolve a URL or already-hashed signature to the canonical signature.
+
+    Mirrors the cache CLI helper so users can pass either form.
+    """
+    if len(repo) == _REPO_SIGNATURE_HEX_LEN and all(c in "0123456789abcdef" for c in repo):
+        return repo
+    # Same shape as the cache helper: blake2b of singleton file tree of the URL.
+    from hashlib import blake2b
+
+    digest = blake2b(digest_size=16)
+    digest.update(repo.encode("utf-8"))
+    digest.update(b"\x00")
+    return digest.hexdigest()
+
+
+def _render_trend_table(rows: tuple[ReportSummary, ...], since: str) -> None:
+    """Render the trend table — one row per scan, most recent first."""
+    table = Table(
+        title=f"Scan history (last {since})",
+        title_style=f"bold {VIOLET}",
+    )
+    table.add_column("Date", style=f"bold {AMBER}")
+    table.add_column("Grade", justify="center")
+    table.add_column("Score", justify="right")
+    table.add_column("Findings", justify="right")
+    table.add_column("Scan ID", style="dim")
+    for r in rows:
+        table.add_row(
+            r.timestamp.strftime("%Y-%m-%d %H:%M"),
+            r.overall_grade,
+            f"{r.overall_score:.1f}",
+            str(r.total_findings),
+            r.scan_id,
+        )
+    console.print(table)

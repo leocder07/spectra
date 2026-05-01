@@ -56,6 +56,8 @@ from spectra.adapters.cli_controller import (
     cli_entry,
     set_analyzer_factory,
     set_cache_provider,
+    set_history_migrator,
+    set_history_store_provider,
     set_shred_executor,
     set_verifier,
 )
@@ -100,17 +102,20 @@ from spectra.infrastructure.cost_tracker import (
 from spectra.infrastructure.git_adapter import GitAdapter
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
+from spectra.infrastructure.observability import OtelTracerAdapter
 from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
 from spectra.infrastructure.receipt_signer import ReceiptSigner
+from spectra.infrastructure.redis_cache_adapter import RedisCacheAdapter
 from spectra.infrastructure.regex_secret_scanner import RegexSecretScanner
 from spectra.infrastructure.report_adapter import ReportAdapter
 from spectra.infrastructure.retry_decorator import RetryDecorator
+from spectra.infrastructure.tiered_cache_adapter import TieredCacheAdapter
 from spectra.infrastructure.tiktoken_adapter import TiktokenAdapter
 from spectra.infrastructure.yaml_policy_adapter import YamlPolicyAdapter
 from spectra.infrastructure.yaml_waiver_adapter import YamlWaiverAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.identity_resolver import resolve_actor
-from spectra.use_cases.interfaces import is_local_path
+from spectra.use_cases.interfaces import TracerPort, is_local_path
 from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 from spectra.use_cases.source_file_selection import (
@@ -122,8 +127,13 @@ from spectra.use_cases.source_file_selection import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from spectra.use_cases.interfaces import AuditPort, LLMGateway
+    from spectra.use_cases.interfaces import AuditPort, CachePort, LLMGateway
     from spectra.use_cases.orchestrate_agents import AnalysisAgent
+
+# CLI flag default — when --otel-endpoint is omitted, no tracer is wired
+# (NoopTracerAdapter via PipelineContext default). This keeps the install
+# overhead at zero for users who never enable observability.
+_DEFAULT_TEAM = "default"
 
 
 class ReportError(Exception):
@@ -211,7 +221,7 @@ def _assemble_context(
     request: AnalysisRequest,
     codebase: Codebase,
     git: GitAdapter,
-    cache: SqliteCacheAdapter | None,
+    cache: _CACHE_BACKEND | None,
     source_files: dict[str, str],
     agent_overrides: dict[str, object] | None,
     skip_critique: bool,
@@ -221,6 +231,8 @@ def _assemble_context(
     max_cost_per_hour: float | None,
     max_cost_usd: float | None,
     run_id: str,
+    tracer: TracerPort | None,
+    team: str,
 ) -> PipelineContext:
     """Bundle every input the use-case pipeline needs into a single ctx.
 
@@ -242,6 +254,7 @@ def _assemble_context(
     actor = resolve_actor()
     active_waivers, expired_waivers = _load_waivers(workspace_dir)
     cost_tracker = _build_cost_tracker(max_cost_per_hour)
+    report_store = _provision_history_store_safe()
     return PipelineContext(
         request=request,
         codebase=codebase,
@@ -251,7 +264,7 @@ def _assemble_context(
         git_port=git,
         observer=deps.observer,
         source_files=source_files,
-        cache_port=cache,
+        cache_port=_as_cache_port(cache),
         cache_key_factory=_make_cache_key_factory() if cache else None,
         force_cache_bypass=force,
         audit_port=audit_port,
@@ -262,7 +275,28 @@ def _assemble_context(
         expired_waivers=expired_waivers,
         cost_tracker=cost_tracker,
         max_cost_usd=max_cost_usd,
+        report_store=report_store,  # type: ignore[arg-type]
+        tracer=tracer,
+        team=team,
     )
+
+
+def _provision_history_store_safe() -> object | None:
+    """Build a history store for the pipeline; return None on any failure.
+
+    History persistence is a side benefit, not a hard requirement: a
+    misconfigured Postgres URL or a locked sqlite directory must not
+    abort the analyze run.
+    """
+    try:
+        return _provision_history_store()
+    except Exception as exc:
+        logging.getLogger("spectra.history").debug(
+            "History store unavailable for this run: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 async def _run_and_stamp(
@@ -367,6 +401,9 @@ async def _run_analysis(
     classification: str = "confidential",
     max_cost_usd: float | None = None,
     max_cost_per_hour: float | None = None,
+    cache_remote: str | None = None,
+    otel_endpoint: str | None = None,
+    team: str = _DEFAULT_TEAM,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -389,6 +426,16 @@ async def _run_analysis(
         classification: Report classification to stamp (``confidential``/``public``).
         max_cost_usd: Per-run USD cap.
         max_cost_per_hour: Rolling-hour USD cap (forces SqliteCostTracker).
+        cache_remote: Optional ``redis://...`` URL for the L2 distributed
+            cache (#21, ADR-021). When set, the local SQLite cache is
+            wrapped in a ``TieredCacheAdapter`` with ``RedisCacheAdapter``
+            as the L2. Falls back to ``SPECTRA_CACHE_REDIS`` env var, then
+            local-only when neither is set.
+        otel_endpoint: OTLP/HTTP endpoint. ``None`` (default) disables
+            tracing; otherwise wires :class:`OtelTracerAdapter` so every
+            stage and per-agent span is exported (#30, ADR-023).
+        team: Team tag stamped on every span for cost attribution
+            (#33, ADR-023 §4). Defaults to ``"default"``.
 
     Returns:
         Completed analysis report.
@@ -408,7 +455,8 @@ async def _run_analysis(
     deps = _wire_dependencies(api_key)
     git = GitAdapter()
     report_renderer = ReportAdapter()
-    cache = _provision_cache(no_cache=no_cache)
+    cache = _provision_cache(no_cache=no_cache, cache_remote=cache_remote)
+    tracer = _build_tracer(otel_endpoint, team)
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
         workspace_dir, file_tree, source_files = await _ingest_workspace(
@@ -443,6 +491,8 @@ async def _run_analysis(
             max_cost_per_hour=max_cost_per_hour,
             max_cost_usd=max_cost_usd,
             run_id=run_id,
+            tracer=tracer,
+            team=team,
         )
         report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)
@@ -494,17 +544,142 @@ def _enforce_policy(workspace_dir: str, report: AnalysisReport) -> None:
         raise PolicyGateError(violations)
 
 
+# ── Tracer adapter construction (ADR-023) ────────────────────
+
+
+def _build_tracer(endpoint: str | None, team: str) -> TracerPort | None:
+    """Wire :class:`OtelTracerAdapter` when ``endpoint`` is configured.
+
+    Returns ``None`` (the PipelineContext default — equivalent to a
+    NoopTracerAdapter via ``safe_span``) when:
+        - ``endpoint`` is not supplied (the 70% case);
+        - the OTel SDK fails to initialise the exporter (degrade,
+          never abort — same posture as audit / receipt failures).
+
+    Args:
+        endpoint: OTLP/HTTP collector URL.
+        team: Cost-attribution tag, copied onto the OTel ``Resource``
+            so it surfaces on every exported span.
+
+    Returns:
+        An ``OtelTracerAdapter`` or ``None``. ``None`` keeps the
+        composition root identical to pre-#30 behaviour.
+    """
+    if not endpoint:
+        return None
+    try:
+        return OtelTracerAdapter(
+            endpoint=endpoint,
+            resource_attributes={
+                "spectra.team": team,
+                "spectra.version": _SPECTRA_VERSION,
+            },
+        )
+    except (OSError, ValueError, ImportError) as exc:
+        logging.getLogger("spectra.tracing").warning(
+            "Tracing disabled — OTel adapter init failed: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+
 # ── Cache adapter construction ───────────────────────────────
 
 
-def _provision_cache(*, no_cache: bool) -> SqliteCacheAdapter | None:
-    """Build the cache adapter (when enabled) and bind the Phase 3 run context."""
+_CACHE_BACKEND = SqliteCacheAdapter | TieredCacheAdapter
+"""Type alias for the wired cache shape — local-only or tiered.
+
+Both backends satisfy the *subset of* ``CachePort`` the orchestrator
+calls: ``compute_repo_signature``, ``get/put_full_report``,
+``get/put_batch_findings``, ``record_hit``, ``batch_key_for`` and
+``bind_run_context``. The legacy Phase-1 ``get_findings`` /
+``put_findings`` are dead in production paths and are therefore not
+required of ``TieredCacheAdapter``.
+"""
+
+
+def _as_cache_port(cache: _CACHE_BACKEND | None) -> CachePort | None:
+    """Cast the wired cache to ``CachePort`` for ``PipelineContext``.
+
+    ``TieredCacheAdapter.get_findings`` is async (RemoteCachePort surface)
+    while the legacy ``CachePort.get_findings`` is sync — Python cannot
+    satisfy both Protocols on one class. The orchestrator has not used
+    the legacy Phase-1 methods since the move to per-batch caching, so
+    the structural mismatch is a paper cut, not a runtime hazard.
+    """
+    return cache  # type: ignore[return-value]  # see docstring
+
+
+def _provision_cache(
+    *,
+    no_cache: bool,
+    cache_remote: str | None = None,
+) -> _CACHE_BACKEND | None:
+    """Build the cache adapter (when enabled) and bind the Phase 3 run context.
+
+    When ``cache_remote`` is set, the local SQLite adapter is wrapped in
+    a ``TieredCacheAdapter`` with a ``RedisCacheAdapter`` as the L2 (#21,
+    ADR-021). The L2 is opt-in — without the flag (or the
+    ``SPECTRA_CACHE_REDIS`` env var) the wired cache is a bare local
+    SqliteCacheAdapter, byte-for-byte identical to today's behaviour.
+    """
     if no_cache:
         return None
-    cache = _build_cache_adapter()
-    if cache is not None:
-        _bind_cache_run_context(cache)
+    local = _build_cache_adapter()
+    if local is None:
+        return None
+    cache = _build_cache_with_remote(
+        remote_url=_resolve_cache_remote_url(cache_remote),
+        local=local,
+        secret=_resolve_cache_secret(),
+    )
+    _bind_cache_run_context(cache)
     return cache
+
+
+def _resolve_cache_remote_url(arg: str | None) -> str | None:
+    """Pick the L2 connection URL: explicit CLI arg beats env var.
+
+    Returns ``None`` when neither is set — local-only mode (the default).
+    """
+    if arg:
+        return arg
+    env = os.environ.get("SPECTRA_CACHE_REDIS")
+    return env if env else None
+
+
+def _build_cache_with_remote(
+    *,
+    remote_url: str | None,
+    local: SqliteCacheAdapter,
+    secret: CacheSecret | None = None,
+) -> _CACHE_BACKEND:
+    """Wrap ``local`` in a ``TieredCacheAdapter`` when ``remote_url`` is set.
+
+    Degrades to local-only when:
+      * ``remote_url`` is ``None`` (no L2 requested), or
+      * ``secret`` is ``None`` (no HMAC key — L2 cannot enforce ADR-012).
+
+    The degradation is a one-line WARN (SPEC-010), never fatal.
+    """
+    if remote_url is None:
+        return local
+    if secret is None:
+        logging.getLogger("spectra.cache").warning(
+            "SPEC-010: cache HMAC secret unavailable; remote cache disabled, L1-only",
+        )
+        return local
+    try:
+        remote = RedisCacheAdapter.from_url(remote_url, secret=secret)
+    except (RuntimeError, OSError, ValueError) as exc:
+        logging.getLogger("spectra.cache").warning(
+            "SPEC-010: remote cache disabled (%s: %s); L1-only for the rest of the run",
+            type(exc).__name__,
+            exc,
+        )
+        return local
+    return TieredCacheAdapter(local=local, remote=remote)
 
 
 def _build_cache_adapter() -> SqliteCacheAdapter | None:
@@ -597,12 +772,19 @@ def _build_cost_tracker(max_cost_per_hour: float | None) -> InMemoryCostTracker 
     return InMemoryCostTracker()
 
 
-def _close_cache_quietly(cache: SqliteCacheAdapter | None) -> None:
-    """Close the cache adapter, swallowing any SPEC-010 raised during close."""
+def _close_cache_quietly(cache: _CACHE_BACKEND | None) -> None:
+    """Close the cache adapter, swallowing any SPEC-010 raised during close.
+
+    For the tiered adapter the close-equivalent is just ``drain()``: the
+    underlying SqliteCacheAdapter owns no socket and the RedisCacheAdapter
+    closes its pool inside ``drain``'s task gather (each adapter is its
+    own lifecycle). The local SqliteCacheAdapter is closed directly.
+    """
     if cache is None:
         return
     try:
-        cache.close()
+        if isinstance(cache, SqliteCacheAdapter):
+            cache.close()
     except AgentError:
         logging.getLogger("spectra").debug("Cache close failed; ignoring")
 
@@ -668,7 +850,7 @@ def _composite_prompt_versions() -> str:
     return digest.hexdigest()
 
 
-def _bind_cache_run_context(cache: SqliteCacheAdapter) -> None:
+def _bind_cache_run_context(cache: _CACHE_BACKEND) -> None:
     """Atomically bind the four versions used by every Phase 3 cache key."""
     cache.bind_run_context(
         model_versions=_composite_model_versions(),
@@ -1088,6 +1270,80 @@ def _attach_receipt(report: AnalysisReport, run_id: str) -> AnalysisReport:
     return report.model_copy(update={"receipt": receipt})
 
 
+# ── #25 + ADR-022: history-store provisioning ──────────────
+
+
+_HISTORY_BACKEND_ENV = "SPECTRA_HISTORY_BACKEND"
+_HISTORY_POSTGRES_URL_ENV = "SPECTRA_POSTGRES_URL"
+
+
+def _resolve_history_backend() -> str:
+    """Pick the history backend from env vars; defaults to ``sqlite``."""
+    explicit = os.environ.get(_HISTORY_BACKEND_ENV, "").strip().lower()
+    if explicit:
+        return explicit
+    # If the user set a Postgres URL, infer they want the postgres backend
+    # without needing the explicit toggle as well.
+    if os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip():
+        return "postgres"
+    return "sqlite"
+
+
+def _provision_history_store() -> object:
+    """Build the appropriate ``ReportStorePort`` for the wired backend.
+
+    Returns a sqlite store by default; a Postgres store when the
+    backend is set to ``postgres`` and ``SPECTRA_POSTGRES_URL`` is
+    populated. Raises ``RuntimeError`` when Postgres is requested but no
+    URL is provided — the CLI catches this and prints a brand-voice ✗.
+    """
+    from spectra.infrastructure.history import (
+        PostgresReportStoreAdapter,
+        SqliteReportStoreAdapter,
+        apply_sqlite_migrations,
+        build_pool,
+        default_history_path,
+    )
+
+    backend = _resolve_history_backend()
+    if backend == "postgres":
+        url = os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip()
+        if not url:
+            msg = "SPECTRA_POSTGRES_URL is required when --history-backend postgres"
+            raise RuntimeError(msg)
+        pool = build_pool(url)
+        return PostgresReportStoreAdapter(pool=pool)
+    # default: sqlite
+    db_path = default_history_path()
+    apply_sqlite_migrations(db_path)
+    return SqliteReportStoreAdapter(db_path=db_path)
+
+
+def _apply_history_migrations() -> tuple[str, ...]:
+    """Apply pending migrations to the wired history backend.
+
+    Returns the tuple of versions actually applied — empty when nothing
+    was pending. Catches the missing-URL error so the CLI prints a clean
+    SPEC-style message instead of a stack trace.
+    """
+    from spectra.infrastructure.history import (
+        apply_postgres_migrations,
+        apply_sqlite_migrations,
+        build_pool,
+        default_history_path,
+    )
+
+    backend = _resolve_history_backend()
+    if backend == "postgres":
+        url = os.environ.get(_HISTORY_POSTGRES_URL_ENV, "").strip()
+        if not url:
+            msg = "SPECTRA_POSTGRES_URL is required when --history-backend postgres"
+            raise RuntimeError(msg)
+        pool = build_pool(url)
+        return apply_postgres_migrations(pool=pool)
+    return apply_sqlite_migrations(default_history_path())
+
+
 def cli() -> None:
     """Package entry point — wires DI then starts CLI.
 
@@ -1108,4 +1364,6 @@ def cli() -> None:
     set_shred_executor(_shred_cache_and_keys)
     set_verifier(verify_receipt, default_public_key_path=default_receipt_public_key_path())
     set_signer(Ed25519SignerAdapter())
+    set_history_store_provider(_provision_history_store)
+    set_history_migrator(_apply_history_migrations)
     cli_entry()
