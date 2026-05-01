@@ -757,6 +757,21 @@ def analyze(
             "every runner pointed at the same Redis (fleet mode)."
         ),
     ),
+    notify_webhook: str | None = typer.Option(
+        None,
+        "--notify-webhook",
+        envvar="SPECTRA_NOTIFY_WEBHOOK",
+        help=(
+            "Slack/Teams incoming-webhook URL for drift + per-finding "
+            "alerts (#27 + #34). Auto-detected by host. Defaults to "
+            "$SPECTRA_NOTIFY_WEBHOOK; omit for no notifications."
+        ),
+    ),
+    no_drift_alert: bool = typer.Option(
+        False,
+        "--no-drift-alert",
+        help="Suppress automatic post-scan drift firing for this run (#27)",
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -821,6 +836,8 @@ def analyze(
                 team=team or "default",
                 rate_limit_rpm=rate_limit_rpm,
                 rate_coordinator_url=rate_coordinator,
+                notify_webhook=notify_webhook,
+                no_drift_alert=no_drift_alert,
             )
         )
     except BaseException as exc:
