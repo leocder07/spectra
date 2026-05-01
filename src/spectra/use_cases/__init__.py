@@ -28,6 +28,7 @@ from spectra.use_cases.interfaces import (
     CostTrackerPort,
     GitPort,
     LLMGateway,
+    NotifierPort,
     ProgressObserver,
     RateCoordinatorPort,
     ReportPort,
@@ -63,6 +64,7 @@ __all__ = [
     "LLMGateway",
     # tracing (ADR-023)
     "NoopTracerAdapter",
+    "NotifierPort",
     "PipelineContext",
     "ProgressObserver",
     "RateCoordinatorPort",

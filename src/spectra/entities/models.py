@@ -151,6 +151,38 @@ class SecretFinding(BaseModel, frozen=True):
     pattern_name: str
 
 
+class NotifierMessage(BaseModel, frozen=True):
+    """Outbound notification payload — Layer 1 entity (#27 + #34).
+
+    Provider-agnostic message that ``SlackWebhookAdapter`` and
+    ``TeamsWebhookAdapter`` (Layer 4) render into Slack Block Kit JSON or
+    Adaptive Card JSON respectively. Frozen so the same instance can be
+    fanned out to multiple adapters without copy-on-share concerns.
+
+    The four fields cover every outbound surface Spectra emits today:
+    drift events (#27), per-finding alerts (#34), and the weekly digest.
+    Renderers map ``severity`` to a default colour when ``color`` is
+    ``None`` (e.g. critical → red, info → green).
+
+    Attributes:
+        title: Short headline (≤80 chars; longer titles get truncated by
+            adapters but the entity itself does not enforce the cap).
+        body_markdown: Markdown body. Slack and Teams both accept a
+            subset of CommonMark; renderers strip unsupported syntax.
+        severity: Maps to colour + emoji on supported channels.
+        link_url: Optional report-deeplink button. Renderers attach as
+            an action element.
+        color: Optional explicit hex colour (``#RRGGBB``). When ``None``,
+            renderers derive from severity.
+    """
+
+    title: str
+    body_markdown: str
+    severity: Severity
+    link_url: str | None = None
+    color: str | None = None
+
+
 class DimensionScore(BaseModel, frozen=True):
     """Score for a single analysis dimension.
 
