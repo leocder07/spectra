@@ -1491,6 +1491,69 @@ def history_trend(
     _render_trend_table(rows, since)
 
 
+@app.command("digest")
+def digest_command(
+    since: str = typer.Option(
+        "1w",
+        "--since",
+        help="Lookback window (e.g. 1w, 30d). Default: 1w",
+    ),
+    notify_webhook: str | None = typer.Option(
+        None,
+        "--notify",
+        "--notify-webhook",
+        help="Slack/Teams webhook URL; auto-detected. Omit to print to stdout.",
+    ),
+    tag: str | None = typer.Option(
+        None,
+        "--tag",
+        help="Filter to repos whose latest scan carries this tag (e.g. team:payments)",
+    ),
+) -> None:
+    """Compose the weekly digest from history; print or post to a webhook (#34)."""
+    from spectra.use_cases.digest import compose_weekly_digest, render_digest_markdown
+    from spectra.use_cases.notifications import safe_send
+
+    if tag is not None:
+        # Tag-filtered digest is reserved for the per-team plan; surface
+        # a friendly notice rather than silently ignore. The flag is kept
+        # so customers can wire up tomorrow without a CLI bump.
+        console.print(f"  [{AMBER}]▸[/] --tag is reserved (no-op in v0.7.x); see #34")
+
+    store = _get_history_store()
+    duration = _parse_duration_or_exit(since)
+    window_days = max(1, duration.days)
+    digest = asyncio.run(compose_weekly_digest(history=store, window_days=window_days))  # type: ignore[arg-type]
+    body = render_digest_markdown(digest)
+    if notify_webhook is None:
+        typer.echo(body)
+        return
+    notifier, severity = _build_digest_notifier(notify_webhook)
+    if notifier is None:
+        return
+    from spectra.entities.models import NotifierMessage
+
+    msg = NotifierMessage(
+        title=f"Spectra digest ({since})",
+        body_markdown=body,
+        severity=severity,
+    )
+    asyncio.run(safe_send(notifier, msg))
+    console.print(f"  [{GREEN}]✓[/] digest posted to {notify_webhook}")
+
+
+def _build_digest_notifier(webhook_url: str) -> tuple[object | None, str]:
+    """Auto-detect Slack/Teams from the URL and return (notifier, severity)."""
+    from spectra.infrastructure.notifiers import notifier_from_url
+
+    try:
+        notifier = notifier_from_url(webhook_url)
+    except ValueError as exc:
+        console.print(f"[{RED}]✗[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    return notifier, "info"
+
+
 @app.command("trend")
 def trend_command(
     repo: str = typer.Argument(..., help="Repo URL or 32-hex repo_signature"),

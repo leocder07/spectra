@@ -149,6 +149,18 @@ class SqliteReportStoreAdapter:
         """Return summaries within ``[since, until)`` ordered most-recent-first."""
         return await asyncio.to_thread(self._history_sync, repo_signature, since, until)
 
+    async def list_signatures_in_window(
+        self,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[str, ...]:
+        """Return distinct ``repo_signature`` values seen in ``[since, until)``.
+
+        Powers ``compose_weekly_digest`` (#34) — fleet-wide enumeration
+        without round-tripping the full summary payload.
+        """
+        return await asyncio.to_thread(self._list_signatures_sync, since, until)
+
     # ── Sync helpers ──────────────────────────────────────────
 
     def _store_sync(self, report: ReportSummary) -> None:
@@ -191,6 +203,19 @@ class SqliteReportStoreAdapter:
                 (repo_signature, since.isoformat(), until.isoformat()),
             ).fetchall()
         return tuple(_row_to_summary(r) for r in rows)
+
+    def _list_signatures_sync(
+        self,
+        since: datetime,
+        until: datetime,
+    ) -> tuple[str, ...]:
+        """Synchronous SELECT DISTINCT repo_signature inside the half-open window."""
+        with self._lock:
+            rows = self._conn.execute(
+                _SELECT_DISTINCT_SIGNATURES_SQL,
+                (since.isoformat(), until.isoformat()),
+            ).fetchall()
+        return tuple(str(r[0]) for r in rows)
 
     @contextmanager
     def _tx(self) -> Iterator[None]:
@@ -277,4 +302,10 @@ WHERE repo_signature = ?
   AND ts >= ?
   AND ts <  ?
 ORDER BY ts DESC
+"""
+
+_SELECT_DISTINCT_SIGNATURES_SQL = """
+SELECT DISTINCT repo_signature FROM reports
+WHERE ts >= ?
+  AND ts <  ?
 """
