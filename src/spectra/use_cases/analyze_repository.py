@@ -56,6 +56,7 @@ from spectra.use_cases.interfaces import (
     CostTrackerPort,
     GitPort,
     ProgressObserver,
+    RateCoordinatorPort,
     ReportStorePort,
     Span,
     TracerPort,
@@ -163,6 +164,13 @@ class PipelineContext:
     """ADR-023 §4: cost-attribution team tag. Stamped on the root span
     + every per-agent span so the CFO query (``sum by (spectra.team)
     (cost.usd)``) can break Anthropic spend down by team."""
+    rate_coordinator: RateCoordinatorPort | None = None
+    """#22 + ADR-013: when wired, every specialist Anthropic call awaits
+    one token from the coordinator before issuing the request. ``None``
+    (the default) preserves prior behaviour — only the in-process
+    semaphore caps concurrency. The composition root selects between
+    InMemoryRateAdapter (solo runs with --rate-limit-rpm) and
+    RedisRateAdapter (fleet mode against a shared Redis)."""
 
 
 @dataclass
@@ -733,7 +741,11 @@ async def _run_analyze_stage_with_cache(
     file_hashes = await _hash_planned_files(ctx, plan_output)
     batches = build_batch_prompts(ctx, plan_output, state, file_hashes)
     cached_per_role, fresh_per_role = _split_batches_by_cache(ctx, batches)
-    fresh_results = await run_specialists_batched(ctx.specialists, fresh_per_role)
+    fresh_results = await run_specialists_batched(
+        ctx.specialists,
+        fresh_per_role,
+        rate_coordinator=ctx.rate_coordinator,
+    )
     _persist_fresh_batches(ctx, fresh_per_role, fresh_results)
     return _assemble_phase3_result(ctx, cached_per_role, fresh_results)
 
@@ -1233,8 +1245,13 @@ async def _dispatch_specialists(
             tracker=ctx.cost_tracker,
             max_cost_usd=ctx.max_cost_usd,
             estimate_per_agent=0.005,
+            rate_coordinator=ctx.rate_coordinator,
         )
-    return await run_specialists(ctx.specialists, prompts)
+    return await run_specialists(
+        ctx.specialists,
+        prompts,
+        rate_coordinator=ctx.rate_coordinator,
+    )
 
 
 def _notify_agent_starts(
