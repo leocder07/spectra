@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import traceback
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -39,8 +40,14 @@ from spectra.entities.errors import (
     SecretDetectedError,
     SpectraRetryError,
 )
-from spectra.entities.models import AnalysisReport, CacheStats, ReportSummary, Violation
-from spectra.use_cases.interfaces import CachePort, ReportStorePort, is_local_path
+from spectra.entities.models import AnalysisReport, CacheStats, RepoRegistryEntry, ReportSummary, Violation
+from spectra.use_cases.interfaces import CachePort, RepoRegistryPort, ReportStorePort, is_local_path
+from spectra.use_cases.manage_portfolio import (
+    PortfolioScanPlan,
+    PortfolioScanRunMode,
+    plan_portfolio_scan,
+    select_run_mode,
+)
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
@@ -255,6 +262,8 @@ _verifier: Callable[[object, bytes | None], bool] | None = None
 _default_public_key_path: Path | None = None
 _history_store_provider: Callable[[], ReportStorePort] | None = None
 _history_migrator: Callable[[], tuple[str, ...]] | None = None
+_portfolio_registry_provider: Callable[[], RepoRegistryPort] | None = None
+_portfolio_analyzer: Callable[[str], Awaitable[object]] | None = None
 
 
 def set_analyzer_factory(
@@ -315,6 +324,31 @@ def set_history_migrator(migrator: Callable[[], tuple[str, ...]] | None) -> None
     """
     global _history_migrator  # noqa: PLW0603
     _history_migrator = migrator
+
+
+def set_portfolio_registry_provider(provider: Callable[[], RepoRegistryPort] | None) -> None:
+    """Inject the registry factory used by ``spectra portfolio *`` subcommands (#26).
+
+    The composition root passes a zero-arg callable that returns a fresh
+    ``RepoRegistryPort``. The CLI invokes it lazily so subcommands work
+    without the LLM stack. Pass ``None`` to clear the provider (used by
+    the test fixture).
+    """
+    global _portfolio_registry_provider  # noqa: PLW0603
+    _portfolio_registry_provider = provider
+
+
+def set_portfolio_analyzer(
+    analyzer: Callable[[str], Awaitable[object]] | None,
+) -> None:
+    """Inject the per-repo analyzer used by ``spectra portfolio scan`` (#26).
+
+    The composition root passes an ``async`` callable that accepts a
+    repo URL and runs the same pipeline as ``spectra analyze``. Pass
+    ``None`` to clear the analyzer (used by the test fixture).
+    """
+    global _portfolio_analyzer  # noqa: PLW0603
+    _portfolio_analyzer = analyzer
 
 
 def set_shred_executor(executor: Callable[[], Path]) -> None:
@@ -1510,5 +1544,285 @@ def _render_trend_table(rows: tuple[ReportSummary, ...], since: str) -> None:
             f"{r.overall_score:.1f}",
             str(r.total_findings),
             r.scan_id,
+        )
+    console.print(table)
+
+
+# ── #26: spectra portfolio subcommands ────────────────────────
+
+
+portfolio_app = typer.Typer(help="Manage the repo registry and run portfolio scans")
+app.add_typer(portfolio_app, name="portfolio")
+
+
+_DEFAULT_PORTFOLIO_SINCE = "7d"
+_DASH = "—"
+
+
+def _get_portfolio_registry() -> RepoRegistryPort:
+    """Return the registry instance from the injected provider, or exit cleanly."""
+    if _portfolio_registry_provider is None:
+        console.print(f"[{RED}]✗[/] No portfolio registry wired: run via spectra entry point")
+        raise typer.Exit(code=1)
+    return _portfolio_registry_provider()
+
+
+def _get_portfolio_analyzer() -> Callable[[str], Awaitable[object]]:
+    """Return the analyzer callable from the injected provider, or exit cleanly."""
+    if _portfolio_analyzer is None:
+        console.print(f"[{RED}]✗[/] No portfolio analyzer wired: run via spectra entry point")
+        raise typer.Exit(code=1)
+    return _portfolio_analyzer
+
+
+@portfolio_app.command("add")
+def portfolio_add(
+    repo_url: str = typer.Argument(..., help="Repository URL to register"),
+    tags: list[str] = typer.Option(  # noqa: B008
+        None,
+        "--tag",
+        "-t",
+        help="Free-form tag (e.g. team:payments). Repeat for multiple tags.",
+    ),
+) -> None:
+    """Register a repository in the portfolio."""
+    registry = _get_portfolio_registry()
+    tag_tuple: tuple[str, ...] = tuple(tags) if tags else ()
+    entry = registry.add(repo_url, tags=tag_tuple)
+    if entry.tags:
+        console.print(f"  [{GREEN}]✓[/] added {repo_url} [dim](tags: {', '.join(entry.tags)})[/]")
+    else:
+        console.print(f"  [{GREEN}]✓[/] added {repo_url}")
+
+
+@portfolio_app.command("remove")
+def portfolio_remove(
+    repo_url: str = typer.Argument(..., help="Repository URL to remove"),
+) -> None:
+    """Remove a repository from the portfolio."""
+    registry = _get_portfolio_registry()
+    removed = registry.remove(repo_url)
+    if removed:
+        console.print(f"  [{GREEN}]✓[/] removed {repo_url}")
+    else:
+        console.print(f"  [{AMBER}]▸[/] not found: {repo_url} (no entry to remove)")
+
+
+@portfolio_app.command("list")
+def portfolio_list(
+    tag: str | None = typer.Option(None, "--tag", "-t", help="Restrict to entries carrying this tag"),
+) -> None:
+    """List every registered repository (optionally filtered by tag)."""
+    registry = _get_portfolio_registry()
+    entries = registry.list(tag=tag)
+    if not entries:
+        if tag is None:
+            console.print(f"  [{AMBER}]▸[/] no repos registered — add one with `spectra portfolio add <url>`")
+        else:
+            console.print(f"  [{AMBER}]▸[/] no repos with tag {tag!r}")
+        return
+    _render_portfolio_list_table(entries)
+
+
+def _render_portfolio_list_table(entries: tuple[RepoRegistryEntry, ...]) -> None:
+    """Render the portfolio list as a Rich table."""
+    table = Table(title="Portfolio", title_style=f"bold {VIOLET}")
+    table.add_column("Repo URL", style=f"bold {AMBER}")
+    table.add_column("Tags", style="dim")
+    table.add_column("Added", justify="right")
+    table.add_column("Last scan", justify="right")
+    for e in entries:
+        last = e.last_scan_at.strftime("%Y-%m-%d %H:%M") if e.last_scan_at else _DASH
+        table.add_row(
+            e.repo_url,
+            ", ".join(e.tags) if e.tags else _DASH,
+            e.added_at.strftime("%Y-%m-%d"),
+            last,
+        )
+    console.print(table)
+
+
+@portfolio_app.command("scan")
+def portfolio_scan(
+    tag: str | None = typer.Option(None, "--tag", "-t", help="Restrict to entries carrying this tag"),
+    since: str = typer.Option(
+        _DEFAULT_PORTFOLIO_SINCE,
+        "--since",
+        help="Skip repos scanned within this window (e.g. 7d, 24h, 1w). Default: 7d",
+    ),
+) -> None:
+    """Run the full Spectra pipeline on every stale repository in the portfolio."""
+    registry = _get_portfolio_registry()
+    analyzer = _get_portfolio_analyzer()
+    duration = _parse_duration_or_exit(since)
+    entries = registry.list()
+    plan = plan_portfolio_scan(
+        entries=entries,
+        tag=tag,
+        since=duration,
+        now=datetime.now(UTC),
+    )
+    if not plan.has_work():
+        _print_empty_scan_message(plan, tag=tag, since=since)
+        return
+    mode = select_run_mode(repo_count=len(plan.to_scan))
+    _print_scan_header(plan, mode=mode, tag=tag, since=since)
+    asyncio.run(_run_portfolio_scan(registry, analyzer, plan))
+
+
+def _print_empty_scan_message(plan: PortfolioScanPlan, *, tag: str | None, since: str) -> None:
+    """Friendly message when the planner found nothing to scan."""
+    if plan.total_known() == 0:
+        if tag is None:
+            console.print(f"  [{AMBER}]▸[/] no repos registered — nothing to scan")
+        else:
+            console.print(f"  [{AMBER}]▸[/] no repos with tag {tag!r} — nothing to scan")
+        return
+    skipped = len(plan.skipped)
+    console.print(f"  [{GREEN}]✓[/] every repo scanned within --since {since} ({skipped} skipped)")
+
+
+def _print_scan_header(
+    plan: PortfolioScanPlan,
+    *,
+    mode: PortfolioScanRunMode,
+    tag: str | None,
+    since: str,
+) -> None:
+    """Render the per-run banner showing mode + scope before scanning starts."""
+    scope = f"tag={tag}" if tag else "all repos"
+    console.print(
+        f"  [{AMBER}]▸[/] portfolio scan: {len(plan.to_scan)} to scan, "
+        f"{len(plan.skipped)} skipped (since={since}, scope={scope}, mode={mode.value})"
+    )
+
+
+async def _run_portfolio_scan(
+    registry: RepoRegistryPort,
+    analyzer: Callable[[str], Awaitable[object]],
+    plan: PortfolioScanPlan,
+) -> None:
+    """Iterate the analyzer over every entry; mark scanned on success.
+
+    Per-repo failures are logged but never abort the run — the operator
+    wants partial results from a 312-repo overnight scan rather than no
+    results at all (q3-plan acceptance criteria).
+
+    Note: this is a sync iteration even when ``mode == BATCH``. The
+    Batch API hookup is staged separately so the portfolio scheduler
+    can ship without coupling to the long-poll loop. The mode banner
+    surfaces the decision so users know which dispatch path will be
+    upgraded in a follow-up commit (#23 + #26 integration).
+    """
+    succeeded = 0
+    failed = 0
+    for entry in plan.to_scan:
+        try:
+            await analyzer(entry.repo_url)
+        except Exception as exc:
+            failed += 1
+            console.print(f"  [{RED}]✗[/] {entry.repo_url}: {type(exc).__name__}: {exc}")
+            continue
+        succeeded += 1
+        registry.mark_scanned(entry.repo_url, scanned_at=datetime.now(UTC))
+        console.print(f"  [{GREEN}]✓[/] {entry.repo_url}")
+    console.print()
+    console.print(f"  portfolio scan complete: {succeeded} succeeded, {failed} failed")
+
+
+@portfolio_app.command("dashboard")
+def portfolio_dashboard() -> None:
+    """Print a leaderboard of registered repos sorted by latest score."""
+    registry = _get_portfolio_registry()
+    store = _get_history_store()
+    entries = registry.list()
+    if not entries:
+        console.print(f"  [{AMBER}]▸[/] no repos registered — nothing to render")
+        return
+    rows = asyncio.run(_collect_dashboard_rows(entries, store))
+    _render_dashboard_table(rows)
+
+
+@dataclass(frozen=True)
+class _DashboardRow:
+    """One leaderboard row — pre-computed so render() is pure presentation."""
+
+    repo_name: str
+    repo_url: str
+    last_grade: str
+    last_score: float | None
+    scan_count_30d: int
+    trend_arrow: str
+
+
+_TREND_UP = "▲"
+_TREND_DOWN = "▼"
+_TREND_FLAT = "■"
+_TREND_NONE = _DASH
+
+
+async def _collect_dashboard_rows(
+    entries: tuple[RepoRegistryEntry, ...],
+    store: ReportStorePort,
+) -> tuple[_DashboardRow, ...]:
+    """Build one ``_DashboardRow`` per entry by querying the history store."""
+    now = datetime.now(UTC)
+    window_start = now - timedelta(days=30)
+    rows: list[_DashboardRow] = []
+    for entry in entries:
+        repo_signature = _resolve_history_signature(entry.repo_url)
+        recent = await store.history(repo_signature, since=window_start, until=now)
+        latest = recent[0] if recent else None
+        rows.append(
+            _DashboardRow(
+                repo_name=_dashboard_display_name(entry.repo_url),
+                repo_url=entry.repo_url,
+                last_grade=latest.overall_grade if latest else _DASH,
+                last_score=latest.overall_score if latest else None,
+                scan_count_30d=len(recent),
+                trend_arrow=_trend_arrow(recent),
+            )
+        )
+    rows.sort(key=lambda r: (r.last_score is None, -(r.last_score or 0.0)))
+    return tuple(rows)
+
+
+def _dashboard_display_name(repo_url: str) -> str:
+    """Friendly short name for a leaderboard row."""
+    return repo_url.rstrip("/").split("/")[-1].removesuffix(".git") or repo_url
+
+
+def _trend_arrow(recent: tuple[ReportSummary, ...]) -> str:
+    """Return the trend arrow for a leaderboard row.
+
+    Compares the latest scan to the prior one. Difference < 2 points is
+    considered flat (within stochastic noise per the Q3-A2 caveat).
+    """
+    if len(recent) < 2:
+        return _TREND_NONE
+    latest = recent[0].overall_score
+    prior = recent[1].overall_score
+    delta = latest - prior
+    if abs(delta) < 2.0:
+        return _TREND_FLAT
+    return _TREND_UP if delta > 0 else _TREND_DOWN
+
+
+def _render_dashboard_table(rows: tuple[_DashboardRow, ...]) -> None:
+    """Render the dashboard as a Rich table sorted by score descending."""
+    table = Table(title="Portfolio leaderboard", title_style=f"bold {VIOLET}")
+    table.add_column("Repo", style=f"bold {AMBER}")
+    table.add_column("Grade", justify="center")
+    table.add_column("Score", justify="right")
+    table.add_column("Scans (30d)", justify="right")
+    table.add_column("Trend", justify="center")
+    for r in rows:
+        score_text = f"{r.last_score:.1f}" if r.last_score is not None else _DASH
+        table.add_row(
+            f"{r.repo_name}  [dim]{r.repo_url}[/]",
+            r.last_grade,
+            score_text,
+            str(r.scan_count_30d),
+            r.trend_arrow,
         )
     console.print(table)
