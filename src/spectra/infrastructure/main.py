@@ -236,6 +236,9 @@ def _assemble_context(
     tracer: TracerPort | None,
     team: str,
     rate_coordinator: object | None = None,
+    notifier: object | None = None,
+    drift_alert_enabled: bool = True,
+    report_url: str | None = None,
 ) -> PipelineContext:
     """Bundle every input the use-case pipeline needs into a single ctx.
 
@@ -282,6 +285,9 @@ def _assemble_context(
         tracer=tracer,
         team=team,
         rate_coordinator=rate_coordinator,  # type: ignore[arg-type]
+        notifier=notifier,  # type: ignore[arg-type]
+        drift_alert_enabled=drift_alert_enabled,
+        report_url=report_url,
     )
 
 
@@ -410,6 +416,8 @@ async def _run_analysis(
     team: str = _DEFAULT_TEAM,
     rate_limit_rpm: int | None = None,
     rate_coordinator_url: str | None = None,
+    notify_webhook: str | None = None,
+    no_drift_alert: bool = False,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -450,6 +458,13 @@ async def _run_analysis(
             ``"inmemory"`` picks ``InMemoryRateAdapter`` (per-process).
             ``redis://...`` picks ``RedisRateAdapter`` (fleet-wide).
             Ignored when ``rate_limit_rpm`` is unset.
+        notify_webhook: Slack/Teams incoming-webhook URL for drift +
+            per-finding alerts (#27 + #34). Auto-detected by host
+            substring (``hooks.slack.com`` vs ``webhook.office.com``).
+            ``None`` (default) disables outbound notifications.
+        no_drift_alert: When True, suppress automatic post-scan drift
+            firing for this run. Per-finding critical alerts are still
+            sent if a notifier is wired.
 
     Returns:
         Completed analysis report.
@@ -472,6 +487,7 @@ async def _run_analysis(
     cache = _provision_cache(no_cache=no_cache, cache_remote=cache_remote)
     tracer = _build_tracer(otel_endpoint, team)
     rate_coordinator = _build_rate_coordinator(rate_limit_rpm, rate_coordinator_url)
+    notifier = _build_notifier_safe(notify_webhook)
     workspace_dir, owns_workspace = _allocate_workspace(repo_url)
     try:
         workspace_dir, file_tree, source_files = await _ingest_workspace(
@@ -509,6 +525,9 @@ async def _run_analysis(
             tracer=tracer,
             team=team,
             rate_coordinator=rate_coordinator,
+            notifier=notifier,
+            drift_alert_enabled=not no_drift_alert,
+            report_url=output_path,
         )
         report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)
@@ -561,6 +580,28 @@ def _enforce_policy(workspace_dir: str, report: AnalysisReport) -> None:
 
 
 # ── Tracer adapter construction (ADR-023) ────────────────────
+
+
+def _build_notifier_safe(webhook_url: str | None) -> object | None:
+    """Wire a Slack/Teams notifier when ``webhook_url`` is configured.
+
+    Returns ``None`` (notifications disabled) when:
+        - ``webhook_url`` is not supplied (the default);
+        - the URL host is neither Slack nor Teams (logged + skipped, the
+          analyze run still completes — alerts are best-effort).
+    """
+    if not webhook_url:
+        return None
+    from spectra.infrastructure.notifiers import notifier_from_url
+
+    try:
+        return notifier_from_url(webhook_url)
+    except ValueError as exc:
+        logging.getLogger("spectra.notifiers").warning(
+            "Notifier disabled — unrecognised webhook URL: %s",
+            exc,
+        )
+        return None
 
 
 def _build_tracer(endpoint: str | None, team: str) -> TracerPort | None:
