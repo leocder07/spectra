@@ -46,6 +46,7 @@ from spectra.entities.models import (
     Finding,
     Policy,
     RepoCacheKey,
+    RepoRegistryEntry,
     ReportSummary,
     SecretFinding,
     Violation,
@@ -830,5 +831,66 @@ class SecretScannerPort(Protocol):
 
         Returns:
             Tuple of ``SecretFinding`` matches. Empty tuple means clean.
+        """
+        ...
+
+
+class RepoRegistryPort(Protocol):
+    """Port for the portfolio repo registry (#26).
+
+    Implemented by ``SqliteRepoRegistry``. The registry persists the set
+    of repositories the operator wants ``spectra portfolio scan`` to
+    iterate over. The Protocol is sync — the registry is local I/O on
+    the same SQLite file as the analysis cache, never networked.
+
+    The natural primary key is ``repo_url``; ``add`` is idempotent and
+    merges tags so customers can run ``spectra portfolio add <url>
+    --tag team:payments`` more than once without duplicating rows or
+    losing the previously-added tag.
+
+    Failure mode: serious I/O failures raise ``AgentError`` with code
+    SPEC-010 — the same envelope as the cache port — so the CLI surface
+    can degrade gracefully without leaking stack traces.
+    """
+
+    def add(
+        self,
+        repo_url: str,
+        *,
+        tags: tuple[str, ...] = (),
+        now: datetime | None = None,
+    ) -> RepoRegistryEntry:
+        """Insert ``repo_url`` (or merge tags onto an existing row).
+
+        Tags are deduplicated while preserving order — first occurrence
+        wins. ``now`` defaults to ``datetime.now(UTC)`` when ``None``;
+        callers pass it explicitly only in tests for deterministic
+        ``added_at`` values.
+        """
+        ...
+
+    def remove(self, repo_url: str) -> bool:
+        """Delete the row keyed by ``repo_url``; return True when something was removed."""
+        ...
+
+    def list(self, *, tag: str | None = None) -> tuple[RepoRegistryEntry, ...]:
+        """Return every registered entry in stable ``added_at`` order.
+
+        When ``tag`` is non-None, restrict the result to entries whose
+        ``tags`` tuple contains ``tag`` (case-sensitive equality).
+        """
+        ...
+
+    def mark_scanned(
+        self,
+        repo_url: str,
+        *,
+        scanned_at: datetime,
+    ) -> RepoRegistryEntry | None:
+        """Stamp ``last_scan_at = scanned_at`` on ``repo_url``.
+
+        Returns the updated entry, or ``None`` when ``repo_url`` is not
+        registered. Used by the scheduler after every successful scan
+        so the ``--since`` filter on the next run picks up the change.
         """
         ...

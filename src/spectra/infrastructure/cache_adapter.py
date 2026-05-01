@@ -51,6 +51,9 @@ from spectra.entities.models import (
     Finding,
     RepoCacheKey,
 )
+from spectra.infrastructure.history.sqlite_repo_registry import (
+    CREATE_PORTFOLIO_REPOS_SQL,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -647,6 +650,11 @@ class SqliteCacheAdapter:
             self._conn.execute(_CREATE_HIT_LOG)
             self._conn.execute(_CREATE_FULL_REPORT_TABLE)
             self._conn.execute(_CREATE_BATCH_FINDINGS_TABLE)
+            # #26 — co-locate the portfolio registry table on cache.db so
+            # one backup/encryption story covers both. The DDL is owned by
+            # ``sqlite_repo_registry``; we just apply it here for the
+            # composition-root path that opens the cache connection first.
+            self._conn.execute(CREATE_PORTFOLIO_REPOS_SQL)
             self._migrate_hit_log_columns()
             self._migrate_mac_columns()
 
