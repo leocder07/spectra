@@ -43,11 +43,6 @@ dependencies = [
     "keyring>=24,<26",
     # #6 pre-flight: gitignore + .spectraignore semantics
     "pathspec>=0.12,<1.0",
-    # Roadmap #13: SQLCipher-at-rest cache encryption. Optional in
-    # practice — the adapter degrades to plain SQLite + WARN when the
-    # underlying ``libsqlcipher`` is unavailable on the platform (Windows
-    # wheels are scarce). Cache + HMAC remain functional under fallback.
-    "pysqlcipher3>=1.2,<2.0",
     # #57 + ADR-018 + #18: Ed25519 signed scan receipts + waiver signature
     # verification. Bound at <45 — v45 is gated on a verified rebuild +
     # full receipt regression sweep before we widen.
@@ -75,6 +70,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Roadmap #13: SQLCipher at-rest cache encryption — optional extra.
+# pysqlcipher3 source-builds against ``libsqlcipher`` and has no macOS
+# wheel (and a scarce Windows one). Listing it as a runtime dep made
+# ``pip install spectra-ai`` fail on a clean macOS without ``brew install
+# sqlcipher``. The cache adapter already degrades to plain SQLite + HMAC
+# when the import fails (one WARN per process, see ``cache_adapter.py``)
+# so making it opt-in costs nothing at runtime — operators who want
+# at-rest encryption install with ``pip install "spectra-ai[encryption]"``.
+encryption = [
+    "pysqlcipher3>=1.2,<2.0",
+]
+
 # Development-only dependencies — NOT included in production installs
 # Install with: pip install -e ".[dev]"
 # Note: ``pyyaml`` is a runtime dep (see ``[project].dependencies``) and is
