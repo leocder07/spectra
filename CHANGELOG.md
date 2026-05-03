@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-03
+
+The "fleet observability + portfolio mode" release. v0.7.0 made the grade trustworthy; v0.8.0 turns Spectra from a single-repo CLI into fleet-grade infrastructure. Seven Q3 capabilities ship together — distributed cache, history store, OpenTelemetry tracing, Anthropic Batch + prompt caching, fleet rate limiter, portfolio mode, and drift detection with Slack/Teams notifiers. Five new ADRs (ADR-013, ADR-021 through ADR-024) capture the architectural decisions. All seven capabilities are opt-in — defaults preserve v0.7.0 single-user behaviour with zero new infrastructure dependencies.
+
+### Added — Distributed cache (#21, ADR-021)
+- **`RemoteCachePort` Protocol + `RedisCacheAdapter` + `TieredCacheAdapter`.** L1 SQLite (existing) wrapped in a tiered adapter with Redis as the L2 (`TieredCacheAdapter` writes to both, reads L1 first then promotes from L2 on miss). New `--cache-remote redis://...` CLI flag (also reads `SPECTRA_CACHE_REDIS`). Default unset preserves local-only behaviour. Composite-key invalidation honoured end-to-end so a stale L2 row never matches a current-context lookup.
+
+### Added — Postgres history store (#25, ADR-022)
+- **`ReportSummary` entity + `ReportStorePort` + `SqliteReportStoreAdapter` + `PostgresReportStoreAdapter`.** Pipeline now persists a per-scan `ReportSummary` after every successful run (failure is non-fatal — same pattern as the audit port). New `spectra history latest|trend|migrate` subcommands surface the trend per repo/dimension. Composition root selects between sqlite (default, single-user) and Postgres (`--history-backend postgres`, portfolio default) lazily so the stdlib-only install still runs without `psycopg`.
+
+### Added — OpenTelemetry tracing + cost attribution (#30, #33, ADR-023)
+- **`TracerPort` + `Span` Protocol + `NoopTracerAdapter` + `OtelTracerAdapter` + `InMemoryTracerAdapter`.** Pipeline instrumented end-to-end — root span per analyze, child spans per stage, leaf spans per agent. New `--otel-endpoint` + `--team` CLI flags (also `SPECTRA_TEAM` env). Per-agent cost attribution stamped on every span (`spectra.team`, `cost.usd`, `tokens.input`, `tokens.output`) so a CFO query like `sum by (spectra.team) (cost.usd)` breaks Anthropic spend down by team. Default tracer is the in-process noop — zero overhead until `--otel-endpoint` is supplied. `requirements.lock` regenerated with OTel pins.
+
+### Added — Anthropic Batch API + prompt caching (#23, ADR-024)
+- **Prompt-cache breakpoints wired into the LLM gateway.** Stable system prompts and shared agent guidance now carry `cache_control: ephemeral` markers; volatile per-request content lands after the last breakpoint. Cache hit/miss telemetry surfaced in CLI summary and HTML report so operators see the savings live.
+- **`AnthropicBatchAdapter` + `BatchSubmitterPort`.** Optional Batch API path for portfolio mode — submits all analyze requests for a portfolio scan as a single batch (50% cost reduction vs streaming). Exported from package roots. Smoke test pins the prompt-cache savings end-to-end.
+
+### Added — Fleet rate limiter (#22, ADR-013)
+- **`RateCoordinatorPort` Protocol + `InMemoryRateAdapter` + `RedisRateAdapter`.** New `--rate-limit-rpm` + `--rate-coordinator` CLI flags (also `SPECTRA_RATE_LIMIT_RPM`, `SPECTRA_RATE_COORDINATOR`). In-memory backend (default when `--rate-limit-rpm` is set) caps RPM per process; `redis://...` backend shares one token bucket across every runner pointed at the same Redis (fleet mode, Lua-atomic acquire). Every Anthropic call awaits one token before issuing the request — eliminates 429 stampedes when N runners scale up at once.
+
+### Added — Portfolio mode + scheduler (#26)
+- **`RepoRegistryPort` + `RepoRegistryEntry` entity + `SqliteRepoRegistry`.** Persisted set of repositories the operator wants `spectra portfolio scan` to iterate over. Idempotent `add` merges tags so `spectra portfolio add <url> --tag team:payments` can run more than once without duplicating rows.
+- **`manage_portfolio` use case + `spectra portfolio` CLI subapp.** `add` / `remove` / `list` / `scan` / `dashboard` subcommands. The scan loop respects `--since` (only re-scan repos whose `last_scan_at` is older than the cutoff) and stamps `mark_scanned` on every success.
+- **Composition root wires the registry + portfolio analyzer** behind `set_portfolio_registry_provider` + `set_portfolio_analyzer` injection seams so the CLI never imports infrastructure directly.
+
+### Added — Drift detection + Slack/Teams notifier + weekly digest (#27, #34)
+- **`NotifierPort` + `NotifierMessage` entity + `SlackWebhookAdapter` + `TeamsWebhookAdapter`.** Single port shared by both webhook adapters; auto-detected by host substring (`hooks.slack.com` vs `webhook.office.com`). New `notifier_from_url(url)` factory. Webhook outages NEVER abort the analysis pipeline — implementations log and swallow transport errors (same `safe_*` envelope as the audit port).
+- **Drift detection use case + post-scan hook.** When the report store finds a prior scan, the pipeline computes per-dimension delta and fires `DriftEvent` to the notifier on any regression. New `spectra trend <repo>` CLI surface for ad-hoc drift queries. New `--notify-webhook` + `--no-drift-alert` CLI flags (also `SPECTRA_NOTIFY_WEBHOOK`).
+- **Weekly digest use case + `spectra digest` CLI.** Aggregates the last 7 days of scans per repo and posts a single summary message — fewer alerts in noisy channels, one digest per week.
+
+### Tests
+- **2310 passing (was 2069 at v0.7.0). +241 net.** New test suites: `test_redis_cache_adapter`, `test_tiered_cache_adapter`, `test_redis_cache_integration` (live-Redis, opt-in via `SPECTRA_CACHE_REDIS`), `test_report_store_*` (sqlite + Postgres), `test_otel_tracer_adapter`, `test_pipeline_spans`, `test_cost_attribution`, `test_prompt_cache_savings`, `test_anthropic_batch_adapter`, `test_rate_coordinator_*` (both backends + stampede regression), `test_repo_registry`, `test_manage_portfolio`, `test_portfolio_cli`, `test_notifier_message`, `test_notifier_port`, `test_slack_webhook_adapter`, `test_teams_webhook_adapter`, `test_notifier_factory`, `test_pipeline_drift_hook`, `test_notifications`, `test_cli_notifier_flags`.
+
+### Dependencies
+- `redis>=5.0,<6.0` — fleet rate limiter L2 cache (`redis.asyncio`, opt-in via `--cache-remote` / `--rate-coordinator`)
+- `psycopg[pool]>=3.1,<4.0` — Postgres history store (lazy import; sqlite default still ships)
+- `opentelemetry-api>=1.27,<2.0`, `opentelemetry-sdk>=1.27,<2.0`, `opentelemetry-exporter-otlp-proto-http>=1.27,<2.0` — OTel tracing (lazy import via composition root; noop default)
+- `fakeredis>=2,<3` (dev-only) — in-process Redis fake for hermetic CI
+
 ## [0.7.0] - 2026-04-30
 
 The "make the grade trustworthy" release. v0.6.0 shipped enterprise-readiness; the post-v0.6.0 self-scan exposed grade volatility that masked real fix work (B+ 85 vs A 92 on identical code). v0.7.0 fixes the formula, hardens the codebase against the LLM-as-judge "real signal" findings, ships the OSS leaderboard with the new deterministic scoring, and lays out the Q3 plan + 4 new ADRs.
