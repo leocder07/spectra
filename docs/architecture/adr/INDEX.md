@@ -43,6 +43,9 @@ the old one rather than editing the old one in place.
 | [ADR-022](ADR-022-postgres-history-store.md) | Postgres history store + `ReportStorePort` for trend / drift | Proposed | Data (Q3) |
 | [ADR-023](ADR-023-opentelemetry-tracing-and-cost-attribution.md) | OpenTelemetry tracing + per-agent spans + cost attribution | Proposed | Observability (Q3) |
 | [ADR-024](ADR-024-anthropic-batch-api-and-prompt-caching.md) | Anthropic Batch API + prompt caching | Proposed | Cost (Q3) |
+| [ADR-025](ADR-025-memory-port-and-managed-store-adapter.md) | Memory Port + Managed Memory Store adapter (refines ADR-014 + ADR-015) | Proposed | Memory (Q4) |
+| [ADR-026](ADR-026-multi-cloud-llm-gateway.md) | Multi-cloud LLM Gateway (Bedrock + Vertex sibling adapters) | Proposed | Multi-cloud (Q4) |
+| [ADR-027](ADR-027-deterministic-compliance-mapping.md) | Deterministic compliance mapping (retires v0.7.0 keyword heuristic) | Proposed | Compliance (Q4) |
 
 ## ADRs grouped by quarter
 
@@ -50,7 +53,7 @@ the old one rather than editing the old one in place.
   ADR-007, ADR-008, ADR-009, ADR-010, ADR-011, ADR-012
 - **Q2 — Enterprise-ready:** ADR-018, ADR-020
 - **Q3 — Platform / fleet scale:** ADR-013, ADR-021, ADR-022, ADR-023, ADR-024
-- **Q4 — Memory + 2nd brain:** ADR-014, ADR-015
+- **Q4 — Memory + 2nd brain + multi-cloud + compliance:** ADR-014, ADR-015 (refined by ADR-025), ADR-025, ADR-026, ADR-027
 - **Q5-Q6 — Extensibility + Anthropic-native:** ADR-016, ADR-017
 
 ## Conventions
