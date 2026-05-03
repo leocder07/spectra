@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from spectra import __version__ as _SPECTRA_VERSION  # noqa: N812
 from spectra.entities.enums import Dimension, SchemaVersion
-from spectra.entities.errors import ERRORS, AgentError
+from spectra.entities.errors import ERRORS, AgentError, SpectraError
 from spectra.entities.models import (
     AnalysisReport,
     BatchCacheKey,
@@ -226,11 +226,30 @@ def _deserialize_findings(payload: str) -> tuple[Finding, ...]:
     return tuple(Finding.model_validate(item) for item in json.loads(payload))
 
 
-def _spec_010(cause: BaseException) -> AgentError:
-    """Wrap any cache I/O failure as SPEC-010 (non-fatal at call sites)."""
-    err = AgentError(ERRORS["SPEC-010"])
+def _spec_010(cause: BaseException, *, detail: str | None = None) -> AgentError:
+    """Wrap any cache I/O failure as SPEC-010 (non-fatal at call sites).
+
+    When ``detail`` is provided, it replaces the generic ``"Cache I/O
+    failed"`` message — useful for situations where a generic message
+    would obscure an actionable remediation (see #79: SQLCipher-encrypted
+    file opened in plain mode).
+    """
+    template = ERRORS["SPEC-010"]
+    spec = SpectraError(template.code, detail, retryable=template.retryable) if detail else template
+    err = AgentError(spec)
     err.__cause__ = cause
     return err
+
+
+_DOWNGRADE_SHRED_ENV = "SPECTRA_SHRED_ON_DOWNGRADE"
+_DOWNGRADE_DETAIL = (
+    "cache file appears encrypted (no SQLite magic header) but pysqlcipher3 "
+    "is unavailable — likely an upgrade from a prior install that included "
+    "the [encryption] extra. Either reinstall with the extra "
+    '(pip install "spectra-ai[encryption]") to read the existing cache, '
+    "shred and start fresh (spectra cache shred), or set "
+    f"{_DOWNGRADE_SHRED_ENV}=1 to auto-shred on the next run."
+)
 
 
 # ── ADR-012: HMAC helpers ─────────────────────────────────────
@@ -412,6 +431,7 @@ class SqliteCacheAdapter:
             force_plaintext=_force_plaintext,
         )
         self._maybe_migrate_unencrypted()
+        self._handle_encrypted_when_plain()
         self._conn = self._open_connection()
         self._init_schema()
 
@@ -499,6 +519,46 @@ class SqliteCacheAdapter:
         # Force the cipher header to load — wrong key surfaces here.
         conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         return conn
+
+    def _handle_encrypted_when_plain(self) -> None:
+        """Symmetric counterpart to ``_maybe_migrate_unencrypted`` for the
+        downgrade direction (#79).
+
+        Triggered when an operator who used pysqlcipher3 in v0.7.0/v0.8.0
+        upgrades to v0.8.1 without the ``[encryption]`` extra: status is
+        ``plain`` but the on-disk file is in SQLCipher format. Without
+        intervention, ``sqlite3`` succeeds at ``connect`` and raises
+        ``DatabaseError: file is not a database`` on the first PRAGMA —
+        a confusing message that points at neither the cause nor the fix.
+
+        Behaviour:
+        - ``SPECTRA_SHRED_ON_DOWNGRADE=1`` → shred the file, log WARN, return
+          (next ``_open_connection`` creates a fresh plain DB).
+        - Otherwise → raise SPEC-010 with both the cause and the
+          remediation paths (reinstall with extra, manual shred, or
+          opt-in env var).
+        """
+        if self._encryption_status != "plain":
+            return
+        if not self._db_path.exists():
+            return
+        try:
+            header = self._db_path.read_bytes()[:16]
+        except OSError:
+            return  # let ``_open_connection`` surface the underlying I/O error
+        if header == _SQLITE_HEADER_MAGIC:
+            return  # plain on disk + plain runtime: compatible
+
+        if os.environ.get(_DOWNGRADE_SHRED_ENV) == "1":
+            _LOG.warning(
+                "Cache file %s appears encrypted; shredding per %s=1",
+                self._db_path,
+                _DOWNGRADE_SHRED_ENV,
+            )
+            shred_cache_file(self._db_path)
+            return
+
+        raise _spec_010(RuntimeError(_DOWNGRADE_DETAIL), detail=_DOWNGRADE_DETAIL)
 
     def _maybe_migrate_unencrypted(self) -> None:
         """Detect a v0.5.0 plaintext cache and migrate it into encrypted form.

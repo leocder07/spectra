@@ -298,3 +298,98 @@ class TestSqlcipherFallback:
             SqliteCacheAdapter(db_path=another, secret=_secret(b"\x09" * 32))
         sqlcipher_warns = [r for r in caplog.records if "pysqlcipher3 unavailable" in r.getMessage()]
         assert len(sqlcipher_warns) == 1, "WARN must surface exactly once"
+
+
+class TestPlainModeDowngradeDetection:
+    """Plain-mode runtime + SQLCipher-encrypted-on-disk cache (#79).
+
+    Triggered when an operator who used pysqlcipher3 in v0.7.0/v0.8.0
+    upgrades to v0.8.1 without the ``[encryption]`` extra: the adapter
+    correctly falls back to plain SQLite, but the existing on-disk
+    cache file is still in SQLCipher format. Without detection,
+    ``sqlite3.connect`` succeeds and the first ``PRAGMA`` raises
+    ``DatabaseError: file is not a database`` — a confusing message
+    that points at neither the cause nor the remediation. Detection
+    surfaces SPEC-010 with both, and an opt-in env var auto-shreds
+    for unattended (CI) upgrade scenarios.
+    """
+
+    @staticmethod
+    def _seed_pseudo_encrypted_db(path: Path) -> None:
+        """Drop bytes that lack the SQLite magic header — same shape
+        SQLCipher writes (random salt + ciphertext, no plain header).
+        Lets the regression run without requiring pysqlcipher3 to
+        actually encrypt during test setup."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\xde\xad\xbe\xef" * 64)  # 256 bytes, no SQLite magic
+
+    def test_plain_mode_against_encrypted_file_raises_actionable_spec_010(
+        self,
+        cache_path: Path,
+    ) -> None:
+        self._seed_pseudo_encrypted_db(cache_path)
+        with pytest.raises(AgentError) as exc_info:
+            SqliteCacheAdapter(
+                db_path=cache_path,
+                secret=_secret(b"\x10" * 32),
+                _force_plaintext=True,
+            )
+        msg = str(exc_info.value)
+        assert exc_info.value.error.code == "SPEC-010"
+        assert "encrypted" in msg.lower(), msg
+        assert "spectra cache shred" in msg, msg
+        assert "SPECTRA_SHRED_ON_DOWNGRADE" in msg, msg
+
+    def test_plain_mode_against_encrypted_file_auto_shreds_when_env_set(
+        self,
+        cache_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._seed_pseudo_encrypted_db(cache_path)
+        monkeypatch.setenv("SPECTRA_SHRED_ON_DOWNGRADE", "1")
+        adapter = SqliteCacheAdapter(
+            db_path=cache_path,
+            secret=_secret(b"\x11" * 32),
+            _force_plaintext=True,
+        )
+        try:
+            assert cache_path.read_bytes()[:16] == b"SQLite format 3\x00"
+            assert adapter.encryption_status == "plain"
+        finally:
+            adapter.close()
+
+    def test_plain_mode_against_existing_plain_file_works(
+        self,
+        cache_path: Path,
+    ) -> None:
+        first = SqliteCacheAdapter(
+            db_path=cache_path,
+            secret=_secret(b"\x12" * 32),
+            _force_plaintext=True,
+        )
+        first.close()
+        second = SqliteCacheAdapter(
+            db_path=cache_path,
+            secret=_secret(b"\x12" * 32),
+            _force_plaintext=True,
+        )
+        try:
+            assert second.encryption_status == "plain"
+        finally:
+            second.close()
+
+    def test_plain_mode_with_no_existing_file_creates_fresh_db(
+        self,
+        cache_path: Path,
+    ) -> None:
+        assert not cache_path.exists()
+        adapter = SqliteCacheAdapter(
+            db_path=cache_path,
+            secret=_secret(b"\x13" * 32),
+            _force_plaintext=True,
+        )
+        try:
+            assert cache_path.exists()
+            assert adapter.encryption_status == "plain"
+        finally:
+            adapter.close()
