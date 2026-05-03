@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`pip install spectra-ai` now works on a clean macOS.** v0.8.0 listed `pysqlcipher3` as a runtime dependency, which has no macOS wheel and source-builds against `libsqlcipher`. Without `brew install sqlcipher` the install failed for every macOS user. Moved to a new `[encryption]` opt-in extra; the cache adapter already degrades to plain SQLite + HMAC when the import fails (one WARN per process). Operators who want at-rest cache encryption now opt in with `pip install "spectra-ai[encryption]"`. CI continues to install the extra (libsqlcipher-dev provided via apt) so the encryption test path is still covered end-to-end.
+
 ## [0.8.0] - 2026-05-03
 
 The "fleet observability + portfolio mode" release. v0.7.0 made the grade trustworthy; v0.8.0 turns Spectra from a single-repo CLI into fleet-grade infrastructure. Seven Q3 capabilities ship together — distributed cache, history store, OpenTelemetry tracing, Anthropic Batch + prompt caching, fleet rate limiter, portfolio mode, and drift detection with Slack/Teams notifiers. Five new ADRs (ADR-013, ADR-021 through ADR-024) capture the architectural decisions. All seven capabilities are opt-in — defaults preserve v0.7.0 single-user behaviour with zero new infrastructure dependencies.

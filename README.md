@@ -36,6 +36,14 @@ spectra analyze https://github.com/your/repo
 
 Open `spectra-report.html` when it finishes. Requires Python 3.12+ and an [Anthropic API key](https://console.anthropic.com/).
 
+> **At-rest cache encryption (optional).** The local SQLite cache always
+> carries per-row HMAC integrity. To also encrypt cache contents at rest,
+> install the opt-in extra: `pip install "spectra-ai[encryption]"`. This
+> pulls `pysqlcipher3`, which source-builds against `libsqlcipher` —
+> macOS users need `brew install sqlcipher` first; Debian/Ubuntu
+> `apt-get install libsqlcipher-dev`. Without the extra, Spectra runs
+> with plain SQLite + HMAC and emits a single WARN at startup.
+
 ### Drop into any GitHub Action
 
 ```yaml

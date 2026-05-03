@@ -96,6 +96,10 @@ or a fork, but that maintainers and security reviewers should be aware of.
 - **How Spectra uses it.** At-rest encryption for the local cache database
   only (Q2 #13). The cache stores per-file findings, per-batch findings, and
   full-report write-back rows; it never stores credentials.
+- **Opt-in install.** Since v0.8.1 `pysqlcipher3` is an `[encryption]` extra,
+  not a runtime dependency. The default `pip install spectra-ai` works on a
+  clean macOS without `brew install sqlcipher`; operators who want at-rest
+  encryption install with `pip install "spectra-ai[encryption]"`.
 - **Failure mode is graceful, not fatal.** When `import pysqlcipher3` fails
   (missing wheel on Windows, libsqlcipher unavailable on the platform, etc.),
   `SqliteCacheAdapter` degrades to plain SQLite plus a `WARN` on the

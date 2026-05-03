@@ -38,7 +38,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        # ``[encryption]`` opt-in extra installs pysqlcipher3 so the
+        # encryption test path still runs in CI (the apt step above
+        # provides the libsqlcipher headers it source-builds against).
+        # End users get plain SQLite + HMAC by default — see pyproject.toml.
+        run: pip install -e ".[dev,encryption]"
 
       - name: Lint — ruff check
         run: ruff check src/ tests/
