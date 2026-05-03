@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **`pip install spectra-ai` now works on a clean macOS.** v0.8.0 listed `pysqlcipher3` as a runtime dependency, which has no macOS wheel and source-builds against `libsqlcipher`. Without `brew install sqlcipher` the install failed for every macOS user. Moved to a new `[encryption]` opt-in extra; the cache adapter already degrades to plain SQLite + HMAC when the import fails (one WARN per process). Operators who want at-rest cache encryption now opt in with `pip install "spectra-ai[encryption]"`. CI continues to install the extra (libsqlcipher-dev provided via apt) so the encryption test path is still covered end-to-end.
+- **Upgrade-path detection: encrypted cache + plain runtime now surfaces an actionable SPEC-010** instead of `DatabaseError: file is not a database`. When an operator who used `pysqlcipher3` in v0.7.0/v0.8.0 upgrades to v0.8.1 without the `[encryption]` extra, the cache adapter now sniffs the file header before opening — if SQLCipher-encrypted, it raises SPEC-010 with three remediation paths (reinstall with extra, `spectra cache shred`, or `SPECTRA_SHRED_ON_DOWNGRADE=1` for auto-shred on next run). Symmetric counterpart to the existing plaintext→encrypted migration (Roadmap #13).
 
 ## [0.8.0] - 2026-05-03
 
