@@ -35,6 +35,7 @@ from typing import Protocol
 
 from spectra.entities.audit import AuditEvent
 from spectra.entities.enums import AgentRole, Dimension
+from spectra.entities.memory import MemoryEvent
 from spectra.entities.models import (
     AnalysisReport,
     Approver,
@@ -922,5 +923,78 @@ class NotifierPort(Protocol):
             Implementations SHOULD log and swallow transport errors. They
             MAY raise on programmer errors (e.g. malformed webhook URL at
             construction time) but never on transient outages.
+        """
+        ...
+
+
+class MemoryPort(Protocol):
+    """Per-repo memory log — append-only events + FTS5 search (#50, ADR-025).
+
+    The use-case layer fires ``append_event`` from the post-Stage-6 hook
+    (scan_completed), from the waiver loader (waiver_added), from the ADR
+    ingest job (adr_ingested), from the drift use case (drift_detected),
+    and from the decision-log subcommand (decision_logged). The ``query_events``
+    + ``search`` surfaces feed ``spectra ask`` (degraded mode when only the
+    local adapter is bound), ``spectra brief`` (#52), and the per-specialist
+    context-injection (each specialist sees prior waivers as context).
+
+    Failure mode: writes degrade to a one-shot WARN; the scan continues
+    and the report still ships. Reads on `query_events` / `search` raise
+    ``AgentError(SPEC-010)`` so the caller can decide to surface or
+    degrade. The asymmetry mirrors ADR-022's ``ReportStorePort`` contract.
+
+    Implemented by ``LocalFileMemoryAdapter`` (Layer 4, OSS, free) for
+    local SQLite + FTS5 storage, and by ``ManagedAgentMemoryAdapter``
+    (Layer 4, paid org tier) which mirrors writes to an Anthropic Memory
+    Store while keeping the local SQLite as the fast read path.
+    """
+
+    async def append_event(self, event: MemoryEvent) -> None:
+        """Append ``event`` to the per-repo log.
+
+        Idempotent on ``event.id``: replaying the same event id is a
+        no-op (lets the post-Stage-6 hook retry on transient I/O without
+        introducing duplicate rows).
+
+        Raises:
+            Implementations SHOULD log and continue on transient I/O
+            errors. They MAY raise on programmer errors (malformed
+            event, missing required field) — Pydantic catches most of
+            these at ``MemoryEvent`` construction.
+        """
+        ...
+
+    async def query_events(
+        self,
+        *,
+        kind: str | None = None,
+        since: datetime | None = None,
+        limit: int = 100,
+    ) -> tuple[MemoryEvent, ...]:
+        """Return events matching the (kind, since) filter, newest first.
+
+        Args:
+            kind: When provided, restrict to events whose ``kind`` matches.
+                Validated as a member of ``MemoryEventKind`` at the adapter.
+            since: When provided, restrict to events whose ``occurred_at``
+                is strictly greater than ``since``. Must be timezone-aware.
+            limit: Hard cap on returned rows (default 100). Adapters MUST
+                honour this — unbounded queries on a multi-thousand-event
+                log can churn the cache layer.
+        """
+        ...
+
+    async def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+    ) -> tuple[MemoryEvent, ...]:
+        """Full-text search over event payloads. Newest matches first.
+
+        Args:
+            query: FTS5 query string. Adapters that lack FTS5 MAY
+                degrade to a substring scan (documented per-adapter).
+            limit: Hard cap on returned rows (default 10).
         """
         ...
