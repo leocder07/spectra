@@ -236,7 +236,7 @@ Works offline. No external dependencies. One HTML file. Print-friendly for PDF e
 
 > GitHub displays `.html` files as raw source when clicked. Use the "View rendered" links to see the actual reports in your browser.
 
-- [**Sample reports**](docs/launch/reports/) — real Spectra runs against Anthropic SDK, gstack, gbrain, alphaclaw, and the Spectra repo itself
+- [**Sample reports**](docs/launch/reports/) — real Spectra runs against the Anthropic SDK, FastAPI, HTTPX, Aider, Simon Willison's LLM, and the Spectra repo itself
 - [**Quickstart demo reports**](examples/) — Django, Express, FastAPI, Flask + a multi-repo leaderboard
 - [**v0.6.0 self-scan**](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self.html) — Spectra grading itself, with prompt-injection isolation, encrypted cache, signed receipts, and the audit log all active
 
@@ -385,13 +385,14 @@ graph TB
 We scan well-known OSS projects on every release and check the results into the
 repo. **Real Anthropic API spend, no cherry-picking, one shot per repo.**
 
-| Repo | Stars | Grade | Findings | Cost | Report |
-|---|---:|:---:|---:|---:|:---:|
-| [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | Anthropic | **B+ (86)** | 50 | $7.41 | [📄 HTML](docs/launch/reports/anthropic-sdk-python.html) · [📦 JSON](docs/leaderboard-data/anthropic-sdk-python.json) |
-| [`garrytan/gstack`](https://github.com/garrytan/gstack) | 86k | **C (73)** | 49 (1 critical) | $9.16 | [📄 HTML](docs/launch/reports/gstack.html) · [📦 JSON](docs/leaderboard-data/gstack.json) |
-| [`garrytan/gbrain`](https://github.com/garrytan/gbrain) | 12k | **C+ (73)** | 61 | $5.25 | [📄 HTML](docs/launch/reports/gbrain.html) · [📦 JSON](docs/leaderboard-data/gbrain.json) |
-| [`garrytan/gbrain-evals`](https://github.com/garrytan/gbrain-evals) | 65 | **C+ (76)** | 55 (1 critical) | $6.32 | [📄 HTML](docs/launch/reports/gbrain-evals.html) · [📦 JSON](docs/leaderboard-data/gbrain-evals.json) |
-| [`garrytan/alphaclaw`](https://github.com/garrytan/alphaclaw) | ~64 | **C+ (75)** | 50 | $5.30 | [📄 HTML](docs/launch/reports/alphaclaw.html) · [📦 JSON](docs/leaderboard-data/alphaclaw.json) |
+| Repo | Grade | Findings | Critical | High | Cost | Report |
+|---|:---:|---:|---:|---:|---:|:---:|
+| [`fastapi/fastapi`](https://github.com/fastapi/fastapi) | **A (92)** | 44 | 0 | 3 | $2.61 | [📦 JSON](docs/launch/reports/v0.7.0/fastapi-fastapi-confidential.json) |
+| [`leocder07/spectra`](https://github.com/leocder07/spectra) (self-scan) | **A (92)** | 55 | 0 | 0 | $6.62 | [📦 JSON](docs/launch/reports/v0.6.0/spectra-self-scan-5-confidential.json) |
+| [`encode/httpx`](https://github.com/encode/httpx) | **B+ (85)** | 67 | 0 | 0 | $6.77 | [📦 JSON](docs/launch/reports/v0.7.0/encode-httpx-confidential.json) |
+| [`Aider-AI/aider`](https://github.com/Aider-AI/aider) | **B- (79)** | 49 | 0 | 5 | $6.16 | [📦 JSON](docs/launch/reports/v0.7.0/aider-confidential.json) |
+| [`simonw/llm`](https://github.com/simonw/llm) | **B- (77)** | 57 | 0 | 8 | $9.02 | [📦 JSON](docs/launch/reports/v0.7.0/simonw-llm-confidential.json) |
+| [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) (v0.6.0 baseline) | **B+ (86)** | 50 | 0 | 0 | $7.41 | [📄 HTML](docs/launch/reports/anthropic-sdk-python.html) · [📦 JSON](docs/leaderboard-data/anthropic-sdk-python.json) |
 
 Full leaderboard with per-finding entry-point links: [`docs/launch/leaderboard.md`](docs/launch/leaderboard.md).
 
