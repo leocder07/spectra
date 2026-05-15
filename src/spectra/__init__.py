@@ -11,6 +11,12 @@ Usage::
     spectra analyze https://github.com/org/repo --quick
 """
 
-__version__ = "0.8.2"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
+try:
+    __version__ = _pkg_version("spectra-ai")
+except PackageNotFoundError:
+    __version__ = "0.0.0+source"
 
 __all__ = ["__version__"]
