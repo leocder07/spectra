@@ -3,7 +3,7 @@
     "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
     "url": "https://github.com/leocder07/spectra#disclaimer"
   },
-  "repo_url": "/Users/leocder/Documents/spectra/spectra",
+  "repo_url": "https://github.com/leocder07/spectra",
   "repo_name": "spectra",
   "score_card": {
     "overall_score": 92.1,

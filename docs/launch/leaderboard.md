@@ -124,7 +124,7 @@ above to see findings at file:line resolution.
 | Aider | [`reports/v0.7.0/aider-public.json`](reports/v0.7.0/aider-public.json) |
 | Simon Willison's LLM | [`reports/v0.7.0/simonw-llm-public.json`](reports/v0.7.0/simonw-llm-public.json) |
 | Spectra (self-scan, v0.7.0) | [`reports/v0.6.0/spectra-self-scan-5-public.json`](reports/v0.6.0/spectra-self-scan-5-public.json) |
-| Anthropic SDK (v0.6.0 baseline) | [`../leaderboard-data/anthropic-sdk-python.json`](../leaderboard-data/anthropic-sdk-python.json) |
+| Anthropic SDK (v0.6.0 baseline) | [`../leaderboard-data/anthropic-sdk-python-public.json`](../leaderboard-data/anthropic-sdk-python-public.json) |
 
 ## v0.7.0 scoring caveat
 
