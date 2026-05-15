@@ -36,7 +36,7 @@ band (see [`SCORING-ANALYSIS.md`](reports/v0.6.0/SCORING-ANALYSIS.md)).
 | Aider | 66 D+ | 88 A- | 79 B- | 79 B- | 93 A | 70 C |
 | Simon Willison's LLM | 73 C+ | 88 A- | 69 C- | 78 B- | 82 B | 65 D+ |
 
-**Totals: 272 findings · $31.18 real Anthropic spend across the 5 scans.**
+**Totals: 272 findings · $31.18 real Anthropic spend across the 5 scans (4 external repos + Spectra self-scan).**
 
 ## Historical reference — Anthropic SDK (v0.6.0)
 
@@ -44,9 +44,9 @@ A second baseline retained for trend comparison. Run with `spectra-ai==0.6.0`
 on the same model and pipeline — useful for "how did the harness behave on a
 mature, well-tested SDK."
 
-| Repository | Grade | Findings | Critical | High | Cost | Wall | JSON |
-|------------|------:|---------:|---------:|-----:|-----:|-----:|:----:|
-| [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | **B+ (85.6)** | 50 | 0 | 0 | $7.41 | 248s | [📦](../leaderboard-data/anthropic-sdk-python.json) |
+| Repository | Grade | Findings | Critical | High | Cost | Wall |
+|------------|------:|---------:|---------:|-----:|-----:|-----:|
+| [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) | **B+ (85.6)** | 50 | 0 | 0 | $7.41 | 248s |
 
 ## Reading the data
 
@@ -100,19 +100,19 @@ for repo in fastapi/fastapi encode/httpx simonw/llm Aider-AI/aider; do
 done
 ```
 
-Total cost across the 5 v0.7.0 scans: **$30.68**. Total wall: **2,710s**
-(~45 min serial, ~10 min if you run in parallel + accept rate-limit pressure).
+Cost: **$24.56** for the 4 external repos (the loop above). Add `$6.62` for
+the Spectra self-scan if you reproduce that separately — total `$31.18`.
+Wall: **2,710s** for all five (~45 min serial, ~10 min if you run in parallel
++ accept rate-limit pressure).
 
-## Reports
-
-| Repository | Raw JSON |
-|------------|----------|
-| FastAPI | [`reports/v0.7.0/fastapi-fastapi-confidential.json`](reports/v0.7.0/fastapi-fastapi-confidential.json) |
-| HTTPX | [`reports/v0.7.0/encode-httpx-confidential.json`](reports/v0.7.0/encode-httpx-confidential.json) |
-| Simon Willison's LLM | [`reports/v0.7.0/simonw-llm-confidential.json`](reports/v0.7.0/simonw-llm-confidential.json) |
-| Aider | [`reports/v0.7.0/aider-confidential.json`](reports/v0.7.0/aider-confidential.json) |
-| Spectra (self-scan, v0.7.0) | [`reports/v0.6.0/spectra-self-scan-5-confidential.json`](reports/v0.6.0/spectra-self-scan-5-confidential.json) |
-| Anthropic SDK (v0.6.0 baseline) | [`../leaderboard-data/anthropic-sdk-python.json`](../leaderboard-data/anthropic-sdk-python.json) |
+> **Reports are not redistributed.** The raw JSON the panel produced is
+> classified `confidential` per the project's dual-mode renderer
+> (`Classification = "confidential" | "public"`, see
+> [`src/spectra/entities/models.py`](../../src/spectra/entities/models.py)).
+> Confidential reports include full finding text and file paths; redacted
+> `public` artifacts will land separately and be linked from this page once
+> generated. Until then, the table above is the public-mode summary, and the
+> reproduce snippet is the way to inspect findings yourself.
 
 ## v0.7.0 scoring caveat
 

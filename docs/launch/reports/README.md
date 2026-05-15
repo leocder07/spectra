@@ -10,18 +10,15 @@ before installing.
 > wrap the raw URL through [htmlpreview.github.io](https://htmlpreview.github.io/)
 > so the report displays as a real web page in your browser.
 
-## Current panel — v0.7.0 (JSON)
+## Current panel — v0.7.0
 
-The current OSS panel is published as JSON only. Use the leaderboard
-([`../leaderboard.md`](../leaderboard.md)) for the per-dimension breakdown
-and notable findings, then drop into the JSON for full per-finding detail.
-
-| Repository | JSON |
-|------------|------|
-| `fastapi/fastapi` | [`v0.7.0/fastapi-fastapi-confidential.json`](v0.7.0/fastapi-fastapi-confidential.json) |
-| `encode/httpx` | [`v0.7.0/encode-httpx-confidential.json`](v0.7.0/encode-httpx-confidential.json) |
-| `Aider-AI/aider` | [`v0.7.0/aider-confidential.json`](v0.7.0/aider-confidential.json) |
-| `simonw/llm` | [`v0.7.0/simonw-llm-confidential.json`](v0.7.0/simonw-llm-confidential.json) |
+The current OSS panel (FastAPI, HTTPX, Aider, Simon Willison's LLM, plus the
+Spectra self-scan) is summarized in the canonical leaderboard:
+[`../leaderboard.md`](../leaderboard.md). The underlying scan artifacts are
+classified `confidential` per the dual-mode renderer
+([`src/spectra/entities/models.py`](../../../src/spectra/entities/models.py))
+and are not republished here. The leaderboard's "Reproduce" section walks
+through generating the same scans against the same repos.
 
 ## Historical reference — v0.6.0 baseline
 
@@ -38,7 +35,7 @@ audit log all active.
 
 | Artifact | Raw | View rendered |
 |----------|-----|---------------|
-| HTML report | [`v0.6.0/spectra-self.html`](v0.6.0/spectra-self.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self.html) |
+| HTML report | [`v0.6.0/spectra-self-confidential.html`](v0.6.0/spectra-self-confidential.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self-confidential.html) |
 | Audit log (JSONL) | [`v0.6.0/audit.jsonl`](v0.6.0/audit.jsonl) | (text — view raw) |
 
 ## How to regenerate
