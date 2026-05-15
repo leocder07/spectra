@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-05-16
+
+The "documentation refresh" patch. No code changes — three doc-only updates that landed against `main` since v0.8.1 are bundled here so the PyPI long-description and the README on PyPI reflect the new public OSS panel + the Q4 architecture decisions.
+
+### Changed
+- **OSS leaderboard refreshed to the v0.7.0 panel** (#85). The `docs/launch/leaderboard.md` table + the README "See It Run on Real Repos" table now cite the v0.7.0 scans (FastAPI A 92, Spectra self A 92, HTTPX B+ 85, Aider B- 79, Simon Willison's LLM B- 77) that have been on disk under `docs/launch/reports/v0.7.0/` since the v0.7.0 release. The Anthropic SDK row (B+ 86) is preserved as a v0.6.0 baseline. Eight retired artifacts (4 HTML reports + 4 raw JSON) removed from the repo. Public-facing docs no longer link directly to `*-confidential.json` artifacts — those are full-finding-detail reports per the dual-mode renderer's classification model (`Classification = "confidential" | "public"` in `src/spectra/entities/models.py`); the public leaderboard now shows summary tables only and points readers at the reproduce script for per-finding detail.
+
+### Added — Q4 architecture decisions (already merged to main)
+- **ADR-025 — `MemoryPort` + managed-memory store adapter.** Architectural foundation for the Q4 #50 capability (per-repo memory): defines the port, the local-file adapter, and the managed-memory boundary so the pipeline can recall context across runs without coupling to a specific store.
+- **ADR-026 — Multi-cloud LLM gateway.** Captures the design for routing a single `LLMGateway` call to Anthropic, Bedrock, or Vertex (Q4 #14) — same Pydantic models, same telemetry, no caller-visible difference.
+- **ADR-027 — Deterministic compliance mapping.** The OWASP/NIST/PCI mapping currently inferred per-finding becomes a deterministic, version-pinned table (Q4 #60) so two runs of the same code produce the same compliance verdict.
+- **Q4 plan — "Spectra Learns".** New `docs/strategy/q4-plan.md` documenting the Q4 capability set + sequencing.
+
+### Tests
+- No code changes. v0.8.1 test count of 2310 passing carries forward unchanged.
+
 ## [0.8.1] - 2026-05-04
 
 The "make it install on macOS" patch. v0.8.0 shipped `pysqlcipher3` as a runtime dependency — it has no macOS wheel and source-builds against `libsqlcipher`, so `pip install spectra-ai==0.8.0` failed for every macOS user without `brew install sqlcipher`. v0.8.1 makes it an opt-in `[encryption]` extra and adds upgrade-path detection so existing users with encrypted caches get an actionable error (not a cryptic SQLite one).
