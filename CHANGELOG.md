@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-16
+
+The "Q4 foundations" minor release. Two ports + their first adapters land — the architectural groundwork for per-repo memory (#50) and supply-chain-aware analysis (#58). Both ship as testable-in-isolation slices: no CLI surface, no composition-root wiring, no Stage-N pipeline integration in this release. Those land in follow-up minors as the surrounding capabilities mature. Plus the post-v0.8.2 hardening (single-source `__version__`, public-mode JSON publication) lands here.
+
+### Added — `MemoryPort` + `LocalFileMemoryAdapter` (#50, ADR-025 part 1)
+- **`MemoryEvent` entity (`src/spectra/entities/memory.py`)** — Frozen Pydantic, closed `Literal` `kind` field, UTC-aware `occurred_at` validator that rejects naive datetimes and normalizes non-UTC. Payload is a JSON-safe `dict[str, object]`. Per-event hash so events are usable in sets / as cache keys.
+- **`MemoryPort` Protocol (`src/spectra/use_cases/interfaces.py`)** — `append`, `query`, `search` operations. Caller-facing contract for any backing store.
+- **`LocalFileMemoryAdapter` (`src/spectra/infrastructure/local_file_memory_adapter.py`)** — SQLite + FTS5 implementation. Per ADR-025: writes degrade to one-shot WARN (the pipeline is never aborted by a memory-log failure); reads raise `AgentError(SPEC-010)` so callers can decide surface-vs-degrade. Idempotent appends via `INSERT OR IGNORE` on event id (post-Stage-6 retries don't dup). Standalone FTS5 (chosen over external-content config — the duplication cost is ~2x storage on what's expected to be ~100-event-per-quarter logs, and the insert path stays trivial). ADR-012 permission discipline: parent dir `0o700`, db file `0o600`, WAL/SHM siblings tightened (POSIX best-effort).
+
+### Added — SBOM emitter + 3 manifest detectors (#58, ADR-026 part 1)
+- **`SbomComponent` + `SbomManifest` entities (`src/spectra/entities/sbom.py`)** — Frozen Pydantic, closed `Literal` `ecosystem` field (`pypi` / `npm` / `go` for now; six more land in follow-ups).
+- **`detect_all_components` aggregator (`src/spectra/use_cases/sbom_detection.py`)** — Three pure-function detectors, failure-isolated (a malformed manifest in one ecosystem doesn't fail the others). Detector coverage in this release: PyPI `pyproject.toml` (PEP 621, strips PEP 508 markers, captures `==` pins), npm `package.json` (deps + devDeps, scoped packages like `@anthropic-ai/sdk`, drops semver range chars), Go `go.mod` (block + single-line forms).
+- **`CycloneDXSbomEmitter` (`src/spectra/infrastructure/cyclonedx_sbom_emitter.py`)** — CycloneDX 1.5 JSON emitter, hand-built (~80 LOC). Chose this over taking the `cyclonedx-python-lib` dep because the spec surface we use is small enough that the dep-management cost (transitive supply-chain surface, version pinning, lockfile churn) is higher than the adapter cost. Emits the load-bearing fields: `bomFormat`, `specVersion`, `serialNumber`, `metadata.tools`, `metadata.component`, every `component.type/name/version/purl`. Six other manifest formats, lockfile transitive parsing, the `--emit-sbom` CLI flag, and Stage-1 pipeline integration land in follow-up PRs.
+
+### Changed — Single-source-of-truth versioning (#87)
+- **`src/spectra/__init__.py` derives `__version__` from `importlib.metadata.version("spectra-ai")`** instead of a hardcoded string. Eliminates the two-source-of-truth bug class that bit v0.8.2: the `pyproject.toml` bump alone shipped without the matching `__init__.py` bump (caught by Greptile pre-merge). Source-tree fallback returns `"0.0.0+source"` when the package metadata is not installed (i.e., importing `spectra` directly from a checkout without `pip install -e .`). Documented limitation: if `spectra` is imported from a source checkout while a different `spectra-ai` distribution is installed in the same environment, the installed-distribution version wins — standard Python pattern (`pip`, `anthropic`, etc.). Future version bumps now need to touch one file.
+
+### Added — Public-mode OSS leaderboard JSON (#88)
+- **`*-public.json` artifacts published for the v0.7.0 OSS panel** (FastAPI, HTTPX, Aider, Simon Willison's LLM, Spectra self-scan). Generated via the existing `_redact_public_payload` (`src/spectra/infrastructure/main.py`) — preserves overall grade, per-dimension scores, finding counts, scan duration, cost, agents used, and the Ed25519 receipt; strips every individual finding, cross-cutting insight, file path, and description so the artifacts cannot be reverse-engineered into a vulnerability intel feed. The public leaderboard now links real per-repo data instead of telling readers to reproduce.
+
+### Tests
+- **2502 passing (was 2436 at v0.8.2). +66 net.** New test suites: `test_memory_event` (19 entity tests), `test_local_file_memory_adapter` (15 adapter tests covering durability, idempotency, search, permissions), `test_sbom_component` (entity validation), `test_cyclonedx_sbom_emitter` (CycloneDX 1.5 schema conformance), `test_sbom_detection` (per-detector + aggregator failure-isolation), `test_version` (regression test enforcing single-source-of-truth invariant).
+
 ## [0.8.2] - 2026-05-16
 
 The "documentation refresh" patch. No code changes — three doc-only updates that landed against `main` since v0.8.1 are bundled here so the PyPI long-description and the README on PyPI reflect the new public OSS panel + the Q4 architecture decisions.
