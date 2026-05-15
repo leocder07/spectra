@@ -10,15 +10,22 @@ before installing.
 > wrap the raw URL through [htmlpreview.github.io](https://htmlpreview.github.io/)
 > so the report displays as a real web page in your browser.
 
-## Current panel — v0.7.0
+## Current panel — v0.7.0 (public mode)
 
-The current OSS panel (FastAPI, HTTPX, Aider, Simon Willison's LLM, plus the
-Spectra self-scan) is summarized in the canonical leaderboard:
-[`../leaderboard.md`](../leaderboard.md). The underlying scan artifacts are
-classified `confidential` per the dual-mode renderer
-([`src/spectra/entities/models.py`](../../../src/spectra/entities/models.py))
-and are not republished here. The leaderboard's "Reproduce" section walks
-through generating the same scans against the same repos.
+Each scan is published in `public` mode per the dual-mode renderer
+([`src/spectra/entities/models.py`](../../../src/spectra/entities/models.py)) —
+overall grade, per-dimension scores, counts, cost, and the receipt are
+preserved; individual findings are stripped. The full leaderboard with
+methodology, per-dimension breakdown, and notable findings narrative lives
+at [`../leaderboard.md`](../leaderboard.md).
+
+| Repository | Public JSON |
+|------------|-------------|
+| `fastapi/fastapi` | [`v0.7.0/fastapi-fastapi-public.json`](v0.7.0/fastapi-fastapi-public.json) |
+| `encode/httpx` | [`v0.7.0/encode-httpx-public.json`](v0.7.0/encode-httpx-public.json) |
+| `Aider-AI/aider` | [`v0.7.0/aider-public.json`](v0.7.0/aider-public.json) |
+| `simonw/llm` | [`v0.7.0/simonw-llm-public.json`](v0.7.0/simonw-llm-public.json) |
+| Spectra self-scan (v0.7.0) | [`v0.6.0/spectra-self-scan-5-public.json`](v0.6.0/spectra-self-scan-5-public.json) |
 
 ## Historical reference — v0.6.0 baseline
 

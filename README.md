@@ -394,7 +394,7 @@ repo. **Real Anthropic API spend, no cherry-picking, one shot per repo.**
 | [`simonw/llm`](https://github.com/simonw/llm) | **B- (77)** | 57 | 0 | 8 | $9.02 |
 | [`anthropics/anthropic-sdk-python`](https://github.com/anthropics/anthropic-sdk-python) (v0.6.0 baseline) | **B+ (86)** | 50 | 0 | 0 | $7.41 |
 
-Per-repo grades + per-dimension breakdown live in the canonical leaderboard ([`docs/launch/leaderboard.md`](docs/launch/leaderboard.md)). The underlying JSON artifacts are confidential-mode reports — to inspect findings at file:line resolution, reproduce the run yourself with the snippet in the leaderboard's "Reproduce" section.
+Per-repo grades + per-dimension breakdown live in the canonical leaderboard ([`docs/launch/leaderboard.md`](docs/launch/leaderboard.md)), which also links the per-repo `public`-mode JSON (overall grade, per-dimension scores, counts, cost, signed receipt — findings stripped per the dual-mode renderer). To inspect findings at file:line resolution, reproduce the run yourself with the snippet in the leaderboard's "Reproduce" section.
 
 ---
 

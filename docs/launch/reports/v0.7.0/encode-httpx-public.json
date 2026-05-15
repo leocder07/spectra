@@ -1,0 +1,87 @@
+{
+  "disclaimer": {
+    "text": "Indicative analysis \u2014 not auditor-grade evidence. Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows.",
+    "url": "https://github.com/leocder07/spectra#disclaimer"
+  },
+  "repo_url": "https://github.com/encode/httpx",
+  "repo_name": "httpx",
+  "score_card": {
+    "overall_score": 85.4,
+    "overall_grade": "B+",
+    "dimensions": [
+      {
+        "dimension": "architecture",
+        "score": 87.5,
+        "grade": "A-",
+        "findings_count": 8,
+        "weight": 0.25
+      },
+      {
+        "dimension": "security",
+        "score": 91.0,
+        "grade": "A",
+        "findings_count": 11,
+        "weight": 0.25
+      },
+      {
+        "dimension": "quality",
+        "score": 80.8,
+        "grade": "B",
+        "findings_count": 13,
+        "weight": 0.2
+      },
+      {
+        "dimension": "documentation",
+        "score": 73.5,
+        "grade": "C+",
+        "findings_count": 16,
+        "weight": 0.1
+      },
+      {
+        "dimension": "maintainability",
+        "score": 94.5,
+        "grade": "A",
+        "findings_count": 6,
+        "weight": 0.1
+      },
+      {
+        "dimension": "performance",
+        "score": 78.4,
+        "grade": "B-",
+        "findings_count": 13,
+        "weight": 0.1
+      }
+    ],
+    "total_findings": 67
+  },
+  "findings": [],
+  "analysis_duration_seconds": 603.89,
+  "total_tokens_used": 615059,
+  "total_cost_usd": 6.7656,
+  "agents_used": [
+    "architecture",
+    "security",
+    "quality",
+    "documentation",
+    "dependency",
+    "performance"
+  ],
+  "is_degraded": false,
+  "degraded_dimensions": [],
+  "cross_cutting_insights": [],
+  "hallucination_removed_count": 0,
+  "is_compromised": false,
+  "validation_status": "validated",
+  "receipt": {
+    "scan_id": "762b459185264bd08ba402ed1c327b24",
+    "repo_signature": "4bee3441098381ec2692f5747334deb7",
+    "score_card_hash": "f6a37204f5555c8b4fce78cff477d0fe81a6c884f137568f4f756a3dc1a1d825",
+    "timestamp": "2026-04-30T14:54:22.733517Z",
+    "spectra_version": "0.0.0",
+    "signature": "0af54a64cc4b4b0d95f5a2435e8aa0fa218d0332bad9b7e516b41cdb564e865f2a9d3032616a75626db178925a3701eff6de1a01001c15f83e1d699105137203",
+    "public_key_fingerprint": "c2cc74be1c94e0ab"
+  },
+  "classification": "public",
+  "waived_finding_count": 0,
+  "expired_waiver_count": 0
+}

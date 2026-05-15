@@ -105,14 +105,26 @@ the Spectra self-scan if you reproduce that separately — total `$31.18`.
 Wall: **2,710s** for all five (~45 min serial, ~10 min if you run in parallel
 + accept rate-limit pressure).
 
-> **Reports are not redistributed.** The raw JSON the panel produced is
-> classified `confidential` per the project's dual-mode renderer
-> (`Classification = "confidential" | "public"`, see
-> [`src/spectra/entities/models.py`](../../src/spectra/entities/models.py)).
-> Confidential reports include full finding text and file paths; redacted
-> `public` artifacts will land separately and be linked from this page once
-> generated. Until then, the table above is the public-mode summary, and the
-> reproduce snippet is the way to inspect findings yourself.
+## Public-mode reports
+
+Each scan above is published in `public` mode per the dual-mode renderer
+(`Classification = "confidential" | "public"`, see
+[`src/spectra/entities/models.py`](../../src/spectra/entities/models.py)).
+Public mode preserves the overall grade, per-dimension scores, finding
+counts, scan duration, cost, agents used, and the Ed25519 receipt — and
+strips every individual finding, cross-cutting insight, file path, and
+description so the artifact cannot be reverse-engineered into a
+vulnerability intel feed. Reproduce the run yourself per the snippet
+above to see findings at file:line resolution.
+
+| Repository | Public JSON |
+|------------|-------------|
+| FastAPI | [`reports/v0.7.0/fastapi-fastapi-public.json`](reports/v0.7.0/fastapi-fastapi-public.json) |
+| HTTPX | [`reports/v0.7.0/encode-httpx-public.json`](reports/v0.7.0/encode-httpx-public.json) |
+| Aider | [`reports/v0.7.0/aider-public.json`](reports/v0.7.0/aider-public.json) |
+| Simon Willison's LLM | [`reports/v0.7.0/simonw-llm-public.json`](reports/v0.7.0/simonw-llm-public.json) |
+| Spectra (self-scan, v0.7.0) | [`reports/v0.6.0/spectra-self-scan-5-public.json`](reports/v0.6.0/spectra-self-scan-5-public.json) |
+| Anthropic SDK (v0.6.0 baseline) | [`../leaderboard-data/anthropic-sdk-python.json`](../leaderboard-data/anthropic-sdk-python.json) |
 
 ## v0.7.0 scoring caveat
 
