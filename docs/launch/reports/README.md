@@ -10,15 +10,21 @@ before installing.
 > wrap the raw URL through [htmlpreview.github.io](https://htmlpreview.github.io/)
 > so the report displays as a real web page in your browser.
 
-## Reports
+## Current panel — v0.7.0
+
+The current OSS panel (FastAPI, HTTPX, Aider, Simon Willison's LLM, plus the
+Spectra self-scan) is summarized in the canonical leaderboard:
+[`../leaderboard.md`](../leaderboard.md). The underlying scan artifacts are
+classified `confidential` per the dual-mode renderer
+([`src/spectra/entities/models.py`](../../../src/spectra/entities/models.py))
+and are not republished here. The leaderboard's "Reproduce" section walks
+through generating the same scans against the same repos.
+
+## Historical reference — v0.6.0 baseline
 
 | Repository | Raw HTML in repo | View rendered |
 |------------|------------------|---------------|
-| `expressjs/express` | [`anthropic-sdk-python.html`](anthropic-sdk-python.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/anthropic-sdk-python.html) |
-| `garrytan/gstack` | [`gstack.html`](gstack.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/gstack.html) |
-| `garrytan/gbrain` | [`gbrain.html`](gbrain.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/gbrain.html) |
-| `garrytan/gbrain-evals` | [`gbrain-evals.html`](gbrain-evals.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/gbrain-evals.html) |
-| `garrytan/alphaclaw` | [`alphaclaw.html`](alphaclaw.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/alphaclaw.html) |
+| `anthropics/anthropic-sdk-python` | [`anthropic-sdk-python.html`](anthropic-sdk-python.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/anthropic-sdk-python.html) |
 | Spectra self-scan (v0.4.0 era) | [`spectra-self.html`](spectra-self.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/spectra-self.html) |
 
 ## v0.6.0 self-scan
@@ -29,7 +35,7 @@ audit log all active.
 
 | Artifact | Raw | View rendered |
 |----------|-----|---------------|
-| HTML report | [`v0.6.0/spectra-self.html`](v0.6.0/spectra-self.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self.html) |
+| HTML report | [`v0.6.0/spectra-self-confidential.html`](v0.6.0/spectra-self-confidential.html) | [▸ View rendered](https://htmlpreview.github.io/?https://github.com/leocder07/spectra/blob/main/docs/launch/reports/v0.6.0/spectra-self-confidential.html) |
 | Audit log (JSONL) | [`v0.6.0/audit.jsonl`](v0.6.0/audit.jsonl) | (text — view raw) |
 
 ## How to regenerate
@@ -37,9 +43,11 @@ audit log all active.
 ```bash
 pip install spectra-ai
 export ANTHROPIC_API_KEY=sk-ant-...
-spectra analyze https://github.com/expressjs/express \
-  --output docs/launch/reports/express.html \
-  --max-cost-usd 25
+spectra analyze https://github.com/fastapi/fastapi \
+  --output docs/launch/reports/v0.7.0/fastapi-fastapi.json \
+  --format json \
+  --max-cost-usd 15 \
+  --no-cache
 ```
 
 For the Spectra self-scan (because the regex fixtures in the test suite
