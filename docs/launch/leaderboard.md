@@ -124,7 +124,12 @@ above to see findings at file:line resolution.
 | Aider | [`reports/v0.7.0/aider-public.json`](reports/v0.7.0/aider-public.json) |
 | Simon Willison's LLM | [`reports/v0.7.0/simonw-llm-public.json`](reports/v0.7.0/simonw-llm-public.json) |
 | Spectra (self-scan, v0.7.0) | [`reports/v0.6.0/spectra-self-scan-5-public.json`](reports/v0.6.0/spectra-self-scan-5-public.json) |
-| Anthropic SDK (v0.6.0 baseline) | [`../leaderboard-data/anthropic-sdk-python-public.json`](../leaderboard-data/anthropic-sdk-python-public.json) |
+
+> The Anthropic SDK baseline above is omitted from the public-mode table
+> because the v0.6.0 confidential artifact predates the Ed25519 receipt
+> feature — a redacted artifact would advertise a `receipt`-preserving
+> public report that the file cannot back. The historical-reference
+> table earlier in this page presents the score data without that claim.
 
 ## v0.7.0 scoring caveat
 
