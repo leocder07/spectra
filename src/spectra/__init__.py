@@ -11,6 +11,21 @@ Usage::
     spectra analyze https://github.com/org/repo --quick
 """
 
-__version__ = "0.8.2"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
+# Resolve from installed-distribution metadata. Limitation: if ``spectra`` is
+# imported from a source checkout while a different ``spectra-ai`` distribution
+# is also installed in the environment (e.g. ``pip install spectra-ai==0.7.0``
+# in the same venv as a Git checkout), this returns the installed version, not
+# the checkout's. Run ``pip install -e .`` after editing ``pyproject.toml`` to
+# keep the two aligned. This matches the standard pattern used by ``pip``,
+# ``anthropic``, and other mature packages — the alternative (parsing
+# ``pyproject.toml`` at import time) trades a narrow edge case for permanent
+# import-time disk I/O.
+try:
+    __version__ = _pkg_version("spectra-ai")
+except PackageNotFoundError:
+    __version__ = "0.0.0+source"
 
 __all__ = ["__version__"]
