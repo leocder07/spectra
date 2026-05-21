@@ -18,8 +18,15 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
+
+# scp-style Git URL: ``[user@]host:path`` — e.g. ``git@github.com:foo/bar.git``.
+# Detected before ``urlparse`` because urlparse misclassifies these as bare
+# paths (no scheme/netloc), which would otherwise resolve to the cwd and
+# fragment memory by working directory.
+_SCP_URL_RE = re.compile(r"^(?P<user>[^@/:\s]+@)?(?P<host>[^/:\s]+):(?P<path>[^\s]+)$")
 
 __all__ = [
     "canonicalize_repo_url",
@@ -75,22 +82,39 @@ def canonicalize_repo_url(repo_url: str) -> str:
       - Trailing ``.git`` stripped
       - Trailing ``/`` stripped
       - ``file://`` URLs and bare local paths resolved to absolute paths
+      - scp-style Git URLs (``git@github.com:foo/bar.git``) normalised to
+        the ``https://host/path`` equivalent so SSH and HTTPS clones of
+        the same repo share one memory DB.
 
     Path components are NOT case-folded — GitHub case-folds owner names but
     other VCS hosts (ToolForge, internal Gitea) do not, so we preserve case.
     """
     parsed = urlparse(repo_url)
 
-    if parsed.scheme in ("", "file") or not parsed.netloc:
-        local_path = parsed.path if parsed.scheme == "file" else repo_url
-        return str(Path(local_path).resolve())
+    if parsed.scheme and parsed.netloc:
+        scheme = parsed.scheme.lower()
+        # Strip ``user@`` from the netloc so ``ssh://git@github.com/foo``
+        # and ``ssh://github.com/foo`` share one memory DB.
+        host = parsed.netloc.lower().split("@", 1)[-1]
+        path = parsed.path.rstrip("/")
+        if path.endswith(".git"):
+            path = path[: -len(".git")]
+        return f"{scheme}://{host}{path}"
 
-    scheme = parsed.scheme.lower()
-    host = parsed.netloc.lower()
-    path = parsed.path.rstrip("/")
-    if path.endswith(".git"):
-        path = path[: -len(".git")]
-    return f"{scheme}://{host}{path}"
+    # scp-style: detect ONLY when urlparse found no scheme — prevents
+    # ``file:///path`` from matching (the regex would greedily treat
+    # ``file`` as a host).
+    if not parsed.scheme:
+        scp_match = _SCP_URL_RE.match(repo_url)
+        if scp_match:
+            host = scp_match.group("host").lower()
+            path = scp_match.group("path").rstrip("/")
+            if path.endswith(".git"):
+                path = path[: -len(".git")]
+            return f"https://{host}/{path.lstrip('/')}"
+
+    local_path = parsed.path if parsed.scheme == "file" else repo_url
+    return str(Path(local_path).resolve())
 
 
 def memory_db_for(repo_url: str, *, memory_dir: Path | None = None) -> Path:

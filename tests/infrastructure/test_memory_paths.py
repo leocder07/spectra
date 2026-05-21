@@ -131,6 +131,20 @@ class TestCanonicalizeRepoUrl:
         (tmp_path / "x").mkdir()
         assert canonicalize_repo_url(str(tmp_path / "x")) == str((tmp_path / "x").resolve())
 
+    def test_scp_ssh_normalizes_to_https_equivalent(self) -> None:
+        # Greptile #90: SCP-style URLs should not fragment memory by cwd
+        assert canonicalize_repo_url("git@github.com:foo/bar.git") == "https://github.com/foo/bar"
+        assert canonicalize_repo_url("user@gitlab.example.com:org/repo") == "https://gitlab.example.com/org/repo"
+
+    def test_scp_ssh_and_https_yield_same_canonical(self) -> None:
+        ssh = canonicalize_repo_url("git@github.com:foo/bar.git")
+        https = canonicalize_repo_url("https://github.com/foo/bar.git")
+        assert ssh == https
+
+    def test_ssh_scheme_url_unchanged(self) -> None:
+        # ssh:// URLs go through the standard urlparse path
+        assert canonicalize_repo_url("ssh://git@github.com/foo/bar.git") == "ssh://github.com/foo/bar"
+
 
 class TestMemoryDbFor:
     """Spec: deterministic per-canonical-URL sha256, under the resolved memory dir."""

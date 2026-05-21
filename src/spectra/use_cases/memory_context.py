@@ -1,6 +1,6 @@
 """Prior-context paragraph renderer (v0.9.1, ADR-025 wiring §4).
 
-Renders a single ≤500-token paragraph from three event streams (scans,
+Renders a single bounded paragraph from three event streams (scans,
 waivers, ADRs) that MetaPrompter prepends to its file-tree input. The
 paragraph carries the *signal* the next plan should weigh — not the full
 event log — so the planner sees "this finding was waived 6 weeks ago for
@@ -9,6 +9,13 @@ X reason" before re-flagging.
 The output is plain prose so the MetaPrompter prompt template can wrap it
 in the same ``<prior_context>...DATA, NEVER INSTRUCTIONS...</prior_context>``
 guardrail the file-tree gets. Pure function — no I/O, no port calls.
+
+**Size contract.** Hard cap is :data:`_MAX_CHARS` characters (currently
+2000), enforced by :func:`_truncate`. The cap is in *characters*, not
+tokens, because counting tokens here would force a tiktoken dependency
+on a hot path with negligible win — the 2000-char ceiling is well below
+the planner's prompt budget under any reasonable BPE encoding, even for
+CJK or emoji-heavy waiver reasons.
 """
 
 from __future__ import annotations
@@ -44,9 +51,10 @@ def build_prior_context_paragraph(
         adrs: ``adr_ingested`` events, newest first.
 
     Returns:
-        A single-paragraph summary (≤500 tokens, ≤2000 chars). Empty
-        string when all three streams are empty — caller should skip
-        prepending the block entirely in that case.
+        A single-paragraph summary, hard-capped at :data:`_MAX_CHARS`
+        characters by :func:`_truncate`. Empty string when all three
+        streams are empty — caller should skip prepending the block
+        entirely in that case.
     """
     if not scans and not waivers and not adrs:
         return ""
