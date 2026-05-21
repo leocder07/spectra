@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-21
+
 ### Added — MemoryPort wiring (#50 part 2, ADR-025)
 
 The v0.9.0 follow-up that wires the `MemoryPort` Protocol into the `spectra analyze` call site. v0.9.0 shipped the port + `LocalFileMemoryAdapter` foundation; v0.9.1 wires them.
