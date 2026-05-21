@@ -102,8 +102,11 @@ from spectra.infrastructure.cost_tracker import (
     SqliteCostTracker,
 )
 from spectra.infrastructure.git_adapter import GitAdapter
+from spectra.infrastructure.ingest_adrs import scan_adrs
 from spectra.infrastructure.keyring_adapter import KeyringSecretAdapter
+from spectra.infrastructure.local_file_memory_adapter import LocalFileMemoryAdapter
 from spectra.infrastructure.logging_decorator import LoggingDecorator
+from spectra.infrastructure.memory_paths import memory_db_for, resolve_memory_dir
 from spectra.infrastructure.observability import OtelTracerAdapter
 from spectra.infrastructure.pathspec_filter_adapter import PathspecFilterAdapter
 from spectra.infrastructure.receipt_signer import ReceiptSigner
@@ -239,6 +242,7 @@ def _assemble_context(
     notifier: object | None = None,
     drift_alert_enabled: bool = True,
     report_url: str | None = None,
+    memory_port: object | None = None,
 ) -> PipelineContext:
     """Bundle every input the use-case pipeline needs into a single ctx.
 
@@ -288,6 +292,7 @@ def _assemble_context(
         notifier=notifier,  # type: ignore[arg-type]
         drift_alert_enabled=drift_alert_enabled,
         report_url=report_url,
+        memory_port=memory_port,  # type: ignore[arg-type]
     )
 
 
@@ -307,6 +312,70 @@ def _provision_history_store_safe() -> object | None:
             exc,
         )
         return None
+
+
+def _provision_memory_safe(
+    *,
+    memory_dir: str | None,
+    no_memory: bool,
+    repo_url: str,
+) -> object | None:
+    """Build a :class:`LocalFileMemoryAdapter` for ``repo_url`` (#50, ADR-025).
+
+    Returns ``None`` when ``no_memory`` is set, or when the adapter cannot be
+    constructed (permission errors, missing parent dir that cannot be created).
+    Memory is a side benefit, not a hard requirement: a misconfigured path
+    must not abort the analyze run.
+    """
+    if no_memory:
+        return None
+    try:
+        resolved_dir = resolve_memory_dir(cli_override=memory_dir)
+        db_path = memory_db_for(repo_url, memory_dir=resolved_dir)
+        return LocalFileMemoryAdapter(db_path=db_path)
+    except Exception as exc:
+        logging.getLogger("spectra.memory").warning(
+            "SPEC-010: memory adapter unavailable; this run will not deposit: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        return None
+
+
+async def _safe_ingest_adrs_at_root(
+    *,
+    memory_port: object | None,
+    workspace_dir: str,
+    repo_url: str,
+    actor_name: str,
+) -> None:
+    """Scan workspace ADRs and deposit ``adr_ingested`` events (composition root).
+
+    Idempotent — re-running on the same workspace is an ``INSERT OR IGNORE``
+    no-op per the adapter contract. Failures degrade silently; the scan
+    continues without ADR context rather than aborting.
+    """
+    if memory_port is None:
+        return
+    try:
+        from pathlib import Path
+
+        events = scan_adrs(workspace=Path(workspace_dir), repo_url=repo_url, actor=actor_name)
+        for event in events:
+            try:
+                await memory_port.append_event(event)  # type: ignore[attr-defined]
+            except Exception as exc:
+                logging.getLogger("spectra.memory.adr_ingest").debug(
+                    "ADR deposit failed for %s: %s",
+                    event.payload.get("adr_path", "?"),
+                    exc,
+                )
+    except Exception as exc:
+        logging.getLogger("spectra.memory.adr_ingest").warning(
+            "SPEC-010: ADR ingest failed: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
 
 
 async def _run_and_stamp(
@@ -418,6 +487,8 @@ async def _run_analysis(
     rate_coordinator_url: str | None = None,
     notify_webhook: str | None = None,
     no_drift_alert: bool = False,
+    memory_dir: str | None = None,
+    no_memory: bool = False,
 ) -> AnalysisReport:
     """Run the full pipeline: clone, plan, analyze, critique, report.
 
@@ -507,6 +578,18 @@ async def _run_analysis(
         )
         request = AnalysisRequest(repo_url=repo_url, quick=skip_critique, output_format=output_format)
         run_id = new_event_id()
+        memory_port = _provision_memory_safe(
+            memory_dir=memory_dir,
+            no_memory=no_memory,
+            repo_url=repo_url,
+        )
+        actor_name = resolve_actor().actor
+        await _safe_ingest_adrs_at_root(
+            memory_port=memory_port,
+            workspace_dir=workspace_dir,
+            repo_url=repo_url,
+            actor_name=actor_name,
+        )
         ctx = _assemble_context(
             deps=deps,
             request=request,
@@ -528,6 +611,7 @@ async def _run_analysis(
             notifier=notifier,
             drift_alert_enabled=not no_drift_alert,
             report_url=output_path,
+            memory_port=memory_port,
         )
         report = await _run_and_stamp(ctx, classification, run_id)
         _enforce_policy(workspace_dir, report)

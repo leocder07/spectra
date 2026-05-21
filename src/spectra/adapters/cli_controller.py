@@ -772,6 +772,21 @@ def analyze(
         "--no-drift-alert",
         help="Suppress automatic post-scan drift firing for this run (#27)",
     ),
+    memory_dir: str | None = typer.Option(
+        None,
+        "--memory-dir",
+        envvar="SPECTRA_MEMORY_DIR",
+        help=(
+            "Per-repo memory directory (#50, ADR-025). Defaults to "
+            "$SPECTRA_MEMORY_DIR, then $XDG_DATA_HOME/spectra/memory."
+        ),
+    ),
+    no_memory: bool = typer.Option(
+        False,
+        "--no-memory",
+        envvar="SPECTRA_NO_MEMORY",
+        help="Skip the memory port for this run (CI-safe). No reads, writes, or ADR ingest.",
+    ),
 ) -> None:
     """Analyze a repository across 6 dimensions."""
     if verbose:
@@ -838,6 +853,8 @@ def analyze(
                 rate_coordinator_url=rate_coordinator,
                 notify_webhook=notify_webhook,
                 no_drift_alert=no_drift_alert,
+                memory_dir=memory_dir,
+                no_memory=no_memory,
             )
         )
     except BaseException as exc:
