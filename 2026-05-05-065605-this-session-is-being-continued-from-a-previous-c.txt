@@ -1,0 +1,23 @@
+ ▐▛███▜▌   Claude Code v2.1.128
+▝▜█████▛▘  Opus 4.7 (1M context) · Claude Max
+  ▘▘ ▝▝    ~/Documents/spectra/spectra
+
+✻ Conversation compacted (ctrl+o for history)
+
+
+❯ /compact                                                                      
+  ⎿  Compacted (ctrl+o to see full summary)
+     PreCompact [bash 
+     ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-compact-preserve.sh] completed 
+     successfully: === PRESERVE THROUGH COMPACT ===
+     Available commands: /phase-switch, /compact-memory, /context-budget
+     === END PRESERVE ===
+  ⎿  Read src/spectra/use_cases/sbom_detection.py (218 lines)
+  ⎿  Read tests/use_cases/test_sbom_detection.py (167 lines)
+  ⎿  Read src/spectra/infrastructure/cyclonedx_sbom_emitter.py (113 lines)
+  ⎿  Read src/spectra/entities/sbom.py (93 lines)
+  ⎿  Read tests/infrastructure/test_cyclonedx_sbom_emitter.py (116 lines)
+  ⎿  Skills restored (claude-api, software-craftsman:review)
+
+❯ /exit                                                                         
+  ⎿  See ya!

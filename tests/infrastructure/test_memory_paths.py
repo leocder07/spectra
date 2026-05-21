@@ -163,7 +163,9 @@ class TestCanonicalizeRepoUrl:
 
     def test_non_default_port_preserved(self) -> None:
         # Self-hosted Gitea on :3000 must keep the port (different server)
-        assert canonicalize_repo_url("https://gitea.example.com:3000/foo/bar") == "https://gitea.example.com:3000/foo/bar"
+        assert (
+            canonicalize_repo_url("https://gitea.example.com:3000/foo/bar") == "https://gitea.example.com:3000/foo/bar"
+        )
 
     def test_dot_dot_segments_normalized(self) -> None:
         # Security review MEDIUM: posixpath.normpath collapses ../ traversal
