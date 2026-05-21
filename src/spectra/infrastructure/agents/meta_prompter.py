@@ -12,6 +12,7 @@ Prompt caching (Anthropic, Feb 2026):
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 from spectra.infrastructure.agents.base_agent import BaseAgent
@@ -183,13 +184,11 @@ class MetaPrompter(BaseAgent):
         through to ``build_prompt``. Backward-compatible default keeps every
         existing caller working with a single positional argument.
         """
-        import time as _time
-
         self.validate_input(user_prompt)
         prompt = self.build_prompt(user_prompt, prior_context=prior_context)
-        start = _time.monotonic()
+        start = time.monotonic()
         raw_output = await self.execute_llm(prompt)
-        duration = _time.monotonic() - start
+        duration = time.monotonic() - start
         tokens = self._get_tokens_used()
         cache_usage = self._get_cache_usage()
         parsed = self.parse_output(raw_output)

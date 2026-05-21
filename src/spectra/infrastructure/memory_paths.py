@@ -18,9 +18,15 @@ from __future__ import annotations
 
 import hashlib
 import os
+import posixpath
 import re
 from pathlib import Path
 from urllib.parse import urlparse
+
+# Schemes that should canonicalize to ``https`` so SSH, git+SSH, and HTTPS
+# clones of the same repo collapse to one memory DB. (file:// stays local.)
+_SSH_LIKE_SCHEMES = frozenset({"ssh", "git+ssh", "git"})
+_DEFAULT_PORTS = {"http": "80", "https": "443"}
 
 # scp-style Git URL: ``[user@]host:path`` — e.g. ``git@github.com:foo/bar.git``.
 # Detected before ``urlparse`` because urlparse misclassifies these as bare
@@ -79,27 +85,38 @@ def canonicalize_repo_url(repo_url: str) -> str:
 
     Rules:
       - Scheme and host lower-cased
+      - ``user@`` stripped from netloc
+      - Default ports (``:80`` for ``http``, ``:443`` for ``https``) stripped
+      - Path normalized via :func:`posixpath.normpath` (collapses ``..``, ``//``)
       - Trailing ``.git`` stripped
       - Trailing ``/`` stripped
-      - ``file://`` URLs and bare local paths resolved to absolute paths
-      - scp-style Git URLs (``git@github.com:foo/bar.git``) normalised to
-        the ``https://host/path`` equivalent so SSH and HTTPS clones of
-        the same repo share one memory DB.
+      - SSH-like schemes (``ssh``, ``git+ssh``, ``git``) and scp-style URLs
+        (``git@github.com:foo/bar.git``) collapse to the ``https://host/path``
+        form so SSH and HTTPS clones of the same repo share one memory DB
+      - ``file://`` URLs and bare local paths resolve to absolute paths
 
     Path components are NOT case-folded — GitHub case-folds owner names but
     other VCS hosts (ToolForge, internal Gitea) do not, so we preserve case.
     """
     parsed = urlparse(repo_url)
 
+    if parsed.scheme == "file":
+        return str(Path(parsed.path).resolve())
+
     if parsed.scheme and parsed.netloc:
         scheme = parsed.scheme.lower()
-        # Strip ``user@`` from the netloc so ``ssh://git@github.com/foo``
-        # and ``ssh://github.com/foo`` share one memory DB.
-        host = parsed.netloc.lower().split("@", 1)[-1]
-        path = parsed.path.rstrip("/")
-        if path.endswith(".git"):
-            path = path[: -len(".git")]
-        return f"{scheme}://{host}{path}"
+        netloc = parsed.netloc.lower().split("@", 1)[-1]
+        # SSH-like schemes collapse to https so memory is shared across
+        # protocol choice (per Greptile P1 on PR #90).
+        if scheme in _SSH_LIKE_SCHEMES:
+            scheme = "https"
+        # Strip default ports so ``https://host`` and ``https://host:443``
+        # share one DB (per security review MEDIUM).
+        host, _, port = netloc.partition(":")
+        if port and _DEFAULT_PORTS.get(scheme) == port:
+            netloc = host
+        path = _normalize_path(parsed.path)
+        return f"{scheme}://{netloc}{path}"
 
     # scp-style: detect ONLY when urlparse found no scheme — prevents
     # ``file:///path`` from matching (the regex would greedily treat
@@ -108,13 +125,23 @@ def canonicalize_repo_url(repo_url: str) -> str:
         scp_match = _SCP_URL_RE.match(repo_url)
         if scp_match:
             host = scp_match.group("host").lower()
-            path = scp_match.group("path").rstrip("/")
-            if path.endswith(".git"):
-                path = path[: -len(".git")]
-            return f"https://{host}/{path.lstrip('/')}"
+            raw_path = scp_match.group("path")
+            path = _normalize_path("/" + raw_path.lstrip("/"))
+            return f"https://{host}{path}"
 
-    local_path = parsed.path if parsed.scheme == "file" else repo_url
-    return str(Path(local_path).resolve())
+    return str(Path(repo_url).resolve())
+
+
+def _normalize_path(path: str) -> str:
+    """Normalize a URL path: collapse ``..``/``//``, strip trailing ``.git`` and ``/``."""
+    normalized = posixpath.normpath(path) if path else ""
+    normalized = normalized.rstrip("/")
+    if normalized.endswith(".git"):
+        normalized = normalized[: -len(".git")]
+    # ``posixpath.normpath("")`` returns ``"."``; ``posixpath.normpath("/")`` returns ``"/"``
+    if normalized in {".", ""}:
+        return ""
+    return normalized
 
 
 def memory_db_for(repo_url: str, *, memory_dir: Path | None = None) -> Path:

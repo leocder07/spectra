@@ -141,9 +141,36 @@ class TestCanonicalizeRepoUrl:
         https = canonicalize_repo_url("https://github.com/foo/bar.git")
         assert ssh == https
 
-    def test_ssh_scheme_url_unchanged(self) -> None:
-        # ssh:// URLs go through the standard urlparse path
-        assert canonicalize_repo_url("ssh://git@github.com/foo/bar.git") == "ssh://github.com/foo/bar"
+    def test_ssh_scheme_collapses_to_https(self) -> None:
+        # Greptile #90 round 2: ssh:// URLs collapse to https for memory sharing
+        assert canonicalize_repo_url("ssh://git@github.com/foo/bar.git") == "https://github.com/foo/bar"
+
+    def test_git_plus_ssh_scheme_collapses_to_https(self) -> None:
+        assert canonicalize_repo_url("git+ssh://git@github.com/foo/bar.git") == "https://github.com/foo/bar"
+
+    def test_git_scheme_collapses_to_https(self) -> None:
+        assert canonicalize_repo_url("git://github.com/foo/bar.git") == "https://github.com/foo/bar"
+
+    def test_default_https_port_stripped(self) -> None:
+        a = canonicalize_repo_url("https://github.com/foo/bar")
+        b = canonicalize_repo_url("https://github.com:443/foo/bar")
+        assert a == b == "https://github.com/foo/bar"
+
+    def test_default_http_port_stripped(self) -> None:
+        a = canonicalize_repo_url("http://internal-gitea/foo/bar")
+        b = canonicalize_repo_url("http://internal-gitea:80/foo/bar")
+        assert a == b == "http://internal-gitea/foo/bar"
+
+    def test_non_default_port_preserved(self) -> None:
+        # Self-hosted Gitea on :3000 must keep the port (different server)
+        assert canonicalize_repo_url("https://gitea.example.com:3000/foo/bar") == "https://gitea.example.com:3000/foo/bar"
+
+    def test_dot_dot_segments_normalized(self) -> None:
+        # Security review MEDIUM: posixpath.normpath collapses ../ traversal
+        assert canonicalize_repo_url("https://github.com/foo/bar/../baz") == "https://github.com/foo/baz"
+
+    def test_double_slash_collapsed(self) -> None:
+        assert canonicalize_repo_url("https://github.com/foo//bar") == "https://github.com/foo/bar"
 
 
 class TestMemoryDbFor:

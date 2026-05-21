@@ -103,7 +103,10 @@ def build_scan_completed_event(
     INSERT OR IGNORE no-op (idempotency contract from ADR-025).
     """
     severities = Counter(f.severity for f in report.findings)
-    finding_counts = {key: int(severities.get(key, 0)) for key in _SEVERITY_KEYS}
+    # Annotate as ``dict[str, int]`` so the TypedDict slot accepts the
+    # comprehension result — TypedDict items are invariant; widening at
+    # the local binding satisfies mypy --strict.
+    finding_counts: dict[str, int] = {key: int(severities.get(key, 0)) for key in _SEVERITY_KEYS}
 
     dim_scores: dict[str, float] = dict.fromkeys(_DIMENSION_KEYS, 0.0)
     for dim_score in report.score_card.dimensions:

@@ -358,8 +358,6 @@ async def _safe_ingest_adrs_at_root(
     if memory_port is None:
         return
     try:
-        from pathlib import Path
-
         events = scan_adrs(workspace=Path(workspace_dir), repo_url=repo_url, actor=actor_name)
         for event in events:
             try:
