@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.9.1] - 2026-05-21
+## [0.9.1] - 2026-05-22
 
 ### Added — MemoryPort wiring (#50 part 2, ADR-025)
 
