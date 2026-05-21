@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MemoryPort wiring (#50 part 2, ADR-025)
+
+The v0.9.0 follow-up that wires the `MemoryPort` Protocol into the `spectra analyze` call site. v0.9.0 shipped the port + `LocalFileMemoryAdapter` foundation; v0.9.1 wires them.
+
+- **Stage-6 deposit hook (`scan_completed`).** After Stage 6 completes (both fresh runs and cache short-circuit), the pipeline appends one `MemoryEvent(kind="scan_completed")` per run. Payload carries `scan_id`, `overall_score`, `overall_grade`, `finding_counts_by_severity`, per-dimension scores, `cost_usd`, `duration_seconds`, `is_degraded`. Idempotent on `ctx.run_id` (event id = `f"scan:{run_id}"`).
+- **Stage-2 read hook (prior-context paragraph).** Before MetaPrompter generates the plan, the pipeline queries `MemoryPort` for the latest 10 `scan_completed`, 20 `waiver_added`, and 50 `adr_ingested` events, renders a bounded "Prior context: …" paragraph (hard-capped at 2000 chars to stay well under any reasonable planner prompt budget), and injects it into the MetaPrompter prompt under a `<prior_context>` data-not-instructions guardrail (matching the existing `<repository_file_tree>` boundary).
+- **Stage-1 ADR ingest (composition root).** After workspace prep, the composition root walks `docs/architecture/adr/`, `doc/adr/`, and `docs/adrs/` for `*.md` files, parses title (first `# H1`), status (first non-empty line in `## Status`), and date (filename or status body), and deposits one `adr_ingested` event per ADR. Idempotent on path-derived id (`adr:{sha256(adr_path)[:16]}`); re-running on the same workspace is a `INSERT OR IGNORE` no-op.
+- **Two new CLI flags:** `--memory-dir DIR` (envvar `SPECTRA_MEMORY_DIR`) and `--no-memory` (envvar `SPECTRA_NO_MEMORY`). Default location: `$XDG_DATA_HOME/spectra/memory/<sha256-of-canonical-repo-url>.db` (canonical URL = lowercase scheme+host, strip trailing `.git` and `/`; bare local paths resolve to absolute). `--no-memory` skips all three hooks for CI-safe runs.
+- **Port contract strengthened.** `MemoryPort.query_events` + `MemoryPort.search` docstrings now carry explicit `Raises: AgentError(SPEC-010)` blocks calling out the asymmetric read-side contract (per ADR-025 explore-agent finding). A future remote KV adapter cannot silently return an empty tuple on outage — the integrity guarantee is a port-level promise, not an adapter implementation detail.
+
+### Architecture
+
+- New `PipelineContext.memory_port: MemoryPort | None = None` field. Default `None` preserves prior behaviour — no memory reads, no writes, no ADR ingest.
+- `_safe_build_memory_context` (use case, Layer 2) — pure async helper, catches all read failures and degrades to empty paragraph.
+- `_safe_deposit_scan_completed` (use case, Layer 2) — catches all write failures, logs one WARN per run, never aborts the pipeline.
+- `_provision_memory_safe` (composition root, Layer 4) — adapter factory with same "degrade to None on construction failure" pattern as `_provision_history_store_safe`.
+- `_safe_ingest_adrs_at_root` (composition root, Layer 4) — ADR scan + per-event deposit with two-level failure isolation (one bad ADR doesn't fail the rest; whole ingest failure doesn't fail the scan).
+- New modules: `src/spectra/use_cases/memory_payloads.py` (3 builders + TypedDict shape contracts), `src/spectra/use_cases/memory_context.py` (prior-context renderer), `src/spectra/infrastructure/memory_paths.py` (XDG resolution + canonical URL hashing), `src/spectra/infrastructure/ingest_adrs.py` (workspace ADR scanner).
+
+### Tests
+
+- **2573 passing (was 2502 at v0.9.0). +71 net.** New suites: `test_memory_paths` (20), `test_memory_payloads` (12), `test_memory_context` (9), `test_ingest_adrs` (15), `test_pipeline_memory_read` (5), `test_pipeline_memory_deposit` (6). Plus failure-mode coverage for write/read/lock/corrupt-schema/missing-dir scenarios.
+
+### Design
+
+- See `docs/superpowers/specs/2026-05-21-v0.9.1-memory-wiring-design.md` for the full architecture overview, sequence diagrams, payload schemas, and TDD build order.
+
 ## [0.9.0] - 2026-05-16
 
 The "Q4 foundations" minor release. Two ports + their first adapters land — the architectural groundwork for per-repo memory (#50) and supply-chain-aware analysis (#58). Both ship as testable-in-isolation slices: no CLI surface, no composition-root wiring, no Stage-N pipeline integration in this release. Those land in follow-up minors as the surrounding capabilities mature. Plus the post-v0.8.2 hardening (single-source `__version__`, public-mode JSON publication) lands here.

@@ -981,6 +981,18 @@ class MemoryPort(Protocol):
             limit: Hard cap on returned rows (default 100). Adapters MUST
                 honour this — unbounded queries on a multi-thousand-event
                 log can churn the cache layer.
+
+        Raises:
+            AgentError(SPEC-010): When the backing store is unreadable
+                (corrupt schema, exclusive lock from another writer,
+                transport failure for remote KV adapters). The caller
+                decides surface-vs-degrade — Stage 2 in
+                ``analyze_repository`` catches and degrades to a
+                no-prior-context plan. **This is a port-level contract,
+                not an adapter implementation detail**: a future remote KV
+                adapter must NOT silently return an empty tuple on
+                outage, because doing so would mask the asymmetry the
+                pipeline relies on for memory integrity.
         """
         ...
 
@@ -996,5 +1008,11 @@ class MemoryPort(Protocol):
             query: FTS5 query string. Adapters that lack FTS5 MAY
                 degrade to a substring scan (documented per-adapter).
             limit: Hard cap on returned rows (default 10).
+
+        Raises:
+            AgentError(SPEC-010): When the backing store is unreadable
+                or the search index is corrupt. Same port-level read
+                contract as :meth:`query_events`: callers decide
+                surface-vs-degrade, never silent empty results.
         """
         ...

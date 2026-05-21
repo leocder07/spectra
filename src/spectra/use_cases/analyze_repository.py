@@ -57,6 +57,7 @@ from spectra.use_cases.interfaces import (
     CachePort,
     CostTrackerPort,
     GitPort,
+    MemoryPort,
     NotifierPort,
     ProgressObserver,
     RateCoordinatorPort,
@@ -69,6 +70,8 @@ from spectra.use_cases.manage_token_budget import (
     allocate_specialist_budgets,
     check_budget_remaining,
 )
+from spectra.use_cases.memory_context import build_prior_context_paragraph
+from spectra.use_cases.memory_payloads import build_scan_completed_event
 from spectra.use_cases.notifications import safe_send
 from spectra.use_cases.orchestrate_agents import (
     AnalysisAgent,
@@ -187,6 +190,13 @@ class PipelineContext:
     report_url: str | None = None
     """#27 + #34: optional deeplink to the rendered HTML report. Embedded
     into notifier messages as the "Open report" action when set."""
+    memory_port: MemoryPort | None = None
+    """#50 + ADR-025: per-repo memory log. When wired, Stage 2 reads prior
+    ``scan_completed`` + ``waiver_added`` + ``adr_ingested`` events to
+    inject ``Prior context: ...`` into the MetaPrompter plan; Stage 6
+    deposits one ``scan_completed`` event after the cache write. ``None``
+    (default) preserves prior behaviour — no reads, no writes. Wired by
+    the composition root when ``--no-memory`` is not set."""
 
 
 @dataclass
@@ -299,6 +309,7 @@ async def _run_pipeline_body(
             with safe_span(ctx.tracer, "spectra.stage.cache_short_circuit"):
                 await _emit_audit(ctx, "cache.hit", {"served_from_cache": True})
                 await _emit_scan_completed(ctx, cached)
+                await _safe_deposit_scan_completed(ctx, cached)
             _stamp_report_attrs(root, cached)
             return cached
         plan = await _run_plan_stage(ctx, state)
@@ -326,6 +337,7 @@ async def _run_pipeline_body(
             await _safe_persist_history(ctx, report)
             await _safe_post_scan_alerts(ctx, report, previous_summary=previous_summary)
             await _emit_scan_completed(ctx, report)
+            await _safe_deposit_scan_completed(ctx, report)
         _stamp_report_attrs(root, report)
         return report
     except Exception as exc:
@@ -731,16 +743,70 @@ def _resolve_cache_key(ctx: PipelineContext) -> RepoCacheKey | None:
 # ── Stage 2: PLAN ────────────────────────────────────────────
 
 
+async def _safe_deposit_scan_completed(
+    ctx: PipelineContext,
+    report: AnalysisReport,
+) -> None:
+    """Append a ``scan_completed`` event to the memory port (post-Stage-6).
+
+    Per ADR-025, write failures degrade to a one-shot WARN — the scan still
+    completes and the report still ships. Idempotent on ``ctx.run_id`` via
+    ``event.id = f"scan:{run_id}"``; a retried Stage-6 hook is a no-op.
+    """
+    if ctx.memory_port is None:
+        return
+    actor = ctx.actor.actor if ctx.actor is not None else "spectra-cli"
+    try:
+        event = build_scan_completed_event(
+            report=report,
+            scan_id=ctx.run_id or "unknown",
+            repo_url=report.repo_url,
+            actor=actor,
+        )
+        await ctx.memory_port.append_event(event)
+    except Exception as exc:
+        _log.warning("SPEC-010: memory deposit failed; scan saved without memory entry: %s", exc)
+
+
+async def _safe_build_memory_context(ctx: PipelineContext) -> str:
+    """Query the memory port and render the prior-context paragraph.
+
+    Per ADR-025, ``query_events`` raises ``AgentError(SPEC-010)`` on
+    I/O failure. Stage 2 catches and degrades to an empty paragraph —
+    the scan continues without prior context rather than aborting.
+
+    Returns an empty string when ``memory_port is None``, when all
+    three event streams are empty, or when a read fails.
+    """
+    if ctx.memory_port is None:
+        return ""
+    try:
+        scans = await ctx.memory_port.query_events(kind="scan_completed", limit=10)
+        waivers = await ctx.memory_port.query_events(kind="waiver_added", limit=20)
+        adrs = await ctx.memory_port.query_events(kind="adr_ingested", limit=50)
+    except Exception as exc:
+        _log.warning("SPEC-010: memory unavailable; planning without prior context: %s", exc)
+        return ""
+    return build_prior_context_paragraph(scans=scans, waivers=waivers, adrs=adrs)
+
+
 async def _run_plan_stage(
     ctx: PipelineContext,
     state: _PipelineState,
 ) -> AgentOutput:
-    """Execute MetaPrompter and wire token allocations."""
+    """Execute MetaPrompter (with optional prior-context) and wire token allocations."""
     _notify(ctx.observer, "on_stage_start", "PLAN", "Running MetaPrompter")
+    prior_context = await _safe_build_memory_context(ctx)
     with safe_span(ctx.tracer, "spectra.stage.plan", _stage_attrs(ctx, "plan")) as span:
-        plan_output = await ctx.meta_prompter.run(
-            "\n".join(ctx.codebase.file_tree),
-        )
+        if prior_context:
+            plan_output = await ctx.meta_prompter.run(  # type: ignore[call-arg]
+                "\n".join(ctx.codebase.file_tree),
+                prior_context=prior_context,
+            )
+        else:
+            plan_output = await ctx.meta_prompter.run(
+                "\n".join(ctx.codebase.file_tree),
+            )
         _stamp_agent_attrs(span, plan_output, ctx.team)
     _track_output(state, plan_output)
     _notify(ctx.observer, "on_stage_complete", "PLAN", "Plan ready")
