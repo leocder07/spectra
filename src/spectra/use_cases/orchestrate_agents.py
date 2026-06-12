@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from spectra.entities.enums import AgentRole, PipelineState
 from spectra.entities.errors import BudgetExceededError
@@ -311,7 +311,7 @@ def _per_agent_breakdown(tracker: CostTrackerPort) -> dict[str, float]:
     per_agent = getattr(tracker, "per_agent", None)
     if per_agent is None:
         return {}
-    return per_agent()
+    return cast("dict[str, float]", per_agent())
 
 
 async def _run_one_with_record(

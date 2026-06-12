@@ -1085,7 +1085,7 @@ def _parse_report(raw: str) -> AnalysisReport:
 
 def _extract_receipt(report: AnalysisReport) -> _ReceiptShape:
     """Return the embedded receipt or exit with a clear message."""
-    receipt = getattr(report, "receipt", None)
+    receipt = report.receipt
     if receipt is None:
         console.print(f"[{RED}]✗[/] No receipt found in report")
         raise typer.Exit(code=1)

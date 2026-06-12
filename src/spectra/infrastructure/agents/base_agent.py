@@ -11,6 +11,7 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from typing import cast
 
 from spectra.entities.enums import AgentRole
 from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
@@ -118,7 +119,7 @@ class BaseAgent(ABC):
         """Parse JSON from raw LLM output, with fallback extraction."""
         cleaned = strip_code_fence(raw)
         try:
-            return json.loads(cleaned)
+            return cast("dict[str, list[dict[str, str | int | float]]]", json.loads(cleaned))
         except json.JSONDecodeError as e:
             _log.debug("JSON parse failed for %s: %s", self._role, e)
         result = _extract_json_object(cleaned)
@@ -193,6 +194,6 @@ def _extract_json_object(
     if end <= start:
         return None
     try:
-        return json.loads(text[start : end + 1])
+        return cast("dict[str, list[dict[str, str | int | float]]]", json.loads(text[start : end + 1]))
     except json.JSONDecodeError:
         return None

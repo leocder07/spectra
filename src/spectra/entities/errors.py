@@ -196,7 +196,7 @@ def strip_code_fence(raw: str) -> str:
     """
     cleaned = raw.strip()
     # Case 1: extract content from ```json ... ``` blocks
-    json_blocks = _JSON_BLOCK_RE.findall(cleaned)
+    json_blocks: list[str] = _JSON_BLOCK_RE.findall(cleaned)
     for block in json_blocks:
         stripped_block = block.strip()
         if stripped_block.startswith("{"):
