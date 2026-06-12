@@ -1,16 +1,21 @@
-# Hacker News post — Spectra v0.3.0
+# Hacker News post — Spectra v0.9.1
+
+> Refreshed 2026-06-12 for the v0.9.1 release and the Direction-C positioning
+> (signed point-in-time audit, complementary to inline reviewers). Numbers
+> below are real and verifiable against `docs/launch/leaderboard.md`. Two items
+> still need a value before posting — they are flagged **[MEASURE FIRST]**;
+> do not post with a guessed number.
 
 ## Recommended title (60 chars max — HN cuts off after this):
 
-> Show HN: I scored 100 popular Python repos with 8 AI agents
+> Show HN: I graded 5 popular Python repos with 8 Claude agents
 
-(60 chars exactly. The number does the work — it implies the tool runs at scale and survives real codebases.)
+(58 chars. The receipts and the panel do the work.)
 
-## Alternative titles (A/B test in comments or a follow-up Show HN if this one flops):
+## Alternative titles
 
-1. `Show HN: Spectra — 8-agent code analysis for any GitHub repo` (61 chars)
-2. `Show HN: I built a tool that runs 8 Claude Opus agents on your repo` (66 chars — over the safe limit, only if confident)
-3. `Show HN: Per-file cache makes 8-agent code review actually re-runnable` (70 chars — leads with the cache)
+1. `Show HN: Spectra — a signed, graded audit of any GitHub repo` (59 chars)
+2. `Show HN: 8 Claude agents grade a whole repo, with a signed receipt` (66 — over the safe limit; only if confident)
 
 ---
 
@@ -18,17 +23,41 @@
 
 Hi HN,
 
-I built Spectra — a CLI that fans out 8 AI agents in parallel against any GitHub repo and returns a graded report across 6 dimensions: architecture, security, quality, documentation, maintainability, and performance.
+I built Spectra — a CLI that fans out 8 Claude agents over a whole GitHub repo
+and returns a graded report (A+ to F) across six dimensions: architecture,
+security, quality, documentation, maintainability, and performance. It is not an
+inline PR reviewer — CodeRabbit, Greptile, and Copilot already do that well.
+Spectra answers a different question: *"what shape is this entire codebase in,
+right now, and can I prove the grade came from the tool and not from me?"* The
+job I built it for is the moment you inherit a codebase, do technical
+due-diligence on an acquisition, accept a contractor's handoff, or want to grade
+a service an AI wrote.
 
-The thing that made me write this post is that v0.3.0 finally made it cheap enough to run daily. I ran it against [PLACEHOLDER: a well-known repo, e.g. `pallets/flask`] on a clean clone and on a 2-line edit back to back — the second run was [PLACEHOLDER: e.g. ~94%] cheaper because the per-`focus_area` batch cache only re-analyzes batches whose files actually changed. Before that, the tool was technically correct but practically a one-shot — nobody runs a $5 audit on every push.
+To show it survives real code, I ran it once each — no cherry-picking — on five
+widely used Python repos. Every grade ships with an Ed25519-signed receipt you
+can verify with `spectra verify`:
 
-What's different from "ask Claude to review my code":
+| Repo | Grade | Findings | Cost |
+|---|---|---|---|
+| FastAPI | A (92) | 44 | $2.61 |
+| Spectra (self-scan) | A (92) | 55 | $6.62 |
+| HTTPX | B+ (85) | 67 | $6.77 |
+| Aider | B- (79) | 49 | $6.16 |
+| Simon Willison's LLM | B- (77) | 57 | $9.02 |
 
-- **6 specialist agents run in parallel** via `asyncio.gather` — Opus 4.7 with `effort=xhigh` on each
-- **A meta-prompter plans focus areas first** from the file tree only (≤5K tokens, never sees source). The specialists get focused prompts instead of "review this whole repo"
-- **A critic agent with adaptive thinking** validates every finding before it reaches the report — in my testing it rejects [PLACEHOLDER: e.g. ~30%] of specialist findings as false positives
-- **Incremental cache** with composite-key invalidation — the key is `(file_hash, dimension, model_ver, prompt_ver, schema_ver, spectra_ver)`. There's no invalidation logic to maintain; stale rows simply never match
-- **Drops into PR CI** as `leocder07/spectra@v1` — a 6-line workflow with a `min-score: 70` gate
+$31.18 of real Anthropic spend, all eight agents on Opus 4.7. Full panel and
+methodology: https://github.com/leocder07/spectra/blob/main/docs/launch/leaderboard.md
+
+What is different from "ask Claude to review my code":
+
+- **A MetaPrompter plans focus areas first** from the file tree only (≤5K
+  tokens, never the source), so the specialists get focused prompts instead of
+  "review this whole repo."
+- **6 specialist agents run in parallel** via `asyncio.gather`, one per dimension.
+- **A CritiqueAgent with adaptive thinking** validates every finding before it
+  reaches the report.
+- **Signed, reproducible output** — Ed25519 receipt, dual-mode (confidential /
+  public) reports, SARIF, SBOM, and a `min-score`/`fail-on` CI gate.
 
 How to try it:
 
@@ -38,54 +67,80 @@ export ANTHROPIC_API_KEY=sk-ant-...
 spectra analyze .
 ```
 
-Open the generated `spectra-report.html`. One file, works offline, includes a radar chart, hotspot heatmap, and OWASP/SOC2/PCI/NIST mapping.
-
-Things I'd love feedback on:
-
-- The 8-agent split — are 6 specialists too many? Too few? I considered merging Documentation + Maintainability and went the other way
-- The cache key tuple — too aggressive on the version components, or about right?
-- Anything you'd want from a code-review CI tool that I'm missing
+One self-contained HTML report, works offline. Honest caveat I will state up
+front: the overall score is a ~5-point band on re-runs — the critical/high
+counts are the trustworthy signal, and tightening that band with a published
+benchmark is the next thing I am working on.
 
 GitHub: https://github.com/leocder07/spectra
 PyPI: https://pypi.org/project/spectra-ai/
-Docs: https://github.com/leocder07/spectra/tree/main/docs
+
+Things I would like feedback on:
+
+- Is the "grade the whole repo, signed" job one you actually have — DD, handoff,
+  AI-codegen QA — or is inline review enough?
+- The 8-agent split: 6 specialists too many, too few, wrong dimensions?
+- What would make a signed audit grade credible enough for you to act on?
 
 ---
 
-## First comment (post within 5 minutes of submission, while still on /newest)
+## First comment (post within 5 minutes of submission)
 
-A specific decision I'd defend: **adaptive thinking is intentionally limited to the critique agent — none of the 6 specialists get it.**
+A specific decision I will defend: **adaptive thinking is limited to the
+CritiqueAgent — none of the 6 specialists get it.**
 
-The first version of Spectra had every specialist on extended thinking. The findings got *better* per-agent but the false-positive rate went *up*, because each specialist now had enough rope to talk itself into edge cases that didn't actually exist in the code. The pattern that worked: keep the specialists fast and a little overconfident, then put a single slow, skeptical critic at the end with `task_budget=80K` to filter.
+The first version had every specialist on extended thinking. Findings got better
+per-agent but the false-positive rate went up, because each specialist had
+enough rope to talk itself into edge cases that were not in the code. What worked:
+keep the specialists fast and a little overconfident, then put one slow, skeptical
+critic at the end with a task budget to filter. Six fast agents plus one thinking
+critic is also cheaper than seven thinking agents.
 
-Concretely: critic with adaptive thinking rejects ~[PLACEHOLDER: 30]% of incoming findings, and the survivors are noticeably tighter. Cost dropped because 6 fast agents + 1 thinking agent is cheaper than 7 thinking agents.
-
-Happy to discuss why I went this direction over (a) thinking on every agent, (b) thinking on none, or (c) thinking only on the security agent.
+I am being deliberately honest about the grade band above because a grading tool
+that hides its variance does not deserve to be a CI gate. The roadmap item I care
+most about is publishing a seeded-bug catch-rate and false-positive benchmark so
+the grade is defensible, not just confident.
 
 ---
 
-## Reply variants (paste these if the obvious questions come up)
+## Reply variants (paste if the obvious questions come up)
 
 **"What does it cost per run?"**
 
-> [PLACEHOLDER: $X-$Y depending on repo size]. The cache makes warm re-runs ~95% cheaper — `spectra cache stats` shows your hit rate. CI mode (`--no-cache`) costs full price every time, so most teams run cache-on locally and `--no-cache` in PR checks.
+> $1–10 of your own Anthropic spend depending on repo size — $2.61 on FastAPI,
+> $9.02 on Simon Willison's LLM in the panel above. Warm re-runs are far cheaper
+> because of a per-file composite-key cache; `spectra cache stats` shows your hit
+> rate. CI runs typically use `--no-cache` for a clean grade every time.
 
-**"Why not just use SonarQube / CodeClimate / DeepSource?"**
+**"Why not just use CodeRabbit / Greptile / Copilot review / SonarQube?"**
 
-> Different shape of tool. Those are static analyzers — fast, deterministic, narrow. Spectra is doing semantic review with an LLM and gives you "this file is your archaeology zone" + a written rationale, not a rule violation. I run both. SonarQube catches what it knows; Spectra finds the things you didn't think to write a rule for.
+> Different job. Those review your diffs, continuously, inline. Spectra grades the
+> whole repo at a point in time and hands you a signed report — for due diligence,
+> a handoff, or a release gate. I would run both: the inline reviewer on every PR,
+> Spectra when you need the audit. The signed receipt is the part they do not do.
 
 **"Is it open source?"**
 
-> MIT. Source on GitHub, package on PyPI as `spectra-ai`. I'd love help — the cache subsystem is well-tested but the OWASP mapping has gaps in the auth section.
-
-**"Does it work on monorepos?"**
-
-> [PLACEHOLDER: Verify before posting.] Yes for repos under [PLACEHOLDER: ~50K files]; the meta-prompter caps file-tree input at 5K tokens, so very large monorepos get a sampled view. There's a `--scope <path>` flag in 0.4.0 that lets you point it at one package.
-
-**"What models does it use?"**
-
-> All 8 agents run Opus 4.7. The meta-prompter uses `effort=medium`, the 6 specialists use `effort=xhigh`, and the critic uses `effort=high` plus adaptive thinking with `task_budget=80K`. No Sonnet anywhere in 0.3.0 — moved off it for cost-vs-quality reasons after the cache landed.
+> MIT. Source on GitHub, package on PyPI as `spectra-ai`. PRs welcome — Clean
+> Architecture is enforced.
 
 **"How accurate is it really?"**
 
-> Honestly, ask the critic agent — that's its whole job. False-positive rate before critic ≈ [PLACEHOLDER: X]%, after ≈ [PLACEHOLDER: Y]%. I publish the self-analysis report on the README so you can read it picking apart its own codebase.
+> Honest answer: the critical/high counts are the trustworthy signal; the overall
+> score is a ~5-point band on re-runs. I have an adversarial eval harness and the
+> next release publishes a catch-rate / false-positive benchmark on a seeded-bug
+> corpus so this is a number, not a vibe. **[MEASURE FIRST]** — do not quote a
+> rejection percentage here until the benchmark run exists.
+
+**"Does it work on monorepos?"**
+
+> Yes for repos up to roughly tens of thousands of files; the MetaPrompter caps
+> the file-tree input at 5K tokens, so very large monorepos get a sampled view.
+> **[MEASURE FIRST]** — confirm the largest repo you have actually tested before
+> stating a file-count ceiling.
+
+**"What models does it use?"**
+
+> All 8 agents on Claude Opus 4.7. MetaPrompter `effort=medium`, the 6 specialists
+> `effort=xhigh`, the CritiqueAgent `effort=high` plus adaptive thinking with a
+> task budget. No Sonnet in the current release.

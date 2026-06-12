@@ -1,6 +1,6 @@
 # Launch materials
 
-Drafts pegged to the v0.3.0 cycle (the cache + GitHub Action launch); the four content files (`hn-post.md`, `twitter-thread.md`, `blog-post-skeleton.md`, `awesome-list-submissions.md`) are kept here as templates and have not been refreshed for the v0.4.0 / v0.5.0 / v0.6.0 release waves. Nothing in this directory is auto-published; the maintainer manually posts (or doesn't) after refreshing voice + numbers for the actual release being announced.
+`hn-post.md` and `twitter-thread.md` were refreshed 2026-06-12 to v0.9.1 with the Direction-C positioning (signed point-in-time audit, complementary to inline reviewers) and real, verifiable leaderboard numbers. Both carry two **[MEASURE FIRST]** markers — a false-positive rejection rate and a monorepo file-count ceiling — that must get a real value (or be cut) before posting; do not ship a guessed number. `blog-post-skeleton.md` and `awesome-list-submissions.md` still need a v0.9.1 pass. Nothing here is auto-published; the maintainer posts manually.
 
 The `leaderboard.md` IS kept current — it is the live link from the README, so check that one first.
 
@@ -13,26 +13,25 @@ The `leaderboard.md` IS kept current — it is the live link from the README, so
 
 ## How to use these drafts
 
-1. Run Spectra on 1-2 real, well-known repos (suggested: `pallets/flask`, `expressjs/express`, `tiangolo/fastapi`).
-2. Search-and-replace every `[PLACEHOLDER: ...]` marker in the four content files with real numbers, real findings, real permalinks.
-3. Take screenshots: terminal output during a warm cache run, the HTML report's radar chart, the executive summary panel.
-4. Edit the voice so it sounds like you, not like the draft. The drafts use Vivek's voice (Clear, Confident, Sharp, Warm) — adjust to your own.
-5. Time the launch — HN post Tuesday/Wednesday morning US-east, Twitter thread same hour, awesome-list PRs the day after.
+1. Resolve the two **[MEASURE FIRST]** markers in `hn-post.md` / `twitter-thread.md`: run the seeded-bug benchmark to get a real false-positive rejection rate, and confirm the largest monorepo actually tested. If you cannot get a real number, cut the claim — do not guess.
+2. Give `blog-post-skeleton.md` and `awesome-list-submissions.md` the same v0.9.1 + Direction-C pass the HN/X drafts already got.
+3. Take screenshots: terminal output of a run, the HTML report's radar chart, the executive-summary panel, a verified receipt.
+4. Edit the voice so it sounds like you. The drafts use Vivek's voice (Clear, Confident, Sharp, Warm).
+5. Time the launch — HN post Tuesday/Wednesday morning US-east, X thread same hour, awesome-list PRs the day after.
 
 ## Pre-flight checklist before posting
 
-- [ ] Tag v0.3.0 pushed to GitHub: `git tag v0.3.0 && git push origin v0.3.0`
-- [ ] PyPI publish workflow succeeded; package visible on https://pypi.org/project/spectra-ai/
-- [ ] `pip install spectra-ai==0.3.0` works in a clean venv on Python 3.12 and 3.13
+- [x] `v0.9.1` tagged and on PyPI (https://pypi.org/project/spectra-ai/)
+- [ ] Cut and push a `v1` tag so `uses: leocder07/spectra@v1` resolves: `git tag v1 && git push origin v1`
+- [ ] `pip install spectra-ai==0.9.1` works in a clean venv on Python 3.12 and 3.13
 - [ ] `spectra analyze .` works end-to-end on a fresh clone with `ANTHROPIC_API_KEY` exported
 - [ ] Cache subcommands work: `spectra cache stats`, `spectra cache clear`, `spectra cache prune`
-- [ ] GitHub Action `leocder07/spectra@v1` resolves and runs in a test repo
-- [ ] Run Spectra on 1-2 real repos and update PLACEHOLDER markers in the drafts with actual outputs
-- [ ] Update the GitHub repo description and topics (`code-review`, `static-analysis`, `claude`, `anthropic`, `multi-agent`)
-- [ ] Ensure the README hero GIF / screenshot has been filled (no placeholder image at top)
-- [ ] CHANGELOG entry for 0.3.0 reads cleanly — no internal jargon, no PR numbers without context
-- [ ] License file present, MIT, with the right copyright holder
-- [ ] `spectra-self-report.html` is fresh (regenerated against current codebase) so the README link works
+- [ ] GitHub Action `leocder07/spectra@v1` resolves and runs in a test repo (needs the `v1` tag above)
+- [x] Repo description and topics set (`code-review`, `static-analysis`, `claude`, `multi-agent`, `sarif`, …)
+- [x] Third-party confidential findings removed from the public repo (`.gitignore` guard in place)
+- [ ] Resolve both `[MEASURE FIRST]` markers in the drafts (false-positive rate, monorepo ceiling)
+- [ ] CHANGELOG `[Unreleased]`/latest entry reads cleanly — no internal jargon, no bare PR numbers
+- [x] License present, MIT
 - [ ] All forbidden brand-voice words removed from final post text (revolutionary, cutting-edge, game-changing, leverage, innovative, utilize, might be, could potentially, comprehensive solution, AI-powered)
 
 ## Ordering on launch day
