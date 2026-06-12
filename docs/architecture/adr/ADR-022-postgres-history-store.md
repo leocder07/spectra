@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-30)
+Accepted (2026-04-30) — Postgres history store + ReportStorePort shipped (Q3)
 
 ## Context
 

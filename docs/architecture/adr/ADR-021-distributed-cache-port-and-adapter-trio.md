@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-30) — supersedes [ADR-019](ADR-019-distributed-cache-adapters.md)
+Accepted (2026-04-30) — distributed cache port + adapter trio shipped (Q3); supersedes ADR-019
 
 ## Context
 

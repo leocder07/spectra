@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Deprecated (2026-04-29) — superseded by ADR-008 (adaptive thinking)
 
 ## Date
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-29)
+Accepted (2026-04-29) — prompt-injection isolation shipped
 
 ## Context
 

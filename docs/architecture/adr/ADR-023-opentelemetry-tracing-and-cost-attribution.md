@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-30)
+Accepted (2026-04-30) — OpenTelemetry tracing + per-agent spans shipped (Q3)
 
 ## Context
 
