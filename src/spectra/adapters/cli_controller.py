@@ -31,6 +31,7 @@ from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.adapters.pr_comment_renderer import render_pr_comment
 from spectra.adapters.waiver_cli import approver_app, waive_command
+from spectra.entities.enums import Severity
 from spectra.entities.errors import (
     ERRORS,
     AgentError,
@@ -41,7 +42,7 @@ from spectra.entities.errors import (
     SpectraRetryError,
 )
 from spectra.entities.models import AnalysisReport, CacheStats, RepoRegistryEntry, ReportSummary, Violation
-from spectra.use_cases.interfaces import CachePort, RepoRegistryPort, ReportStorePort, is_local_path
+from spectra.use_cases.interfaces import CachePort, NotifierPort, RepoRegistryPort, ReportStorePort, is_local_path
 from spectra.use_cases.manage_portfolio import (
     PortfolioScanPlan,
     PortfolioScanRunMode,
@@ -1576,7 +1577,7 @@ def digest_command(
     console.print(f"  [{GREEN}]✓[/] digest posted to {notify_webhook}")
 
 
-def _build_digest_notifier(webhook_url: str) -> tuple[object | None, str]:
+def _build_digest_notifier(webhook_url: str) -> tuple[NotifierPort | None, Severity]:
     """Auto-detect Slack/Teams from the URL and return (notifier, severity)."""
     from spectra.infrastructure.notifiers import notifier_from_url
 
