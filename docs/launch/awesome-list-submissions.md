@@ -10,7 +10,7 @@ When launching, open PRs to these in order. The first three are the highest-traf
 
 ## Standard submission line (one sentence each — keep verbatim across lists)
 
-> [Spectra](https://github.com/leocder07/spectra) — 8 AI agents analyze any repository in parallel across architecture, security, quality, documentation, maintainability, and performance. Drops into PR CI via the `spectra-ai/spectra@v1` GitHub Action. Python CLI on PyPI.
+> [Spectra](https://github.com/leocder07/spectra) — 8 AI agents analyze any repository in parallel across architecture, security, quality, documentation, maintainability, and performance. Drops into PR CI via the `leocder07/spectra@v1` GitHub Action. Python CLI on PyPI.
 
 ## Per-list adjustments
 

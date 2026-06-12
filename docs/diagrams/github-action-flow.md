@@ -1,6 +1,6 @@
 # GitHub Action Distribution Flow
 
-How `spectra-ai/spectra@v1` lands in a downstream repository, what runs on every PR, and the deliberate non-dogfood decision recorded in [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md).
+How `leocder07/spectra@v1` lands in a downstream repository, what runs on every PR, and the deliberate non-dogfood decision recorded in [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md).
 
 ## End-to-end PR flow (sequence)
 
@@ -18,7 +18,7 @@ sequenceDiagram
     Dev->>Repo: open PR
     Repo->>GH: workflow_run on pull_request
     GH->>GH: actions/checkout@v4 (repo SHA)
-    GH->>Action: uses: spectra-ai/spectra@v1<br/>with: anthropic-api-key, path=.
+    GH->>Action: uses: leocder07/spectra@v1<br/>with: anthropic-api-key, path=.
 
     rect rgb(245, 158, 11, 0.1)
         Note over Action,PyPI: Step 1 — install
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: spectra-ai/spectra@v1
+      - uses: leocder07/spectra@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           # path: .            # default

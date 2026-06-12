@@ -4,16 +4,14 @@
 
 ### The full spectrum of your codebase
 
-**Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in under 5 minutes.** It runs 8 specialized Claude agents (6 specialists in parallel, plus a planner and a critic) on Opus 4.7, so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
+**Spectra grades any repository on architecture, security, quality, docs, maintainability, and performance — in minutes.** It runs 8 specialized Claude agents (6 specialists in parallel, plus a planner and a critic) on Opus 4.7, so you get a full audit instead of a single linter's opinion. Built for developers running self-checks, teams gating PRs in CI, and reviewers who need a second pair of eyes before merge.
 
 #### <a id="disclaimer"></a>Disclaimer
 
 **Indicative analysis — not auditor-grade evidence.** Spectra runs 8 LLM agents over your code; findings are heuristic and require human verification before being treated as compliance evidence, audit input, or pass/fail signal in regulated workflows. Use Spectra as a fast directional signal — pair it with deterministic SAST/DAST tooling and a human reviewer for anything compliance-bound. The same notice ships in every HTML, JSON, and SARIF report ([source](src/spectra/entities/disclaimer.py)).
 
-<!-- TODO: 15-second hero GIF showing spectra analyze <repo> → grade pop -->
-
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-7C3AED?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-1%2C973_passed-22C55E?style=for-the-badge)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2%2C633_passed-22C55E?style=for-the-badge)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-97%25-22C55E?style=for-the-badge)](tests/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-F59E0B?style=for-the-badge)](LICENSE)
 [![Built with Claude](https://img.shields.io/badge/built_with-Claude_Opus_4.7-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
@@ -47,7 +45,7 @@ Open `spectra-report.html` when it finishes. Requires Python 3.12+ and an [Anthr
 ### Drop into any GitHub Action
 
 ```yaml
-- uses: spectra-ai/spectra@v1
+- uses: leocder07/spectra@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -58,7 +56,7 @@ Open `spectra-report.html` when it finishes. Requires Python 3.12+ and an [Anthr
 
 AI-generated code ships faster than ever, but quality assurance hasn't kept up. One LLM call can't catch architecture drift, security flaws, and documentation gaps at the same time.
 
-**Spectra deploys 8 AI agents — 6 parallel specialists, a planning agent, and a critique agent — to give you the full spectrum in under 5 minutes.**
+**Spectra deploys 8 AI agents — 6 parallel specialists, a planning agent, and a critique agent — to give you the full spectrum in minutes.**
 
 ---
 
@@ -101,7 +99,7 @@ A weighted ScoreCard plus a self-contained HTML report. Here's what the terminal
               missing auth on /admin/* routes
 ```
 
-> **See Spectra analyze itself:** [spectra-self-report.html](spectra-self-report.html) — v0.6.0 self-scan: B+ (86/100), 34 findings (0 critical), 244s wall, $5.99 real Anthropic spend
+> **See Spectra analyze itself:** the v0.7.0 self-scan grades A (92/100), 55 findings (0 critical), $6.62 real Anthropic spend — alongside FastAPI, HTTPX, Aider, and Simon Willison's LLM on the [public leaderboard](docs/launch/leaderboard.md).
 
 ---
 
@@ -109,7 +107,7 @@ A weighted ScoreCard plus a self-contained HTML report. Here's what the terminal
 
 | 8 AI agents in parallel | Incremental cache | GitHub Action |
 |---|---|---|
-| Six specialists (architecture, security, quality, docs, maintainability, performance) plus a MetaPrompter planner and a CritiqueAgent that filters false positives. All Opus 4.7. Specialists fan out via `asyncio.gather` so the wall clock is the slowest agent, not the sum. | Re-run the same repo and finish in seconds. Composite-key cache (`content × dimension × model × prompt × schema × spectra version`) means only changed files re-analyze. Three subcommands manage it: `spectra cache stats / clear / prune`. | Drop `spectra-ai/spectra@v1` into any PR workflow with one block of YAML. The Action installs from PyPI, runs `spectra analyze`, and posts SARIF to the GitHub Security tab. Min-score gate fails the build below threshold. |
+| Six specialists (architecture, security, quality, docs, maintainability, performance) plus a MetaPrompter planner and a CritiqueAgent that filters false positives. All Opus 4.7. Specialists fan out via `asyncio.gather` so the wall clock is the slowest agent, not the sum. | Re-run the same repo and finish in seconds. Composite-key cache (`content × dimension × model × prompt × schema × spectra version`) means only changed files re-analyze. Three subcommands manage it: `spectra cache stats / clear / prune`. | Drop `leocder07/spectra@v1` into any PR workflow with one block of YAML. The Action installs from PyPI, runs `spectra analyze`, posts the grade as an idempotent PR comment, and — with `format: sarif` — uploads findings to the GitHub Security tab. The `min-score` and `fail-on` gates fail the build below threshold. |
 
 ### Other things you get
 
@@ -210,22 +208,23 @@ Total demo cost: **$5.25** across 4 wheel-based scans. All 6 acceptance criteria
 
 Honest tradeoffs. Spectra is built for full-repo audits — not for inline PR comments or IDE feedback. Use it alongside, not instead of, the tools your team already runs.
 
-| | **Spectra** | CodeRabbit | DeepSource | Sourcery | Codeball |
+| | **Spectra** | CodeRabbit | Greptile | Copilot code review | SonarQube |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Whole-repo audit (one report, six dimensions) | ✓ | partial | partial | — | — |
-| Multiple specialist agents in parallel | ✓ (8) | — | — | — | — |
-| False-positive filtering pass | ✓ (CritiqueAgent) | — | — | — | — |
+| Whole-repo audit (one graded report, six dimensions) | ✓ | partial | partial | — | ✓ (rule-based) |
+| Multiple specialist LLM agents in parallel | ✓ (8) | — | — | — | — |
+| Dedicated false-positive filtering pass | ✓ (CritiqueAgent) | partial | — | — | — |
+| Signed, verifiable report receipt (Ed25519) | ✓ | — | — | — | — |
 | Self-contained HTML report (offline) | ✓ | — | — | — | — |
-| SARIF output for GitHub Security tab | ✓ | — | ✓ | — | — |
-| Compliance scoring (OWASP / SOC 2 / PCI DSS / NIST) | ✓ | — | partial | — | — |
-| Incremental cache (re-runs in seconds) | ✓ | — | ✓ | — | — |
+| SARIF output for GitHub Security tab | ✓ | ✓ | — | ✓ | ✓ |
+| Compliance scoring (OWASP / SOC 2 / PCI DSS / NIST) | ✓ | partial | — | — | ✓ |
+| Incremental cache (re-runs in seconds) | ✓ | — | — | — | partial |
 | Inline PR comments on diffs | — | ✓ | ✓ | ✓ | ✓ |
-| IDE plugin (VS Code, JetBrains) | — | — | — | ✓ | — |
-| Real-time review on every push | — | ✓ | ✓ | — | ✓ |
-| Pricing model | Per-run API cost ($1-10) | SaaS subscription | SaaS subscription | SaaS subscription | SaaS subscription |
-| Open source (MIT) | ✓ | — | — | — | — |
+| IDE plugin (VS Code, JetBrains) | — | ✓ | — | ✓ | ✓ |
+| Real-time review on every push | — | ✓ | ✓ | ✓ | ✓ |
+| Pricing model | Per-run API cost ($1-10) | Per-seat SaaS | Per-seat SaaS | Bundled with Copilot | Free tier + paid / self-host |
+| Open source | ✓ (MIT) | — | — | — | partial (community edition) |
 
-If you need inline PR comments while reviewing diffs, run CodeRabbit. If you need an architecture-level audit with security and compliance scoring before a release or due-diligence review, run Spectra. They complement each other.
+If you need inline PR comments while reviewing diffs, run CodeRabbit, Greptile, or Copilot's review. If you need a signed, architecture-level audit with security and compliance scoring before a release or a due-diligence review, run Spectra. They complement each other — Spectra grades the repo; they review the diff.
 
 ---
 
@@ -364,7 +363,7 @@ flowchart LR
     FS[("<b>Local Filesystem</b><br/>[OS]<br/>~/.cache/spectra/cache.db (SQLite WAL)<br/>spectra-report.{html,json,sarif}")]:::storage
 
     Dev      -- "spectra analyze ."          --> Spectra
-    PR       -- "uses: spectra-ai/spectra@v1" --> Spectra
+    PR       -- "uses: leocder07/spectra@v1" --> Spectra
     Spectra  -- "HTTPS · streaming /messages" --> Anthropic
     Spectra  -- "git clone (depth=1)"        --> GitHub
     Spectra  <-- "cache R/W · report write"  --> FS
@@ -462,12 +461,12 @@ graph TB
 
 | Metric | Value |
 |--------|-------|
-| Tests | 1,973 passed (+345 since v0.5.0) |
+| Tests | 2,633 passed |
 | Coverage | 97% |
 | Agents | 8 (6 parallel + MetaPrompter + CritiqueAgent) |
 | Dimensions | 6 |
-| Cost | $5-10 per analysis (Opus 4.7, full mode, real Anthropic spend) |
-| Speed | Under 5 minutes end-to-end |
+| Cost | $1-10 per analysis, real Anthropic spend (Opus 4.7 full mode; $2.61-$9.02 across the [leaderboard panel](docs/launch/leaderboard.md)) |
+| Speed | ~5-10 min full mode (388-604s on the leaderboard panel); ~60s with `--quick` |
 | Architecture | Clean Architecture, 4 layers |
 | Error codes | 14 typed (SPEC-001 to SPEC-014) — see [docs/error-codes.md](docs/error-codes.md) |
 
@@ -504,23 +503,37 @@ on:
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # post the grade as a PR comment
     steps:
       - uses: actions/checkout@v4
-      - uses: spectra-ai/spectra@v1
+      - uses: leocder07/spectra@v1
         with:
-          min-score: 70
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          min-score: 70       # fail the build below 70/100
 ```
 
-The Action also writes SARIF, which GitHub picks up under the **Security** tab — findings show inline on the PR.
+To send findings to the **Security** tab instead of a PR comment, set `format: sarif` and grant `security-events: write`:
+
+```yaml
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leocder07/spectra@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          format: sarif
+```
 
 ### Severity gate (`fail-on`)
 
 The Action ships with a `fail-on: critical` default — any critical finding fails the build so a regression cannot land silently. Loosen or tighten the gate per workflow:
 
 ```yaml
-- uses: spectra-ai/spectra@v1
+- uses: leocder07/spectra@v1
   with:
     fail-on: high   # also fail on high — protect main from anything ≥ high
 ```
@@ -720,11 +733,7 @@ PRs welcome. Please follow the Clean Architecture dependency rule — it's enfor
 
 <div align="center">
 
-### Built for the Anthropic Build with Claude Hackathon
-
-[![Anthropic Build Hackathon](https://img.shields.io/badge/Anthropic_Build-Hackathon_2025-7C3AED?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
-
-Built with Claude Opus 4.7 and Claude Code.
+Built with Claude Opus 4.7 and Claude Code. Originally prototyped at the Anthropic Build with Claude Hackathon (2025).
 
 **MIT License** · [Repository](https://github.com/leocder07/spectra)
 

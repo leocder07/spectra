@@ -23,7 +23,7 @@ flowchart LR
     FS[("<b>Local Filesystem</b><br/>[OS]<br/>~/.cache/spectra/cache.db (SQLite WAL)<br/>spectra-report.{html,json,sarif}")]:::storage
 
     Dev      -- "spectra analyze ."          --> Spectra
-    PR       -- "uses: spectra-ai/spectra@v1" --> Spectra
+    PR       -- "uses: leocder07/spectra@v1" --> Spectra
     Spectra  -- "HTTPS · streaming /messages" --> Anthropic
     Spectra  -- "git clone (depth=1)"        --> GitHub
     Spectra  <-- "cache R/W · report write"  --> FS
@@ -66,7 +66,7 @@ The Action is just YAML that installs `spectra-ai` on the runner and shells out 
 
 ## Deliberate non-dogfooding
 
-This repo's own CI does not run `spectra-ai/spectra@v1` on its own pull requests. The reasoning is recorded in [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md) — token-abuse risk on PR-triggered workflows. Downstream consumers are expected to wire the Action into their own repos with their own API keys; we publish the Action and exercise it externally rather than on this repository.
+This repo's own CI does not run `leocder07/spectra@v1` on its own pull requests. The reasoning is recorded in [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md) — token-abuse risk on PR-triggered workflows. Downstream consumers are expected to wire the Action into their own repos with their own API keys; we publish the Action and exercise it externally rather than on this repository.
 
 ---
 

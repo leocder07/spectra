@@ -81,7 +81,7 @@ Character counts in brackets are pre-link, since X auto-shortens URLs to 23 char
 > Drops into PR CI as a single step:
 >
 > ```yaml
-> - uses: spectra-ai/spectra@v1
+> - uses: leocder07/spectra@v1
 >   with:
 >     min-score: 70
 >   env:

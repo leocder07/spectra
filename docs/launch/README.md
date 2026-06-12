@@ -26,7 +26,7 @@ The `leaderboard.md` IS kept current — it is the live link from the README, so
 - [ ] `pip install spectra-ai==0.3.0` works in a clean venv on Python 3.12 and 3.13
 - [ ] `spectra analyze .` works end-to-end on a fresh clone with `ANTHROPIC_API_KEY` exported
 - [ ] Cache subcommands work: `spectra cache stats`, `spectra cache clear`, `spectra cache prune`
-- [ ] GitHub Action `spectra-ai/spectra@v1` resolves and runs in a test repo
+- [ ] GitHub Action `leocder07/spectra@v1` resolves and runs in a test repo
 - [ ] Run Spectra on 1-2 real repos and update PLACEHOLDER markers in the drafts with actual outputs
 - [ ] Update the GitHub repo description and topics (`code-review`, `static-analysis`, `claude`, `anthropic`, `multi-agent`)
 - [ ] Ensure the README hero GIF / screenshot has been filled (no placeholder image at top)

@@ -28,7 +28,7 @@ What's different from "ask Claude to review my code":
 - **A meta-prompter plans focus areas first** from the file tree only (≤5K tokens, never sees source). The specialists get focused prompts instead of "review this whole repo"
 - **A critic agent with adaptive thinking** validates every finding before it reaches the report — in my testing it rejects [PLACEHOLDER: e.g. ~30%] of specialist findings as false positives
 - **Incremental cache** with composite-key invalidation — the key is `(file_hash, dimension, model_ver, prompt_ver, schema_ver, spectra_ver)`. There's no invalidation logic to maintain; stale rows simply never match
-- **Drops into PR CI** as `spectra-ai/spectra@v1` — a 6-line workflow with a `min-score: 70` gate
+- **Drops into PR CI** as `leocder07/spectra@v1` — a 6-line workflow with a `min-score: 70` gate
 
 How to try it:
 

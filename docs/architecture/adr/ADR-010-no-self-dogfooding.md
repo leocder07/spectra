@@ -6,7 +6,7 @@ Accepted (2026-04-27)
 
 ## Context
 
-[ADR-007](ADR-007-github-action-distribution.md) shipped Spectra as a composite GitHub Action (`spectra-ai/spectra@v1`). The natural next step is the dogfood loop: run the Action on this repository's own pull requests so every Spectra commit is graded by Spectra itself. ADR-007 explicitly mentioned this as a positive consequence: "Dogfood loop closed. `.github/workflows/spectra.yml` runs the Action on Spectra itself for every PR."
+[ADR-007](ADR-007-github-action-distribution.md) shipped Spectra as a composite GitHub Action (`leocder07/spectra@v1`). The natural next step is the dogfood loop: run the Action on this repository's own pull requests so every Spectra commit is graded by Spectra itself. ADR-007 explicitly mentioned this as a positive consequence: "Dogfood loop closed. `.github/workflows/spectra.yml` runs the Action on Spectra itself for every PR."
 
 The dogfood workflow shipped — and almost immediately we hit a problem that made us delete it:
 
@@ -43,7 +43,7 @@ The Action itself is published, exercised externally, and supported normally. On
 
 - `.github/workflows/ci.yml` — runs `pytest`, `ruff`, `mypy` on every PR. **Does not** need `ANTHROPIC_API_KEY`. Standard CI.
 - `.github/workflows/publish.yml` — publishes to PyPI on a tag push. Uses `PYPI_API_TOKEN`, scoped to `release` events on protected branches. The relevant attacker model (PR can modify the workflow) does not apply.
-- The Action manifest itself — `action.yml` at the repo root. This is the published artifact; consumers reference it as `spectra-ai/spectra@v1`.
+- The Action manifest itself — `action.yml` at the repo root. This is the published artifact; consumers reference it as `leocder07/spectra@v1`.
 
 ### What we removed
 
