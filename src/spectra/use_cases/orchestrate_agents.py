@@ -49,12 +49,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from spectra.entities.enums import AgentRole, PipelineState
 from spectra.entities.errors import BudgetExceededError
 from spectra.entities.models import AgentOutput, BatchPrompt, estimate_cost
 from spectra.use_cases.interfaces import CostTrackerPort, RateCoordinatorPort
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 
 class AnalysisAgent(Protocol):
@@ -127,7 +130,25 @@ async def run_specialists(
     # return_exceptions=True: individual failures don't cancel siblings,
     # so the remaining specialists can complete even if one times out
     # or errors. SPEC-007 fires only if 2+ specialists fail (see merge stage).
-    return await asyncio.gather(*tasks, return_exceptions=True)
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    return _to_exception_results(raw)
+
+
+def _to_exception_results(
+    raw: list[AgentOutput | BaseException],
+) -> list[AgentOutput | Exception]:
+    """Narrow gather results to Exception, re-raising true BaseExceptions.
+
+    ``asyncio.gather(return_exceptions=True)`` also captures
+    ``KeyboardInterrupt`` / ``SystemExit`` / ``CancelledError`` — these are
+    not recoverable agent failures and must propagate, not be merged.
+    """
+    results: list[AgentOutput | Exception] = []
+    for item in raw:
+        if isinstance(item, BaseException) and not isinstance(item, Exception):
+            raise item
+        results.append(item)
+    return results
 
 
 async def _gate_rate(rate_coordinator: RateCoordinatorPort | None) -> None:
@@ -198,9 +219,9 @@ def _schedule_batch_tasks(
     agents: list[AnalysisAgent],
     fresh_batches: dict[AgentRole, list[BatchPrompt]],
     config: _BatchExecConfig,
-) -> list[object]:
+) -> list[Coroutine[object, object, AgentOutput]]:
     """Build the list of asyncio coroutines, one per (agent x batch) pair."""
-    tasks: list[object] = []
+    tasks: list[Coroutine[object, object, AgentOutput]] = []
     for agent in agents:
         tasks.extend(_run_one_batch(agent, b.prompt_text, config) for b in fresh_batches.get(agent.role, []))
     return tasks
@@ -209,7 +230,7 @@ def _schedule_batch_tasks(
 def _collapse_batch_results(
     agents: list[AnalysisAgent],
     fresh_batches: dict[AgentRole, list[BatchPrompt]],
-    flat: list[object],
+    flat: list[AgentOutput | BaseException],
 ) -> dict[AgentRole, AgentOutput | Exception]:
     """Merge per-batch outputs into one AgentOutput per agent role.
 
@@ -226,15 +247,23 @@ def _collapse_batch_results(
     return results
 
 
+def _reraise_true_base_exceptions(items: list[AgentOutput | BaseException]) -> None:
+    """Propagate KeyboardInterrupt / SystemExit / CancelledError from a batch."""
+    for item in items:
+        if isinstance(item, BaseException) and not isinstance(item, Exception):
+            raise item
+
+
 def _merge_agent_batches(
     role: AgentRole,
-    batch_results: list[object],
+    batch_results: list[AgentOutput | BaseException],
 ) -> AgentOutput | Exception:
     """Combine per-batch AgentOutputs into one; first exception wins."""
     first_error = next((r for r in batch_results if isinstance(r, Exception)), None)
     if first_error is not None:
         return first_error
-    outputs: list[AgentOutput] = list(batch_results)  # type: ignore[arg-type]
+    _reraise_true_base_exceptions(batch_results)
+    outputs = [r for r in batch_results if isinstance(r, AgentOutput)]
     return AgentOutput(
         agent_role=role,
         findings=tuple(f for o in outputs for f in o.findings),
