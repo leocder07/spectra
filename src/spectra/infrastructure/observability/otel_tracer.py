@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -37,7 +37,8 @@ from spectra.use_cases.interfaces import Span
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from opentelemetry.sdk.trace import Span as OtelSpan
+    from opentelemetry.trace.span import Span as OtelSpan
+    from opentelemetry.util.types import Attributes
 
 _LOG = logging.getLogger("spectra.tracing")
 
@@ -145,7 +146,7 @@ class _RedactingSpan:
         cleaned = {k: v for k, v in attributes.items() if not _is_sensitive_key(k)}
         if len(cleaned) != len(attributes):
             _warn_once_on_redaction()
-        self._span.add_event(name, cleaned)
+        self._span.add_event(name, cast("Attributes", cleaned))
 
     def record_exception(self, exc: BaseException) -> None:
         """Record an exception under the standard OTel ``exception`` event."""
