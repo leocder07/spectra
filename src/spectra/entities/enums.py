@@ -28,6 +28,7 @@ def coerce_severity(value: str, default: Severity = "info") -> Severity:
         return cast("Severity", value)
     return default
 
+
 Dimension = Literal[
     "architecture",
     "security",
