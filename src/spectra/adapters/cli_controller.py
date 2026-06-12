@@ -259,7 +259,7 @@ _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 _analyzer_factory: Callable[..., Awaitable[object]] | None = None
 _cache_provider: Callable[[], CachePort] | None = None
 _shred_executor: Callable[[], Path] | None = None
-_verifier: Callable[[object, bytes | None], bool] | None = None
+_verifier: Callable[[_ReceiptShape, bytes | None], bool] | None = None
 _default_public_key_path: Path | None = None
 _history_store_provider: Callable[[], ReportStorePort] | None = None
 _history_migrator: Callable[[], tuple[str, ...]] | None = None
@@ -280,7 +280,7 @@ def set_analyzer_factory(
 
 
 def set_verifier(
-    verifier: Callable[[object, bytes | None], bool],
+    verifier: Callable[[_ReceiptShape, bytes | None], bool],
     default_public_key_path: Path | None = None,
 ) -> None:
     """Inject the receipt verifier callable + default public-key path.
