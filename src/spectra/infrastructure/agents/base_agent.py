@@ -11,12 +11,15 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from spectra.entities.enums import AgentRole
 from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
 from spectra.entities.models import AgentOutput, CacheUsage, Finding
 from spectra.use_cases.interfaces import LLMGateway
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 __all__ = ["AgentError", "BaseAgent"]
 
@@ -154,7 +157,7 @@ class BaseAgent(ABC):
         usage = getattr(self._gateway, "last_cache_usage", None)
         return usage if isinstance(usage, CacheUsage) else CacheUsage()
 
-    def _extract_dimension_score(self, parsed: dict[str, object]) -> float | None:
+    def _extract_dimension_score(self, parsed: Mapping[str, object]) -> float | None:
         """Extract the LLM's holistic dimension score from parsed output."""
         score = parsed.get("dimension_score")
         if isinstance(score, (int, float)) and 0 <= score <= 100:

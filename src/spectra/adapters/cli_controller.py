@@ -414,7 +414,7 @@ def _validate_effort(value: str | None) -> None:
     raise typer.Exit(code=1)
 
 
-def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str]:
+def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str | None]:
     """Parse a JSON override string; exit 1 with a helpful error on failure."""
     if not spec:
         return {}
