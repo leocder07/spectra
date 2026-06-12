@@ -17,6 +17,8 @@ from spectra.entities.errors import ERRORS, AgentError, strip_code_fence
 from spectra.entities.models import AgentOutput, CacheUsage, Finding
 from spectra.use_cases.interfaces import LLMGateway
 
+__all__ = ["AgentError", "BaseAgent"]
+
 _log = logging.getLogger("spectra.parse")
 
 
