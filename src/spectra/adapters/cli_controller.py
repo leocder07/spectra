@@ -52,7 +52,7 @@ from spectra.use_cases.manage_portfolio import (
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Coroutine
 
     from spectra.entities.receipt import ScanReceipt as _ReceiptShape
 else:
@@ -256,7 +256,7 @@ _PIPELINE_INFO = """\
 _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 
 # Injected by the composition root before CLI runs
-_analyzer_factory: Callable[..., Awaitable[object]] | None = None
+_analyzer_factory: Callable[..., Coroutine[object, object, AnalysisReport]] | None = None
 _cache_provider: Callable[[], CachePort] | None = None
 _shred_executor: Callable[[], Path] | None = None
 _verifier: Callable[[_ReceiptShape, bytes | None], bool] | None = None
@@ -268,7 +268,7 @@ _portfolio_analyzer: Callable[[str], Awaitable[object]] | None = None
 
 
 def set_analyzer_factory(
-    factory: Callable[..., Awaitable[object]],
+    factory: Callable[..., Coroutine[object, object, AnalysisReport]],
 ) -> None:
     """Inject the async analyzer callable from the composition root.
 
@@ -277,6 +277,18 @@ def set_analyzer_factory(
     """
     global _analyzer_factory  # noqa: PLW0603
     _analyzer_factory = factory
+
+
+def _require_analyzer() -> Callable[..., Coroutine[object, object, AnalysisReport]]:
+    """Return the injected analyzer factory, asserting it was wired.
+
+    ``_validate_analyze_inputs`` already exits when the factory is unset,
+    so reaching here with ``None`` is a composition-root bug.
+    """
+    if _analyzer_factory is None:
+        msg = "analyzer factory was not injected before running analyze"
+        raise RuntimeError(msg)
+    return _analyzer_factory
 
 
 def set_verifier(
@@ -832,7 +844,7 @@ def analyze(
 
     try:
         report = asyncio.run(
-            _analyzer_factory(
+            _require_analyzer()(
                 repo_url=repo_url,
                 output_path=suffixed_output,
                 skip_critique=quick,
