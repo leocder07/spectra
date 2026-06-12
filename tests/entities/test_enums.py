@@ -10,6 +10,7 @@ from spectra.entities.enums import (
     Grade,
     PipelineState,
     Severity,
+    coerce_severity,
 )
 
 
@@ -20,6 +21,30 @@ class TestSeverity:
 
     def test_count(self):
         assert len(get_args(Severity)) == 5
+
+
+class TestCoerceSeverity:
+    def test_exact_values_pass_through(self):
+        for sev in get_args(Severity):
+            assert coerce_severity(sev) == sev
+
+    def test_case_variants_normalize(self):
+        # A severity downgrade would let `--fail-on high` pass on a real
+        # finding — realistic LLM casing must map to the canonical value.
+        assert coerce_severity("High") == "high"
+        assert coerce_severity("CRITICAL") == "critical"
+        assert coerce_severity("Medium") == "medium"
+
+    def test_surrounding_whitespace_normalizes(self):
+        assert coerce_severity("critical ") == "critical"
+        assert coerce_severity("  high\n") == "high"
+
+    def test_genuinely_unknown_falls_to_default(self):
+        assert coerce_severity("banana") == "info"
+        assert coerce_severity("") == "info"
+
+    def test_custom_default_is_honored(self):
+        assert coerce_severity("nonsense", default="low") == "low"
 
 
 class TestDimension:

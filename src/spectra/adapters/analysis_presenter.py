@@ -23,6 +23,7 @@ from spectra.adapters.brand import (
     build_verdict,
 )
 from spectra.entities.enums import Grade
+from spectra.entities.models import DimensionScore
 
 GRADE_COLORS: dict[str, str] = {  # Maps letter grade to Rich hex color
     "A+": GREEN,
@@ -102,7 +103,7 @@ def _build_header_grid(
     return header
 
 
-def _build_dimensions_table(dimensions: tuple[object, ...]) -> Table:
+def _build_dimensions_table(dimensions: tuple[DimensionScore, ...]) -> Table:
     """Build the dimension scores table with bars and grades.
 
     Args:

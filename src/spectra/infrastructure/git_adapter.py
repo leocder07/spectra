@@ -56,6 +56,8 @@ import git
 from spectra.entities.errors import ERRORS, GitError
 from spectra.use_cases.interfaces import is_local_path
 
+__all__ = ["GitAdapter", "GitError"]
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 

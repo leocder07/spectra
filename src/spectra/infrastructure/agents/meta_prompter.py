@@ -177,7 +177,7 @@ class MetaPrompter(BaseAgent):
             "Based on this file tree, produce your analysis plan."
         )
 
-    async def run(self, user_prompt: str, *, prior_context: str | None = None) -> AgentOutput:  # type: ignore[override]
+    async def run(self, user_prompt: str, *, prior_context: str | None = None) -> AgentOutput:
         """Override BaseAgent.run to thread the optional prior-context kwarg.
 
         Mirrors BaseAgent.run's template-method body but passes ``prior_context``

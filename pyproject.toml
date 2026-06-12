@@ -148,12 +148,12 @@ select = [
     "DTZ",  # flake8-datetimez — timezone-aware datetimes
     "PIE",  # flake8-pie — misc lints
     "RSE",  # flake8-raise — clean raise patterns
-    "TCH",  # flake8-type-checking — TYPE_CHECKING optimization
+    "TC",  # flake8-type-checking — TYPE_CHECKING optimization
     "TID",  # flake8-tidy-imports — import hygiene
 ]
 ignore = [
-    "TCH001",  # typing-only-first-party-import — conflicts with Pydantic runtime needs
-    "TCH002",  # typing-only-third-party-import — same issue
+    "TC001",  # typing-only-first-party-import — conflicts with Pydantic runtime needs
+    "TC002",  # typing-only-third-party-import — same issue
     "PLR0913", # too-many-arguments — agent constructors need multiple params
     "PLR2004", # magic-value-comparison — score thresholds are self-documenting
 ]

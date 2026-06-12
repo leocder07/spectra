@@ -1,7 +1,7 @@
 # CISO Findings — What blocks enterprise adoption of Spectra v0.3.3
 
 **Author:** CISO persona · 2026-04-29
-**Scope:** Spectra Python CLI (`spectra-ai==0.3.3`) and the `spectra-ai/spectra@v1` GitHub Action, evaluated as a candidate tool for enterprise-wide rollout in a regulated organization (FinTech / HealthTech / Defense baseline).
+**Scope:** Spectra Python CLI (`spectra-ai==0.3.3`) and the `leocder07/spectra@v1` GitHub Action, evaluated as a candidate tool for enterprise-wide rollout in a regulated organization (FinTech / HealthTech / Defense baseline).
 **Method:** Static review of source (`git_adapter.py`, `anthropic_adapter.py`, `cache_adapter.py`, `report_adapter.py`), dependency surface (`pyproject.toml`), publish pipeline (`.github/workflows/publish.yml`), and ADR-010 (the existing token-abuse posture).
 
 ---
@@ -152,7 +152,7 @@ I am not blocking adoption — but Spectra ships to my org as a **personal-use d
 - **Maintainer 2FA / hardware key requirement: not documented.** PyPI now mandates 2FA for project maintainers; GitHub mandates 2FA for organization members on public projects. Neither is documented as enforced for this org. A SECURITY.md does not appear in the repo root listing.
 - **No `SECURITY.md` / vulnerability disclosure policy.** Where does a researcher report a Spectra vulnerability? No `security@`, no `SECURITY.md`, no `security.txt`. CVE coordination posture: zero.
 - **No code signing of the wheel.** PyPI accepts unsigned wheels; Sigstore signing (`cosign sign-blob` + Rekor transparency log) is supported but not used.
-- **The composite Action manifest itself (`action.yml`) is a script.** A consumer pinning `spectra-ai/spectra@v1` and not `@<sha>` is one tag-move away from running attacker-controlled steps in their CI.
+- **The composite Action manifest itself (`action.yml`) is a script.** A consumer pinning `leocder07/spectra@v1` and not `@<sha>` is one tag-move away from running attacker-controlled steps in their CI.
 - **Cache hash function is BLAKE2b digest_size=16 (128 bits).** Fine for cache keying, not adequate for any tamper-evidence purpose. Should not be repurposed for receipt signing.
 - **Good things to keep:** `git_adapter.py` is genuinely defense-in-depth: SSRF resolver-fail-closed, hardened git env, symlink rejection at every parent, depth=1, no submodules, 60s timeout. ADR-010 (no self-dogfood) shows mature reasoning about secret-leak vectors. These are signals of a serious security posture; the gaps above are *unfilled*, not *unaware*.
 

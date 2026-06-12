@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: spectra-ai/spectra@v1
+      - uses: leocder07/spectra@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -58,12 +58,13 @@ If you set `comment-on-pr: "false"` you can drop `pull-requests: write`.
 | ------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `anthropic-api-key` | yes      | —        | Your Anthropic API key. Pass via `${{ secrets.ANTHROPIC_API_KEY }}`.                                             |
 | `path`              | no       | `.`      | Path or https URL to analyze. `.` analyzes the checked-out workspace directly (no re-clone).                     |
-| `format`            | no       | `json`   | `json` (recommended for CI) or `html`.                                                                           |
+| `format`            | no       | `json`   | `json` (recommended for CI), `html`, or `sarif` (uploads to the Security tab — needs `security-events: write`).  |
 | `quick-mode`        | no       | `false`  | When `true`, skip the CritiqueAgent stage. Roughly 3x faster, slightly less accurate.                            |
-| `comment-on-pr`     | no       | `true`   | Post or update a PR comment with findings. No-op outside `pull_request` events.                                  |
+| `comment-on-pr`     | no       | `true`   | Post or update a PR comment with findings. No-op outside `pull_request` events and when `format` is not `json`.  |
 | `python-version`    | no       | `3.12`   | Python version installed on the runner.                                                                          |
 | `spectra-version`   | no       | (latest) | Pin a specific `spectra-ai` version (e.g. `0.1.0`).                                                              |
 | `fail-on`           | no       | `critical` | Severity gate. Exit 1 when any finding sits at or above this level. One of `critical`, `high`, `medium`, `low`, `none`. |
+| `min-score`         | no       | `0`      | Quality gate. Exit 1 when the overall weighted score (0-100) is below this floor. `0` disables it.              |
 
 ## Outputs
 
@@ -87,31 +88,44 @@ the previous result.
 ### Quick mode for draft PRs
 
 ```yaml
-- uses: spectra-ai/spectra@v1
+- uses: leocder07/spectra@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
     quick-mode: ${{ github.event.pull_request.draft }}
 ```
 
-### Block PRs below a grade threshold
+### Block PRs below a score threshold
+
+`min-score` gates the build natively — no follow-up step needed:
 
 ```yaml
-- uses: spectra-ai/spectra@v1
-  id: spectra
+- uses: leocder07/spectra@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    min-score: 75   # exit 1 when the overall score is below 75
+```
 
-- name: Enforce minimum score
-  run: |
-    SCORE=${{ steps.spectra.outputs.score }}
-    awk "BEGIN { exit !(${SCORE} >= 75) }" \
-      || { echo "::error::Score ${SCORE} is below 75"; exit 1; }
+### Send findings to the Security tab (SARIF)
+
+```yaml
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leocder07/spectra@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          format: sarif
 ```
 
 ### Upload the JSON report as an artifact
 
 ```yaml
-- uses: spectra-ai/spectra@v1
+- uses: leocder07/spectra@v1
   id: spectra
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

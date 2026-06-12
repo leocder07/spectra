@@ -31,6 +31,7 @@ from spectra.adapters.analysis_presenter import present_scorecard
 from spectra.adapters.brand import AMBER, GREEN, RED, VIOLET
 from spectra.adapters.pr_comment_renderer import render_pr_comment
 from spectra.adapters.waiver_cli import approver_app, waive_command
+from spectra.entities.enums import Severity
 from spectra.entities.errors import (
     ERRORS,
     AgentError,
@@ -41,7 +42,7 @@ from spectra.entities.errors import (
     SpectraRetryError,
 )
 from spectra.entities.models import AnalysisReport, CacheStats, RepoRegistryEntry, ReportSummary, Violation
-from spectra.use_cases.interfaces import CachePort, RepoRegistryPort, ReportStorePort, is_local_path
+from spectra.use_cases.interfaces import CachePort, NotifierPort, RepoRegistryPort, ReportStorePort, is_local_path
 from spectra.use_cases.manage_portfolio import (
     PortfolioScanPlan,
     PortfolioScanRunMode,
@@ -51,7 +52,7 @@ from spectra.use_cases.manage_portfolio import (
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Coroutine
 
     from spectra.entities.receipt import ScanReceipt as _ReceiptShape
 else:
@@ -255,10 +256,10 @@ _PIPELINE_INFO = """\
 _SCAN_LINE = f"[{VIOLET}]{'─' * 50}[/]"
 
 # Injected by the composition root before CLI runs
-_analyzer_factory: Callable[..., Awaitable[object]] | None = None
+_analyzer_factory: Callable[..., Coroutine[object, object, AnalysisReport]] | None = None
 _cache_provider: Callable[[], CachePort] | None = None
 _shred_executor: Callable[[], Path] | None = None
-_verifier: Callable[[object, bytes | None], bool] | None = None
+_verifier: Callable[[_ReceiptShape, bytes | None], bool] | None = None
 _default_public_key_path: Path | None = None
 _history_store_provider: Callable[[], ReportStorePort] | None = None
 _history_migrator: Callable[[], tuple[str, ...]] | None = None
@@ -267,7 +268,7 @@ _portfolio_analyzer: Callable[[str], Awaitable[object]] | None = None
 
 
 def set_analyzer_factory(
-    factory: Callable[..., Awaitable[object]],
+    factory: Callable[..., Coroutine[object, object, AnalysisReport]],
 ) -> None:
     """Inject the async analyzer callable from the composition root.
 
@@ -278,8 +279,20 @@ def set_analyzer_factory(
     _analyzer_factory = factory
 
 
+def _require_analyzer() -> Callable[..., Coroutine[object, object, AnalysisReport]]:
+    """Return the injected analyzer factory, asserting it was wired.
+
+    ``_validate_analyze_inputs`` already exits when the factory is unset,
+    so reaching here with ``None`` is a composition-root bug.
+    """
+    if _analyzer_factory is None:
+        msg = "analyzer factory was not injected before running analyze"
+        raise RuntimeError(msg)
+    return _analyzer_factory
+
+
 def set_verifier(
-    verifier: Callable[[object, bytes | None], bool],
+    verifier: Callable[[_ReceiptShape, bytes | None], bool],
     default_public_key_path: Path | None = None,
 ) -> None:
     """Inject the receipt verifier callable + default public-key path.
@@ -414,7 +427,7 @@ def _validate_effort(value: str | None) -> None:
     raise typer.Exit(code=1)
 
 
-def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str]:
+def _parse_overrides_json(spec: str | None, label: str) -> dict[str, str | None]:
     """Parse a JSON override string; exit 1 with a helpful error on failure."""
     if not spec:
         return {}
@@ -831,7 +844,7 @@ def analyze(
 
     try:
         report = asyncio.run(
-            _analyzer_factory(
+            _require_analyzer()(
                 repo_url=repo_url,
                 output_path=suffixed_output,
                 skip_critique=quick,
@@ -1085,7 +1098,7 @@ def _parse_report(raw: str) -> AnalysisReport:
 
 def _extract_receipt(report: AnalysisReport) -> _ReceiptShape:
     """Return the embedded receipt or exit with a clear message."""
-    receipt = getattr(report, "receipt", None)
+    receipt = report.receipt
     if receipt is None:
         console.print(f"[{RED}]✗[/] No receipt found in report")
         raise typer.Exit(code=1)
@@ -1576,7 +1589,7 @@ def digest_command(
     console.print(f"  [{GREEN}]✓[/] digest posted to {notify_webhook}")
 
 
-def _build_digest_notifier(webhook_url: str) -> tuple[object | None, str]:
+def _build_digest_notifier(webhook_url: str) -> tuple[NotifierPort | None, Severity]:
     """Auto-detect Slack/Teams from the URL and return (notifier, severity)."""
     from spectra.infrastructure.notifiers import notifier_from_url
 

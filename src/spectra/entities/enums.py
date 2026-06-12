@@ -10,10 +10,29 @@ ADR references in this module: ADR-011 (prompt-injection isolation —
 ADR index.
 """
 
-from typing import Literal
+from typing import Literal, cast, get_args
 
 Severity = Literal["critical", "high", "medium", "low", "info"]
 """Finding severity from most to least urgent."""
+
+_SEVERITIES: frozenset[str] = frozenset(get_args(Severity))
+
+
+def coerce_severity(value: str, default: Severity = "info") -> Severity:
+    """Return ``value`` when it is a valid severity, else ``default``.
+
+    Used at JSON/LLM boundaries where a raw string must be narrowed to the
+    ``Severity`` literal before constructing a ``Finding``. The input is
+    normalized (trimmed + lowercased) first, so realistic LLM variants like
+    ``"High"``, ``"CRITICAL"``, or ``"critical "`` map to their canonical
+    severity instead of silently degrading to ``default`` — a severity
+    downgrade would let a ``--fail-on high`` gate pass on a real finding.
+    """
+    normalized = value.strip().lower()
+    if normalized in _SEVERITIES:
+        return cast("Severity", normalized)
+    return default
+
 
 Dimension = Literal[
     "architecture",

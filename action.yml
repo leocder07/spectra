@@ -1,20 +1,22 @@
 # Spectra — GitHub composite Action
 #
 # Reference this from any repo as:
-#   uses: spectra-ai/spectra@v1
+#   uses: leocder07/spectra@v1
 #
 # What it does:
 #   1. Installs `spectra-ai` from PyPI on the runner's Python.
 #   2. Runs `spectra analyze` against the target repo.
 #   3. Optionally posts (or updates) a PR comment with the grade
 #      and top critical findings, idempotent across re-runs.
+#   4. Optionally uploads SARIF to the GitHub code-scanning / Security
+#      tab when `format: sarif` (needs `security-events: write`).
 #
-# Caller must grant: `contents: read` and (if comment-on-pr is true)
-# `pull-requests: write`.
+# Caller must grant: `contents: read`, (if comment-on-pr) `pull-requests:
+# write`, and (if format is sarif) `security-events: write`.
 
 name: Spectra
-description: 8 AI agents analyze your repository in under 5 minutes — Clean Architecture, Security, Quality, Docs, Maintainability, Performance.
-author: spectra-ai
+description: 8 AI agents grade your repository across 6 dimensions — architecture, security, quality, docs, maintainability, performance.
+author: leocder07
 branding:
   icon: layers
   color: purple
@@ -28,7 +30,7 @@ inputs:
     required: false
     default: "."
   format:
-    description: Output format — `json` (recommended for CI) or `html`.
+    description: Output format — `json` (recommended for CI), `html`, or `sarif` (uploads to the Security tab).
     required: false
     default: "json"
   quick-mode:
@@ -51,6 +53,10 @@ inputs:
     description: Severity gate — exit 1 when any finding is at or above this severity. One of `critical`, `high`, `medium`, `low`, `none`.
     required: false
     default: "critical"
+  min-score:
+    description: Quality gate — exit 1 when the overall weighted score (0-100) is below this floor. `0` disables the gate.
+    required: false
+    default: "0"
 
 outputs:
   grade:
@@ -103,7 +109,8 @@ runs:
           ${QUICK_FLAG} \
           --format "${EXT}" \
           --output "${REPORT_PATH}" \
-          --fail-on "${{ inputs.fail-on }}"
+          --fail-on "${{ inputs.fail-on }}" \
+          --min-score "${{ inputs.min-score }}"
         EXIT_CODE=$?
         set -e
 
@@ -180,3 +187,27 @@ runs:
               body,
             });
           }
+
+    # Upload SARIF to the code-scanning / Security tab. Runs only when the
+    # caller asked for SARIF output; needs `security-events: write`. Pinned
+    # to codeql-action v3.36.2.
+    - name: Upload SARIF to the Security tab
+      if: ${{ inputs.format == 'sarif' && hashFiles(steps.run.outputs.report_path) != '' }}
+      uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357
+      with:
+        sarif_file: ${{ steps.run.outputs.report_path }}
+        category: spectra
+
+    # Enforce the gate LAST, so the PR comment and SARIF upload still run on a
+    # failing scan. `spectra analyze` exits non-zero when --fail-on or
+    # --min-score trips; that code is captured in the Run step and re-raised
+    # here. Without this step the gates would be decorative.
+    - name: Enforce gate
+      shell: bash
+      run: |
+        CODE="${{ steps.run.outputs.exit_code }}"
+        if [ "${CODE}" != "0" ]; then
+          echo "✗ Spectra gate failed (grade ${{ steps.parse.outputs.grade }}, score ${{ steps.parse.outputs.score }}). See the report above."
+          exit "${CODE}"
+        fi
+        echo "✓ Spectra gate passed (grade ${{ steps.parse.outputs.grade }}, score ${{ steps.parse.outputs.score }})."

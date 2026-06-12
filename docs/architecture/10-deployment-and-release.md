@@ -15,7 +15,7 @@ Maintainers cutting a release. Customers verifying release integrity. Integrator
 | Shape | Where it lives | Who consumes |
 |-------|----------------|--------------|
 | `spectra-ai` PyPI wheel + sdist | [pypi.org/project/spectra-ai](https://pypi.org/project/spectra-ai/) | Developers, CI runners |
-| `spectra-ai/spectra@v1` GitHub Action | [github.com/leocder07/spectra/blob/main/action.yml](../../action.yml) | GitHub Workflow integrators |
+| `leocder07/spectra@v1` GitHub Action | [github.com/leocder07/spectra/blob/main/action.yml](../../action.yml) | GitHub Workflow integrators |
 | Sigstore signature bundles | GitHub Release assets | Anyone verifying a wheel |
 | SLSA attestations | GitHub attestation API | Anyone verifying a wheel |
 

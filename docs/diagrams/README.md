@@ -33,7 +33,7 @@ All architecture and design diagrams for the Spectra project. The Mermaid source
 
 | File | Format | Description |
 |------|--------|-------------|
-| [`github-action-flow.md`](github-action-flow.md) | Mermaid `sequenceDiagram` + `flowchart` | End-to-end PR flow for `spectra-ai/spectra@v1`, idempotent `<!-- SPECTRA -->` comment pattern, the token-abuse scenario this repo's CI deliberately avoids (per [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md)) |
+| [`github-action-flow.md`](github-action-flow.md) | Mermaid `sequenceDiagram` + `flowchart` | End-to-end PR flow for `leocder07/spectra@v1`, idempotent `<!-- SPECTRA -->` comment pattern, the token-abuse scenario this repo's CI deliberately avoids (per [ADR-010](../architecture/adr/ADR-010-no-self-dogfooding.md)) |
 
 ## Lifecycle / state diagrams
 

@@ -161,9 +161,10 @@ def approver_register(
 def _append_approver(path: Path, approver: Approver) -> None:
     """Write or append the approver entry to ``path`` as YAML."""
     data = _read_yaml_or_default(path, default={"version": 1, "approvers": []})
-    entries: list[dict[str, str]] = list(data.get("approvers", []))
+    raw_entries = data.get("approvers", [])
+    existing = raw_entries if isinstance(raw_entries, list) else []
     # Replace existing entry with same name so re-registration is idempotent
-    entries = [e for e in entries if e.get("name") != approver.name]
+    entries: list[dict[str, str]] = [e for e in existing if isinstance(e, dict) and e.get("name") != approver.name]
     entries.append({"name": approver.name, "email": approver.email, "public_key": approver.public_key})
     path.write_text(
         yaml.safe_dump({"version": 1, "approvers": entries}, sort_keys=False),
@@ -251,7 +252,9 @@ def waive_command(
 def _append_waiver(path: Path, waiver: Waiver) -> None:
     """Append a serialised waiver entry to ``path`` (creating it as needed)."""
     data = _read_yaml_or_default(path, default={"version": 1, "waivers": []})
-    entries: list[dict] = list(data.get("waivers", []))
+    raw_waivers = data.get("waivers", [])
+    existing = raw_waivers if isinstance(raw_waivers, list) else []
+    entries: list[dict[str, object]] = [w for w in existing if isinstance(w, dict)]
     entries.append(
         {
             "repo_signature": waiver.repo_signature,

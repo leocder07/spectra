@@ -18,13 +18,13 @@ The PR comment behavior also has a design choice baked in: should the Action pos
 
 ## Decision
 
-**Ship a composite GitHub Action at the repository root (`action.yml`), referenced as `spectra-ai/spectra@v1`.** The Action installs the `spectra-ai` PyPI package on the runner's Python and shells out to `spectra analyze`. PR commenting is **idempotent** — find-or-create one comment per PR via a hidden HTML marker.
+**Ship a composite GitHub Action at the repository root (`action.yml`), referenced as `leocder07/spectra@v1`.** The Action installs the `spectra-ai` PyPI package on the runner's Python and shells out to `spectra analyze`. PR commenting is **idempotent** — find-or-create one comment per PR via a hidden HTML marker.
 
 ### Composite Action shape
 
 ```yaml
 # Caller's workflow:
-- uses: spectra-ai/spectra@v1
+- uses: leocder07/spectra@v1
   with:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -72,7 +72,7 @@ A `feat/cli-local-path` worktree is teaching the CLI to accept local filesystem 
 
 ### Positive
 
-- **One-line install for CI consumers.** `uses: spectra-ai/spectra@v1` covers 95% of users. Recipes in `docs/github-action.md` cover the rest (gating PRs by score, uploading reports as artifacts, draft-mode quick analysis).
+- **One-line install for CI consumers.** `uses: leocder07/spectra@v1` covers 95% of users. Recipes in `docs/github-action.md` cover the rest (gating PRs by score, uploading reports as artifacts, draft-mode quick analysis).
 - **Single source of truth per PR.** The idempotent comment pattern means re-running the workflow doesn't create timeline noise. Reviewers always see the latest result inline.
 - **PyPI is the only canonical artifact.** No Docker registry to maintain. Releases happen via PyPI; the Action consumes whatever is published. Version pinning via `spectra-version` input gives consumers an escape hatch.
 - **Dogfood loop closed.** `.github/workflows/spectra.yml` runs the Action on Spectra itself for every PR. We see breakage immediately and consume our own UX.

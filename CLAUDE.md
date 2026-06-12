@@ -146,7 +146,7 @@ across code, prompts, audit events, and CLI messages:
 
 - Roadmap **capability numbers** (`#1` through `#70`)
 - **`SPEC-NNN`** error codes (`SPEC-001` through `SPEC-014`)
-- **`ADR-NNN`** architecture decision records (`ADR-001` through `ADR-020`)
+- **`ADR-NNN`** architecture decision records (`ADR-001` through `ADR-027`)
 
 Lookup table: [`docs/glossary.md`](docs/glossary.md). Use it whenever a
 code comment, finding, or audit event references a bare number.

@@ -614,11 +614,11 @@
       "locked": false,
       "fontSize": 14,
       "fontFamily": 1,
-      "text": "uses: spectra-ai/spectra@v1",
+      "text": "uses: leocder07/spectra@v1",
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "uses: spectra-ai/spectra@v1",
+      "originalText": "uses: leocder07/spectra@v1",
       "lineHeight": 1.25,
       "baseline": 14
     },

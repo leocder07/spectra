@@ -26,7 +26,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from spectra.adapters.brand import AMBER, CYAN, GREEN, RED, VIOLET
-from spectra.entities.enums import AgentRole
+from spectra.entities.enums import AgentRole, Dimension
 from spectra.entities.models import AgentRunConfig
 
 # ── Theme ────────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ class RichProgressReporter:
         tag = _STAGE_TAGS.get(stage, "ERR!")
         self._console.print(f"[{RED}][{tag}][/] [{RED}]{error}[/]")
 
-    def on_cache_lookup(self, dimension: AgentRole, hits: int, total: int) -> None:
+    def on_cache_lookup(self, dimension: Dimension, hits: int, total: int) -> None:
         """Surface per-dimension batch-cache hit rate (Phase 3)."""
         self._console.print(
             f"[{VIOLET}][SCAN][/] [{AMBER}]▓▓▓░░░░░░░[/] [{CYAN}]{dimension}[/] cache [bold]{hits}/{total}[/] hits"

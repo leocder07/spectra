@@ -35,12 +35,16 @@ Security:
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, cast
 
 import anthropic
 import httpx
 
 from spectra.entities.errors import ERRORS, SpectraRetryError
 from spectra.entities.models import CacheUsage
+
+if TYPE_CHECKING:
+    from anthropic.types.message_create_params import MessageCreateParamsBase
 
 _log = logging.getLogger("spectra.adapter")
 
@@ -246,7 +250,8 @@ class AnthropicAdapter:
             }
             if effort is not None:
                 stream_kwargs["output_config"] = {"effort": effort}
-            async with self._client.messages.stream(**stream_kwargs) as stream:
+            typed_kwargs = cast("MessageCreateParamsBase", stream_kwargs)
+            async with self._client.messages.stream(**typed_kwargs) as stream:
                 async for event in stream:
                     if not hasattr(event, "type"):
                         continue
@@ -333,7 +338,8 @@ class AnthropicAdapter:
             }
 
         try:
-            async with self._client.messages.stream(**stream_kwargs) as stream:
+            typed_kwargs = cast("MessageCreateParamsBase", stream_kwargs)
+            async with self._client.messages.stream(**typed_kwargs) as stream:
                 return await stream.get_final_message()
         except anthropic.APIConnectionError as exc:
             raise SpectraRetryError(ERRORS["SPEC-002"]) from exc

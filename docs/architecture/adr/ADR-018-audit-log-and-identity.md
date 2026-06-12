@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-29)
+Accepted (2026-04-30) — audit log + identity shipped (v0.6.0)
 
 ## Context
 

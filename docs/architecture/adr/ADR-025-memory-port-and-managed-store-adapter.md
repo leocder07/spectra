@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-05-04) — implements Q4 capability **#50** (per-repo memory)
+Accepted (2026-05-22) — MemoryPort + LocalFileMemoryAdapter shipped v0.9.0; wired into analyze v0.9.1 (#50)
 and **#51** (`spectra ask`). Refines and narrows the scope of
 [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md) and
 [ADR-015](ADR-015-query-codebase-use-case.md) (both 2026-04-29) using the

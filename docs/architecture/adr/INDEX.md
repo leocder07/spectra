@@ -31,19 +31,19 @@ the old one rather than editing the old one in place.
 | [ADR-010](ADR-010-no-self-dogfooding.md) | No self-dogfooding for grading claims | Accepted | Discipline |
 | [ADR-011](ADR-011-prompt-injection-isolation.md) | Prompt-injection isolation | Accepted | Security |
 | [ADR-012](ADR-012-cache-hmac-per-user-namespace.md) | Cache HMAC + per-user namespace | Accepted | Security |
-| [ADR-013](ADR-013-task-budget-and-rate-coordination.md) | `task_budget` everywhere + fleet rate coordinator | Proposed | Cost / Performance |
+| [ADR-013](ADR-013-task-budget-and-rate-coordination.md) | `task_budget` everywhere + fleet rate coordinator | Accepted (Q3) | Cost / Performance |
 | [ADR-014](ADR-014-anthropic-memory-stores-for-team-org.md) | Anthropic Memory Stores for team / org tier | Proposed | Memory (Q4) |
 | [ADR-015](ADR-015-query-codebase-use-case.md) | `query_codebase` use case (`spectra ask`) | Proposed | Memory (Q4) |
 | [ADR-016](ADR-016-managed-agents-gateway.md) | Managed Agents gateway adapter | Proposed | Anthropic-native (Q5-Q6) |
 | [ADR-017](ADR-017-custom-rules-plugin-architecture.md) | Custom rules plugin architecture | Proposed | Extensibility (Q6) |
-| [ADR-018](ADR-018-audit-log-and-identity.md) | Audit log + identity | Proposed | Compliance (Q2) |
+| [ADR-018](ADR-018-audit-log-and-identity.md) | Audit log + identity | Accepted (v0.6.0) | Compliance (Q2) |
 | [ADR-019](ADR-019-distributed-cache-adapters.md) | Distributed cache adapters (Redis + S3) | Proposed (superseded by ADR-021 before implementation) | Performance |
-| [ADR-020](ADR-020-config-file-yaml.md) | `--config-file` + portable YAML config | Proposed | Operability |
-| [ADR-021](ADR-021-distributed-cache-port-and-adapter-trio.md) | Distributed cache port + adapter trio (supersedes ADR-019) | Proposed | Performance (Q3) |
-| [ADR-022](ADR-022-postgres-history-store.md) | Postgres history store + `ReportStorePort` for trend / drift | Proposed | Data (Q3) |
-| [ADR-023](ADR-023-opentelemetry-tracing-and-cost-attribution.md) | OpenTelemetry tracing + per-agent spans + cost attribution | Proposed | Observability (Q3) |
-| [ADR-024](ADR-024-anthropic-batch-api-and-prompt-caching.md) | Anthropic Batch API + prompt caching | Proposed | Cost (Q3) |
-| [ADR-025](ADR-025-memory-port-and-managed-store-adapter.md) | Memory Port + Managed Memory Store adapter (refines ADR-014 + ADR-015) | Proposed | Memory (Q4) |
+| [ADR-020](ADR-020-config-file-yaml.md) | `--config-file` + portable YAML config | Accepted | Operability |
+| [ADR-021](ADR-021-distributed-cache-port-and-adapter-trio.md) | Distributed cache port + adapter trio (supersedes ADR-019) | Accepted (Q3, supersedes ADR-019) | Performance (Q3) |
+| [ADR-022](ADR-022-postgres-history-store.md) | Postgres history store + `ReportStorePort` for trend / drift | Accepted (Q3) | Data (Q3) |
+| [ADR-023](ADR-023-opentelemetry-tracing-and-cost-attribution.md) | OpenTelemetry tracing + per-agent spans + cost attribution | Accepted (Q3) | Observability (Q3) |
+| [ADR-024](ADR-024-anthropic-batch-api-and-prompt-caching.md) | Anthropic Batch API + prompt caching | Accepted (Q3) | Cost (Q3) |
+| [ADR-025](ADR-025-memory-port-and-managed-store-adapter.md) | Memory Port + Managed Memory Store adapter (refines ADR-014 + ADR-015) | Accepted (v0.9.0-v0.9.1) | Memory (Q4) |
 | [ADR-026](ADR-026-multi-cloud-llm-gateway.md) | Multi-cloud LLM Gateway (Bedrock + Vertex sibling adapters) | Proposed | Multi-cloud (Q4) |
 | [ADR-027](ADR-027-deterministic-compliance-mapping.md) | Deterministic compliance mapping (retires v0.7.0 keyword heuristic) | Proposed | Compliance (Q4) |
 
@@ -53,7 +53,7 @@ the old one rather than editing the old one in place.
   ADR-007, ADR-008, ADR-009, ADR-010, ADR-011, ADR-012
 - **Q2 — Enterprise-ready:** ADR-018, ADR-020
 - **Q3 — Platform / fleet scale:** ADR-013, ADR-021, ADR-022, ADR-023, ADR-024
-- **Q4 — Memory + 2nd brain + multi-cloud + compliance:** ADR-014, ADR-015 (refined by ADR-025), ADR-025, ADR-026, ADR-027
+- **Q4 — Memory + 2nd brain + multi-cloud + compliance:** ADR-025 (shipped), ADR-014, ADR-015 (refined by ADR-025), ADR-026, ADR-027 (proposed)
 - **Q5-Q6 — Extensibility + Anthropic-native:** ADR-016, ADR-017
 
 ## Conventions

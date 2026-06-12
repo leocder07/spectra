@@ -120,7 +120,7 @@ from spectra.infrastructure.yaml_policy_adapter import YamlPolicyAdapter
 from spectra.infrastructure.yaml_waiver_adapter import YamlWaiverAdapter
 from spectra.use_cases.analyze_repository import PipelineContext, analyze_repository
 from spectra.use_cases.identity_resolver import resolve_actor
-from spectra.use_cases.interfaces import TracerPort, is_local_path
+from spectra.use_cases.interfaces import ReportStorePort, TracerPort, is_local_path
 from spectra.use_cases.preflight import PreflightConfig, run_preflight
 from spectra.use_cases.resolve_agent_configs import resolve_agent_configs
 from spectra.use_cases.source_file_selection import (
@@ -1286,7 +1286,7 @@ def _sarif_disclaimer_notification() -> dict[str, object]:
     }
 
 
-def _build_sarif(report: AnalysisReport) -> dict:
+def _build_sarif(report: AnalysisReport) -> dict[str, object]:
     """Build SARIF v2.1.0 output for GitHub Security tab integration.
 
     Capability #56 §7 — when ``report.classification == "public"`` the
@@ -1486,7 +1486,7 @@ def _resolve_history_backend() -> str:
     return "sqlite"
 
 
-def _provision_history_store() -> object:
+def _provision_history_store() -> ReportStorePort:
     """Build the appropriate ``ReportStorePort`` for the wired backend.
 
     Returns a sqlite store by default; a Postgres store when the

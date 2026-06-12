@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (2026-04-30)
+Accepted (2026-04-30) — Anthropic Batch API adapter shipped (Q3)
 
 ## Context
 

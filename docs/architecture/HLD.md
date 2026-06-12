@@ -277,7 +277,7 @@ Spectra uses 11+ documented design patterns across all 4 layers:
 | Hashing | `hashlib.blake2b(digest_size=16)` | Fast, deterministic file/batch identifiers |
 | HTTP | httpx (10-connection pool) | Async HTTP for Anthropic API |
 | Async | asyncio | Parallel agent execution with `Semaphore(4)` |
-| Distribution | PyPI (`spectra-ai`) + GitHub Action (`spectra-ai/spectra@v1`) | One install path for humans, one for CI |
+| Distribution | PyPI (`spectra-ai`) + GitHub Action (`leocder07/spectra@v1`) | One install path for humans, one for CI |
 | Testing | pytest + pytest-asyncio | Async test support, 85%+ coverage |
 | Linting | ruff + mypy (strict) | Fast linting + strict type checking |
 
@@ -330,13 +330,13 @@ Spectra ships from a single PyPI artifact via two install paths:
 | Audience | Install path | Purpose |
 |----------|--------------|---------|
 | Local developer | `pip install spectra-ai` | `spectra analyze <source>` from a terminal |
-| CI / PR review | `uses: spectra-ai/spectra@v1` (composite Action) | Runs Spectra on every PR, posts an idempotent comment |
+| CI / PR review | `uses: leocder07/spectra@v1` (composite Action) | Runs Spectra on every PR, posts an idempotent comment |
 
 The composite Action (`action.yml` at the repo root) installs the same `spectra-ai` PyPI package on the runner, executes `spectra analyze`, parses the JSON report for `grade` and `score` outputs, and — on `pull_request` events — finds-or-creates a comment marked with the hidden `<!-- SPECTRA -->` sentinel so re-runs update one comment in place rather than spamming the timeline.
 
 ### Deliberate non-dogfood
 
-This repo's own CI does **not** run `spectra-ai/spectra@v1` on its own pull requests. The risk is real: an attacker forks the repo, edits `.github/workflows/spectra.yml` to exfiltrate `secrets.ANTHROPIC_API_KEY` to an attacker-controlled endpoint, opens a PR, and (depending on event configuration) the publisher's API key gets leaked. Removing self-analysis workflows (`spectra.yml`, `spectra-analyze.yml`, `example-usage.yml`) eliminates the entire class of attack with no functional loss — the Action is still tested in CI on push events to maintained branches, just not on untrusted PRs. Downstream consumers wire the Action into their own repos with their own API keys.
+This repo's own CI does **not** run `leocder07/spectra@v1` on its own pull requests. The risk is real: an attacker forks the repo, edits `.github/workflows/spectra.yml` to exfiltrate `secrets.ANTHROPIC_API_KEY` to an attacker-controlled endpoint, opens a PR, and (depending on event configuration) the publisher's API key gets leaked. Removing self-analysis workflows (`spectra.yml`, `spectra-analyze.yml`, `example-usage.yml`) eliminates the entire class of attack with no functional loss — the Action is still tested in CI on push events to maintained branches, just not on untrusted PRs. Downstream consumers wire the Action into their own repos with their own API keys.
 
 > Action distribution flow + token-abuse scenario: [`diagrams/github-action-flow.md`](../diagrams/github-action-flow.md)
 > Decisions: [ADR-007](adr/ADR-007-github-action-distribution.md) · [ADR-010](adr/ADR-010-no-self-dogfooding.md)

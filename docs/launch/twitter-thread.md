@@ -1,26 +1,30 @@
-# Twitter/X launch thread — Spectra v0.3.0
+# Twitter/X launch thread — Spectra v0.9.1
 
-8 tweets. Each one ≤ 280 chars. Tweet 1 must work standalone (will be RT'd without context). Tweet 8 is the call-to-action.
-
-Character counts in brackets are pre-link, since X auto-shortens URLs to 23 chars.
+> Refreshed 2026-06-12 for v0.9.1 and Direction-C positioning. All numbers are
+> verifiable against `docs/launch/leaderboard.md`. 8 tweets, each ≤ 280 chars.
+> Tweet 1 must stand alone (it gets RT'd without context). Tweet 8 is the CTA.
+> Character counts are pre-link (X shortens URLs to 23 chars).
 
 ---
 
 ## 1/8 — Hook (must work standalone if RT'd)
 
-> I ran 8 Claude Opus agents against [PLACEHOLDER: famous repo, e.g. `expressjs/express`] in parallel.
+> I pointed 8 Claude agents at FastAPI, HTTPX, Aider and Simon Willison's LLM and
+> graded each whole repo A+ to F.
 >
-> They found [PLACEHOLDER: N] issues a single-pass LLM review missed — including [PLACEHOLDER: one concrete finding, e.g. "a TOCTOU bug in the symlink check"].
+> One shot each. $31 of real API spend. Every grade ships with a signed receipt
+> you can verify.
 >
-> v0.3.0 of Spectra ships today. Thread ↓
+> Spectra v0.9.1, today ↓
 
-[~240 chars]
+[~250 chars]
 
 ---
 
 ## 2/8 — What it is
 
-> Spectra is a CLI that fans out 8 AI agents on any GitHub repo and returns a graded report across 6 dimensions:
+> Spectra is a CLI that fans out 8 Claude agents over an entire repo and returns
+> a graded report across 6 dimensions:
 >
 > · architecture
 > · security
@@ -29,80 +33,73 @@ Character counts in brackets are pre-link, since X auto-shortens URLs to 23 char
 > · maintainability
 > · performance
 >
-> All 8 agents on Opus 4.7. Under 5 minutes end-to-end.
+> All 8 on Opus 4.7. One signed report.
+
+[~260 chars]
+
+---
+
+## 3/8 — What it is NOT (the positioning)
+
+> It is not an inline PR reviewer. CodeRabbit, Greptile and Copilot already do
+> that well, on every diff.
+>
+> Spectra grades the WHOLE repo at a point in time — for due diligence, a handoff,
+> a release gate, or QA-ing AI-written code. Run both.
 
 [~270 chars]
 
 ---
 
-## 3/8 — Why now (the killer feature)
+## 4/8 — The receipts (real panel)
 
-> What changed in v0.3.0: a per-`focus_area` batch cache.
+> Five popular Python repos, one shot each, no cherry-picking:
 >
-> Edit one file, re-run Spectra → only the batches touching that file re-analyze.
+> FastAPI — A (92)
+> HTTPX — B+ (85)
+> Aider — B- (79)
+> simonw/llm — B- (77)
+> Spectra itself — A (92)
 >
-> Warm runs are ~[PLACEHOLDER: 95]% cheaper.
->
-> That's the difference between "neat one-shot demo" and "I run this on every commit."
+> $31.18 total, all on Opus 4.7. Every grade is Ed25519-signed.
 
-[~270 chars]
+[~265 chars]
 
 ---
 
-## 4/8 — How it works (architecture in one tweet)
+## 5/8 — How it works (architecture in one tweet)
 
 > The pipeline:
 >
-> 1. Meta-prompter plans focus areas (file tree only, never source)
-> 2. 6 specialists run in parallel via `asyncio.gather`
-> 3. Critic with adaptive thinking validates findings, rejects ~[PLACEHOLDER: 30]% as false positives
-> 4. Graded HTML report
+> 1. MetaPrompter plans focus areas from the file tree only (never source)
+> 2. 6 specialists run in parallel via asyncio.gather
+> 3. A CritiqueAgent with adaptive thinking validates every finding
+> 4. Signed, graded HTML report
 
 [~270 chars]
 
 ---
 
-## 5/8 — One concrete result
+## 6/8 — The trust layer (the differentiator)
 
-> Sample finding from running it on [PLACEHOLDER: well-known repo]:
+> The part the inline reviewers do not do: every report carries an Ed25519
+> receipt, so anyone can verify the grade came from Spectra and not from you.
 >
-> > [PLACEHOLDER: short paste of one real finding — title + 1-line rationale + file path with line number]
+> `spectra verify report.json`
 >
-> Permalink: [PLACEHOLDER: github.com/org/repo/blob/SHA/path#L123]
->
-> The full report is one HTML file. Works offline.
+> Plus SARIF, SBOM, and a min-score CI gate.
 
-[~270 chars]
+[~260 chars]
 
 ---
 
-## 6/8 — GitHub Action one-liner
+## 7/8 — Honest caveat
 
-> Drops into PR CI as a single step:
+> Straight answer on accuracy: the critical/high counts are the trustworthy
+> signal. The overall score is a ~5-point band on re-runs.
 >
-> ```yaml
-> - uses: spectra-ai/spectra@v1
->   with:
->     min-score: 70
->   env:
->     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-> ```
->
-> Fails the PR if the weighted score drops below your floor.
-
-[~265 chars including code block]
-
----
-
-## 7/8 — What's open
-
-> Open questions I'd love takes on:
->
-> · 6 specialists — too many, too few, wrong split?
-> · Should the critic see specialist disagreement, not just findings?
-> · Cache key tuple is `(file_hash, dim, model_v, prompt_v, schema_v, spectra_v)` — too aggressive?
->
-> Replies welcome.
+> Next release publishes a seeded-bug catch-rate + false-positive benchmark, so
+> the grade is a number, not a vibe.
 
 [~270 chars]
 
@@ -120,34 +117,40 @@ Character counts in brackets are pre-link, since X auto-shortens URLs to 23 char
 > GitHub: github.com/leocder07/spectra
 > PyPI: pypi.org/project/spectra-ai
 >
-> MIT licensed. Star if it's useful. RTs appreciated — trying to find out if anyone else needs this shape of tool.
+> MIT. If the "grade the whole repo, signed" job is one you have — DD, handoff,
+> AI-codegen QA — I want to hear it. RTs welcome.
 
-[~270 chars]
+[~275 chars]
 
 ---
 
-## Reply-tweet variants (for if someone asks the obvious question)
+## Reply-tweet variants (for the obvious questions)
 
 **"Cost?"**
 
-> ~$[PLACEHOLDER: X-Y] cold per repo, ~$[PLACEHOLDER: Z] warm thanks to the cache. Run `spectra cache stats` to see your hit rate. Most folks turn caching off in CI (`--no-cache`) and on locally.
+> $1–10 of your own Anthropic spend by repo size — $2.61 on FastAPI, $9.02 on
+> simonw/llm in the panel. Warm re-runs are far cheaper via a per-file cache.
+> `spectra cache stats` shows your hit rate.
 
-**"Why not just use ESLint/SonarQube/Snyk/CodeClimate?"**
+**"Why not CodeRabbit / Greptile / Copilot / SonarQube?"**
 
-> Different tool. Static analyzers catch what they have rules for. Spectra is semantic LLM review — finds the stuff you didn't think to write a rule for and writes a rationale. I run both.
+> Different job. They review diffs, inline, continuously. Spectra grades the whole
+> repo at a point in time and hands you a signed report. Run both — inline on
+> every PR, Spectra when you need the audit.
 
 **"Is it open source?"**
 
-> MIT. Source: github.com/leocder07/spectra. Package: pypi.org/project/spectra-ai. PRs welcome — Clean Architecture is enforced.
-
-**"Does it work on monorepos?"**
-
-> [PLACEHOLDER: Verify before posting.] Yes for repos up to ~[PLACEHOLDER: 50K] files; the meta-prompter caps file-tree input at 5K tokens so very large repos get a sampled view. `--scope <path>` ships in 0.4.0 to point it at one package.
+> MIT. Source: github.com/leocder07/spectra. Package: pypi.org/project/spectra-ai.
+> PRs welcome — Clean Architecture is enforced.
 
 **"How does it handle false positives?"**
 
-> Critic agent with adaptive thinking + an 80K-token task budget validates every finding before it reaches the report. In testing it filters ~[PLACEHOLDER: 30]% of specialist findings as not-real.
+> A CritiqueAgent with adaptive thinking + a task budget validates every finding
+> before it lands. [MEASURE FIRST — do not post a rejection % until the seeded-bug
+> benchmark run exists.]
 
 **"What models?"**
 
-> All 8 on Claude Opus 4.7. Meta-prompter `effort=medium`, 6 specialists `effort=xhigh`, critic `effort=high` with adaptive thinking and `task_budget=80K`. Nothing on Sonnet in 0.3.0.
+> All 8 on Claude Opus 4.7. MetaPrompter effort=medium, 6 specialists effort=xhigh,
+> CritiqueAgent effort=high with adaptive thinking + a task budget. No Sonnet in
+> the current release.

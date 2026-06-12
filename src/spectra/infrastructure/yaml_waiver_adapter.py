@@ -264,7 +264,7 @@ class YamlWaiverAdapter:
             raise _spec_012(f"cannot read {path}: {exc}", exc) from exc
 
     @staticmethod
-    def _parse(path: Path, raw: str) -> dict | None:
+    def _parse(path: Path, raw: str) -> dict[str, object] | None:
         try:
             data = yaml.safe_load(raw)
         except yaml.YAMLError as exc:

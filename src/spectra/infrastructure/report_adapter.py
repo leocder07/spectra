@@ -23,6 +23,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from importlib.resources import as_file, files
 from pathlib import Path
+from typing import TypedDict
 
 import jinja2
 
@@ -31,6 +32,55 @@ from spectra.adapters.brand import build_verdict, dim_label
 from spectra.entities.disclaimer import disclaimer_payload
 from spectra.entities.enums import AgentRole, Dimension, Grade
 from spectra.entities.models import AnalysisReport, Finding
+
+
+class _Soc2Criterion(TypedDict):
+    """Shape of one SOC 2 trust-service-criterion entry."""
+
+    label: str
+    dimensions: tuple[str, ...]
+    severities: tuple[str, ...]
+    keywords: tuple[str, ...]
+
+
+class _CcSubControl(TypedDict):
+    """Shape of one sub-control within a compliance category."""
+
+    id: str
+    desc: str
+    keywords: tuple[str, ...]
+
+
+class _CcCategory(TypedDict):
+    """Shape of one compliance category (SOC 2 CC / PCI DSS / NIST CSF)."""
+
+    id: str
+    category: str
+    title: str
+    dimensions: tuple[str, ...]
+    controls: list[_CcSubControl]
+
+
+class _CcControlResult(TypedDict):
+    """Per-sub-control coverage result for a compliance category."""
+
+    id: str
+    desc: str
+    covered: bool
+    finding_count: int
+
+
+class _CcCategoryResult(TypedDict):
+    """Aggregated coverage result for one compliance category."""
+
+    id: str
+    title: str
+    controls: list[_CcControlResult]
+    covered_count: int
+    total_count: int
+    coverage_pct: float
+    finding_count: int
+    has_critical: bool
 
 
 def _resolve_template_dir() -> Path:
@@ -267,7 +317,7 @@ _CWE_RE = re.compile(r"CWE-(\d+)")
 
 # ── SOC 2 Trust Service Criteria ─────────────────────────────
 
-_SOC2_CRITERIA: dict[str, dict[str, object]] = {
+_SOC2_CRITERIA: dict[str, _Soc2Criterion] = {
     "security": {
         "label": "Security (Common Criteria)",
         "dimensions": ("security", "architecture"),
@@ -346,7 +396,7 @@ _SOC2_CRITERIA: dict[str, dict[str, object]] = {
 
 # ── SOC 2 Common Criteria Controls (CC1-CC9) ─────────────────
 
-_SOC2_CONTROLS: dict[str, dict[str, object]] = {
+_SOC2_CONTROLS: dict[str, _CcCategory] = {
     "CC1": {
         "id": "CC1",
         "category": "Security",
@@ -668,7 +718,7 @@ _SOC2_CONTROLS: dict[str, dict[str, object]] = {
 
 # ── PCI DSS 4.0 Requirement 6 Controls ──────────────────────
 
-_PCI_DSS_CONTROLS: dict[str, dict[str, object]] = {
+_PCI_DSS_CONTROLS: dict[str, _CcCategory] = {
     "R6.2": {
         "id": "R6.2",
         "category": "Secure Development",
@@ -805,7 +855,7 @@ _PCI_DSS_CONTROLS: dict[str, dict[str, object]] = {
 
 # ── NIST CSF 2.0 (6 Functions) ──────────────────────────────
 
-_NIST_CSF_CONTROLS: dict[str, dict[str, object]] = {
+_NIST_CSF_CONTROLS: dict[str, _CcCategory] = {
     "GV": {
         "id": "GV",
         "category": "Govern",
@@ -1121,39 +1171,35 @@ def _dd_compliance_mapping(
 
 def _matches_soc2_criterion(
     finding: Finding,
-    criterion: dict[str, object],
+    criterion: _Soc2Criterion,
 ) -> bool:
     """Check if a finding maps to a SOC 2 trust service criterion."""
-    dims = criterion.get("dimensions", ())
-    if finding.dimension not in dims:
+    if finding.dimension not in criterion["dimensions"]:
         return False
     text = f"{finding.title} {finding.description}".lower()
-    keywords = criterion.get("keywords", ())
-    if any(kw in text for kw in keywords):
-        return True
-    return any(any(kw in text for kw in ctrl.get("keywords", ())) for ctrl in criterion.get("controls", []))
+    return any(kw in text for kw in criterion["keywords"])
 
 
 def _match_finding_to_cc(
     finding: Finding,
-    control: dict[str, object],
+    control: _CcSubControl,
     dimensions: tuple[str, ...],
 ) -> bool:
     """Check if a finding matches a specific CC sub-control."""
     if finding.dimension not in dimensions:
         return False
     text = f"{finding.title} {finding.description}".lower()
-    return any(kw in text for kw in control.get("keywords", ()))
+    return any(kw in text for kw in control["keywords"])
 
 
 def _evaluate_cc_controls(
     findings: tuple[Finding, ...],
-    cc_data: dict[str, object],
-) -> list[dict[str, object]]:
+    cc_data: _CcCategory,
+) -> list[_CcControlResult]:
     """Evaluate each sub-control within a CC category."""
-    dims = cc_data.get("dimensions", ())
-    results: list[dict[str, object]] = []
-    for ctrl in cc_data.get("controls", []):
+    dims = cc_data["dimensions"]
+    results: list[_CcControlResult] = []
+    for ctrl in cc_data["controls"]:
         matched = sum(1 for f in findings if _match_finding_to_cc(f, ctrl, dims))
         results.append(
             {
@@ -1168,17 +1214,17 @@ def _evaluate_cc_controls(
 
 def _cc_category_finding_count(
     findings: tuple[Finding, ...],
-    cc_data: dict[str, object],
+    cc_data: _CcCategory,
 ) -> int:
     """Count unique findings matching any control in a CC category."""
-    dims = cc_data.get("dimensions", ())
+    dims = cc_data["dimensions"]
     count = 0
     for f in findings:
         if f.dimension not in dims:
             continue
         text = f"{f.title} {f.description}".lower()
-        for ctrl in cc_data.get("controls", []):
-            if any(kw in text for kw in ctrl.get("keywords", ())):
+        for ctrl in cc_data["controls"]:
+            if any(kw in text for kw in ctrl["keywords"]):
                 count += 1
                 break
     return count
@@ -1186,16 +1232,16 @@ def _cc_category_finding_count(
 
 def _cc_has_critical(
     findings: tuple[Finding, ...],
-    cc_data: dict[str, object],
+    cc_data: _CcCategory,
 ) -> bool:
     """Check if any critical finding matches a CC category."""
-    dims = cc_data.get("dimensions", ())
+    dims = cc_data["dimensions"]
     for f in findings:
         if f.severity != "critical" or f.dimension not in dims:
             continue
         text = f"{f.title} {f.description}".lower()
-        for ctrl in cc_data.get("controls", []):
-            if any(kw in text for kw in ctrl.get("keywords", ())):
+        for ctrl in cc_data["controls"]:
+            if any(kw in text for kw in ctrl["keywords"]):
                 return True
     return False
 
@@ -1203,8 +1249,8 @@ def _cc_has_critical(
 def _build_cc_category(
     findings: tuple[Finding, ...],
     cc_id: str,
-    cc_data: dict[str, object],
-) -> dict[str, object]:
+    cc_data: _CcCategory,
+) -> _CcCategoryResult:
     """Build coverage data for a single CC category."""
     ctrl_results = _evaluate_cc_controls(findings, cc_data)
     covered = sum(1 for c in ctrl_results if c["covered"])
@@ -1242,7 +1288,7 @@ def _build_tsc_criteria(
 
 
 def _collect_cc_gaps(
-    cc_categories: list[dict[str, object]],
+    cc_categories: list[_CcCategoryResult],
 ) -> list[dict[str, str]]:
     """Collect all uncovered CC controls as a gap list."""
     gaps: list[dict[str, str]] = []
@@ -1587,6 +1633,15 @@ def _investment_readiness_score(
     }
 
 
+def _as_float(value: object, default: float = 0.0) -> float:
+    """Coerce a dict-sourced value to float, falling back to ``default``."""
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
 def _ir_component_scores(
     report: AnalysisReport,
     issue_concentration: dict[str, object],
@@ -1597,16 +1652,16 @@ def _ir_component_scores(
 ) -> dict[str, float]:
     """Compute individual component scores for investment readiness."""
     sec_score = _security_posture_score(report)
-    dep_score = max(0, 100 - int(dep_risk.get("score", 0)))
+    dep_score = max(0.0, 100 - _as_float(dep_risk.get("score", 0)))
     cmplx = _complexity_component_score(complexity)
     lic = _license_component_score(license_data)
-    soc2_pct = float(soc2.get("coverage_pct", 0))
+    soc2_pct = _as_float(soc2.get("coverage_pct", 0))
     crit_penalty = _critical_findings_score(report)
 
     return {
         "overall_score": report.score_card.overall_score,
         "security_posture": sec_score,
-        "issue_concentration": float(issue_concentration.get("score", 50)),
+        "issue_concentration": _as_float(issue_concentration.get("score", 50), 50.0),
         "dependency_risk": dep_score,
         "complexity": cmplx,
         "license_compliance": lic,

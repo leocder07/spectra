@@ -14,12 +14,15 @@ glossary is the lookup.
 - **`SPEC-NNN` error codes** — `SPEC-001` through `SPEC-014`. Authored by
   the entities layer in [`src/spectra/entities/errors.py`](../src/spectra/entities/errors.py),
   fully documented in [`docs/error-codes.md`](./error-codes.md).
-- **`ADR-NNN` architecture decisions** — `ADR-001` through `ADR-020`. All
-  20 ADRs live in [`docs/architecture/adr/`](./architecture/adr/); the
-  index is [`docs/architecture/INDEX.md`](./architecture/README.md). (Q1/Q2
+- **`ADR-NNN` architecture decisions** — `ADR-001` through `ADR-027`. All
+  27 ADRs live in [`docs/architecture/adr/`](./architecture/adr/); the
+  canonical, status-tracked index is
+  [`docs/architecture/adr/INDEX.md`](./architecture/adr/INDEX.md). (Q1/Q2
   ADRs 011-020 were consolidated from `docs/strategy/architecture/` into
-  `docs/architecture/adr/` on 2026-04-30 — there is now one canonical home
-  for every ADR.)
+  `docs/architecture/adr/` on 2026-04-30; ADR-021-027 cover Q3 fleet-scale
+  and Q4 memory/multi-cloud/compliance — there is one canonical home for
+  every ADR. Check the INDEX for each ADR's current Accepted/Proposed/
+  Deprecated status rather than relying on this glossary.)
 
 ---
 

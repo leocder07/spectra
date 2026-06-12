@@ -88,7 +88,7 @@ def build_pool(
     if pool_factory is not None:
         return pool_factory(url, min_size=min_size, max_size=max_size)
     try:
-        from psycopg_pool import ConnectionPool  # type: ignore[import-not-found]
+        from psycopg_pool import ConnectionPool
     except ImportError as exc:  # pragma: no cover — env-dependent
         msg = (
             "psycopg[pool] is required for the Postgres history backend. "

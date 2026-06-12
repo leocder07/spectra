@@ -15,6 +15,8 @@ from spectra.entities.errors import SpectraRetryError
 from spectra.entities.models import CacheUsage
 from spectra.use_cases.interfaces import LLMGateway
 
+__all__ = ["RetryDecorator", "SpectraRetryError"]
+
 # Async callable that accepts keyword args and returns str
 _AsyncAnalyzeFn = Callable[..., Coroutine[None, None, str]]
 

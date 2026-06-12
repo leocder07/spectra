@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import secrets
 
-from spectra.entities.enums import AgentRole, Dimension
+from spectra.entities.enums import AgentRole, Dimension, coerce_severity
 from spectra.entities.models import MIN_CONFIDENCE, FileLocation, Finding
 from spectra.infrastructure.agents.base_agent import BaseAgent
 from spectra.use_cases.interfaces import LLMGateway
@@ -109,7 +109,7 @@ class SpecialistAgent(BaseAgent):
                 Finding(
                     id=f"{self._id_prefix}-{i:03d}",
                     dimension=self._dimension,
-                    severity=str(f.get("severity", "info")),
+                    severity=coerce_severity(str(f.get("severity", "info"))),
                     title=str(f.get("title", "")),
                     description=str(f.get("description", "")),
                     location=FileLocation(
