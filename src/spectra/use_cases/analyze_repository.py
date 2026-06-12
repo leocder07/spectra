@@ -227,6 +227,19 @@ class _AnalysisResult:
     successes: list[AgentOutput]
 
 
+def _require_analysis(state: _PipelineState) -> _AnalysisResult:
+    """Return the analysis result, asserting the analyze stage already ran.
+
+    ``state.analysis`` is ``None`` only before Stage 3 completes. Every
+    caller below runs strictly after merge, so a ``None`` here is a
+    programming invariant violation, not a recoverable condition.
+    """
+    if state.analysis is None:
+        msg = "analysis stage has not populated state.analysis"
+        raise RuntimeError(msg)
+    return state.analysis
+
+
 @dataclass(frozen=True)
 class _StageOutput:
     """Output from critique pipeline: findings + insights + state.
@@ -887,7 +900,7 @@ def _emit_per_agent_spans(ctx: PipelineContext, analysis: _AnalysisResult) -> No
     show up on the report — one source of truth (``estimate_cost``).
     """
     for output in analysis.successes:
-        attrs = {"agent.role": output.agent_role, "spectra.team": ctx.team}
+        attrs: dict[str, str | int | float | bool] = {"agent.role": output.agent_role, "spectra.team": ctx.team}
         with safe_span(ctx.tracer, f"spectra.agent.{output.agent_role}", attrs) as span:
             _stamp_agent_attrs(span, output, ctx.team)
             span.set_attribute("agent.outcome", "success")
@@ -1250,7 +1263,7 @@ def _run_merge_stage(
     ctx: PipelineContext,
 ) -> tuple[Finding, ...]:
     """Merge, deduplicate, and validate findings."""
-    unique = _merge_findings(state.analysis.successes)
+    unique = _merge_findings(_require_analysis(state).successes)
     return _validate_finding_paths(unique, ctx.codebase.file_tree)
 
 
@@ -1266,7 +1279,7 @@ async def _run_critique_pipeline(
     remaining = check_budget_remaining(state.budget, state.tokens_used)
     eligible = _should_run_critique(
         ctx.request,
-        state.analysis.is_degraded,
+        _require_analysis(state).is_degraded,
         ctx.critique_agent,
         remaining,
     )
@@ -1284,10 +1297,14 @@ async def _execute_critique(
     state: _PipelineState,
 ) -> _StageOutput:
     """Execute CritiqueAgent, fold compromised findings, and assemble result."""
+    critique_agent = ctx.critique_agent
+    if critique_agent is None:
+        msg = "critique_agent must not be None when executing critique"
+        raise RuntimeError(msg)
     _notify(ctx.observer, "on_stage_start", "CRITIQUE", "Validating findings")
     with safe_span(ctx.tracer, "spectra.stage.critique", _stage_attrs(ctx, "critique")) as span:
         filtered, insights, out = await _run_critique_stage(
-            ctx.critique_agent,
+            critique_agent,
             findings,
             ctx.observer,
             state.flagged_files,
@@ -1326,7 +1343,7 @@ def _build_report(
     """
     score_card = _compute_scorecard(
         output.findings,
-        state.analysis.failed_roles,
+        _require_analysis(state).failed_roles,
         state.agent_outputs,
     )
     meta = _report_metadata(ctx, state)
@@ -1373,7 +1390,7 @@ def _report_metadata(
     state: _PipelineState,
 ) -> _ReportMeta:
     """Compute all derived metadata for the report."""
-    analysis = state.analysis
+    analysis = _require_analysis(state)
     outputs = tuple(state.agent_outputs)
     return _ReportMeta(
         duration=round(time.monotonic() - state.start_time, 2),
