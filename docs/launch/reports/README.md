@@ -10,6 +10,16 @@ before installing.
 > wrap the raw URL through [htmlpreview.github.io](https://htmlpreview.github.io/)
 > so the report displays as a real web page in your browser.
 
+## Data-classification rule (read before adding a report)
+
+Only `public`-mode artifacts (findings stripped via `_redact_public_payload`)
+may be committed for repositories Spectra does not own. Full `confidential`
+reports on third-party code are a responsible-disclosure liability and are
+blocked by `.gitignore` (`*-confidential.json` / `*-confidential.html`). The
+only allowed exception is Spectra's own self-scan (`spectra-self-*`) — own
+code, opt-in. If you need to share findings with a maintainer, send them
+privately under coordinated disclosure; do not commit them.
+
 ## Current panel — v0.7.0 (public mode)
 
 Each scan is published in `public` mode per the dual-mode renderer

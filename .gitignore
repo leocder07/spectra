@@ -48,6 +48,14 @@ spectra-*/
 # Rendered output
 out/
 
+# Confidential scan reports — full findings on third-party code must never be
+# committed (responsible-disclosure + data-classification). Only *-public.json
+# (findings stripped via _redact_public_payload) belongs in the repo. Self-scan
+# reports (spectra-self-*) are the one allowed exception — own code, opt-in.
+*-confidential.json
+*-confidential.html
+!**/spectra-self*-confidential.*
+
 # Stale directories
 archive/
 cortex-vault/
