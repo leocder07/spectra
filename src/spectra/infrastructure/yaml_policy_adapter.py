@@ -73,7 +73,7 @@ class YamlPolicyAdapter:
             raise _spec_012(f"cannot read {path}: {exc}", exc) from exc
 
     @staticmethod
-    def _parse_yaml(path: Path, raw: str) -> dict | None:
+    def _parse_yaml(path: Path, raw: str) -> dict[str, object] | None:
         """Parse YAML; return None for empty/comments-only documents."""
         try:
             data = yaml.safe_load(raw)
@@ -87,7 +87,7 @@ class YamlPolicyAdapter:
         return data
 
     @staticmethod
-    def _validate(path: Path, data: dict) -> Policy:
+    def _validate(path: Path, data: dict[str, object]) -> Policy:
         """Validate the parsed mapping with the Pydantic model."""
         try:
             return Policy.model_validate(data)

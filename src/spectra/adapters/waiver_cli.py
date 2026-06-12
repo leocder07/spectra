@@ -251,7 +251,7 @@ def waive_command(
 def _append_waiver(path: Path, waiver: Waiver) -> None:
     """Append a serialised waiver entry to ``path`` (creating it as needed)."""
     data = _read_yaml_or_default(path, default={"version": 1, "waivers": []})
-    entries: list[dict] = list(data.get("waivers", []))
+    entries: list[dict[str, object]] = list(data.get("waivers", []))
     entries.append(
         {
             "repo_signature": waiver.repo_signature,

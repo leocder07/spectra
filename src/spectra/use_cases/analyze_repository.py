@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import blake2b
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, get_args
 
 from spectra.entities.audit import AuditEvent, AuditTarget, Identity, new_event_id
 from spectra.entities.enums import AgentRole, Dimension
@@ -82,6 +82,7 @@ from spectra.use_cases.orchestrate_agents import (
 )
 from spectra.use_cases.tracing import safe_span
 from spectra.use_cases.waiver_filter import (
+    InlinePragma,
     filter_findings_by_waivers,
     parse_inline_pragmas,
     pragmas_to_ephemeral_waivers,
@@ -483,11 +484,11 @@ def _apply_waivers_and_pragmas(
     return _SuppressionResult(filtered, waived_count=len(findings) - len(filtered))
 
 
-def _scan_pragmas(source_files: dict[str, str] | None) -> tuple:
+def _scan_pragmas(source_files: dict[str, str] | None) -> tuple[InlinePragma, ...]:
     """Aggregate inline pragmas across every file we read for analysis."""
     if not source_files:
         return ()
-    out: list = []
+    out: list[InlinePragma] = []
     for path, content in source_files.items():
         out.extend(parse_inline_pragmas(path, content))
     return tuple(out)
@@ -1677,7 +1678,7 @@ def _extract_compromised_findings(raw_critique: str) -> tuple[Finding, ...]:
     )
 
 
-def _build_compromised_finding(entry: dict, idx: int) -> Finding:
+def _build_compromised_finding(entry: dict[str, object], idx: int) -> Finding:
     """Materialise one compromised_findings entry into a Finding."""
     return Finding(
         id=f"INJ-{idx:03d}",
@@ -1687,7 +1688,7 @@ def _build_compromised_finding(entry: dict, idx: int) -> Finding:
         description=str(entry.get("description", "")),
         location=FileLocation(
             file_path=str(entry.get("file_path", "")),
-            line_start=int(entry.get("line_start", 1) or 1),
+            line_start=_coerce_line_start(entry.get("line_start", 1)),
         ),
         recommendation=str(entry.get("recommendation", "Quarantine PR; manual review required")),
         agent_role="critique",
@@ -1695,6 +1696,22 @@ def _build_compromised_finding(entry: dict, idx: int) -> Finding:
         validated_by_critique=True,
         rule_id=_INJECTION_RULE_ID,
     )
+
+
+def _coerce_line_start(value: object) -> int:
+    """Coerce a JSON-sourced line number to a positive int (default 1)."""
+    if isinstance(value, bool):
+        return 1
+    if isinstance(value, (int, float)):
+        return int(value) or 1
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value) or 1
+    return 1
+
+
+def _as_list(value: object) -> list[object]:
+    """Return a JSON-sourced value as a list, or [] when it is not a list."""
+    return value if isinstance(value, list) else []
 
 
 def _build_critique_input(
@@ -1729,12 +1746,13 @@ def _handle_critique_failure(
 # ── Critique parsing ──────────────────────────────────────────
 
 
-def _parse_critique_json(raw_critique: str) -> dict | None:
+def _parse_critique_json(raw_critique: str) -> dict[str, object] | None:
     """Parse critique JSON, returning None on failure."""
     try:
-        return json.loads(strip_code_fence(raw_critique))
+        parsed = json.loads(strip_code_fence(raw_critique))
     except (json.JSONDecodeError, IndexError):
         return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _apply_critique(
@@ -1751,19 +1769,19 @@ def _apply_critique(
 
 def _reject_findings(
     findings: tuple[Finding, ...],
-    critique: dict,
+    critique: dict[str, object],
 ) -> tuple[Finding, ...]:
     """Remove findings flagged as rejected by the critique."""
     rejected_ids = _collect_rejected_ids(critique)
     return tuple(f for f in findings if f.id not in rejected_ids)
 
 
-def _collect_rejected_ids(critique: dict) -> set[str]:
+def _collect_rejected_ids(critique: dict[str, object]) -> set[str]:
     """Extract rejected finding IDs from critique payload."""
     ids: set[str] = set()
-    for r in critique.get("rejected_findings", []):
+    for r in _as_list(critique.get("rejected_findings")):
         if isinstance(r, dict) and "id" in r:
-            ids.add(r["id"])
+            ids.add(str(r["id"]))
         elif isinstance(r, str):
             ids.add(r)
     return ids
@@ -1771,7 +1789,7 @@ def _collect_rejected_ids(critique: dict) -> set[str]:
 
 def _apply_severity_adjustments(
     findings: tuple[Finding, ...],
-    critique: dict,
+    critique: dict[str, object],
 ) -> tuple[Finding, ...]:
     """Apply severity overrides from critique agent."""
     adj_map = _build_severity_map(critique)
@@ -1780,18 +1798,18 @@ def _apply_severity_adjustments(
     return tuple(_adjust_finding(f, adj_map) for f in findings)
 
 
-def _build_severity_map(critique: dict) -> dict[str, str]:
+def _build_severity_map(critique: dict[str, object]) -> dict[str, str]:
     """Build finding_id -> adjusted_severity mapping.
 
     Accepts both ``finding_id`` and ``id`` keys to handle variations
     in CritiqueAgent output format.
     """
     result: dict[str, str] = {}
-    for adj in critique.get("severity_adjustments", []):
+    for adj in _as_list(critique.get("severity_adjustments")):
         if not isinstance(adj, dict):
             continue
-        fid = adj.get("finding_id") or adj.get("id", "")
-        new_sev = adj.get("adjusted_severity", "")
+        fid = str(adj.get("finding_id") or adj.get("id", ""))
+        new_sev = str(adj.get("adjusted_severity", ""))
         if fid and new_sev:
             result[fid] = new_sev
     return result
@@ -1849,13 +1867,13 @@ def _extract_plan_context(
 
 def _add_focus_context(
     context: dict[AgentRole, str],
-    area: dict,
+    area: dict[str, object],
 ) -> None:
     """Add a single focus area to the context map."""
     agent = area.get("agent", "")
-    files = area.get("files", [])
-    concerns = area.get("concerns", [])
-    if not agent or not (files or concerns):
+    files = _as_list(area.get("files"))
+    concerns = _as_list(area.get("concerns"))
+    if not isinstance(agent, str) or agent not in get_args(AgentRole) or not (files or concerns):
         return
     parts = [f"PLAN — Focus for {agent}:"]
     if files:
@@ -1864,7 +1882,7 @@ def _add_focus_context(
         parts.append(
             f"  Concerns: {', '.join(str(c) for c in concerns)}",
         )
-    context[agent] = "\n".join(parts)
+    context[cast("AgentRole", agent)] = "\n".join(parts)
 
 
 def _build_source_context(

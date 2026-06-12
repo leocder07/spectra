@@ -1286,7 +1286,7 @@ def _sarif_disclaimer_notification() -> dict[str, object]:
     }
 
 
-def _build_sarif(report: AnalysisReport) -> dict:
+def _build_sarif(report: AnalysisReport) -> dict[str, object]:
     """Build SARIF v2.1.0 output for GitHub Security tab integration.
 
     Capability #56 §7 — when ``report.classification == "public"`` the

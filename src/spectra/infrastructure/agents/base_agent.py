@@ -153,7 +153,7 @@ class BaseAgent(ABC):
         usage = getattr(self._gateway, "last_cache_usage", None)
         return usage if isinstance(usage, CacheUsage) else CacheUsage()
 
-    def _extract_dimension_score(self, parsed: dict) -> float | None:
+    def _extract_dimension_score(self, parsed: dict[str, object]) -> float | None:
         """Extract the LLM's holistic dimension score from parsed output."""
         score = parsed.get("dimension_score")
         if isinstance(score, (int, float)) and 0 <= score <= 100:
